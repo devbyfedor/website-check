@@ -1,0 +1,6 @@
+# Keep LF line endings in the repository and in the working copy on Windows,
+# so files in design/ are never rewritten by line-ending conversion.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.woff2 binary
