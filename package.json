@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "test:integration": "vitest run --config scanner/vitest.integration.config.ts",
     "typecheck": "tsc -p scanner && tsc -p worker",
-    "scan:local": "node scanner/src/local/run-sites.ts"
+    "scan:local": "node scanner/src/local/run-sites.ts",
+    "explain": "node scanner/src/local/explain.ts"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
