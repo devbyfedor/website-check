@@ -1,0 +1,20 @@
+{
+  "name": "@website-check/scanner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Scan core: capture types, rules data and analyzers (runs in Node and in a Cloudflare Worker). The local Playwright adapter lives in ./local (Node only).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./local": "./src/local/index.ts"
+  },
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
+  "dependencies": {
+    "tldts": "7.5.5"
+  },
+  "devDependencies": {
+    "playwright": "1.65.1"
+  }
+}

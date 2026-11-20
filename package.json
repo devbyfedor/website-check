@@ -1,0 +1,26 @@
+{
+  "name": "website-check",
+  "private": true,
+  "type": "module",
+  "description": "Website-Check DE: free website checker for German businesses",
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
+  "workspaces": [
+    "scanner",
+    "worker"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config scanner/vitest.integration.config.ts",
+    "typecheck": "tsc -p scanner && tsc -p worker",
+    "scan:local": "node scanner/src/local/run-sites.ts",
+    "explain": "node scanner/src/local/explain.ts"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "6.0.3",
+    "vitest": "5.1.1"
+  }
+}

@@ -1,0 +1,1734 @@
+{
+  "version": 1,
+  "updated": "2026-11-20",
+  "services": [
+    {
+      "id": "adobe-fonts",
+      "name": "Adobe Fonts (Typekit)",
+      "provider": "Adobe",
+      "category": "fonts",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "use.typekit.net",
+        "*.typekit.net"
+      ],
+      "sources": [
+        "typekit-webfontloader-source",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "bunny-fonts",
+      "name": "Bunny Fonts",
+      "provider": "bunny.net",
+      "providerLegal": "BunnyWay d.o.o. (EU-based company, per the provider)",
+      "category": "fonts",
+      "riskClass": "grey-zone",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "fonts.bunny.net"
+      ],
+      "sources": [
+        "bunny-fonts-about",
+        "baylfd-aki42-web-fonts",
+        "lfd-nds-2022-google-fonts",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "font-awesome",
+      "name": "Font Awesome (Kits / CDN)",
+      "provider": "Font Awesome",
+      "category": "fonts",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "kit.fontawesome.com",
+        "*.fontawesome.com"
+      ],
+      "sources": [
+        "fontawesome-use-kit",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "google-fonts",
+      "name": "Google Fonts",
+      "provider": "Google",
+      "category": "fonts",
+      "riskClass": "precedent",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "fonts.googleapis.com",
+        "fonts.gstatic.com"
+      ],
+      "sources": [
+        "lg-muenchen-2022-google-fonts",
+        "lfd-nds-2022-google-fonts",
+        "tlfdi-2022-google-fonts",
+        "baylfd-aki42-web-fonts",
+        "dsk-oh-digitale-dienste",
+        "eugh-fashion-id",
+        "lg-muenchen-2023-google-fonts-crawler"
+      ]
+    },
+    {
+      "id": "google-tag-manager",
+      "name": "Google Tag Manager / Google tag (gtag.js)",
+      "provider": "Google",
+      "providerLegal": "Google Ireland Limited",
+      "category": "tag-manager",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "www.googletagmanager.com"
+      ],
+      "sources": [
+        "vg-hannover-2025-10-a-5385-22",
+        "dsk-2020-google-analytics",
+        "google-tag-install",
+        "google-eu-user-consent-policy",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "cloudflare-web-analytics",
+      "name": "Cloudflare Web Analytics",
+      "provider": "Cloudflare",
+      "category": "analytics",
+      "riskClass": "grey-zone",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "static.cloudflareinsights.com",
+        "cloudflareinsights.com/cdn-cgi/rum"
+      ],
+      "sources": [
+        "cloudflare-privacy-first-web-analytics",
+        "cloudflare-web-analytics-faq",
+        "dsk-oh-digitale-dienste",
+        "edpb-guidelines-2-2023"
+      ]
+    },
+    {
+      "id": "etracker",
+      "name": "etracker Analytics",
+      "provider": "etracker",
+      "providerLegal": "JustRelate Deutschland GmbH",
+      "category": "analytics",
+      "riskClass": "grey-zone",
+      "dataLocation": "eu",
+      "hosts": [
+        "*.etracker.com",
+        "*.etracker.de"
+      ],
+      "sources": [
+        "etracker-basis-integration",
+        "etracker-consent-free",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "fathom",
+      "name": "Fathom Analytics",
+      "provider": "Fathom",
+      "category": "analytics",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "cdn.usefathom.com"
+      ],
+      "sources": [
+        "fathom-compliance",
+        "dsk-oh-digitale-dienste",
+        "edpb-guidelines-2-2023"
+      ]
+    },
+    {
+      "id": "google-analytics",
+      "name": "Google Analytics",
+      "provider": "Google",
+      "providerLegal": "Google Ireland Limited",
+      "category": "analytics",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "*.google-analytics.com",
+        "*.analytics.google.com"
+      ],
+      "sources": [
+        "dsk-2020-google-analytics",
+        "google-eu-user-consent-policy",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "jetpack-stats",
+      "name": "Jetpack Stats (WordPress.com Stats)",
+      "provider": "Automattic",
+      "category": "analytics",
+      "riskClass": "grey-zone",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "stats.wp.com",
+        "pixel.wp.com/g.gif"
+      ],
+      "sources": [
+        "jetpack-stats-support",
+        "jetpack-cookies",
+        "jetpack-stats-source-tracking-pixel",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "matomo-cloud",
+      "name": "Matomo Cloud",
+      "provider": "Matomo",
+      "category": "analytics",
+      "riskClass": "grey-zone",
+      "dataLocation": "eu",
+      "hosts": [
+        "*.matomo.cloud"
+      ],
+      "sources": [
+        "matomo-consent-faq",
+        "matomo-tracking-consent-guide",
+        "matomo-js-cookies-faq",
+        "matomo-cloud-data-location",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "plausible",
+      "name": "Plausible Analytics",
+      "provider": "Plausible",
+      "category": "analytics",
+      "riskClass": "grey-zone",
+      "dataLocation": "eu",
+      "hosts": [
+        "plausible.io"
+      ],
+      "sources": [
+        "plausible-data-policy",
+        "dsk-oh-digitale-dienste",
+        "edpb-guidelines-2-2023"
+      ]
+    },
+    {
+      "id": "yandex-metrica",
+      "name": "Yandex Metrica",
+      "provider": "Yandex",
+      "category": "analytics",
+      "riskClass": "consent-required",
+      "dataLocation": "unknown",
+      "hosts": [
+        "mc.yandex.ru",
+        "mc.yandex.com",
+        "mc.yandex.az",
+        "mc.yandex.by",
+        "mc.yandex.co.il",
+        "mc.yandex.com.am",
+        "mc.yandex.com.ge",
+        "mc.yandex.com.tr",
+        "mc.yandex.ee",
+        "mc.yandex.fr",
+        "mc.yandex.kg",
+        "mc.yandex.kz",
+        "mc.yandex.lt",
+        "mc.yandex.lv",
+        "mc.yandex.md",
+        "mc.yandex.tj",
+        "mc.yandex.tm",
+        "mc.yandex.uz",
+        "mc.webvisor.com",
+        "mc.webvisor.org"
+      ],
+      "sources": [
+        "yandex-metrica-cookies",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "hotjar",
+      "name": "Hotjar",
+      "provider": "Hotjar",
+      "providerLegal": "Hotjar Ltd",
+      "category": "session-recording",
+      "riskClass": "consent-required",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.hotjar.com",
+        "*.hotjar.io"
+      ],
+      "sources": [
+        "hotjar-tracking-code-cookies",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "microsoft-clarity",
+      "name": "Microsoft Clarity",
+      "provider": "Microsoft",
+      "category": "session-recording",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "*.clarity.ms"
+      ],
+      "sources": [
+        "microsoft-clarity-consent-mode",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste",
+        "edpb-guidelines-2-2023"
+      ]
+    },
+    {
+      "id": "mouseflow",
+      "name": "Mouseflow (session recording traffic)",
+      "provider": "Mouseflow",
+      "category": "session-recording",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.mouseflow.com"
+      ],
+      "sources": [
+        "mouseflow-consent-integration",
+        "mouseflow-cookie-policy",
+        "mouseflow-disable-cookies",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "mouseflow-loader",
+      "name": "Mouseflow script loader",
+      "provider": "Mouseflow",
+      "category": "session-recording",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "cdn.mouseflow.com"
+      ],
+      "sources": [
+        "mouseflow-consent-integration"
+      ]
+    },
+    {
+      "id": "brevo-tracker",
+      "name": "Brevo (Sendinblue) tracker",
+      "provider": "Brevo",
+      "category": "marketing-automation",
+      "riskClass": "consent-required",
+      "dataLocation": "unknown",
+      "hosts": [
+        "sibautomation.com"
+      ],
+      "sources": [
+        "brevo-tracker-faq",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "hubspot-tracking-code",
+      "name": "HubSpot tracking code",
+      "provider": "HubSpot",
+      "category": "marketing-automation",
+      "riskClass": "grey-zone",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "*.hs-scripts.com",
+        "*.hs-analytics.net",
+        "*.hscollectedforms.net"
+      ],
+      "sources": [
+        "hubspot-cookies",
+        "hubspot-domain-security",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "klaviyo-client-events",
+      "name": "Klaviyo onsite tracking events",
+      "provider": "Klaviyo",
+      "category": "marketing-automation",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "a.klaviyo.com/client/events"
+      ],
+      "sources": [
+        "klaviyo-cookies",
+        "klaviyo-client-events-api",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "klaviyo-onsite-js",
+      "name": "Klaviyo onsite JavaScript (klaviyo.js)",
+      "provider": "Klaviyo",
+      "category": "marketing-automation",
+      "riskClass": "grey-zone",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "static.klaviyo.com"
+      ],
+      "sources": [
+        "klaviyo-cookies",
+        "klaviyo-onsite-tracking"
+      ]
+    },
+    {
+      "id": "leadfeeder",
+      "name": "Leadfeeder / Dealfront Web Visitors",
+      "provider": "Dealfront",
+      "category": "marketing-automation",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.lfeeder.com",
+        "*.leadfeeder.com"
+      ],
+      "sources": [
+        "leadfeeder-tracking-script",
+        "leadfeeder-cmp-consent-mode",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "awin",
+      "name": "AWIN (affiliate tracking: MasterTag and conversion tag)",
+      "provider": "Awin",
+      "providerLegal": "AWIN AG",
+      "category": "advertising",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.dwin1.com",
+        "www.awin1.com"
+      ],
+      "sources": [
+        "tdddg-25",
+        "edpb-guidelines-2-2023",
+        "dsk-oh-digitale-dienste",
+        "awin-consent-framework",
+        "awin-advertiser-mastertag",
+        "awin-gtm-consent-signals"
+      ]
+    },
+    {
+      "id": "criteo",
+      "name": "Criteo (OneTag retargeting)",
+      "provider": "Criteo",
+      "providerLegal": "Criteo SA",
+      "category": "advertising",
+      "riskClass": "consent-required",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.criteo.com"
+      ],
+      "sources": [
+        "tdddg-25",
+        "bgh-cookie-einwilligung-2",
+        "eugh-planet49",
+        "edpb-guidelines-2-2023",
+        "dsk-oh-digitale-dienste",
+        "lfdi-bw-faq-cookies-tracking"
+      ]
+    },
+    {
+      "id": "google-ads",
+      "name": "Google Ads / DoubleClick / AdSense",
+      "provider": "Google",
+      "providerLegal": "Google Ireland Limited",
+      "category": "advertising",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "*.doubleclick.net",
+        "*.googlesyndication.com",
+        "*.googleadservices.com",
+        "adservice.google.com",
+        "www.google.com/pagead/",
+        "www.google.de/pagead/",
+        "www.google.com/ads/",
+        "www.google.de/ads/"
+      ],
+      "sources": [
+        "tdddg-25",
+        "bgh-cookie-einwilligung-2",
+        "eugh-planet49",
+        "edpb-guidelines-2-2023",
+        "dsk-oh-digitale-dienste",
+        "lfdi-bw-faq-cookies-tracking",
+        "google-eu-user-consent-policy"
+      ]
+    },
+    {
+      "id": "google-analytics-advertising-features",
+      "name": "Google Analytics advertising features (Google signals / remarketing audiences)",
+      "provider": "Google",
+      "providerLegal": "Google Ireland Limited",
+      "category": "advertising",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "stats.g.doubleclick.net",
+        "www.google.com/ads/ga-audiences",
+        "www.google.de/ads/ga-audiences"
+      ],
+      "sources": [
+        "tdddg-25",
+        "bgh-cookie-einwilligung-2",
+        "edpb-guidelines-2-2023",
+        "dsk-oh-digitale-dienste",
+        "lfdi-bw-faq-cookies-tracking",
+        "google-eu-user-consent-policy"
+      ]
+    },
+    {
+      "id": "microsoft-advertising-uet",
+      "name": "Microsoft Advertising UET (Bing Ads)",
+      "provider": "Microsoft",
+      "providerLegal": "Microsoft Ireland Operations Limited",
+      "category": "advertising",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "bat.bing.com"
+      ],
+      "sources": [
+        "tdddg-25",
+        "bgh-cookie-einwilligung-2",
+        "edpb-guidelines-2-2023",
+        "dsk-oh-digitale-dienste",
+        "lfdi-bw-faq-cookies-tracking",
+        "microsoft-uet-add-tag-consent",
+        "microsoft-uet-consent-mode"
+      ]
+    },
+    {
+      "id": "linkedin-insight-tag",
+      "name": "LinkedIn Insight Tag",
+      "provider": "LinkedIn",
+      "providerLegal": "LinkedIn Ireland Unlimited Company",
+      "category": "social-pixel",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "snap.licdn.com",
+        "*.ads.linkedin.com",
+        "p.adsymptotic.com",
+        "sjs.bizographics.com",
+        "cdn.linkedin.oribi.io",
+        "gw.linkedin.oribi.io"
+      ],
+      "sources": [
+        "tdddg-25",
+        "bgh-cookie-einwilligung-2",
+        "eugh-fashion-id",
+        "edpb-guidelines-2-2023",
+        "edpb-guidelines-8-2020",
+        "dsk-oh-digitale-dienste",
+        "lfdi-bw-faq-cookies-tracking",
+        "linkedin-insight-tag-help"
+      ]
+    },
+    {
+      "id": "meta-pixel",
+      "name": "Meta Pixel (Facebook Pixel)",
+      "provider": "Meta",
+      "providerLegal": "Meta Platforms Ireland Limited",
+      "category": "social-pixel",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "connect.facebook.net/en_US/fbevents.js",
+        "connect.facebook.net/signals/",
+        "www.facebook.com/tr"
+      ],
+      "sources": [
+        "tdddg-25",
+        "eugh-planet49",
+        "bgh-cookie-einwilligung-2",
+        "eugh-fashion-id",
+        "edpb-guidelines-2-2023",
+        "edpb-guidelines-8-2020",
+        "dsk-oh-digitale-dienste",
+        "lfdi-bw-faq-cookies-tracking",
+        "eugh-meta-bundeskartellamt",
+        "meta-business-tools-terms"
+      ]
+    },
+    {
+      "id": "pinterest-tag",
+      "name": "Pinterest Tag",
+      "provider": "Pinterest",
+      "providerLegal": "Pinterest Europe Limited",
+      "category": "social-pixel",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "s.pinimg.com/ct/",
+        "ct.pinterest.com"
+      ],
+      "sources": [
+        "tdddg-25",
+        "bgh-cookie-einwilligung-2",
+        "eugh-fashion-id",
+        "edpb-guidelines-2-2023",
+        "edpb-guidelines-8-2020",
+        "dsk-oh-digitale-dienste",
+        "lfdi-bw-faq-cookies-tracking",
+        "pinterest-tag-base-code-consent"
+      ]
+    },
+    {
+      "id": "snap-pixel",
+      "name": "Snap Pixel (Snapchat)",
+      "provider": "Snap Inc.",
+      "category": "social-pixel",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "sc-static.net/scevent.min.js",
+        "tr.snapchat.com"
+      ],
+      "sources": [
+        "tdddg-25",
+        "bgh-cookie-einwilligung-2",
+        "eugh-fashion-id",
+        "edpb-guidelines-2-2023",
+        "edpb-guidelines-8-2020",
+        "dsk-oh-digitale-dienste",
+        "lfdi-bw-faq-cookies-tracking"
+      ]
+    },
+    {
+      "id": "tiktok-pixel",
+      "name": "TikTok Pixel",
+      "provider": "TikTok",
+      "category": "social-pixel",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "analytics.tiktok.com",
+        "analytics.pangle-ads.com"
+      ],
+      "sources": [
+        "tdddg-25",
+        "bgh-cookie-einwilligung-2",
+        "eugh-fashion-id",
+        "edpb-guidelines-2-2023",
+        "edpb-guidelines-8-2020",
+        "dsk-oh-digitale-dienste",
+        "lfdi-bw-faq-cookies-tracking",
+        "tiktok-pixel-cookies"
+      ]
+    },
+    {
+      "id": "x-pixel",
+      "name": "X (Twitter) Pixel",
+      "provider": "X",
+      "category": "social-pixel",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "analytics.twitter.com",
+        "t.co/i/adsct"
+      ],
+      "sources": [
+        "tdddg-25",
+        "bgh-cookie-einwilligung-2",
+        "eugh-fashion-id",
+        "edpb-guidelines-2-2023",
+        "edpb-guidelines-8-2020",
+        "dsk-oh-digitale-dienste",
+        "lfdi-bw-faq-cookies-tracking"
+      ]
+    },
+    {
+      "id": "google-maps",
+      "name": "Google Maps (embed and Maps JavaScript API)",
+      "provider": "Google",
+      "providerLegal": "Google Ireland Limited",
+      "category": "maps",
+      "riskClass": "usually-consent",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "maps.googleapis.com",
+        "maps.gstatic.com",
+        "www.google.com/maps/",
+        "maps.google.com",
+        "maps.google.de"
+      ],
+      "sources": [
+        "lfdi-bw-faq-tracking-2022-maps",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "openstreetmap-tiles",
+      "name": "OpenStreetMap standard tile server",
+      "provider": "OpenStreetMap Foundation",
+      "providerLegal": "OpenStreetMap Foundation (UK)",
+      "category": "maps",
+      "riskClass": "usually-consent",
+      "dataLocation": "unknown",
+      "hosts": [
+        "tile.openstreetmap.org",
+        "*.tile.openstreetmap.org"
+      ],
+      "sources": [
+        "lfdi-bw-faq-tracking-2022-maps",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "vimeo",
+      "name": "Vimeo embedded player",
+      "provider": "Vimeo",
+      "category": "video",
+      "riskClass": "usually-consent",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "player.vimeo.com",
+        "*.vimeocdn.com"
+      ],
+      "sources": [
+        "lfdi-bw-handreichung-videos-2022",
+        "vimeo-help-player-parameters",
+        "dsk-oh-digitale-dienste",
+        "tdddg-25"
+      ]
+    },
+    {
+      "id": "youtube",
+      "name": "YouTube embedded player (standard domain)",
+      "provider": "Google",
+      "providerLegal": "Google Ireland Limited",
+      "category": "video",
+      "riskClass": "usually-consent",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "www.youtube.com",
+        "i.ytimg.com"
+      ],
+      "sources": [
+        "lfdi-bw-faq-tracking-2022-embeds",
+        "lfdi-bw-handreichung-videos-2022",
+        "tlfdi-anfrage-youtube-cookies-2022",
+        "youtube-api-developer-policies",
+        "dsk-oh-digitale-dienste",
+        "eugh-fashion-id"
+      ]
+    },
+    {
+      "id": "youtube-nocookie",
+      "name": "YouTube Privacy Enhanced Mode (youtube-nocookie.com)",
+      "provider": "Google",
+      "providerLegal": "Google Ireland Limited",
+      "category": "video",
+      "riskClass": "usually-consent",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "www.youtube-nocookie.com"
+      ],
+      "sources": [
+        "youtube-help-privacy-enhanced-mode",
+        "youtube-api-developer-policies",
+        "lfdi-bw-handreichung-videos-2022",
+        "lfdi-bw-faq-tracking-2022-embeds",
+        "tlfdi-anfrage-youtube-cookies-2022",
+        "dsk-oh-digitale-dienste",
+        "tdddg-25"
+      ]
+    },
+    {
+      "id": "facebook-social-plugins",
+      "name": "Facebook social plugins (Like/Share button, Page plugin, embedded posts, JS SDK)",
+      "provider": "Meta",
+      "providerLegal": "Meta Platforms Ireland Limited",
+      "category": "social-embed",
+      "riskClass": "usually-consent",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "www.facebook.com/plugins/",
+        "web.facebook.com/plugins/",
+        "connect.facebook.net/de_DE/sdk",
+        "connect.facebook.net/en_US/sdk"
+      ],
+      "sources": [
+        "eugh-fashion-id",
+        "lfdi-bw-faq-tracking-2022-embeds",
+        "meta-cookie-policy",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "instagram-embeds",
+      "name": "Instagram embeds and Instagram content images",
+      "provider": "Meta",
+      "providerLegal": "Meta Platforms Ireland Limited",
+      "category": "social-embed",
+      "riskClass": "usually-consent",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "www.instagram.com",
+        "*.cdninstagram.com"
+      ],
+      "sources": [
+        "lfdi-bw-faq-tracking-2022-embeds",
+        "meta-cookie-policy",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "x-embeds",
+      "name": "X (Twitter) embedded posts and timelines",
+      "provider": "X",
+      "category": "social-embed",
+      "riskClass": "usually-consent",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "platform.twitter.com",
+        "syndication.twitter.com",
+        "cdn.syndication.twimg.com"
+      ],
+      "sources": [
+        "lfdi-bw-faq-tracking-2022-embeds",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "crisp",
+      "name": "Crisp chat widget",
+      "provider": "Crisp",
+      "providerLegal": "Crisp IM SARL",
+      "category": "chat",
+      "riskClass": "usually-consent",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.crisp.chat"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste",
+        "tdddg-25",
+        "crisp-docs-cookie-policies"
+      ]
+    },
+    {
+      "id": "intercom",
+      "name": "Intercom Messenger",
+      "provider": "Intercom",
+      "category": "chat",
+      "riskClass": "usually-consent",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "*.intercom.io",
+        "*.intercomcdn.com",
+        "*.intercomcdn.eu",
+        "*.intercomassets.com",
+        "*.intercomassets.eu",
+        "*.intercom-messenger.com",
+        "*.intercomusercontent.com"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste",
+        "tdddg-25",
+        "intercom-docs-web-installation"
+      ]
+    },
+    {
+      "id": "livechat",
+      "name": "LiveChat widget",
+      "provider": "LiveChat (Text)",
+      "category": "chat",
+      "riskClass": "usually-consent",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.livechatinc.com"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste",
+        "tdddg-25"
+      ]
+    },
+    {
+      "id": "smartsupp",
+      "name": "Smartsupp chat widget",
+      "provider": "Smartsupp",
+      "category": "chat",
+      "riskClass": "usually-consent",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.smartsuppchat.com"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste",
+        "tdddg-25",
+        "smartsupp-docs-configuration"
+      ]
+    },
+    {
+      "id": "tawk-to",
+      "name": "tawk.to chat widget",
+      "provider": "tawk.to",
+      "category": "chat",
+      "riskClass": "usually-consent",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.tawk.to"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste",
+        "tdddg-25"
+      ]
+    },
+    {
+      "id": "tidio",
+      "name": "Tidio chat widget",
+      "provider": "Tidio",
+      "category": "chat",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.tidio.co",
+        "uploads.tidio.com",
+        "*.tidiochat.com",
+        "tidio-images-messenger.s3.us-east-1.amazonaws.com"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "userlike",
+      "name": "Userlike chat widget (Lime Connect since Sept. 2025)",
+      "provider": "Userlike / Lime Connect (Lime Technologies)",
+      "category": "chat",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.userlike.com",
+        "userlike-cdn-widgets.s3-eu-west-1.amazonaws.com",
+        "userlike-cdn-operators.s3-eu-west-1.amazonaws.com",
+        "userlike-store-media-files.s3.amazonaws.com",
+        "userlike-cdn-umm.b-cdn.net",
+        "userlike-cdn-web.b-cdn.net"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "zendesk-web-widget",
+      "name": "Zendesk Web Widget (messaging/classic)",
+      "provider": "Zendesk",
+      "category": "chat",
+      "riskClass": "usually-consent",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "ekr.zdassets.com",
+        "static.zdassets.com/ekr/",
+        "static.zdassets.com/web_widget/"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste",
+        "tdddg-25",
+        "zendesk-docs-messaging-cookies"
+      ]
+    },
+    {
+      "id": "judge-me",
+      "name": "Judge.me product review widgets",
+      "provider": "Judge.me",
+      "providerLegal": "Judge.me Ltd (per Tracker Radar)",
+      "category": "reviews",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "cdn.judge.me",
+        "cdnwidget.judge.me"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "provenexpert",
+      "name": "ProvenExpert review seal and widgets",
+      "provider": "ProvenExpert",
+      "providerLegal": "Expert Systems AG (per Tracker Radar)",
+      "category": "reviews",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "www.provenexpert.com"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "trusted-shops",
+      "name": "Trusted Shops Trustbadge and review widgets",
+      "provider": "Trusted Shops",
+      "category": "reviews",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.trustedshops.com",
+        "integrations.etrusted.com"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "trustpilot",
+      "name": "Trustpilot TrustBox widgets",
+      "provider": "Trustpilot",
+      "providerLegal": "Trustpilot A/S",
+      "category": "reviews",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "widget.trustpilot.com",
+        "invitejs.trustpilot.com",
+        "ecommplugins-scripts.trustpilot.com",
+        "images-static.trustpilot.com"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "calendly",
+      "name": "Calendly scheduling embed",
+      "provider": "Calendly",
+      "category": "booking",
+      "riskClass": "grey-zone",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "assets.calendly.com"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "elfsight",
+      "name": "Elfsight widget platform",
+      "provider": "Elfsight",
+      "category": "widget-platform",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.elfsight.com"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "trustindex",
+      "name": "Trustindex review widgets",
+      "provider": "Trustindex",
+      "category": "widget-platform",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "cdn.trustindex.io"
+      ],
+      "sources": [
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "klarna",
+      "name": "Klarna (Web SDK / On-Site Messaging)",
+      "provider": "Klarna",
+      "category": "payment",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "js.klarna.com",
+        "*.klarna.com",
+        "x.klarnacdn.net",
+        "*.klarnacdn.net",
+        "osm.klarnaservices.com",
+        "*.klarnaservices.com",
+        "*.klarnaevt.com"
+      ],
+      "sources": [
+        "klarna-websdk-browser-security",
+        "klarna-osm-web-integration",
+        "dsk-oh-digitale-dienste",
+        "tdddg-25"
+      ]
+    },
+    {
+      "id": "paypal",
+      "name": "PayPal (JavaScript SDK)",
+      "provider": "PayPal",
+      "category": "payment",
+      "riskClass": "grey-zone",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "*.paypal.com",
+        "*.paypalobjects.com"
+      ],
+      "sources": [
+        "paypal-sdk-best-practices",
+        "paypal-sdk-configuration",
+        "dsk-oh-digitale-dienste",
+        "tdddg-25"
+      ]
+    },
+    {
+      "id": "stripe",
+      "name": "Stripe (Stripe.js, Link)",
+      "provider": "Stripe",
+      "category": "payment",
+      "riskClass": "grey-zone",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "js.stripe.com",
+        "m.stripe.com",
+        "*.stripe.com",
+        "link.com",
+        "*.link.com"
+      ],
+      "sources": [
+        "stripe-security-guide",
+        "stripe-advanced-fraud-detection",
+        "stripe-js-including",
+        "dsk-oh-digitale-dienste",
+        "tdddg-25"
+      ]
+    },
+    {
+      "id": "cloudflare-turnstile",
+      "name": "Cloudflare Turnstile",
+      "provider": "Cloudflare",
+      "category": "captcha",
+      "riskClass": "grey-zone",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "challenges.cloudflare.com"
+      ],
+      "sources": [
+        "turnstile-csp",
+        "turnstile-client-rendering",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "friendly-captcha",
+      "name": "Friendly Captcha",
+      "provider": "Friendly Captcha",
+      "category": "captcha",
+      "riskClass": "grey-zone",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "*.frcapi.com",
+        "*.friendlycaptcha.com",
+        "*.friendlycaptcha.eu",
+        "cdn.jsdelivr.net/npm/friendly-challenge",
+        "cdn.jsdelivr.net/npm/@friendlycaptcha/"
+      ],
+      "sources": [
+        "friendlycaptcha-csp",
+        "friendlycaptcha-eu-endpoint",
+        "friendlycaptcha-v1-upgrade",
+        "friendlycaptcha-wp-readme",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "google-recaptcha",
+      "name": "Google reCAPTCHA",
+      "provider": "Google",
+      "providerLegal": "Google Ireland Limited",
+      "category": "captcha",
+      "riskClass": "grey-zone",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "www.google.com/recaptcha/",
+        "www.gstatic.com/recaptcha/",
+        "recaptcha.google.com/recaptcha/",
+        "www.recaptcha.net"
+      ],
+      "sources": [
+        "recaptcha-faq",
+        "dsk-oh-digitale-dienste",
+        "tdddg-25"
+      ]
+    },
+    {
+      "id": "hcaptcha",
+      "name": "hCaptcha",
+      "provider": "hCaptcha (Intuition Machines)",
+      "category": "captcha",
+      "riskClass": "grey-zone",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "hcaptcha.com",
+        "*.hcaptcha.com"
+      ],
+      "sources": [
+        "hcaptcha-docs",
+        "stripe-advanced-fraud-detection",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "accessibe",
+      "name": "accessiBe",
+      "provider": "accessiBe",
+      "category": "accessibility-overlay",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "acsbapp.com",
+        "*.acsbapp.com"
+      ],
+      "sources": [
+        "accessibe-wp-plugin-source",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "eye-able",
+      "name": "Eye-Able",
+      "provider": "Eye-Able",
+      "category": "accessibility-overlay",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "cdn.eye-able.com",
+        "*.eye-able.com"
+      ],
+      "sources": [
+        "eye-able-help-center-source",
+        "eye-able-usage-tracking",
+        "eye-able-data-processing",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "userway",
+      "name": "UserWay accessibility widget",
+      "provider": "UserWay",
+      "category": "accessibility-overlay",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "cdn.userway.org",
+        "*.userway.org"
+      ],
+      "sources": [
+        "userway-wp-plugin-source",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "google-translate-widget",
+      "name": "Google Translate (website widget, legacy)",
+      "provider": "Google",
+      "providerLegal": "Google Ireland Limited",
+      "category": "translation",
+      "riskClass": "grey-zone",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "translate.google.com/translate_a/",
+        "translate-pa.googleapis.com"
+      ],
+      "sources": [
+        "gtranslate-blog-google-widget",
+        "gtranslate-wp-readme",
+        "google-website-translator-2020",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "gtranslate",
+      "name": "GTranslate widget",
+      "provider": "GTranslate",
+      "providerLegal": "GTranslate, Inc.",
+      "category": "translation",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "cdn.gtranslate.net"
+      ],
+      "sources": [
+        "gtranslate-wp-readme",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "cdnjs",
+      "name": "cdnjs",
+      "provider": "Cloudflare",
+      "category": "cdn",
+      "riskClass": "grey-zone",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "cdnjs.cloudflare.com"
+      ],
+      "sources": [
+        "cdnjs-about",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "google-hosted-libraries",
+      "name": "Google Hosted Libraries",
+      "provider": "Google",
+      "providerLegal": "Google Ireland Limited",
+      "category": "cdn",
+      "riskClass": "grey-zone",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "ajax.googleapis.com"
+      ],
+      "sources": [
+        "google-hosted-libraries-docs",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "jetpack-site-accelerator",
+      "name": "Jetpack Site Accelerator (image and asset CDN)",
+      "provider": "Automattic",
+      "category": "cdn",
+      "riskClass": "grey-zone",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "i0.wp.com",
+        "i1.wp.com",
+        "i2.wp.com",
+        "i3.wp.com",
+        "c0.wp.com"
+      ],
+      "sources": [
+        "jetpack-site-accelerator-docs",
+        "jetpack-asset-cdn-source",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "jquery-cdn",
+      "name": "jQuery CDN",
+      "provider": "OpenJS Foundation",
+      "category": "cdn",
+      "riskClass": "grey-zone",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "code.jquery.com"
+      ],
+      "sources": [
+        "jquery-cdn-releases",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "jsdelivr",
+      "name": "jsDelivr (incl. BootstrapCDN)",
+      "provider": "jsDelivr",
+      "category": "cdn",
+      "riskClass": "grey-zone",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "cdn.jsdelivr.net",
+        "*.jsdelivr.net",
+        "*.bootstrapcdn.com"
+      ],
+      "sources": [
+        "jsdelivr-readme",
+        "bootstrapcdn-site",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "unpkg",
+      "name": "unpkg",
+      "provider": "unpkg",
+      "category": "cdn",
+      "riskClass": "grey-zone",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "unpkg.com",
+        "*.unpkg.com"
+      ],
+      "sources": [
+        "unpkg-homepage",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "wordpress-emoji",
+      "name": "WordPress emoji images (s.w.org)",
+      "provider": "WordPress.org",
+      "category": "cdn",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "s.w.org/images/core/emoji/"
+      ],
+      "sources": [
+        "wordpress-emoji-url-hook",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "jimdo-static-assets",
+      "name": "Jimdo (platform assets)",
+      "provider": "Jimdo",
+      "providerLegal": "Jimdo GmbH",
+      "category": "platform",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "assets.jimstatic.com",
+        "*.jimstatic.com"
+      ],
+      "sources": [
+        "jimdo-legal-page-assets",
+        "fastly-jimdo-case-study"
+      ]
+    },
+    {
+      "id": "shopify-cdn",
+      "name": "Shopify (store hosting CDN)",
+      "provider": "Shopify",
+      "category": "platform",
+      "riskClass": "not-flagged",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "cdn.shopify.com",
+        "fonts.shopifycdn.com"
+      ],
+      "sources": [
+        "shopify-changelog-asset-urls-2023",
+        "shopify-dev-platform-cdn",
+        "shopify-dev-use-shopify-cdn",
+        "shopify-dev-use-preconnect",
+        "shopify-changelog-file-cdn-2026",
+        "shopify-dawn-theme-liquid"
+      ]
+    },
+    {
+      "id": "shopify-platform-telemetry",
+      "name": "Shopify (platform telemetry)",
+      "provider": "Shopify",
+      "category": "platform",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "monorail-edge.shopifysvc.com",
+        "*.shopifysvc.com"
+      ],
+      "sources": [
+        "shopify-dev-use-preconnect",
+        "shopify-help-consent"
+      ]
+    },
+    {
+      "id": "wix-media",
+      "name": "Wix (site media hosting)",
+      "provider": "Wix",
+      "category": "platform",
+      "riskClass": "not-flagged",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "static.wixstatic.com"
+      ],
+      "sources": [
+        "wix-support-static-media",
+        "wix-dev-image-transformation",
+        "wix-engineering-cdn-2021"
+      ]
+    },
+    {
+      "id": "wix-platform-other",
+      "name": "Wix (platform scripts and telemetry)",
+      "provider": "Wix",
+      "category": "platform",
+      "riskClass": "grey-zone",
+      "dataLocation": "unknown",
+      "hosts": [
+        "static.parastorage.com",
+        "*.parastorage.com",
+        "frog.wix.com"
+      ],
+      "sources": [
+        "wix-support-frog",
+        "wix-engineering-cdn-2021"
+      ]
+    },
+    {
+      "id": "ccm19",
+      "name": "CCM19 (cloud)",
+      "provider": "CCM19",
+      "providerLegal": "Papoo Software & Media GmbH",
+      "category": "consent",
+      "riskClass": "not-flagged",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.ccm19.de"
+      ],
+      "sources": [
+        "ccm19-integration-docs",
+        "ccm19-vendor-site",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "consentmanager",
+      "name": "consentmanager.net CMP",
+      "provider": "consentmanager",
+      "category": "consent",
+      "riskClass": "not-flagged",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.consentmanager.net"
+      ],
+      "sources": [
+        "consentmanager-stub-code",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "cookiebot",
+      "name": "Cookiebot CMP",
+      "provider": "Usercentrics",
+      "category": "consent",
+      "riskClass": "not-flagged",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "consent.cookiebot.com",
+        "consentcdn.cookiebot.com",
+        "consentcdn.cookiebot.eu"
+      ],
+      "sources": [
+        "cookiebot-developer-docs",
+        "cookiebot-uc-js",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "cookiefirst",
+      "name": "CookieFirst",
+      "provider": "CookieFirst",
+      "category": "consent",
+      "riskClass": "not-flagged",
+      "dataLocation": "unknown",
+      "hosts": [
+        "consent.cookiefirst.com"
+      ],
+      "sources": [
+        "cookiefirst-public-api",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "cookieyes",
+      "name": "CookieYes",
+      "provider": "CookieYes",
+      "category": "consent",
+      "riskClass": "not-flagged",
+      "dataLocation": "unknown",
+      "hosts": [
+        "cdn-cookieyes.com",
+        "*.cookieyes.com"
+      ],
+      "sources": [
+        "cookieyes-csp",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "didomi",
+      "name": "Didomi CMP",
+      "provider": "Didomi",
+      "providerLegal": "Didomi SAS",
+      "category": "consent",
+      "riskClass": "not-flagged",
+      "dataLocation": "unknown",
+      "hosts": [
+        "sdk.privacy-center.org",
+        "api.privacy-center.org"
+      ],
+      "sources": [
+        "didomi-domains",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "hu-manity",
+      "name": "Cookie Compliance by Hu-manity.co (Cookie Notice plugin, Compliance mode)",
+      "provider": "Hu-manity.co",
+      "category": "consent",
+      "riskClass": "not-flagged",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.hu-manity.co"
+      ],
+      "sources": [
+        "cookie-notice-plugin-source",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "iubenda",
+      "name": "iubenda Cookie Solution",
+      "provider": "iubenda",
+      "providerLegal": "iubenda s.r.l.",
+      "category": "consent",
+      "riskClass": "not-flagged",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.iubenda.com"
+      ],
+      "sources": [
+        "iubenda-cs-advanced-guide",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "klaro",
+      "name": "Klaro! (KIProtect CDN)",
+      "provider": "KIProtect",
+      "category": "consent",
+      "riskClass": "not-flagged",
+      "dataLocation": "unknown",
+      "hosts": [
+        "cdn.kiprotect.com"
+      ],
+      "sources": [
+        "klaro-readme",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "onetrust",
+      "name": "OneTrust Cookie Consent / CookiePro",
+      "provider": "OneTrust",
+      "category": "consent",
+      "riskClass": "not-flagged",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "cdn.cookielaw.org",
+        "cookie-cdn.cookiepro.com",
+        "*.onetrust.com"
+      ],
+      "sources": [
+        "onetrust-csp-cdn",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "shopify-privacy-banner",
+      "name": "Shopify cookie banner / Customer Privacy API scripts",
+      "provider": "Shopify",
+      "category": "consent",
+      "riskClass": "not-flagged",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "cdn.shopify.com/shopifycloud/privacy-banner/",
+        "cdn.shopify.com/shopifycloud/consent-tracking-api/"
+      ],
+      "sources": [
+        "shopify-privacy-banner-scripts",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "sourcepoint",
+      "name": "Sourcepoint CMP",
+      "provider": "Sourcepoint",
+      "category": "consent",
+      "riskClass": "not-flagged",
+      "dataLocation": "unknown",
+      "hosts": [
+        "cdn.privacy-mgmt.com",
+        "*.privacy-mgmt.com"
+      ],
+      "sources": [
+        "sourcepoint-docs-api",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "trustarc",
+      "name": "TrustArc Consent Manager",
+      "provider": "TrustArc",
+      "category": "consent",
+      "riskClass": "not-flagged",
+      "dataLocation": "unknown",
+      "hosts": [
+        "*.trustarc.com"
+      ],
+      "sources": [
+        "trustarc-notice-script",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "usercentrics",
+      "name": "Usercentrics CMP (Browser UI v2 / Web CMP v3)",
+      "provider": "Usercentrics",
+      "category": "consent",
+      "riskClass": "not-flagged",
+      "dataLocation": "worldwide-cdn",
+      "hosts": [
+        "*.usercentrics.eu"
+      ],
+      "sources": [
+        "usercentrics-csp-domains",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ]
+    },
+    {
+      "id": "gravatar",
+      "name": "Gravatar",
+      "provider": "Automattic",
+      "category": "other",
+      "riskClass": "grey-zone",
+      "dataLocation": "us-possible",
+      "hosts": [
+        "gravatar.com",
+        "*.gravatar.com"
+      ],
+      "sources": [
+        "gravatar-image-requests",
+        "wordpress-get-avatar-data",
+        "dsk-oh-digitale-dienste"
+      ]
+    }
+  ]
+}
