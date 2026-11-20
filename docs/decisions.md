@@ -19,3 +19,8 @@ Copied from `docs/brief.md` (brief v1, approved on 19.11.2026), with their dates
 
 - 20.11.2026: the brief arrived as `docs/BRIEF.md` and is committed as `docs/brief.md`, because the brief and all instructions use that name and GitHub paths are case-sensitive.
 - 20.11.2026: `.gitattributes` forces LF line endings, so Git on Windows (system `core.autocrlf=true`) never rewrites the read-only files in `design/`.
+- 20.11.2026: Node 24.15.0 is pinned in `.nvmrc` and `.node-version`; `engines` allows `>=24.15.0 <25` and `.npmrc` sets `engine-strict`, so a wrong Node major fails at install. Node 24 is the installed LTS line.
+- 20.11.2026: dependencies are saved with exact versions (`save-exact`) and `package-lock.json` is committed, so every session installs the same versions.
+- 20.11.2026: TypeScript 6.0.3 (the last JavaScript-based release) instead of 7.0 (the native port): stage B uses Next.js and other tools that load the TypeScript JavaScript API; revisit when they support 7.
+- 20.11.2026: no build step for TypeScript. Node 24 runs `.ts` files directly (type stripping), so the code uses only erasable syntax (`erasableSyntaxOnly`) and explicit `.ts` import extensions; Vitest and later wrangler read the same files.
+- 20.11.2026: Vitest 5 with one project per workspace; `npm test` runs only unit tests without browser or network.
