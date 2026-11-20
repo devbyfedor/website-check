@@ -1,0 +1,353 @@
+{
+  "version": 1,
+  "updated": "2026-11-20",
+  "tools": [
+    {
+      "id": "usercentrics",
+      "name": "Usercentrics",
+      "kind": "saas",
+      "selectors": [
+        "#usercentrics-cmp-ui",
+        "#usercentrics-root"
+      ],
+      "shadowRoot": true,
+      "serviceIds": [
+        "usercentrics"
+      ],
+      "evidence": [
+        "https://usercentrics.com/docs/web/features/custom-css/configuration/",
+        "https://usercentrics.com/docs/web/features/v2/browser_ui/browser_ui/"
+      ],
+      "note": "Web CMP v3 renders into #usercentrics-cmp-ui, Browser UI v2 into #usercentrics-root, both in an open shadow root. With 'Bot Detection' on, user agents containing HeadlessChrome or Playwright get an automatic accept-all."
+    },
+    {
+      "id": "cookiebot",
+      "name": "Cookiebot",
+      "kind": "saas",
+      "selectors": [
+        "#CybotCookiebotDialog"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [
+        "cookiebot"
+      ],
+      "evidence": [
+        "https://raw.githubusercontent.com/duckduckgo/autoconsent/main/lib/cmps/cookiebot.ts",
+        "https://www.cookiebot.com/en/developer/"
+      ],
+      "note": "Crawlers are treated as fully consented (support article 360005114894); HeadlessChrome is not in its crawler list. Cookiebot.consent.method is 'implied' for automatic consent."
+    },
+    {
+      "id": "borlabs-cookie",
+      "name": "Borlabs Cookie",
+      "kind": "wordpress-plugin",
+      "selectors": [
+        "#BorlabsCookieBox",
+        ".brlbs-cmpnt-dialog",
+        "._brlbs-bar-wrap",
+        "._brlbs-box-wrap"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [],
+      "evidence": [
+        "https://raw.githubusercontent.com/duckduckgo/autoconsent/main/rules/autoconsent/borlabs.json",
+        "https://borlabs.io/wp-content/plugins/borlabs-cookie/assets/javascript/consents.CkQOv3H7.min.js"
+      ],
+      "note": "Self-hosted WordPress plugin, no third-party host. With 'Cookies for bots/crawlers' on, bot user agents get consent for everything."
+    },
+    {
+      "id": "complianz",
+      "name": "Complianz",
+      "kind": "wordpress-plugin",
+      "selectors": [
+        ".cmplz-cookiebanner",
+        "#cmplz-cookiebanner-container"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [],
+      "evidence": [
+        "https://raw.githubusercontent.com/complianz/complianz-gdpr/master/cookiebanner/templates/cookiebanner.php",
+        "https://raw.githubusercontent.com/complianz/complianz-gdpr/master/cookiebanner/class-banner-loader.php"
+      ],
+      "note": "Self-hosted WordPress plugin. Crawler user agents get consent for every category."
+    },
+    {
+      "id": "real-cookie-banner",
+      "name": "Real Cookie Banner",
+      "kind": "wordpress-plugin",
+      "selectors": [
+        "div[consent-skip-blocker='1'][data-bg]",
+        ".rcb-banner"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [],
+      "evidence": [
+        "https://plugins.svn.wordpress.org/real-cookie-banner/trunk/inc/view/Banner.php",
+        "https://plugins.svn.wordpress.org/real-cookie-banner/trunk/inc/settings/Consent.php"
+      ],
+      "note": "Self-hosted WordPress plugin. 'Accept all for bots' is on by default and its bot pattern matches 'headless'."
+    },
+    {
+      "id": "ccm19",
+      "name": "CCM19",
+      "kind": "saas",
+      "selectors": [
+        ".ccm-root",
+        "#ccm-widget"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [
+        "ccm19"
+      ],
+      "evidence": [
+        "https://docs.ccm19.com/frontend/css-anpassungen/",
+        "https://raw.githubusercontent.com/duckduckgo/autoconsent/main/rules/autoconsent/ccm19.json"
+      ],
+      "note": "Cloud version on ccm19.de hosts; the self-hosted version runs on the site's own domain."
+    },
+    {
+      "id": "consentmanager",
+      "name": "consentmanager",
+      "kind": "saas",
+      "selectors": [
+        "#cmpwrapper",
+        "#cmpbox",
+        "#cmpbox2",
+        "#ncmp__tool"
+      ],
+      "shadowRoot": true,
+      "serviceIds": [
+        "consentmanager"
+      ],
+      "evidence": [
+        "https://www.consentmanager.net/en/help/developer-reference/custom-html-code/",
+        "https://cdn.consentmanager.net/delivery/cmp_de.min.js"
+      ],
+      "note": "Light DOM by default, open shadow root in WCAG mode. Accepts automatically when its server flags the visitor as a crawler (criteria undocumented)."
+    },
+    {
+      "id": "onetrust",
+      "name": "OneTrust",
+      "kind": "saas",
+      "selectors": [
+        "#onetrust-banner-sdk",
+        "#onetrust-pc-sdk"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [
+        "onetrust"
+      ],
+      "evidence": [
+        "https://developer.onetrust.com/onetrust/docs/javascript-api",
+        "https://raw.githubusercontent.com/duckduckgo/autoconsent/main/lib/cmps/onetrust.ts"
+      ]
+    },
+    {
+      "id": "cookieyes",
+      "name": "CookieYes",
+      "kind": "saas",
+      "selectors": [
+        ".cky-consent-container",
+        "#cky-consent",
+        "#cookie-law-info-bar"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [
+        "cookieyes"
+      ],
+      "evidence": [
+        "https://raw.githubusercontent.com/duckduckgo/autoconsent/main/rules/autoconsent/cookieyes.json",
+        "https://plugins.svn.wordpress.org/cookie-law-info/trunk/lite/frontend/js/script.js"
+      ],
+      "note": "Also the WordPress plugin 'CookieYes / GDPR Cookie Consent' (legacy markup #cookie-law-info-bar)."
+    },
+    {
+      "id": "iubenda",
+      "name": "iubenda",
+      "kind": "saas",
+      "selectors": [
+        "#iubenda-cs-banner"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [
+        "iubenda"
+      ],
+      "evidence": [
+        "https://www.iubenda.com/en/help/1205-how-to-configure-your-cookie-solution-advanced-guide"
+      ]
+    },
+    {
+      "id": "didomi",
+      "name": "Didomi",
+      "kind": "saas",
+      "selectors": [
+        "#didomi-notice",
+        "#didomi-popup"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [
+        "didomi"
+      ],
+      "evidence": [
+        "https://developers.didomi.io/cmp/web-sdk/getting-started.md",
+        "https://raw.githubusercontent.com/duckduckgo/autoconsent/main/rules/autoconsent/didomi.json"
+      ],
+      "note": "By default bots, including HeadlessChrome, bypass the notice and are treated as consenting."
+    },
+    {
+      "id": "sourcepoint",
+      "name": "Sourcepoint",
+      "kind": "saas",
+      "selectors": [
+        "div[id^='sp_message_container_']"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [
+        "sourcepoint"
+      ],
+      "evidence": [
+        "https://cdn.privacy-mgmt.com/unified/wrapperMessagingWithoutDetection.js"
+      ],
+      "note": "The message is an iframe inside the container."
+    },
+    {
+      "id": "trustarc",
+      "name": "TrustArc",
+      "kind": "saas",
+      "selectors": [
+        "#truste-consent-track",
+        ".truste_popframe"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [
+        "trustarc"
+      ],
+      "evidence": [
+        "https://raw.githubusercontent.com/duckduckgo/autoconsent/main/lib/cmps/trustarc-top.ts"
+      ]
+    },
+    {
+      "id": "cookiefirst",
+      "name": "CookieFirst",
+      "kind": "saas",
+      "selectors": [
+        ".cookiefirst-root",
+        "#cookiefirst-root"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [
+        "cookiefirst"
+      ],
+      "evidence": [
+        "https://raw.githubusercontent.com/duckduckgo/autoconsent/main/rules/autoconsent/cookiefirst.json"
+      ]
+    },
+    {
+      "id": "klaro",
+      "name": "Klaro",
+      "kind": "self-hosted-script",
+      "selectors": [
+        ".klaro .cookie-notice",
+        ".klaro .cookie-modal"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [
+        "klaro"
+      ],
+      "evidence": [
+        "https://raw.githubusercontent.com/kiprotect/klaro/master/src/components/consent-notice.jsx"
+      ]
+    },
+    {
+      "id": "cookie-notice",
+      "name": "Cookie Notice & Compliance (Hu-manity)",
+      "kind": "wordpress-plugin",
+      "selectors": [
+        "#cookie-notice[class*='cn-position-']",
+        "#hu.hu-visible"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [
+        "hu-manity"
+      ],
+      "evidence": [
+        "https://plugins.svn.wordpress.org/cookie-notice/trunk/includes/frontend.php",
+        "https://plugins.svn.wordpress.org/cookie-notice/trunk/includes/bot-detect.php"
+      ],
+      "note": "Hides its banner for user agents on the CrawlerDetect list (which contains HeadlessChrome)."
+    },
+    {
+      "id": "moove-gdpr",
+      "name": "GDPR Cookie Compliance (Moove)",
+      "kind": "wordpress-plugin",
+      "selectors": [
+        "#moove_gdpr_cookie_info_bar",
+        "#moove_gdpr_cookie_modal"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [],
+      "evidence": [
+        "https://plugins.svn.wordpress.org/gdpr-cookie-compliance/trunk/dist/scripts/main.js"
+      ]
+    },
+    {
+      "id": "jetpack-eu-cookie-law",
+      "name": "Jetpack Cookie-Widget",
+      "kind": "wordpress-plugin",
+      "selectors": [
+        "#eu-cookie-law",
+        ".widget_eu_cookie_law_widget"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [],
+      "evidence": [
+        "https://raw.githubusercontent.com/Automattic/jetpack/trunk/projects/plugins/jetpack/modules/widgets/eu-cookie-law/widget.php"
+      ]
+    },
+    {
+      "id": "shopify",
+      "name": "Shopify Cookie-Banner",
+      "kind": "platform-builtin",
+      "selectors": [
+        "#shopify-pc__banner"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [
+        "shopify-privacy-banner"
+      ],
+      "evidence": [
+        "https://cdn.shopify.com/shopifycloud/privacy-banner/storefront-banner.js"
+      ]
+    },
+    {
+      "id": "wix",
+      "name": "Wix Cookie-Banner",
+      "kind": "platform-builtin",
+      "selectors": [
+        "[data-hook='ccsu-banner-wrapper']",
+        "[data-comp-type='cookie-banner-root-wix']",
+        "[data-comp-type='cookie-banner-root-uou']"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [],
+      "evidence": [
+        "https://raw.githubusercontent.com/duckduckgo/autoconsent/main/rules/autoconsent/wix.json",
+        "https://support.wix.com/en/article/displaying-a-cookie-banner-on-your-site"
+      ],
+      "note": "Legacy Wix banner; new Wix sites use 'Usercentrics for Wix'."
+    },
+    {
+      "id": "shopware",
+      "name": "Shopware Cookie-Hinweis",
+      "kind": "platform-builtin",
+      "selectors": [
+        ".cookie-permission-container[data-cookie-permission]"
+      ],
+      "shadowRoot": false,
+      "serviceIds": [],
+      "evidence": [
+        "https://raw.githubusercontent.com/shopware/shopware/trunk/src/Storefront/Resources/views/storefront/layout/cookie/cookie-permission.html.twig"
+      ]
+    }
+  ]
+}
