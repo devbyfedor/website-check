@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prüfbericht, Bauplan</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&amp;family=Barlow+Semi+Condensed:wght@500;600&amp;display=swap">
+<style>
+body { margin: 0; background: #143E91; color: #F2F6FF; font-family: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: #F2F6FF; } a:hover { color: #8CCBFF; }
+.paper { background-color: #143E91; background-image: linear-gradient(rgba(242,246,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(242,246,255,0.07) 1px, transparent 1px), linear-gradient(rgba(242,246,255,0.14) 1px, transparent 1px), linear-gradient(90deg, rgba(242,246,255,0.14) 1px, transparent 1px); background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px; }
+.cond { font-family: 'Barlow Semi Condensed', 'Barlow', sans-serif; }
+.nav a { text-decoration: none; font-size: 16px; font-weight: 500; color: #F2F6FF; }
+.nav a:hover { color: #8CCBFF; }
+a:focus-visible, button:focus-visible { outline: 3px solid #8CCBFF; outline-offset: 3px; }
+.mk path { fill: none; stroke: #F2F6FF; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.newb { display: inline-flex; align-items: center; height: 42px; padding: 0 18px; border: 1.5px solid #F2F6FF; color: #F2F6FF; text-decoration: none; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 18px; }
+.newb:hover { background: #F2F6FF; color: #143E91; }
+.sheet { background: #FFFFFF; color: #13254F; box-shadow: 0 40px 80px -40px rgba(3,14,40,0.7); }
+.sheet a { color: #1F4FBF; } .sheet a:hover { color: #13254F; }
+.sheet a:focus-visible, .sheet button:focus-visible { outline-color: #1F4FBF; }
+.sec { display: flex; flex-direction: column; gap: 18px; }
+.sech { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline; justify-content: space-between; }
+.h2s { margin: 0; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 32px; line-height: 1.1; color: #13254F; }
+.h3s { margin: 0 0 8px; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 21px; color: #13254F; }
+.bodys { margin: 0; font-size: 17px; line-height: 1.6; color: #2D3C5E; }
+.mut { color: #47577A; }
+.gb { height: 44px; padding: 0 16px; border: 1.5px solid #13254F; background: #FFFFFF; color: #13254F; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 17px; cursor: pointer; }
+.gb:hover { background: #13254F; color: #FFFFFF; }
+.pencil { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border: 2px solid #C8342B; border-radius: 50% 44% 52% 46%; color: #C8342B; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 19px; box-sizing: border-box; transform: rotate(-6deg); }
+.feld { display: inline-block; padding: 1px 7px; border: 1px solid #2C5BC4; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 13.5px; color: #2C5BC4; white-space: nowrap; }
+.sk { fill: none; stroke: #2C5BC4; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.skt { fill: none; stroke: #2C5BC4; stroke-width: 1; stroke-opacity: 0.5; }
+.skh { fill: none; stroke: #2C5BC4; stroke-width: 6; stroke-linecap: round; }
+.zt { fill: none; stroke: #2C5BC4; stroke-width: 1; }
+.zone { fill: #47577A; font-family: 'Barlow Semi Condensed', sans-serif; font-size: 13px; font-weight: 600; text-anchor: middle; dominant-baseline: central; }
+.rp { fill: none; stroke: #C8342B; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.rpt { fill: #C8342B; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 18px; text-anchor: middle; dominant-baseline: central; }
+.draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw .9s cubic-bezier(.6,0,.3,1) forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.pop { opacity: 0; animation: pop .35s ease-out forwards; }
+@keyframes pop { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .draw { stroke-dashoffset: 0; animation: none; } .pop { opacity: 1; animation: none; } }
+.tw { overflow-x: auto; }
+table.mt { width: 100%; border-collapse: collapse; font-size: 16px; min-width: 640px; }
+.mt th { text-align: left; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 15px; color: #47577A; padding: 10px 14px; border-bottom: 1.5px solid #13254F; }
+.mt td { padding: 12px 14px; border-bottom: 1px solid #C9D5EA; vertical-align: middle; color: #13254F; }
+.mt td.num { font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 18px; white-space: nowrap; }
+.mt td.bad { color: #C8342B; }
+.res { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; white-space: nowrap; }
+.res svg { width: 18px; height: 18px; flex: none; }
+.res path { fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.r-bad { color: #C8342B; } .r-bad path { stroke: #C8342B; }
+.r-ok { color: #1F4FBF; } .r-ok path { stroke: #1F4FBF; }
+.r-mid { color: #47577A; } .r-mid path { stroke: #47577A; }
+.pos { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid #13254F; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 14px; box-sizing: border-box; }
+.tag { display: inline-flex; align-items: center; padding: 3px 9px; font-size: 14px; font-weight: 600; white-space: nowrap; border: 1.5px solid currentColor; }
+.t-bad { color: #C8342B; } .t-ok { color: #1F4FBF; } .t-mid { color: #47577A; }
+.trow { display: grid; grid-template-columns: 250px minmax(0, 1fr); align-items: center; min-height: 48px; }
+.tlab { display: flex; flex-direction: column; gap: 1px; padding-right: 16px; font-size: 14.5px; min-width: 0; overflow-wrap: anywhere; }
+.tlab small { font-size: 12.5px; color: #47577A; }
+.track { position: relative; height: 48px; background-image: linear-gradient(90deg, rgba(44,91,196,0.2) 1px, transparent 1px); background-size: 16.6667% 100%; border-bottom: 1px solid #E1E8F4; }
+.bar { position: absolute; top: 15px; height: 18px; box-sizing: border-box; }
+.own { background: #DCE6F8; border: 1.5px solid #2C5BC4; }
+.ext { background: repeating-linear-gradient(45deg, rgba(200,52,43,0.85) 0 2px, transparent 2px 6px); border: 1.5px solid #C8342B; }
+.cut { position: absolute; left: 46.6667%; top: 0; bottom: 0; width: 0; border-left: 2px dashed #13254F; }
+.cutl { position: absolute; left: 46.6667%; transform: translateX(-50%); width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border: 1.5px solid #13254F; background: #FFFFFF; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 15px; color: #13254F; box-sizing: border-box; }
+.code { margin: 0; padding: 14px 16px; background: #EEF2FA; border: 1px solid #C9D5EA; color: #13254F; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
+.steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 12px; font-size: 16.5px; line-height: 1.55; color: #2D3C5E; }
+.tabs { display: flex; flex-wrap: wrap; border-bottom: 1.5px solid #13254F; }
+.tab { height: 44px; padding: 0 14px; display: inline-flex; align-items: center; gap: 8px; border: 1.5px solid transparent; border-bottom: 0; margin-bottom: -1.5px; background: transparent; color: #47577A; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 17px; cursor: pointer; }
+.tab:hover { color: #13254F; }
+.tab.on { border-color: #13254F; background: #FFFFFF; color: #13254F; }
+.tab small { font-family: 'Barlow', sans-serif; font-weight: 600; font-size: 11.5px; color: #FFFFFF; background: #2C5BC4; padding: 1px 6px; }
+.revp { fill: none; stroke: #13254F; stroke-width: 1.6; stroke-linejoin: round; }
+.revp.open { stroke-dasharray: 3 3; }
+.revt { fill: #13254F; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 13px; text-anchor: middle; }
+.strike { text-decoration: line-through; text-decoration-color: #C8342B; text-decoration-thickness: 2px; }
+.sheet a.btns { display: inline-flex; align-items: center; justify-content: center; height: 58px; padding: 0 26px; background: #143E91; color: #FFFFFF; text-decoration: none; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 20px; }
+.sheet a.btns:hover { background: #0F2F73; color: #FFFFFF; }
+.sheet a.gl { display: inline-flex; align-items: center; justify-content: center; height: 58px; padding: 0 22px; border: 1.5px solid #13254F; color: #13254F; text-decoration: none; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 19px; box-sizing: border-box; }
+.sheet a.gl:hover { background: #13254F; color: #FFFFFF; }
+.stb { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); border-top: 1.5px solid #13254F; }
+.stb > div { padding: 12px 18px; border-right: 1px solid #9FB0D0; display: flex; flex-direction: column; gap: 2px; }
+.stb span { font-size: 12.5px; color: #47577A; }
+.stb strong { font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 17px; color: #13254F; }
+</style>
+<style>html, body { height: 100%; }</style>
+</head>
+<body>
+<div class="paper" style="min-height: 100%; display: flex; flex-direction: column">
+<header style="max-width: 1240px; width: 100%; margin: 0 auto; box-sizing: border-box; padding: 24px 32px; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap">
+<a href="start.html" class="cond" style="display: inline-flex; align-items: center; gap: 12px; text-decoration: none; font-size: 23px; font-weight: 600; color: #F2F6FF">
+<svg class="mk" width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path d="M2 2H28V28H2Z"></path><path d="M2 19H28M15 19V28"></path><path d="M8 10.5l4 4 9-8"></path></svg>
+Website-Check
+</a>
+<div style="display: flex; align-items: center; gap: 28px; flex-wrap: wrap">
+<nav class="nav" aria-label="Hauptnavigation" style="display: flex; gap: 28px; flex-wrap: wrap">
+<a href="#methode">So prüfen wir</a>
+<a href="bfsg.html">BFSG-Check</a>
+</nav>
+<a class="newb" href="start.html">Neue Prüfung</a>
+</div>
+</header>
+<main style="flex: 1; max-width: 1240px; width: 100%; margin: 0 auto; box-sizing: border-box; padding: 8px 32px 72px">
+<article class="sheet">
+<div style="padding: clamp(28px, 5vw, 60px); display: flex; flex-direction: column; gap: 56px">
+
+<section class="sec" style="gap: 22px">
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; justify-content: space-between">
+<h1 class="cond" style="margin: 0; display: flex; flex-direction: column; gap: 6px; font-weight: 600; color: #13254F"><span style="font-size: 22px; font-weight: 500; color: #47577A">Prüfbericht für</span><span style="font-size: clamp(40px, 5vw, 64px); line-height: 1; overflow-wrap: anywhere">roesterei-muster.de</span></h1>
+<div style="display: flex; gap: 10px; flex-wrap: wrap">
+<button type="button" class="gb">Als PDF speichern</button>
+<button type="button" class="gb">Link kopieren</button>
+<button type="button" class="gb">An Entwickler weitergeben</button>
+</div>
+</div>
+<dl style="margin: 0; display: flex; flex-wrap: wrap; gap: 10px 44px; font-size: 15.5px">
+<div><dt class="mut">Geprüft am</dt><dd style="margin: 2px 0 0; font-weight: 600">19. November 2026, 18:42 Uhr</dd></div>
+<div><dt class="mut">System</dt><dd style="margin: 2px 0 0; font-weight: 600">WordPress mit WooCommerce</dd></div>
+<div><dt class="mut">Geprüfte Seiten</dt><dd style="margin: 2px 0 0; font-weight: 600">Startseite und Impressum</dd></div>
+<div><dt class="mut">Revision</dt><dd style="margin: 2px 0 0; font-weight: 600">A, Erstprüfung</dd></div>
+</dl>
+</section>
+
+<section class="sec">
+<div class="sech"><h2 class="h2s">Prüfmaße</h2><span class="mut" style="font-size: 15px">Soll nach Gesetz und Richtlinie, Ist auf Ihrer Startseite</span></div>
+<div class="tw"><table class="mt">
+<thead><tr><th scope="col">Merkmal</th><th scope="col">Soll</th><th scope="col">Ist</th><th scope="col">Ergebnis</th></tr></thead>
+<tbody>
+<tr><td>Fremde Dienste vor der Einwilligung</td><td class="num">0</td><td class="num bad">3</td><td><span class="res r-bad"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14"></path></svg>nicht erfüllt</span></td></tr>
+<tr><td>Pflichtangaben im Impressum</td><td class="num">4 von 4</td><td class="num">4 von 4</td><td><span class="res r-ok"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 4.5"></path></svg>erfüllt</span></td></tr>
+<tr><td>Kleinster Textkontrast</td><td class="num">mind. 4,5 : 1</td><td class="num bad">2,9 : 1</td><td><span class="res r-bad"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14"></path></svg>nicht erfüllt</span></td></tr>
+<tr><td>Bilder mit Beschreibung</td><td class="num">alle</td><td class="num bad">12 von 17</td><td><span class="res r-bad"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14"></path></svg>nicht erfüllt</span></td></tr>
+<tr><td>Erklärung zur Barrierefreiheit</td><td class="num">vorhanden</td><td class="num bad">fehlt</td><td><span class="res r-bad"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14"></path></svg>nicht erfüllt</span></td></tr>
+<tr><td>Verschlüsselung</td><td class="num">HTTPS</td><td class="num">HTTPS</td><td><span class="res r-ok"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 4.5"></path></svg>erfüllt</span></td></tr>
+<tr><td>Sicherheits-Header</td><td class="num">5 von 5</td><td class="num">2 von 5</td><td><span class="res r-mid"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M4 9h10"></path></svg>teilweise</span></td></tr>
+</tbody>
+</table></div>
+<p class="mut" style="margin: 0; font-size: 15px">Ob das Barrierefreiheitsstärkungsgesetz für Sie überhaupt gilt, klären Sie im <a href="bfsg.html">BFSG-Prüfschema</a>.</p>
+</section>
+
+<section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 48px; align-items: center">
+<div style="display: flex; flex-direction: column; gap: 22px; min-width: 0">
+<h2 class="h2s">Drei Dinge sollten Sie zuerst beheben</h2>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 22px">
+<li style="display: flex; gap: 16px; align-items: flex-start"><span class="pencil" aria-hidden="true">1</span><div style="display: flex; flex-direction: column; gap: 6px"><a href="#fund-1" class="cond" style="color: #13254F; text-decoration: none; font-weight: 600; font-size: 22px; line-height: 1.2">Google Fonts laden vor der Einwilligung</a><span class="mut" style="font-size: 15.5px">Datenschutz, hohes Risiko <span class="feld">Feld B2</span></span></div></li>
+<li style="display: flex; gap: 16px; align-items: flex-start"><span class="pencil" aria-hidden="true">2</span><div style="display: flex; flex-direction: column; gap: 6px"><a href="#fund-2" class="cond" style="color: #13254F; text-decoration: none; font-weight: 600; font-size: 22px; line-height: 1.2">Google Analytics startet vor der Einwilligung</a><span class="mut" style="font-size: 15.5px">Datenschutz, hohes Risiko <span class="feld">Feld A3</span></span></div></li>
+<li style="display: flex; gap: 16px; align-items: flex-start"><span class="pencil" aria-hidden="true">3</span><div style="display: flex; flex-direction: column; gap: 6px"><a href="#fund-3" class="cond" style="color: #13254F; text-decoration: none; font-weight: 600; font-size: 22px; line-height: 1.2">Zu schwacher Kontrast an 14 Stellen</a><span class="mut" style="font-size: 15.5px">Barrierefreiheit, mittleres Risiko <span class="feld">Feld A2</span></span></div></li>
+</ol>
+</div>
+<svg viewBox="-22 -28 504 412" role="img" aria-label="Plan der Startseite mit Feldern A bis D und 1 bis 3. Rot markiert: Überschrift in Feld B2, Quelltext am Seitenende in Feld A3, Unterzeile in Feld A2." style="width: 100%; height: auto; display: block">
+<text class="zone" x="67.5" y="-12">A</text>
+<text class="zone" x="182.5" y="-12">B</text>
+<text class="zone" x="297.5" y="-12">C</text>
+<text class="zone" x="412.5" y="-12">D</text>
+<text class="zone" x="-10" y="70">1</text>
+<text class="zone" x="-10" y="190">2</text>
+<text class="zone" x="-10" y="310">3</text>
+<path class="zt" d="M125 2V10M240 2V10M355 2V10M2 130H10M2 250H10"></path>
+<path class="sk" d="M10 10H470V370H10Z"></path>
+<path class="skt" d="M10 44H470"></path>
+<path class="sk" d="M30 60H450V160H30Z"></path>
+<path class="skt" d="M30 60L450 160M450 60L30 160"></path>
+<path class="skh" d="M30 190H300"></path>
+<path class="skt" d="M30 216H180"></path>
+<path class="sk" d="M30 236H160V300H30Z"></path>
+<path class="sk" d="M175 236H305V300H175Z"></path>
+<path class="sk" d="M320 236H450V300H320Z"></path>
+<path class="skt" d="M10 330H470"></path>
+<path class="sk" d="M44 344l-9 7 9 7M62 344l9 7-9 7M57 340l-8 22"></path>
+<path class="rp draw" pathLength="1" d="M18 190c0-15 72-21 150-20s152 8 150 21-82 19-160 18S18 205 18 190z" style="animation-delay: .4s"></path>
+<text class="rpt pop" x="342" y="186" style="animation-delay: 1.2s">1</text>
+<path class="rp draw" pathLength="1" d="M24 351c0-12 18-17 29-16s30 4 30 16-17 16-30 15-29-3-29-15z" style="animation-delay: .9s"></path>
+<text class="rpt pop" x="104" y="351" style="animation-delay: 1.6s">2</text>
+<path class="rp draw" pathLength="1" d="M30 227c10-5 20 4 30 0s20 4 30 0 20 4 30 0 20 4 30 0 20 4 30 0" style="animation-delay: 1.4s"></path>
+<text class="rpt pop" x="200" y="216" style="animation-delay: 2s">3</text>
+</svg>
+</section>
+
+<section class="sec">
+<div class="sech"><h2 class="h2s">Zeitschnitt A–A: die ersten drei Sekunden</h2></div>
+<p class="bodys" style="max-width: 46em">Jede Zeile ist eine Anfrage Ihrer Startseite. Die Schnittlinie A–A markiert den Moment, in dem das Einwilligungsbanner erscheint. Schraffiert sind Anfragen an fremde Server, die vorher starten.</p>
+<div class="tw"><div style="min-width: 720px">
+<div class="trow" style="min-height: 44px">
+<span class="tlab mut">Anfrage</span>
+<div style="position: relative; height: 44px; font-size: 12.5px; color: #47577A">
+<span style="position: absolute; left: 0; bottom: 4px">0 s</span>
+<span style="position: absolute; left: 16.6667%; bottom: 4px; transform: translateX(-50%)">0,5 s</span>
+<span style="position: absolute; left: 33.3333%; bottom: 4px; transform: translateX(-50%)">1 s</span>
+<span style="position: absolute; left: 66.6667%; bottom: 4px; transform: translateX(-50%)">2 s</span>
+<span style="position: absolute; left: 83.3333%; bottom: 4px; transform: translateX(-50%)">2,5 s</span>
+<span style="position: absolute; right: 0; bottom: 4px">3 s</span>
+<span class="cutl" style="top: 0">A</span>
+</div>
+</div>
+<div class="trow"><span class="tlab">roesterei-muster.de<small>Ihre Seite</small></span><div class="track"><span class="bar own" style="left: 0%; width: 9.3%"></span><span class="cut"></span></div></div>
+<div class="trow"><span class="tlab">roesterei-muster.de/wp-content<small>Ihre Dateien: Design und Skripte</small></span><div class="track"><span class="bar own" style="left: 10%; width: 25%"></span><span class="cut"></span></div></div>
+<div class="trow"><span class="tlab">fonts.googleapis.com<small>Google, fremder Server</small></span><div class="track"><span class="bar ext" style="left: 10.3%; width: 3.7%"></span><span class="cut"></span></div></div>
+<div class="trow"><span class="tlab">fonts.gstatic.com<small>Google, fremder Server</small></span><div class="track"><span class="bar ext" style="left: 14.7%; width: 9%"></span><span class="cut"></span></div></div>
+<div class="trow"><span class="tlab">www.googletagmanager.com<small>Google, fremder Server</small></span><div class="track"><span class="bar ext" style="left: 28.7%; width: 8.7%"></span><span class="cut"></span></div></div>
+<div class="trow"><span class="tlab">Einwilligungstool<small>Ihr Server</small></span><div class="track"><span class="bar own" style="left: 39.3%; width: 7.4%"></span><span class="cut"></span></div></div>
+<div class="trow" style="min-height: 44px">
+<span class="tlab"></span>
+<div style="position: relative; height: 44px">
+<span class="cutl" style="top: 9px">A</span>
+<span style="position: absolute; left: calc(46.6667% + 22px); top: 13px; font-size: 13.5px; color: #13254F; white-space: nowrap">Einwilligungsbanner erscheint nach 1,4 s</span>
+</div>
+</div>
+</div></div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px 28px; font-size: 14px; color: #47577A">
+<span style="display: inline-flex; align-items: center; gap: 8px"><span class="ext" style="width: 22px; height: 12px; box-sizing: border-box"></span>Fremder Server</span>
+<span style="display: inline-flex; align-items: center; gap: 8px"><span class="own" style="width: 22px; height: 12px; box-sizing: border-box"></span>Ihr eigener Server</span>
+<span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 0; height: 16px; border-left: 2px dashed #13254F"></span>Schnitt A–A, Banner wird sichtbar</span>
+</div>
+</section>
+
+<section class="sec">
+<div class="sech"><h2 class="h2s">Stückliste der fremden Dienste</h2><span class="mut" style="font-size: 15px">5 Dienste gefunden</span></div>
+<div class="tw"><table class="mt">
+<thead><tr><th scope="col">Pos.</th><th scope="col">Dienst</th><th scope="col">Anbieter</th><th scope="col">Daten gehen an</th><th scope="col">Startet</th><th scope="col">Einwilligung</th></tr></thead>
+<tbody>
+<tr><td><span class="pos">1</span></td><td><b>Google Fonts</b><br><span class="mut" style="font-size: 14px">Schriften</span></td><td>Google</td><td>Server in den USA möglich</td><td>vor der Einwilligung</td><td><span class="tag t-bad">fehlt</span></td></tr>
+<tr><td><span class="pos">2</span></td><td><b>Google Tag Manager</b><br><span class="mut" style="font-size: 14px">lädt weitere Skripte</span></td><td>Google</td><td>Server in den USA möglich</td><td>vor der Einwilligung</td><td><span class="tag t-bad">fehlt</span></td></tr>
+<tr><td><span class="pos">3</span></td><td><b>Google Analytics 4</b><br><span class="mut" style="font-size: 14px">Statistik</span></td><td>Google</td><td>Server in den USA möglich</td><td>vor der Einwilligung</td><td><span class="tag t-bad">fehlt</span></td></tr>
+<tr><td><span class="pos">4</span></td><td><b>YouTube</b><br><span class="mut" style="font-size: 14px">Produktvideo</span></td><td>Google</td><td>Server in den USA möglich</td><td>erst nach Klick</td><td><span class="tag t-ok">wird eingeholt</span></td></tr>
+<tr><td><span class="pos">5</span></td><td><b>jsDelivr</b><br><span class="mut" style="font-size: 14px">Skripte</span></td><td>jsDelivr</td><td>weltweites Servernetz</td><td>vor der Einwilligung</td><td><span class="tag t-mid">Graubereich</span></td></tr>
+</tbody>
+</table></div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center">
+<button type="button" class="gb" data-dc-click="copy" data-dc-text="copyLabel">Liste für die Datenschutzerklärung kopieren</button>
+<span class="mut" style="font-size: 15px">Jeder dieser Dienste braucht einen eigenen Abschnitt in Ihrer Datenschutzerklärung.</span>
+</div>
+</section>
+
+<section id="fund-1" class="sec" style="gap: 26px; padding-top: 36px; border-top: 1.5px solid #13254F">
+<div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap"><span class="pencil" aria-hidden="true">1</span><h2 class="h2s">Google Fonts laden vor der Einwilligung</h2><span class="feld">Feld B2</span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 22px; min-width: 0">
+<div><h3 class="h3s">Was passiert</h3><p class="bodys">Ihre Startseite lädt zwei Dateien direkt von Google-Servern, 0,3 Sekunden nach dem Aufruf. Google erhält dabei die IP-Adresse jedes Besuchers, bevor dieser zustimmen kann.</p></div>
+<div style="display: flex; gap: 0; border: 1.5px solid #13254F">
+<div style="flex: 1; padding: 12px 16px; border-right: 1px solid #9FB0D0"><span class="mut" style="font-size: 13px">Soll</span><div class="cond" style="font-size: 22px; font-weight: 600">0 Anfragen an Google</div></div>
+<div style="flex: 1; padding: 12px 16px"><span class="mut" style="font-size: 13px">Ist</span><div class="cond" style="font-size: 22px; font-weight: 600; color: #C8342B">2 Anfragen, vor dem Banner</div></div>
+</div>
+<div><h3 class="h3s">Warum das wichtig ist</h3><p class="bodys">Das Landgericht München I hat 2022 einem Besucher dafür Schadensersatz zugesprochen. Die Lösung ist einfach und kostet nichts.</p></div>
+<div><h3 class="h3s">Gefunden im Quelltext</h3><pre class="code">&lt;link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700"&gt;</pre></div>
+</div>
+<div style="display: flex; flex-direction: column; min-width: 0; border: 1.5px solid #13254F; align-self: start">
+<div style="padding: 16px 18px 0; display: flex; flex-direction: column; gap: 12px">
+<h3 class="h3s" style="margin: 0">Montageanleitung</h3>
+<div class="tabs" role="tablist" aria-label="System wählen">
+<button type="button" role="tab" class="tab on" data-dc-class="tWp" aria-selected="true" data-dc-aria-selected="sWp" data-dc-click="goWp">WordPress <small>erkannt</small></button>
+<button type="button" role="tab" class="tab" data-dc-class="tSh" aria-selected="false" data-dc-aria-selected="sSh" data-dc-click="goSh">Shopify</button>
+<button type="button" role="tab" class="tab" data-dc-class="tWx" aria-selected="false" data-dc-aria-selected="sWx" data-dc-click="goWx">Wix</button>
+<button type="button" role="tab" class="tab" data-dc-class="tJi" aria-selected="false" data-dc-aria-selected="sJi" data-dc-click="goJi">Jimdo</button>
+<button type="button" role="tab" class="tab" data-dc-class="tSw" aria-selected="false" data-dc-aria-selected="sSw" data-dc-click="goSw">Shopware</button>
+</div>
+</div>
+<div role="tabpanel" style="padding: 22px 22px 24px">
+<div data-dc-if="sWp">
+<ol class="steps">
+<li>Finden Sie heraus, ob Ihr Theme oder ein Plugin die Schrift einbindet. Oft steht es in den Theme-Einstellungen unter „Typografie“.</li>
+<li>Binden Sie die Schrift lokal ein, zum Beispiel mit einem Plugin für lokale Google Fonts. Die Dateien liegen danach auf Ihrem eigenen Server.</li>
+<li>Starten Sie eine neue Prüfung. Die Anfrage an Google sollte verschwunden sein.</li>
+</ol>
+</div>
+<div data-dc-if="sSh" hidden>
+<ol class="steps">
+<li>Shopify liefert die Schriften Ihres Themes von eigenen Servern. Google Fonts kommen meist aus einer App oder aus eingefügtem Code.</li>
+<li>Suchen Sie unter Onlineshop › Themes › Code bearbeiten nach fonts.googleapis.com und entfernen Sie die Einbindung.</li>
+<li>Wählen Sie die Schrift in den Theme-Einstellungen aus der Shopify-Schriftbibliothek und starten Sie eine neue Prüfung.</li>
+</ol>
+</div>
+<div data-dc-if="sWx" hidden>
+<ol class="steps">
+<li>Wix stellt seine Schriften selbst bereit. Google Fonts laden meist über ein eingebettetes HTML-Element oder eine App.</li>
+<li>Entfernen Sie den eingebetteten Code oder die App, die die Schrift lädt.</li>
+<li>Laden Sie die gewünschte Schrift als eigene Datei hoch und starten Sie eine neue Prüfung.</li>
+</ol>
+</div>
+<div data-dc-if="sJi" hidden>
+<ol class="steps">
+<li>Prüfen Sie, ob in den Einstellungen eigener Code im Kopfbereich der Seite eingetragen ist.</li>
+<li>Entfernen Sie jede Zeile mit fonts.googleapis.com.</li>
+<li>Wählen Sie eine Schrift aus den Design-Einstellungen und starten Sie eine neue Prüfung.</li>
+</ol>
+</div>
+<div data-dc-if="sSw" hidden>
+<ol class="steps">
+<li>In Shopware 6 bindet das Theme die Schriften ein.</li>
+<li>Legen Sie die Schriftdateien in den Ordner Ihres Themes und binden Sie sie per @font-face ein, nicht über fonts.googleapis.com.</li>
+<li>Kompilieren Sie das Theme neu, leeren Sie den Cache und starten Sie eine neue Prüfung.</li>
+</ol>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section class="sec">
+<div class="sech"><h2 class="h2s">Revisionen</h2><span class="mut" style="font-size: 15px">Jede neue Prüfung wird eine Revision</span></div>
+<div class="tw"><table class="mt">
+<thead><tr><th scope="col">Rev.</th><th scope="col">Datum</th><th scope="col">Änderung</th><th scope="col">Funde</th></tr></thead>
+<tbody>
+<tr><td><svg width="30" height="26" viewBox="0 0 30 26" role="img" aria-label="Revision A"><path class="revp" d="M15 2L28 24H2Z"></path><text class="revt" x="15" y="19">A</text></svg></td><td class="num">19.11.2026</td><td>Erstprüfung</td><td><b>7 Funde</b>, davon 3 vorrangig</td></tr>
+<tr><td><svg width="30" height="26" viewBox="0 0 30 26" role="img" aria-label="Revision B, noch offen"><path class="revp open" d="M15 2L28 24H2Z"></path><text class="revt" x="15" y="19">B</text></svg></td><td class="num mut">offen</td><td>Nach Ihrer Korrektur</td><td><button type="button" class="gb">Erneut prüfen</button></td></tr>
+</tbody>
+</table></div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border: 1.5px dashed #2C5BC4">
+<span class="mut" style="font-size: 14px">So erscheint ein erledigter Fund in der nächsten Revision:</span>
+<span style="font-size: 17px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center"><span class="strike">Google Fonts laden vor der Einwilligung</span><span class="feld">behoben in Rev. B</span></span>
+</div>
+</section>
+
+<section style="display: flex; flex-wrap: wrap; gap: 20px 40px; align-items: center; justify-content: space-between; padding: 30px 0; border-top: 1.5px solid #13254F; border-bottom: 1.5px solid #13254F">
+<div style="display: flex; flex-direction: column; gap: 8px; max-width: 560px">
+<h2 class="h2s" style="font-size: 28px">Sie möchten das nicht selbst umsetzen?</h2>
+<p class="bodys">Ich behebe die Funde für Sie: Schriften lokal einbinden, die Einwilligung richtig einstellen, Barrieren entfernen. Antwort per E-Mail.</p>
+<p class="mut" style="margin: 0; font-size: 15px">Sie haben schon einen Entwickler? Der Arbeitsauftrag enthält jeden Fund mit Feld, Soll-Wert und Anleitung.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px">
+<a class="btns" href="#anfrage">Hilfe bei der Umsetzung anfragen</a>
+<a class="gl" href="#arbeitsauftrag">Arbeitsauftrag für Ihren Entwickler</a>
+</div>
+</section>
+
+<p class="mut" style="margin: 0; font-size: 14px">Automatische Schnellprüfung. Keine Rechtsberatung und kein vollständiges Audit.</p>
+</div>
+<div class="stb">
+<div><span>Benennung</span><strong>Prüfbericht</strong></div>
+<div><span>Objekt</span><strong>roesterei-muster.de</strong></div>
+<div><span>Datum</span><strong>19.11.2026</strong></div>
+<div><span>Revision</span><strong>A</strong></div>
+<div><span>Blatt</span><strong>1 von 1</strong></div>
+<div><span>Geprüft</span><strong>automatisch</strong></div>
+</div>
+</article>
+</main>
+<footer style="border-top: 1px solid rgba(242,246,255,0.25)">
+<div style="max-width: 1240px; margin: 0 auto; box-sizing: border-box; padding: 22px 32px; display: flex; gap: 24px; flex-wrap: wrap; justify-content: space-between; font-size: 14px; color: #C4D6FF">
+<span>Website-Check DE</span>
+<div style="display: flex; gap: 22px; flex-wrap: wrap"><a href="#impressum">Impressum</a><a href="#datenschutz">Datenschutz</a><a href="#barrierefreiheit">Erklärung zur Barrierefreiheit</a></div>
+</div>
+</footer>
+</div>
+<script>
+class DCLogic {
+  constructor() { this.props = {}; this.state = {}; }
+  setState(patch) { this.state = Object.assign({}, this.state, patch); dcUpdate(); }
+  forceUpdate() { dcUpdate(); }
+}
+class Component extends DCLogic {
+  renderVals() {
+    const s = this.state || {};
+    const cms = s.cms || 'wp';
+    const map = { wp: 'Wp', sh: 'Sh', wx: 'Wx', ji: 'Ji', sw: 'Sw' };
+    const v = {};
+    Object.keys(map).forEach((k) => {
+      const n = map[k];
+      v['s' + n] = cms === k;
+      v['t' + n] = cms === k ? 'tab on' : 'tab';
+      v['go' + n] = () => this.setState({ cms: k });
+    });
+    v.copyLabel = s.copied ? 'Liste kopiert' : 'Liste für die Datenschutzerklärung kopieren';
+    v.copy = () => {
+      const text = [
+        'Externe Dienste auf roesterei-muster.de (Prüfung vom 19.11.2026):',
+        '1. Google Fonts (Google), Schriften',
+        '2. Google Tag Manager (Google), lädt weitere Skripte',
+        '3. Google Analytics 4 (Google), Statistik',
+        '4. YouTube (Google), Produktvideo',
+        '5. jsDelivr, Skripte'
+      ].join('\n');
+      try { if (navigator.clipboard) { navigator.clipboard.writeText(text); } } catch (e) {}
+      this.setState({ copied: true });
+    };
+    return v;
+  }
+}
+const dcComponent = new Component();
+function dcVals() { return dcComponent.renderVals() || {}; }
+function dcUpdate() {
+  const v = dcVals();
+  document.querySelectorAll('[data-dc-class]').forEach((el) => el.setAttribute('class', v[el.getAttribute('data-dc-class')] || ''));
+  ['aria-pressed', 'aria-selected'].forEach((a) => {
+    document.querySelectorAll('[data-dc-' + a + ']').forEach((el) => el.setAttribute(a, v[el.getAttribute('data-dc-' + a)] ? 'true' : 'false'));
+  });
+  document.querySelectorAll('[data-dc-disabled]').forEach((el) => { el.disabled = !!v[el.getAttribute('data-dc-disabled')]; });
+  document.querySelectorAll('[data-dc-text]').forEach((el) => { el.textContent = v[el.getAttribute('data-dc-text')]; });
+  document.querySelectorAll('[data-dc-if]').forEach((el) => { el.hidden = !v[el.getAttribute('data-dc-if')]; });
+}
+document.querySelectorAll('[data-dc-click]').forEach((el) => {
+  el.addEventListener('click', (e) => {
+    const f = dcVals()[el.getAttribute('data-dc-click')];
+    if (typeof f === 'function') f(e);
+  });
+});
+dcUpdate();
+</script>
+</body>
+</html>

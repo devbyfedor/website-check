@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Startseite, Bauplan</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&amp;family=Barlow+Semi+Condensed:wght@500;600&amp;display=swap">
+<style>
+body { margin: 0; background: #143E91; color: #F2F6FF; font-family: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: #F2F6FF; } a:hover { color: #8CCBFF; }
+.paper { background-color: #143E91; background-image: linear-gradient(rgba(242,246,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(242,246,255,0.07) 1px, transparent 1px), linear-gradient(rgba(242,246,255,0.14) 1px, transparent 1px), linear-gradient(90deg, rgba(242,246,255,0.14) 1px, transparent 1px); background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px; }
+.cond { font-family: 'Barlow Semi Condensed', 'Barlow', sans-serif; }
+.nav a { text-decoration: none; font-size: 16px; font-weight: 500; color: #F2F6FF; }
+.nav a:hover { color: #8CCBFF; }
+a:focus-visible, input:focus-visible, button:focus-visible { outline: 3px solid #8CCBFF; outline-offset: 3px; }
+.mk path { fill: none; stroke: #F2F6FF; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ln { fill: none; stroke: #F2F6FF; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.lt { fill: none; stroke: #F2F6FF; stroke-width: 1; stroke-opacity: 0.55; }
+.hd { fill: none; stroke: #F2F6FF; stroke-width: 6; stroke-linecap: round; }
+.dim { fill: none; stroke: #8CCBFF; stroke-width: 1.2; }
+.lead { fill: none; stroke: #FF9C8F; stroke-width: 1.6; stroke-linecap: round; }
+.callc { fill: #143E91; stroke: #FF9C8F; stroke-width: 1.8; transition: fill .2s; }
+.callt { fill: #FF9C8F; font-family: 'Barlow Semi Condensed', sans-serif; font-size: 15px; font-weight: 600; text-anchor: middle; dominant-baseline: central; transition: fill .2s; }
+.cg.on .callc { fill: #FF9C8F; }
+.cg.on .callt { fill: #143E91; }
+.dimt { fill: #8CCBFF; font-family: 'Barlow Semi Condensed', sans-serif; font-size: 13px; text-anchor: middle; }
+.svt { fill: #F2F6FF; font-family: 'Barlow', sans-serif; font-size: 10px; }
+.nt { opacity: 0; transition: opacity .25s; }
+.nt.show { opacity: 1; }
+.ntb { fill: #0B2A68; stroke: #8CCBFF; stroke-width: 1.2; }
+.ntt { fill: #8CCBFF; font-family: 'Barlow Semi Condensed', sans-serif; font-size: 13px; font-weight: 600; }
+.ntd { fill: #F2F6FF; font-family: 'Barlow', sans-serif; font-size: 11.5px; }
+.draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 1.2s cubic-bezier(.6,0,.2,1) forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.pop { opacity: 0; transform-box: fill-box; transform-origin: center; animation: pop .45s ease-out forwards; }
+@keyframes pop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .draw { stroke-dashoffset: 0; animation: none; } .pop { opacity: 1; animation: none; } .nt, .callc, .callt { transition: none; } }
+.callnum { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; border: 1.8px solid #FF9C8F; color: #FF9C8F; background: transparent; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 16px; box-sizing: border-box; }
+.lg { width: 100%; height: 100%; box-sizing: border-box; display: flex; gap: 14px; align-items: flex-start; text-align: left; padding: 14px 16px; margin: 0; background: transparent; border: 1.5px solid rgba(242,246,255,0.2); color: #F2F6FF; font: inherit; cursor: pointer; }
+.lg:hover { border-color: rgba(140,203,255,0.75); }
+.lg.on { border-color: #8CCBFF; background: rgba(140,203,255,0.1); }
+.lg.on .callnum { background: #FF9C8F; color: #143E91; }
+.lgt { display: block; font-family: 'Barlow Semi Condensed', sans-serif; font-size: 21px; font-weight: 600; }
+.lgd { display: block; margin-top: 4px; font-size: 16px; line-height: 1.5; color: #C4D6FF; }
+.tb { display: grid; grid-template-columns: 150px minmax(0, 1fr); border: 1.5px solid #F2F6FF; background: #0F357F; }
+.tb > * { padding: 12px 16px; border-bottom: 1px solid rgba(242,246,255,0.45); min-width: 0; }
+.tbl { border-right: 1px solid rgba(242,246,255,0.45); font-size: 14px; color: #C4D6FF; display: flex; align-items: center; }
+.tbv { font-size: 17px; color: #F2F6FF; display: flex; align-items: center; }
+.fieldb { width: 100%; box-sizing: border-box; height: 40px; padding: 0 4px; border: 0; border-bottom: 1.5px solid #F2F6FF; background: transparent; color: #F2F6FF; font: inherit; font-size: 19px; }
+.fieldb::placeholder { color: #B9CCF5; }
+.btnb { display: flex; align-items: center; justify-content: center; height: 60px; background: #F2F6FF; color: #143E91; text-decoration: none; font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 21px; border: 1.5px solid #F2F6FF; border-top: 0; }
+.btnb:hover { background: #FFFFFF; color: #0F2F73; }
+.det { display: flex; flex-direction: column; gap: 12px; padding: 22px 24px; border: 1.5px solid rgba(242,246,255,0.45); background: rgba(11,42,104,0.6); text-decoration: none; color: #F2F6FF; }
+a.det:hover { border-color: #8CCBFF; color: #F2F6FF; }
+.ic path { fill: none; stroke: #8CCBFF; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.dett { font-family: 'Barlow Semi Condensed', sans-serif; font-size: 22px; font-weight: 600; }
+.detd { font-size: 16px; line-height: 1.5; color: #C4D6FF; }
+.detl { font-family: 'Barlow Semi Condensed', sans-serif; font-size: 17px; font-weight: 600; color: #8CCBFF; text-decoration: underline; text-underline-offset: 4px; }
+</style>
+<style>html, body { height: 100%; }</style>
+</head>
+<body>
+<div class="paper" style="min-height: 100%; display: flex; flex-direction: column">
+<header style="max-width: 1320px; width: 100%; margin: 0 auto; box-sizing: border-box; padding: 24px 32px; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap">
+<a href="start.html" class="cond" style="display: inline-flex; align-items: center; gap: 12px; text-decoration: none; font-size: 23px; font-weight: 600; color: #F2F6FF">
+<svg class="mk" width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path d="M2 2H28V28H2Z"></path><path d="M2 19H28M15 19V28"></path><path d="M8 10.5l4 4 9-8"></path></svg>
+Website-Check
+</a>
+<nav class="nav" aria-label="Hauptnavigation" style="display: flex; gap: 28px; flex-wrap: wrap">
+<a href="#methode">So prüfen wir</a>
+<a href="bfsg.html">BFSG-Check</a>
+<a href="#agenturen">Für Agenturen</a>
+</nav>
+</header>
+<main style="flex: 1; max-width: 1320px; width: 100%; margin: 0 auto; box-sizing: border-box; padding: 24px 32px 72px; display: flex; flex-direction: column; gap: 56px">
+<section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 48px; align-items: center">
+<div style="display: flex; flex-direction: column; gap: 26px">
+<h1 class="cond" style="margin: 0; font-size: clamp(52px, 6.4vw, 104px); line-height: 0.94; font-weight: 600; letter-spacing: -0.01em">Ihre Website, nachgemessen.</h1>
+<p style="margin: 0; font-size: 20px; line-height: 1.55; color: #C4D6FF; max-width: 30em">Wir prüfen Startseite und Impressum wie ein echter Besucher und zeigen auf dem Plan, wo etwas nicht stimmt. Zu jedem Fund gibt es die passende Anleitung für Ihr System.</p>
+</div>
+<svg viewBox="0 0 600 450" role="img" aria-label="Technische Zeichnung einer Beispiel-Website mit vier markierten Prüfstellen: Schrift, Impressum, Bild und Verschlüsselung." style="width: 100%; height: auto; display: block; overflow: visible">
+<path class="dim draw" pathLength="1" d="M40 26H560" style="animation-delay: 1.9s"></path>
+<path class="dim draw" pathLength="1" d="M40 19V33M560 19V33" style="animation-delay: 1.9s"></path>
+<text class="dimt pop" x="300" y="15" style="animation-delay: 2.3s">1440 px</text>
+<path class="ln draw" pathLength="1" d="M40 50H560V400H40Z" style="animation-delay: .2s"></path>
+<path class="ln draw" pathLength="1" d="M40 84H560" style="animation-delay: .5s"></path>
+<circle class="lt pop" cx="58" cy="67" r="4" style="animation-delay: .7s"></circle>
+<circle class="lt pop" cx="72" cy="67" r="4" style="animation-delay: .75s"></circle>
+<circle class="lt pop" cx="86" cy="67" r="4" style="animation-delay: .8s"></circle>
+<path class="lt draw" pathLength="1" d="M118 59H438V75H118Z" style="animation-delay: .6s"></path>
+<path class="ln draw" pathLength="1" d="M418 67v-2.5a3.5 3.5 0 0 1 7 0V67M416 67H427V73H416Z" style="animation-delay: .9s"></path>
+<path class="ln draw" pathLength="1" d="M64 104H536V214H64Z" style="animation-delay: .8s"></path>
+<path class="lt draw" pathLength="1" d="M64 104L536 214M536 104L64 214" style="animation-delay: 1s"></path>
+<path class="hd draw" pathLength="1" d="M64 246H368" style="animation-delay: 1.1s"></path>
+<path class="lt draw" pathLength="1" d="M64 280H246" style="animation-delay: 1.2s"></path>
+<path class="ln draw" pathLength="1" d="M64 302H212V370H64Z" style="animation-delay: 1.3s"></path>
+<path class="ln draw" pathLength="1" d="M226 302H374V370H226Z" style="animation-delay: 1.4s"></path>
+<path class="ln draw" pathLength="1" d="M388 302H536V370H388Z" style="animation-delay: 1.5s"></path>
+<path class="lt draw" pathLength="1" d="M40 382H560" style="animation-delay: 1.6s"></path>
+<text class="svt pop" x="64" y="395" style="animation-delay: 1.8s">Impressum</text>
+<text class="svt pop" x="124" y="395" style="animation-delay: 1.85s">Datenschutz</text>
+<g class="pop" style="animation-delay: 2.4s"><g class="cg on" data-dc-class="g1"><path class="lead" d="M372 246H450"></path><circle class="callc" cx="466" cy="246" r="15"></circle><text class="callt" x="466" y="246">1</text></g></g>
+<g class="pop" style="animation-delay: 2.6s"><g class="cg" data-dc-class="g2"><path class="lead" d="M92 401L124 424"></path><circle class="callc" cx="136" cy="432" r="15"></circle><text class="callt" x="136" y="432">2</text></g></g>
+<g class="pop" style="animation-delay: 2.8s"><g class="cg" data-dc-class="g3"><circle class="callc" cx="300" cy="159" r="15"></circle><text class="callt" x="300" y="159">3</text></g></g>
+<g class="pop" style="animation-delay: 3s"><g class="cg" data-dc-class="g4"><path class="lead" d="M441 67H480"></path><circle class="callc" cx="496" cy="67" r="15"></circle><text class="callt" x="496" y="67">4</text></g></g>
+<g class="pop" style="animation-delay: 3.3s">
+<g class="nt show" data-dc-class="n1"><rect class="ntb" x="372" y="264" width="214" height="38" rx="3"></rect><text class="ntt" x="384" y="280">Google Fonts</text><text class="ntd" x="384" y="295">lädt vor der Einwilligung</text></g>
+<g class="nt" data-dc-class="n2"><rect class="ntb" x="160" y="412" width="214" height="37" rx="3"></rect><text class="ntt" x="172" y="428">Impressum gefunden</text><text class="ntd" x="172" y="442">Anschrift, E-Mail, Register</text></g>
+<g class="nt" data-dc-class="n3"><rect class="ntb" x="322" y="141" width="200" height="37" rx="3"></rect><text class="ntt" x="334" y="157">Bild ohne Beschreibung</text><text class="ntd" x="334" y="171">Alternativtext fehlt</text></g>
+<g class="nt" data-dc-class="n4"><rect class="ntb" x="330" y="90" width="214" height="37" rx="3"></rect><text class="ntt" x="342" y="106">Verschlüsselung aktiv</text><text class="ntd" x="342" y="120">3 von 5 Sicherheits-Headern fehlen</text></g>
+</g>
+</svg>
+</section>
+<section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 48px; align-items: end">
+<div style="display: flex; flex-direction: column; gap: 18px">
+<h2 class="cond" style="margin: 0; font-size: 32px; font-weight: 600">Was wir messen</h2>
+<ol style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 12px">
+<li><button type="button" class="lg on" data-dc-class="b1" data-dc-click="p1" aria-pressed="true" data-dc-aria-pressed="a1"><span class="callnum" aria-hidden="true">1</span><span><span class="lgt">Datenschutz</span><span class="lgd">Welche Dienste Daten senden, bevor jemand zustimmt.</span></span></button></li>
+<li><button type="button" class="lg" data-dc-class="b2" data-dc-click="p2" aria-pressed="false" data-dc-aria-pressed="a2"><span class="callnum" aria-hidden="true">2</span><span><span class="lgt">Pflichtangaben</span><span class="lgd">Impressum und Datenschutzerklärung, vollständig und erreichbar.</span></span></button></li>
+<li><button type="button" class="lg" data-dc-class="b3" data-dc-click="p3" aria-pressed="false" data-dc-aria-pressed="a3"><span class="callnum" aria-hidden="true">3</span><span><span class="lgt">Barrierefreiheit</span><span class="lgd">Die sechs häufigsten Fehler, vom Kontrast bis zur Bildbeschreibung.</span></span></button></li>
+<li><button type="button" class="lg" data-dc-class="b4" data-dc-click="p4" aria-pressed="false" data-dc-aria-pressed="a4"><span class="callnum" aria-hidden="true">4</span><span><span class="lgt">Sicherheit</span><span class="lgd">Verschlüsselung und wichtige Sicherheits-Header.</span></span></button></li>
+</ol>
+<p style="margin: 0; font-size: 15px; color: #C4D6FF">Wählen Sie einen Bereich, um ihn auf dem Plan zu sehen. Wir sagen Ihnen auch, wenn ein Gesetz für Sie nicht gilt.</p>
+</div>
+<div style="display: flex; flex-direction: column">
+<div class="tb">
+<div class="tbl"><label for="objekt">Objekt</label></div>
+<div class="tbv"><input id="objekt" class="fieldb" type="url" placeholder="ihre-website.de"></div>
+<div class="tbl">Prüfumfang</div>
+<div class="tbv">Startseite und Impressum</div>
+<div class="tbl">Maßstab</div>
+<div class="tbv">DSGVO, DDG, BFSG und WCAG 2.1</div>
+<div class="tbl">Dauer</div>
+<div class="tbv">etwa 30 Sekunden, kostenlos</div>
+</div>
+<a class="btnb" href="pruefung.html">Website prüfen</a>
+</div>
+</section>
+<section style="display: flex; flex-direction: column; gap: 22px">
+<h2 class="cond" style="margin: 0; font-size: 32px; font-weight: 600">Was Ihr Bericht zusätzlich zeigt</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 20px">
+<a class="det" href="bfsg.html">
+<svg class="ic" width="46" height="34" viewBox="0 0 46 34" aria-hidden="true"><path d="M2 2H16V12H2Z"></path><path d="M30 2H44V12H30Z"></path><path d="M2 22H16V32H2Z"></path><path d="M16 7H30M9 12V22"></path></svg>
+<span class="dett">BFSG-Prüfschema</span>
+<span class="detd">Gilt das Barrierefreiheitsstärkungsgesetz für Sie? Drei Fragen, eine klare Antwort.</span>
+<span class="detl">Zum Prüfschema</span>
+</a>
+<div class="det">
+<svg class="ic" width="46" height="34" viewBox="0 0 46 34" aria-hidden="true"><path d="M2 2H44V32H2Z"></path><path d="M2 10H44M2 18H44M2 26H44M12 2V32"></path></svg>
+<span class="dett">Stückliste der fremden Dienste</span>
+<span class="detd">Jeder Dienst mit Anbieter und Zeitpunkt. Die Liste übernehmen Sie in Ihre Datenschutzerklärung.</span>
+</div>
+<div class="det">
+<svg class="ic" width="46" height="34" viewBox="0 0 46 34" aria-hidden="true"><path d="M23 2L43 32H3Z"></path><path d="M18 24V14h5a3 3 0 0 1 0 6h-5M23 20l4 4"></path></svg>
+<span class="dett">Revisionen</span>
+<span class="detd">Prüfen Sie nach der Korrektur erneut. Erledigte Funde werden durchgestrichen.</span>
+</div>
+</div>
+</section>
+</main>
+<footer style="border-top: 1px solid rgba(242,246,255,0.25)">
+<div style="max-width: 1320px; margin: 0 auto; box-sizing: border-box; padding: 22px 32px; display: flex; gap: 24px; flex-wrap: wrap; justify-content: space-between; font-size: 14px; color: #C4D6FF">
+<span>Website-Check DE</span>
+<div style="display: flex; gap: 22px; flex-wrap: wrap"><a href="#impressum">Impressum</a><a href="#datenschutz">Datenschutz</a><a href="#barrierefreiheit">Erklärung zur Barrierefreiheit</a></div>
+</div>
+</footer>
+</div>
+<script>
+class DCLogic {
+  constructor() { this.props = {}; this.state = {}; }
+  setState(patch) { this.state = Object.assign({}, this.state, patch); dcUpdate(); }
+  forceUpdate() { dcUpdate(); }
+}
+class Component extends DCLogic {
+  renderVals() {
+    const L = (this.state && this.state.layer) || 1;
+    const v = {};
+    [1, 2, 3, 4].forEach((n) => {
+      const on = L === n;
+      v['a' + n] = on;
+      v['b' + n] = on ? 'lg on' : 'lg';
+      v['g' + n] = on ? 'cg on' : 'cg';
+      v['n' + n] = on ? 'nt show' : 'nt';
+      v['p' + n] = () => this.setState({ layer: n });
+    });
+    return v;
+  }
+}
+const dcComponent = new Component();
+function dcVals() { return dcComponent.renderVals() || {}; }
+function dcUpdate() {
+  const v = dcVals();
+  document.querySelectorAll('[data-dc-class]').forEach((el) => el.setAttribute('class', v[el.getAttribute('data-dc-class')] || ''));
+  ['aria-pressed', 'aria-selected'].forEach((a) => {
+    document.querySelectorAll('[data-dc-' + a + ']').forEach((el) => el.setAttribute(a, v[el.getAttribute('data-dc-' + a)] ? 'true' : 'false'));
+  });
+  document.querySelectorAll('[data-dc-disabled]').forEach((el) => { el.disabled = !!v[el.getAttribute('data-dc-disabled')]; });
+  document.querySelectorAll('[data-dc-text]').forEach((el) => { el.textContent = v[el.getAttribute('data-dc-text')]; });
+  document.querySelectorAll('[data-dc-if]').forEach((el) => { el.hidden = !v[el.getAttribute('data-dc-if')]; });
+}
+document.querySelectorAll('[data-dc-click]').forEach((el) => {
+  el.addEventListener('click', (e) => {
+    const f = dcVals()[el.getAttribute('data-dc-click')];
+    if (typeof f === 'function') f(e);
+  });
+});
+dcUpdate();
+</script>
+</body>
+</html>

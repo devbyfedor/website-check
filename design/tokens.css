@@ -1,0 +1,51 @@
+/*
+  Website-Check DE, design tokens ("Bauplan"), approved 19 Nov 2026.
+  Extracted from the reference pages in ./reference. The reference wins if anything here disagrees.
+*/
+:root {
+  /* Blueprint surfaces (page background, header, footer, scan screen, BFSG page) */
+  --wc-blueprint: #143E91;          /* page background */
+  --wc-blueprint-deep: #0F357F;     /* title block, panels, unselected scheme cards */
+  --wc-blueprint-ink: #0B2A68;      /* notes on the drawing */
+  --wc-chalk: #F2F6FF;              /* text and drawing lines on blueprint */
+  --wc-chalk-muted: #C4D6FF;        /* secondary text on blueprint */
+  --wc-cyan: #8CCBFF;               /* dimension lines, active states, focus ring on blueprint */
+  --wc-pencil-light: #FF9C8F;       /* red-pencil marks and callouts on blueprint */
+  --wc-placeholder-on-blueprint: #B9CCF5;
+
+  /* Sheet surfaces (the report is a white sheet lying on the blueprint) */
+  --wc-paper: #FFFFFF;
+  --wc-ink: #13254F;                /* headings and strong text on paper */
+  --wc-ink-body: #2D3C5E;           /* body text on paper */
+  --wc-ink-muted: #47577A;          /* secondary text on paper */
+  --wc-line: #2C5BC4;               /* drawing lines on paper */
+  --wc-link: #1F4FBF;               /* links on paper */
+  --wc-pencil: #C8342B;             /* red-pencil marks, failed values on paper */
+  --wc-rule: #C9D5EA;               /* table rules on paper */
+  --wc-code-bg: #EEF2FA;
+  --wc-own-request: #DCE6F8;        /* own-server bars in the time section */
+
+  /* Type: self-host both families with next/font, never load from Google in production */
+  --wc-font-body: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;          /* 400, 500, 600 */
+  --wc-font-head: 'Barlow Semi Condensed', 'Barlow', sans-serif;                     /* 500, 600 */
+
+  /* Blueprint grid: two layers, fine 24 px and strong 120 px */
+  --wc-grid-image:
+    linear-gradient(rgba(242, 246, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(242, 246, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(rgba(242, 246, 255, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(242, 246, 255, 0.14) 1px, transparent 1px);
+  --wc-grid-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+
+  /* Sheet shadow */
+  --wc-sheet-shadow: 0 40px 80px -40px rgba(3, 14, 40, 0.7);
+
+  /* Layout */
+  --wc-container: 1320px;           /* blueprint pages; the report uses 1240px */
+  --wc-gutter: 32px;
+
+  /* Motion: lines are drawn with pathLength="1", stroke-dasharray: 1, stroke-dashoffset 1 -> 0 */
+  --wc-draw-duration: 1.2s;         /* home drawing; report pencil marks use 0.9s */
+  --wc-draw-ease: cubic-bezier(.6, 0, .2, 1);
+  --wc-pop-duration: 0.45s;         /* callouts: opacity 0 -> 1, scale .6 -> 1 */
+}
