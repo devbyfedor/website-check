@@ -125,7 +125,22 @@ describe('Google Fonts (precedent)', () => {
     expect(maps.evidence[2]?.via).toEqual({ kind: 'initiator', url: mapsCss });
   });
 
-  it('is part of an unknown widget when the widget script loads it', () => {
+  it('stays a finding when an app of another provider loads it, and names the app as initiator', () => {
+    const klaviyo = 'https://static.klaviyo.com/onsite/js/klaviyo.js?company_id=AbC123';
+    const formCss = 'https://fonts.googleapis.com/css2?family=Cormorant&family=Montserrat';
+    const analysis = analyze([
+      { url: klaviyo, resourceType: 'script', initiator: { type: 'parser', url: SITE } },
+      { url: formCss, resourceType: 'stylesheet', initiator: { type: 'script', url: klaviyo } },
+      { url: 'https://fonts.gstatic.com/s/montserrat/v26/x.woff2', resourceType: 'font', initiator: { type: 'parser', url: formCss } },
+    ]);
+    expect(keys(analysis)).toEqual(['google-fonts', 'klaviyo-onsite']);
+    const gf = service(analysis, 'google-fonts');
+    expect(gf).toMatchObject({ severity: 'finding', requestCount: 2 });
+    expect(gf.evidence[0]).toMatchObject({ url: formCss, via: null, initiatorUrl: klaviyo });
+    expect(service(analysis, 'klaviyo-onsite')).toMatchObject({ severity: 'hint', requestCount: 1, includes: [] });
+  });
+
+  it('stays a finding when a script of an unknown third party loads it', () => {
     const widget = 'https://widget.bewertungen-beispiel.de/v2/widget.js';
     const widgetCss = 'https://fonts.googleapis.com/css?family=Montserrat';
     const analysis = analyze([
@@ -133,12 +148,9 @@ describe('Google Fonts (precedent)', () => {
       { url: widgetCss, resourceType: 'stylesheet', initiator: { type: 'script', url: widget } },
       { url: 'https://fonts.gstatic.com/s/montserrat/v26/x.woff2', resourceType: 'font', initiator: { type: 'parser', url: widgetCss } },
     ]);
-    expect(keys(analysis)).toEqual(['unknown:bewertungen-beispiel.de']);
-    expect(service(analysis, 'unknown:bewertungen-beispiel.de')).toMatchObject({
-      severity: 'hint',
-      requestCount: 3,
-      includes: [{ serviceId: 'google-fonts', requestCount: 2 }],
-    });
+    expect(keys(analysis)).toEqual(['google-fonts', 'unknown:bewertungen-beispiel.de']);
+    expect(service(analysis, 'google-fonts')).toMatchObject({ severity: 'finding', requestCount: 2 });
+    expect(service(analysis, 'unknown:bewertungen-beispiel.de')).toMatchObject({ severity: 'hint', requestCount: 1, includes: [] });
   });
 });
 

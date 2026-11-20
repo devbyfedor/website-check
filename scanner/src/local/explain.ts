@@ -49,7 +49,8 @@ async function main(): Promise<void> {
   else console.log(`Service ${key}: severity ${service.severity}, class ${service.riskClass}, ${service.requestCount} requests, first at ${service.firstStartMs} ms, includes ${JSON.stringify(service.includes)}`);
   console.log(`\nRequests to the hosts of ${key} (${own.length}):`);
   for (const request of own) {
-    const owner = analysis.services.find((s) => s.evidence.some((e) => e.url === request.url.slice(0, 500)))?.key ?? '?';
+    const shown = request.url.length <= 500 ? request.url : `${request.url.slice(0, 499)}…`;
+    const owner = analysis.services.find((s) => s.evidence.some((e) => e.url === shown))?.key ?? '(not in the first 20 evidence entries)';
     console.log(`- #${request.seq} ${request.startMs} ms ${request.resourceType} status=${request.status ?? request.failure} owner=${owner}`);
     console.log(`  ${request.url.slice(0, 200)}`);
     console.log(`  frame: ${request.frameUrls.length === 0 ? 'top-level document' : request.frameUrls.join(' <- ')}`);

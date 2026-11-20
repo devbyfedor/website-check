@@ -46,7 +46,7 @@ Read `docs/brief.md` completely before every session, together with `design/READ
 - `npm test`: all unit tests (no browser, no network).
 - `npm run test:integration`: the Playwright capture adapter against local fixture pages (needs `npx playwright install --no-shell chromium` once).
 - `npm run typecheck`: TypeScript strict check of all workspaces.
-- `npm run scan:local`: capture and analyze every site in `local/sites.txt`; results go to `local/captures` and `local/results`. `-- --only 3,7` repeats single sites.
+- `npm run scan:local`: capture and analyze every site in `local/sites.txt`; results go to `local/captures` and `local/results`. `-- --only 3,7` repeats single sites; `-- --reanalyze` recomputes analyses and the summary from the saved captures without visiting any site.
 - `npm run explain -- --site 07 --service google-fonts`: shows the requests, frames and initiator chain of one service from a saved capture, for manual checks.
 
 ## Report at the end of a session

@@ -81,7 +81,7 @@ describe('matching', () => {
   });
 
   it('counts host patterns', () => {
-    expect(rules.patternCount).toBe(20);
+    expect(rules.patternCount).toBe(21);
   });
 });
 

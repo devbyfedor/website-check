@@ -2,16 +2,29 @@
   "version": 1,
   "updated": "2026-11-20",
   "services": [
-    { "id": "google-fonts", "name": "Google Fonts", "provider": "Google", "category": "fonts", "riskClass": "precedent", "dataLocation": "us-possible", "hosts": ["fonts.googleapis.com", "fonts.gstatic.com"], "sources": ["test-source"] },
-    { "id": "google-tag-manager", "name": "Google Tag Manager", "provider": "Google", "category": "tag-manager", "riskClass": "consent-required", "dataLocation": "us-possible", "hosts": ["www.googletagmanager.com"], "sources": ["test-source"] },
-    { "id": "google-analytics", "name": "Google Analytics", "provider": "Google", "category": "analytics", "riskClass": "consent-required", "dataLocation": "us-possible", "hosts": ["www.google-analytics.com", "*.google-analytics.com"], "sources": ["test-source"] },
-    { "id": "doubleclick", "name": "Google Ads / DoubleClick", "provider": "Google", "category": "advertising", "riskClass": "consent-required", "dataLocation": "us-possible", "hosts": ["*.doubleclick.net"], "sources": ["test-source"] },
-    { "id": "google-maps", "name": "Google Maps", "provider": "Google", "category": "maps", "riskClass": "usually-consent", "dataLocation": "us-possible", "hosts": ["maps.googleapis.com", "maps.gstatic.com", "www.google.com/maps/"], "sources": ["test-source"] },
-    { "id": "youtube", "name": "YouTube", "provider": "Google", "category": "video", "riskClass": "usually-consent", "dataLocation": "us-possible", "hosts": ["www.youtube.com", "www.youtube-nocookie.com", "i.ytimg.com"], "sources": ["test-source"] },
-    { "id": "recaptcha", "name": "Google reCAPTCHA", "provider": "Google", "category": "captcha", "riskClass": "grey-zone", "dataLocation": "us-possible", "hosts": ["www.google.com/recaptcha/", "www.gstatic.com/recaptcha/"], "sources": [] },
-    { "id": "google-other", "name": "Google (sonstige Dienste)", "provider": "Google", "category": "other", "riskClass": "grey-zone", "dataLocation": "us-possible", "hosts": ["www.google.com", "www.gstatic.com"], "sources": [] },
-    { "id": "jsdelivr", "name": "jsDelivr", "provider": "jsDelivr", "category": "cdn", "riskClass": "grey-zone", "dataLocation": "worldwide-cdn", "hosts": ["cdn.jsdelivr.net"], "sources": [] },
-    { "id": "cookiebot", "name": "Cookiebot", "provider": "Usercentrics", "category": "consent", "riskClass": "not-flagged", "dataLocation": "eu", "hosts": ["consent.cookiebot.com", "consentcdn.cookiebot.com"], "sources": ["test-source"] },
-    { "id": "shopify-cdn", "name": "Shopify CDN", "provider": "Shopify", "category": "platform", "riskClass": "not-flagged", "dataLocation": "worldwide-cdn", "hosts": ["cdn.shopify.com"], "sources": ["test-source"] }
+    { "id": "google-fonts", "name": "Google Fonts", "provider": "Google", "category": "fonts", "riskClass": "precedent", "dataLocation": "us-possible", "hosts": [   "fonts.googleapis.com",   "fonts.gstatic.com" ], "sources": [   "test-source" ]
+    },
+    { "id": "google-tag-manager", "name": "Google Tag Manager", "provider": "Google", "category": "tag-manager", "riskClass": "consent-required", "dataLocation": "us-possible", "hosts": [   "www.googletagmanager.com" ], "sources": [   "test-source" ]
+    },
+    { "id": "google-analytics", "name": "Google Analytics", "provider": "Google", "category": "analytics", "riskClass": "consent-required", "dataLocation": "us-possible", "hosts": [   "www.google-analytics.com",   "*.google-analytics.com" ], "sources": [   "test-source" ]
+    },
+    { "id": "doubleclick", "name": "Google Ads / DoubleClick", "provider": "Google", "category": "advertising", "riskClass": "consent-required", "dataLocation": "us-possible", "hosts": [   "*.doubleclick.net" ], "sources": [   "test-source" ]
+    },
+    { "id": "google-maps", "name": "Google Maps", "provider": "Google", "category": "maps", "riskClass": "usually-consent", "dataLocation": "us-possible", "hosts": [   "maps.googleapis.com",   "maps.gstatic.com",   "www.google.com/maps/" ], "sources": [   "test-source" ]
+    },
+    { "id": "youtube", "name": "YouTube", "provider": "Google", "category": "video", "riskClass": "usually-consent", "dataLocation": "us-possible", "hosts": [   "www.youtube.com",   "www.youtube-nocookie.com",   "i.ytimg.com" ], "sources": [   "test-source" ]
+    },
+    { "id": "recaptcha", "name": "Google reCAPTCHA", "provider": "Google", "category": "captcha", "riskClass": "grey-zone", "dataLocation": "us-possible", "hosts": [   "www.google.com/recaptcha/",   "www.gstatic.com/recaptcha/" ], "sources": []
+    },
+    { "id": "google-other", "name": "Google (sonstige Dienste)", "provider": "Google", "category": "other", "riskClass": "grey-zone", "dataLocation": "us-possible", "hosts": [   "www.google.com",   "www.gstatic.com" ], "sources": []
+    },
+    { "id": "jsdelivr", "name": "jsDelivr", "provider": "jsDelivr", "category": "cdn", "riskClass": "grey-zone", "dataLocation": "worldwide-cdn", "hosts": [   "cdn.jsdelivr.net" ], "sources": []
+    },
+    { "id": "cookiebot", "name": "Cookiebot", "provider": "Usercentrics", "category": "consent", "riskClass": "not-flagged", "dataLocation": "eu", "hosts": [   "consent.cookiebot.com",   "consentcdn.cookiebot.com" ], "sources": [   "test-source" ]
+    },
+    { "id": "shopify-cdn", "name": "Shopify CDN", "provider": "Shopify", "category": "platform", "riskClass": "not-flagged", "dataLocation": "worldwide-cdn", "hosts": [   "cdn.shopify.com" ], "sources": [   "test-source" ]
+    },
+    { "id": "klaviyo-onsite", "name": "Klaviyo", "provider": "Klaviyo", "category": "marketing-automation", "riskClass": "grey-zone", "dataLocation": "us-possible", "hosts": [   "static.klaviyo.com" ], "sources": []
+    }
   ]
 }

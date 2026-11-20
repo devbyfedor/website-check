@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { analyzeThirdParty } from '../analyzers/third-party.ts';
-import type { CaptureFailureReason } from '../capture/types.ts';
+import type { Capture, CaptureFailureReason } from '../capture/types.ts';
 import { DEFAULT_RULES } from '../data.ts';
 import { captureWithPlaywright, launchLocalBrowser, type LocalCaptureResult } from './playwright-capture.ts';
 import { parseSitesFile } from './sites-file.ts';
@@ -29,6 +29,8 @@ async function main(): Promise<void> {
       out: { type: 'string', default: 'local' },
       only: { type: 'string' },
       retries: { type: 'string', default: '1' },
+      // Recompute analyses and the summary from the saved captures, without visiting any site.
+      reanalyze: { type: 'boolean', default: false },
     },
   });
   const sitesPath = resolve(values.sites);
@@ -44,6 +46,20 @@ async function main(): Promise<void> {
   const selected = only === null ? sites : sites.filter((site) => only.has(site.number));
   await mkdir(resolve(outDir, 'captures'), { recursive: true });
   await mkdir(resolve(outDir, 'results'), { recursive: true });
+
+  if (values.reanalyze) {
+    const results: SiteRunResult[] = [];
+    for (const site of selected) {
+      const base = `site-${site.number}`;
+      const capture = JSON.parse(await readFile(resolve(outDir, 'captures', `${base}.json`), 'utf8')) as Capture;
+      const analysis = capture.ok ? analyzeThirdParty(capture, DEFAULT_RULES) : null;
+      if (analysis !== null) await writeFile(resolve(outDir, 'results', `${base}.json`), `${JSON.stringify(analysis, null, 2)}\n`);
+      results.push({ label: site.label, kind: site.kind, platform: site.platform, attempts: 1, capture, analysis });
+      console.log(`${site.label}: ${capture.ok ? `${analysis?.counts.findings ?? 0} findings, ${analysis?.counts.hints ?? 0} hints` : `FAILED ${capture.failure?.reason}`}`);
+    }
+    if (only === null) await writeSummary(outDir, results);
+    return;
+  }
 
   const browser = await launchLocalBrowser();
   console.log(`Chromium ${browser.version()}, ${selected.length} site(s)`);
@@ -78,13 +94,15 @@ async function main(): Promise<void> {
     await browser.close();
   }
 
-  if (only === null) {
-    const summary = summarizeRun(results);
-    await writeFile(resolve(outDir, 'results', 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
-    const markdown = renderSummaryMarkdown(summary);
-    await writeFile(resolve(outDir, 'results', 'summary.md'), markdown);
-    console.log(`\n${markdown}`);
-  }
+  if (only === null) await writeSummary(outDir, results);
+}
+
+async function writeSummary(outDir: string, results: SiteRunResult[]): Promise<void> {
+  const summary = summarizeRun(results);
+  await writeFile(resolve(outDir, 'results', 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
+  const markdown = renderSummaryMarkdown(summary);
+  await writeFile(resolve(outDir, 'results', 'summary.md'), markdown);
+  console.log(`\n${markdown}`);
 }
 
 await main();

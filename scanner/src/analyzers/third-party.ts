@@ -19,11 +19,13 @@ import {
  * - Every other request is attributed to exactly one service:
  *   1. A request made inside a third-party iframe belongs to the service of the outermost
  *      third-party iframe (an embedded YouTube video owns everything it loads).
- *   2. A request triggered by a script or stylesheet of an embedded product (map, video, chat,
- *      reviews, analytics, …, see INFRASTRUCTURE_CATEGORIES) belongs to that product, e.g.
- *      Google Fonts loaded by the Google Maps script. The same holds for scripts of unknown
- *      third parties. Infrastructure (fonts, CDNs, platforms, consent tools, tag managers)
- *      passes requests through to the service they target.
+ *   2. A request that a script or stylesheet of an embedded product (map, video, chat,
+ *      reviews, analytics, …, see INFRASTRUCTURE_CATEGORIES) triggers in the page belongs to
+ *      that product only if it goes to the same provider, e.g. Google Fonts loaded by the
+ *      Google Maps script belongs to Google Maps. A request to another provider is a service
+ *      of its own (Google Fonts loaded by a newsletter app is Google Fonts); its evidence
+ *      names the initiator. Infrastructure (fonts, CDNs, platforms, consent tools, tag
+ *      managers) and unknown scripts are looked through: the chain continues upwards.
  *   3. Otherwise the request belongs to the service whose host pattern matches its URL, or
  *      to an unknown third party grouped by registrable domain.
  * - Risk class comes from the rules data. Unknown third parties are grey-zone hints.
@@ -54,6 +56,8 @@ export interface ThirdPartyEvidence {
   via: Via | null;
   /** The service the request's own host belongs to, if it differs from this service */
   ownServiceId: string | null;
+  /** Document, stylesheet or script that triggered the request, if known (best effort) */
+  initiatorUrl: string | null;
 }
 
 export interface DetectedService {
@@ -123,7 +127,12 @@ function truncate(url: string): string {
 }
 
 function isProduct(owner: Owner): boolean {
-  return owner.kind === 'unknown' || !INFRASTRUCTURE_CATEGORIES.has(owner.match.rule.category);
+  return owner.kind === 'service' && !INFRASTRUCTURE_CATEGORIES.has(owner.match.rule.category);
+}
+
+/** Both are known services of the same provider (e.g. Google Maps and Google Fonts). */
+function sameProvider(a: Owner, b: Owner): boolean {
+  return a.kind === 'service' && b.kind === 'service' && a.match.rule.provider.trim().toLowerCase() === b.match.rule.provider.trim().toLowerCase();
 }
 
 export function analyzeThirdParty(capture: Capture, rules: CompiledRules): ThirdPartyAnalysis {
@@ -167,17 +176,17 @@ export function analyzeThirdParty(capture: Capture, rules: CompiledRules): Third
       if (initiatorRequest !== null) {
         const inherited = attributions.get(initiatorRequest.seq);
         if (inherited !== undefined && inherited.via !== null) {
-          return inherited.owner.key === own.key ? null : { owner: inherited.owner, via: { kind: 'initiator', url: initiatorUrl } };
+          if (inherited.owner.key === own.key || !sameProvider(inherited.owner, own)) return null;
+          return { owner: inherited.owner, via: { kind: 'initiator', url: initiatorUrl } };
         }
       }
       const initiatorOwner = ownerOfUrl(initiatorUrl);
-      if (initiatorOwner === null) return null;
-      if (initiatorOwner.key === own.key) return null;
-      const scriptOfUnknown = initiatorOwner.kind === 'unknown' && current.initiator?.type === 'script';
-      if ((initiatorOwner.kind === 'service' && isProduct(initiatorOwner)) || scriptOfUnknown) {
-        return { owner: initiatorOwner, via: { kind: 'initiator', url: initiatorUrl } };
+      if (initiatorOwner === null || initiatorOwner.key === own.key) return null;
+      if (isProduct(initiatorOwner)) {
+        // An embedded product owns what it loads from its own provider, nothing else.
+        return sameProvider(initiatorOwner, own) ? { owner: initiatorOwner, via: { kind: 'initiator', url: initiatorUrl } } : null;
       }
-      // Infrastructure or an unknown stylesheet: look one step further up the chain.
+      // Infrastructure or an unknown third party: look one step further up the chain.
       if (initiatorRequest === null) return null;
       current = initiatorRequest;
     }
@@ -267,6 +276,7 @@ export function analyzeThirdParty(capture: Capture, rules: CompiledRules): Third
         reachedServer: reachedServer(request),
         via: via === null ? null : { kind: via.kind, url: truncate(via.url) },
         ownServiceId: own.kind === 'service' && own.key !== owner.key ? own.key : null,
+        initiatorUrl: request.initiator?.url ? truncate(request.initiator.url) : null,
       })),
       evidenceTruncated: items.length > MAX_EVIDENCE,
     });

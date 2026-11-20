@@ -388,7 +388,7 @@
     {
       "id": "leadfeeder",
       "name": "Leadfeeder / Dealfront Web Visitors",
-      "provider": "Dealfront (Leadfeeder)",
+      "provider": "Dealfront",
       "category": "marketing-automation",
       "riskClass": "grey-zone",
       "dataLocation": "unknown",
@@ -517,7 +517,7 @@
     {
       "id": "linkedin-insight-tag",
       "name": "LinkedIn Insight Tag",
-      "provider": "LinkedIn (Microsoft)",
+      "provider": "LinkedIn",
       "providerLegal": "LinkedIn Ireland Unlimited Company",
       "category": "social-pixel",
       "riskClass": "consent-required",
@@ -614,7 +614,7 @@
     {
       "id": "tiktok-pixel",
       "name": "TikTok Pixel",
-      "provider": "TikTok (ByteDance)",
+      "provider": "TikTok",
       "category": "social-pixel",
       "riskClass": "consent-required",
       "dataLocation": "us-possible",
@@ -636,7 +636,7 @@
     {
       "id": "x-pixel",
       "name": "X (Twitter) Pixel",
-      "provider": "X Corp.",
+      "provider": "X",
       "category": "social-pixel",
       "riskClass": "consent-required",
       "dataLocation": "us-possible",
@@ -1278,7 +1278,7 @@
     {
       "id": "cdnjs",
       "name": "cdnjs",
-      "provider": "Cloudflare (cdnjs)",
+      "provider": "Cloudflare",
       "category": "cdn",
       "riskClass": "grey-zone",
       "dataLocation": "worldwide-cdn",
@@ -1309,7 +1309,7 @@
     {
       "id": "jetpack-site-accelerator",
       "name": "Jetpack Site Accelerator (image and asset CDN)",
-      "provider": "Automattic (Jetpack)",
+      "provider": "Automattic",
       "category": "cdn",
       "riskClass": "grey-zone",
       "dataLocation": "worldwide-cdn",
@@ -1329,7 +1329,7 @@
     {
       "id": "jquery-cdn",
       "name": "jQuery CDN",
-      "provider": "OpenJS Foundation (jQuery)",
+      "provider": "OpenJS Foundation",
       "category": "cdn",
       "riskClass": "grey-zone",
       "dataLocation": "worldwide-cdn",
@@ -1513,7 +1513,7 @@
     {
       "id": "cookiebot",
       "name": "Cookiebot CMP",
-      "provider": "Cookiebot (Usercentrics group)",
+      "provider": "Usercentrics",
       "category": "consent",
       "riskClass": "not-flagged",
       "dataLocation": "worldwide-cdn",
@@ -1716,7 +1716,7 @@
     {
       "id": "gravatar",
       "name": "Gravatar",
-      "provider": "Gravatar (Automattic)",
+      "provider": "Automattic",
       "category": "other",
       "riskClass": "grey-zone",
       "dataLocation": "us-possible",
