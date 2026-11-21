@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Muster GmbH – Warenkorb</title>
+<!--
+  Fixture for axe rule button-name (fail page). Expected counts: scanner/fixtures/a11y/expected.json.
+  Violations: empty button, button with an SVG icon only, button whose only content is aria-hidden,
+  hamburger button made of empty spans (4).
+  Not counted by the rule button-name (it only looks at <button>): input type=submit without value gets the
+  browser's default label and passes input-button-name; input type=button without value and div role=button
+  are covered by other axe rules (input-button-name, aria-command-name) that we do not run. Also not counted:
+  the empty button hidden with display:none.
+-->
+<style>
+  body { margin: 0; padding: 24px 32px; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; color: #1a1a1a; background: #ffffff; }
+  h1 { font-size: 28px; margin: 0 0 16px; }
+  .zeile { display: flex; gap: 12px; align-items: center; margin: 0 0 12px; }
+  button, input { font-size: 16px; color: #1a1a1a; }
+  button { min-width: 40px; min-height: 32px; }
+  .balken { display: block; width: 20px; height: 3px; margin: 3px 0; background: #1a1a1a; }
+  .pseudo-knopf { display: inline-block; width: 32px; height: 32px; background: #1f3a5f; }
+  .versteckt { display: none; }
+</style>
+</head>
+<body>
+  <h1>Ihr Warenkorb</h1>
+  <p>Zwei Artikel im Warenkorb.</p>
+  <div class="zeile">
+    <button type="button"></button>
+    <button type="button"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 2 L14 14 M14 2 L2 14" stroke="#1a1a1a" stroke-width="2"/></svg></button>
+    <button type="button"><span aria-hidden="true">&#215;</span></button>
+    <button type="button"><span class="balken"></span><span class="balken"></span><span class="balken"></span></button>
+  </div>
+  <form action="kasse.html" method="post">
+    <div class="zeile">
+      <input type="submit">
+      <input type="button">
+      <div role="button" tabindex="0" class="pseudo-knopf"></div>
+    </div>
+  </form>
+  <div class="versteckt"><button type="button"></button></div>
+</body>
+</html>
