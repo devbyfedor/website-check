@@ -140,6 +140,14 @@ Result: a Durable Object on the free plan ran 1.5 s and 5 s of CPU in one reques
 
 Session time: about 45 minutes (12:37 to 13:22). Browser minutes in this session: 0.55 (32.9 s), all in step 4; steps 1 to 3 used none.
 
+## A2 part 3: banners, 12 sites through the Durable Object, report, merge (21.11.2026)
+
+Fedor's changes to the plan of part 3 (21.11.2026, before the start):
+- Strategy (b) is not measured on the 12 sites: it lost findings twice (Google Tag Manager on Site 10 in part 1, Google Analytics and Google Tag Manager on Site 06 in part 2 became hints), and its CPU saving is not needed inside a Durable Object. The report uses its numbers from parts 1 and 2.
+- Google's domains of different countries (for example `google.it` and `google.de`) belong to one service in the scanner: the Cloudflare browser runs sometimes in the Netherlands, sometimes in Italy.
+- The A2 report says how many full checks per day the free plan allows and which limit runs out first.
+- Answers before the start: (1) yes, the capture stays in the Durable Object with 30 s CPU per request on the free plan (three confirmations, see `docs/decisions.md`); (2) Site 06 is one of the 12 sites, once in the common run, not repeated.
+
 ## Next
 
 - A2 part 3, as Fedor planned: banner probe fixes (shadow roots, Cookie Notice, late banners), the measurement on 12 sites with both strategies through the Durable Object, `docs/measurements/a2.md` with the plan recommendation with numbers, the merge into `main`, and deleting the lab Worker (`npx wrangler delete -c worker/wrangler.lab.jsonc`). Quick Actions (plan B) cannot capture the requests of a page (see above). Open items in `docs/backlog.md`: preflights and `data:` requests in strategy (a), the hidden status in strategy (b) (it turned findings into hints on 2 of 4 sites in part 2), the browser location (EU, not Germany, changes between sessions), and one page that runs to the 15 s limit on Cloudflare to check the keep-alive command of strategy (a). Site 06 should be in the 12 sites: whether its web host blocks the browser seems to depend on where the browser runs.
