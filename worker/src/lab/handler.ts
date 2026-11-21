@@ -20,6 +20,8 @@ import type { EnvironmentCheck } from '../capture/emulation.ts';
 
 export interface LabEnv {
   LAB_TOKEN?: string;
+  /** `1` only in `worker/.dev.vars`, for the local fixture site; never set on Cloudflare. */
+  LAB_ALLOW_LOCAL?: string;
 }
 
 export interface TraceResult {
@@ -74,11 +76,16 @@ function authorized(request: Request, env: LabEnv): boolean {
   return match !== null && sameToken(match[1] ?? '', token);
 }
 
-export function isScannableUrl(value: unknown): value is string {
+/** Host names that must never be opened from the Cloudflare browser (lab-level check by name only; full SSRF protection comes in A5). */
+const LOCAL_HOST = /^(?:localhost|.*\.localhost|.*\.local|.*\.internal|0\.0\.0\.0|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|\[.*\])$/i;
+
+export function isScannableUrl(value: unknown, allowLocal = false): value is string {
   if (typeof value !== 'string' || value.length > 2000) return false;
   try {
     const url = new URL(value);
-    return (url.protocol === 'https:' || url.protocol === 'http:') && url.username === '' && url.password === '';
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+    if (url.username !== '' || url.password !== '') return false;
+    return allowLocal || !LOCAL_HOST.test(url.hostname);
   } catch {
     return false;
   }
@@ -116,7 +123,7 @@ export function createLabHandler<E extends LabEnv>(deps: LabDeps<E>): (request: 
       if (pathname === '/lab/capture') {
         const url = input?.['url'];
         const strategy = input?.['strategy'];
-        if (!isScannableUrl(url)) return json({ error: 'bad_request', message: 'url must be http or https' }, 400);
+        if (!isScannableUrl(url, env.LAB_ALLOW_LOCAL === '1')) return json({ error: 'bad_request', message: 'url must be a public http or https address' }, 400);
         if (typeof strategy !== 'string' || !STRATEGIES.includes(strategy as CaptureStrategy)) {
           return json({ error: 'bad_request', message: `strategy must be one of ${STRATEGIES.join(', ')}` }, 400);
         }

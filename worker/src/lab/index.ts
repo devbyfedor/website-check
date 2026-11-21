@@ -13,6 +13,8 @@ import { createLabHandler, parseTrace, type LabEnv, type SessionUsage, type Trac
 
 interface Env extends LabEnv {
   BROWSER: BrowserWorker;
+  /** Only with LAB_ALLOW_LOCAL=1 in `.dev.vars`: a fake trace page of the local fixture site. */
+  LAB_TRACE_URL?: string;
 }
 
 /** Idle timeout of the lab browser: the minimum Browser Run allows, so a crash wastes little time. */
@@ -59,7 +61,8 @@ const handler = createLabHandler<Env>({
         const page = await context.newPage();
         const environment = cloudEnvironment(chromeVersionOf(await browser.version()));
         await applyEmulation((method, params) => clientOf(page).then((c) => c.send(method as never, params as never)), pageEmulation(environment.userAgent));
-        await withTimeout(page.goto(TRACE_URL, { waitUntil: 'load', timeout: 10_000 }), 12_000);
+        const traceUrl = env.LAB_ALLOW_LOCAL === '1' && env.LAB_TRACE_URL !== undefined ? env.LAB_TRACE_URL : TRACE_URL;
+        await withTimeout(page.goto(traceUrl, { waitUntil: 'load', timeout: 10_000 }), 12_000);
         const text = await evaluateJson<string>(page, 'document.body ? document.body.innerText : ""');
         const check = await evaluateJson<EnvironmentCheck>(page, ENVIRONMENT_EXPRESSION).catch(() => null);
         return { ...parseTrace(text), environment: check };
@@ -79,8 +82,10 @@ const handler = createLabHandler<Env>({
     const browser = await puppeteer.connect(env.BROWSER, sessionId);
     await browser.close();
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const history = await puppeteer.history(env.BROWSER).catch(() => []);
-      const entry = history.find((s) => s.sessionId === sessionId);
+      const history: unknown = await puppeteer.history(env.BROWSER).catch(() => []);
+      // Local `wrangler dev` has no history; on Cloudflare it lists recent sessions.
+      const list = (Array.isArray(history) ? history : []) as { sessionId: string; startTime?: number; endTime?: number | null; closeReasonText?: string }[];
+      const entry = list.find((s) => s.sessionId === sessionId);
       if (entry !== undefined && entry.endTime !== undefined && entry.endTime !== null) {
         return { sessionId, startTime: entry.startTime ?? null, endTime: entry.endTime ?? null, closeReasonText: entry.closeReasonText ?? null };
       }

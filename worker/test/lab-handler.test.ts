@@ -81,6 +81,7 @@ describe('lab endpoint', () => {
       post('/lab/capture', { sessionId: 'session-0001', url: 'https://www.example.de/', strategy: 'screenshot' }),
       post('/lab/capture', { sessionId: '../x', url: 'https://www.example.de/', strategy: 'cdp-events' }),
       post('/lab/trace', {}),
+      post('/lab/capture', { sessionId: 'session-0001', url: 'http://127.0.0.1:4000/', strategy: 'cdp-events' }),
     ];
     for (const request of bad) expect((await handler(request, env)).status).toBe(400);
     expect(d.capture).not.toHaveBeenCalled();
@@ -112,6 +113,14 @@ describe('lab helpers', () => {
     expect(isScannableUrl('javascript:alert(1)')).toBe(false);
     expect(isScannableUrl('ftp://example.de/')).toBe(false);
     expect(isScannableUrl(42)).toBe(false);
+  });
+
+  it('rejects local and private hosts unless the dev flag allows them', () => {
+    for (const url of ['http://localhost:8080/', 'http://127.0.0.1/', 'http://10.1.2.3/', 'http://192.168.0.1/', 'http://172.20.0.1/', 'http://169.254.169.254/', 'http://[::1]/', 'http://printer.local/']) {
+      expect(isScannableUrl(url), url).toBe(false);
+    }
+    expect(isScannableUrl('http://127.0.0.1:4000/start', true)).toBe(true);
+    expect(isScannableUrl('http://172.32.0.1/')).toBe(true);
   });
 
   it('reads loc and colo from the trace page', () => {
