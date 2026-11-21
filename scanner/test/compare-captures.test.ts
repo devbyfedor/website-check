@@ -88,4 +88,30 @@ describe('compare captures', () => {
     expect(result.findings.onlyCloud).toEqual([]);
     expect(result.needsReview).toBe(false);
   });
+
+  it('keeps a real request that carries the initiator of its preflight, and leaves out data: URLs', () => {
+    const localWithPost = makeCapture({
+      requests: [
+        { url: 'https://www.example.de/', status: 200, isNavigation: true, resourceType: 'document' },
+        { url: 'https://api.example-cmp.com/consent', method: 'POST', resourceType: 'fetch', status: 200, initiator: { type: 'preflight', url: null } },
+      ],
+      consentBanner: banner(true),
+    });
+    const cloud = makeCapture({
+      requests: [
+        { url: 'https://www.example.de/', status: 200, isNavigation: true, resourceType: 'document' },
+        { url: 'https://api.example-cmp.com/consent', method: 'OPTIONS', resourceType: 'other', status: 204, initiator: { type: 'preflight', url: null } },
+        { url: 'https://api.example-cmp.com/consent', method: 'POST', resourceType: 'fetch', status: 200, initiator: { type: 'script', url: null } },
+        { url: 'data:image/png;base64,AAAA', resourceType: 'image', status: 200 },
+      ],
+      consentBanner: banner(true),
+    });
+    const result = compareCaptures(localWithPost, cloud, rules);
+    expect(result.local).toMatchObject({ requests: 2, preflights: 0, nonNetwork: 0 });
+    expect(result.cloud).toMatchObject({ requests: 2, preflights: 1, nonNetwork: 1 });
+    expect(result.thirdPartyHosts).toEqual({ both: ['api.example-cmp.com'], onlyLocal: [], onlyCloud: [] });
+    expect(result.completenessPct).toBe(100);
+    expect(result.onlyCloudRequests).toBe(0);
+    expect(result.needsReview).toBe(false);
+  });
 });

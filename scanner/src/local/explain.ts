@@ -49,7 +49,9 @@ async function main(): Promise<void> {
   const rule = DEFAULT_RULES.byId.get(key);
   const hosts = new Set(rule?.hosts.map((h) => h.split('/')[0]?.replace(/^\*\./, '') ?? '') ?? []);
   const own = capture.requests.filter((r) => {
-    const host = hostOf(r.url);
+    const raw = hostOf(r.url);
+    // Through the same mapping as the analyzer: www.google.it counts as www.google.com.
+    const host = raw === null ? null : DEFAULT_RULES.canonicalHost(raw);
     return host !== null && [...hosts].some((h) => host === h || host.endsWith(`.${h}`));
   });
   if (service === undefined) console.log(`Service ${key}: not detected as its own entry.`);

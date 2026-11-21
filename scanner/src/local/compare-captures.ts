@@ -12,7 +12,9 @@ import type { CompiledRules } from '../rules/match.ts';
  *
  * CORS preflight requests (`OPTIONS` before a cross-origin request) are left out of counts,
  * hosts and completeness: Puppeteer reports them as requests of their own, Playwright does not,
- * and the request they prepare is in both captures. They are counted separately. Hosts on
+ * and the request they prepare is in both captures. They are counted separately, and so are
+ * `data:` and `blob:` URLs, which are no network requests (Puppeteer reports `data:`, Playwright
+ * does not). Hosts on
  * Google's country domains count as the same host on google.com (`rules.canonicalHost`): the
  * Cloudflare browser runs in different EU countries and Google answers it on www.google.it.
  */
@@ -25,6 +27,8 @@ export interface CaptureSide {
   thirdPartyRequests: number;
   /** CORS preflight requests (left out of the other numbers) */
   preflights: number;
+  /** data:, blob: and other URLs that are not network requests (left out; Playwright never reports data:) */
+  nonNetwork: number;
   stopReason: string;
   endMs: number;
   banner: { detected: boolean; toolId: string | null; visibleAtMs: number | null };
@@ -59,13 +63,18 @@ export interface CaptureComparison {
   needsReview: boolean;
 }
 
-/** A CORS preflight as the browser protocol reports it (initiator type `preflight`). */
+/**
+ * A CORS preflight: an OPTIONS request with initiator type `preflight`. The method matters: the
+ * local adapter pairs initiators with requests by URL, so a real POST can carry the initiator of
+ * its own preflight.
+ */
 export function isPreflight(request: CapturedRequest): boolean {
-  return request.initiator?.type === 'preflight';
+  return request.method === 'OPTIONS' && request.initiator?.type === 'preflight';
 }
 
+/** Network requests that both adapters report: http(s) and ws(s), without preflights. */
 function requestsOf(capture: Capture): CapturedRequest[] {
-  return capture.requests.filter((r) => !isPreflight(r));
+  return capture.requests.filter((r) => hostOf(r.url) !== null && !isPreflight(r));
 }
 
 function side(capture: Capture, analysis: ThirdPartyAnalysis | null): CaptureSide {
@@ -80,7 +89,8 @@ function side(capture: Capture, analysis: ThirdPartyAnalysis | null): CaptureSid
     failure: capture.failure === null ? null : `${capture.failure.reason}: ${capture.failure.message.slice(0, 120)}`,
     requests: requests.length,
     thirdPartyRequests: thirdParty.length,
-    preflights: capture.requests.length - requests.length,
+    preflights: capture.requests.filter((r) => hostOf(r.url) !== null && isPreflight(r)).length,
+    nonNetwork: capture.requests.filter((r) => hostOf(r.url) === null).length,
     stopReason: capture.timings.stopReason,
     endMs: capture.timings.endMs,
     banner: { detected: capture.consentBanner.detected, toolId: capture.consentBanner.toolId, visibleAtMs: capture.consentBanner.visibleAtMs },

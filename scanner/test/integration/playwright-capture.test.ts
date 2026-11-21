@@ -128,7 +128,7 @@ describe('consent banner probe on fixture pages', () => {
     expect(await banner('/cookie-notice')).toMatchObject({ detected: true, toolId: 'cookie-notice', method: 'selector', selector: '#cookie-notice' });
   });
 
-  it('takes no settings tab, sticky header, newsletter popup or hidden bar for a banner', async () => {
+  it('takes no settings box, reopener, header or footer bar with a cookie link, newsletter popup or hidden bar for a banner', async () => {
     expect(await banner('/look-alikes')).toMatchObject({ detected: false, toolId: null, toolsInDom: ['cookie-notice'] });
   });
 });

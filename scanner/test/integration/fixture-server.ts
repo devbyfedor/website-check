@@ -111,17 +111,20 @@ route('www.banner.test', '/bottom-bar', (_req, res) =>
 route('www.banner.test', '/cookie-notice', (_req, res) =>
   send(res, 200, 'text/html; charset=utf-8', html(`<h1>Praxis</h1>
     <div id="cookie-notice" role="banner" class="cn-bottom bootstrap" style="position:fixed;bottom:0;left:0;right:0;height:70px;visibility:visible">Diese Webseite benutzt Cookies. <a href="#">Zustimmen</a></div>`)));
-// No banner: a small "Cookie-Einstellungen" tab, a sticky header with privacy links, a newsletter
-// popup without consent words, and a hidden Cookie Notice bar.
+// No banner, every look-alike under a probe point of the 1440 x 900 window: a sticky header and
+// a 45 px footer bar with a "Cookie-Einstellungen" link (consent word only in a link), a small
+// fixed "Cookie-Einstellungen" box (under 15,000 px²), a reopener with an aria-label in a shadow
+// root, a newsletter popup without consent words, and a hidden Cookie Notice bar.
 route('www.banner.test', '/look-alikes', (_req, res) =>
   send(res, 200, 'text/html; charset=utf-8', html(`
-    <header style="position:sticky;top:0;height:90px;background:#eee"><a href="/impressum">Impressum</a> <a href="/datenschutz">Datenschutz</a></header>
+    <header style="position:sticky;top:0;height:90px;background:#eee"><a href="/impressum">Impressum</a> <a href="/datenschutz">Datenschutz</a> <a href="#">Cookie-Einstellungen</a></header>
     <p style="height:2000px">Inhalt</p>
-    <button style="position:fixed;left:0;bottom:120px;width:120px;height:36px">Cookie-Einstellungen</button>
+    <div style="position:fixed;left:150px;bottom:70px;width:140px;height:36px;background:#ccc">Cookie-Einstellungen <button>Öffnen</button></div>
     <div role="dialog" style="position:fixed;top:250px;left:470px;width:500px;height:300px;background:#fff">Newsletter abonnieren und 10 % sparen <button>Anmelden</button></div>
-    <div id="cookie-notice" class="cookie-notice-hidden" style="position:fixed;bottom:0;left:0;right:0;height:70px;visibility:hidden">Diese Webseite benutzt Cookies. <a href="#">Zustimmen</a></div>` +
-    shadowBox('consent-widget', 'style="position:fixed;bottom:10px;right:10px"',
-      '<button aria-label="Cookie-Einstellungen öffnen" style="width:44px;height:44px">C</button>'))));
+    <div id="cookie-notice" class="cookie-notice-hidden" style="position:fixed;bottom:0;left:0;right:0;height:70px;visibility:hidden">Diese Webseite benutzt Cookies. <a href="#">Zustimmen</a></div>
+    <footer style="position:fixed;bottom:0;left:0;right:0;height:45px;background:#333"><a href="/impressum">Impressum</a> <a href="/datenschutz">Datenschutz</a> <a href="#">Cookie-Einstellungen</a></footer>` +
+    shadowBox('consent-widget', 'aria-label="Cookie-Einstellungen" style="position:fixed;bottom:70px;right:190px;width:60px;height:44px"',
+      '<button aria-label="Cookie-Einstellungen öffnen" style="width:60px;height:44px">C</button>'))));
 
 // 4. Error pages.
 route('www.blocked.test', '/', (_req, res) => send(res, 403, 'text/html', html('Just a moment...'), { 'cf-mitigated': 'challenge' }));

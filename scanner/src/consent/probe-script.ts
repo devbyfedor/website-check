@@ -89,7 +89,18 @@ export function buildBannerProbeScript(tools: readonly ConsentTool[]): string {
     return s;
   };
   // A visible fixed, sticky or dialog element of at least 15,000 px² and 36 px height that
-  // mentions cookies or consent (text or aria-label) and holds a button or link.
+  // mentions cookies or consent (text or aria-label) and holds a button or link. A bar lower
+  // than 100 px must say it outside its links and buttons, so a header or footer bar with only a
+  // "Cookie-Einstellungen" link is no banner.
+  const CONTROLS = 'button, [role="button"], input[type="button"], input[type="submit"], a';
+  const plainText = (el, text) => {
+    let rest = text;
+    for (const c of el.querySelectorAll(CONTROLS)) {
+      const t = (c.innerText || '').trim();
+      if (t) rest = rest.split(t).join(' ');
+    }
+    return rest;
+  };
   const checkHeuristic = () => {
     for (const [x, y] of points()) {
       let cur = deepAt(x, y);
@@ -100,9 +111,11 @@ export function buildBannerProbeScript(tools: readonly ConsentTool[]): string {
           || cur.getAttribute('role') === 'dialog' || cur.getAttribute('aria-modal') === 'true';
         if (dialogLike) {
           const r = cur.getBoundingClientRect();
-          const text = ((cur.innerText || '').slice(0, 4000)) + ' ' + (cur.getAttribute('aria-label') || '');
+          const label = cur.getAttribute('aria-label') || '';
+          const inner = (cur.innerText || '').slice(0, 4000);
+          const text = r.height < 100 ? plainText(cur, inner) + ' ' + label : inner + ' ' + label;
           if (r.width * r.height >= 15000 && r.height >= 36 && onScreen(r) && CONSENT_WORDS.test(text)
-              && cur.querySelector('button, [role="button"], input[type="button"], input[type="submit"], a')) {
+              && cur.querySelector(CONTROLS)) {
             state.found = { toolId: 'generic', selector: describe(cur), method: 'heuristic', at: now() };
             return true;
           }
