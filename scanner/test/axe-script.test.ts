@@ -144,7 +144,7 @@ describe('axeCaptureFrom', () => {
   });
 
   it('turns an incomplete or foreign result into an error, never into zero problems', () => {
-    const rules = complete();
+    const rules: Record<string, unknown> = complete();
     delete rules['label'];
     expect(axeCaptureFrom({ status: 'ok', rules, runMs: 1 }, { injectMs: 1, totalMs: 2 })).toMatchObject({ status: 'error', error: 'axe result without rule label', rules: {} });
     expect(axeCaptureFrom(null, { injectMs: null, totalMs: 0 })).toMatchObject({ status: 'error', rules: {} });
@@ -153,7 +153,7 @@ describe('axeCaptureFrom', () => {
   });
 
   it('sanitises counts and examples', () => {
-    const rules = complete();
+    const rules: Record<string, unknown> = complete();
     rules['image-alt'] = { violations: -3, incomplete: 1.5, passes: 'many', impact: 7, examples: [{ target: ['img', 5], html: 'y'.repeat(500), contrast: null }], incompleteExamples: 'none' };
     const capture = axeCaptureFrom({ status: 'ok', rules, runMs: 1 }, { injectMs: 1, totalMs: 2 });
     expect(capture.rules['image-alt']).toEqual({ violations: 0, incomplete: 0, passes: 0, impact: null, examples: [{ target: ['img'], html: 'y'.repeat(200), contrast: null }], incompleteExamples: [] });
