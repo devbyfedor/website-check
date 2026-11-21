@@ -1,6 +1,8 @@
 import { AxeBuilder } from '@axe-core/playwright';
 import type { Page } from 'playwright';
 import { AXE_RULES, type AxeCapture, type AxeRuleId } from '../a11y/types.ts';
+import { loadAxeSource } from './axe-source.ts';
+import { runAxeInPlaywright } from './playwright-capture.ts';
 
 /**
  * A separate, standard axe-core run for the comparison of session A3: the official Playwright
@@ -80,6 +82,54 @@ export interface AxeComparison {
   allSame: boolean;
   versions: { ours: string | null; reference: string | null };
   rules: AxeRuleComparison[];
+}
+
+/** Same page state for axe: every rule has the same violations, incomplete and passes. */
+export function sameAxeState(a: AxeCapture | null, b: AxeCapture | null): boolean {
+  if (a?.status !== 'ok' || b?.status !== 'ok') return false;
+  return AXE_RULES.every((id) => {
+    const x = a.rules[id];
+    const y = b.rules[id];
+    return x !== undefined && y !== undefined && x.violations === y.violations && x.incomplete === y.incomplete && x.passes === y.passes;
+  });
+}
+
+export interface ReferenceStep {
+  reference: ReferenceRun;
+  /** Our run right after the reference. */
+  after: AxeCapture;
+}
+
+export interface ReferenceChain {
+  steps: ReferenceStep[];
+  /** Index of the first step whose page state did not change around the reference run, or null. */
+  stableIndex: number | null;
+}
+
+/**
+ * The comparison on one page load: our run (the capture's), the standard run, our run again.
+ * If our two runs around the standard run saw a different page (a page still loading, a
+ * carousel adding slides), the comparison of that step is not valid; after 2 s the chain goes
+ * on with the last run of ours as the new "before", at most `maxSteps` times.
+ */
+export async function runReferenceChain(page: Page, first: AxeCapture | null, maxSteps = 3): Promise<ReferenceChain> {
+  const source = await loadAxeSource();
+  const steps: ReferenceStep[] = [];
+  let before = first;
+  for (let i = 0; i < maxSteps; i += 1) {
+    const reference = await runReferenceAxe(page);
+    const after = await runAxeInPlaywright(page, source, 20_000);
+    steps.push({ reference, after });
+    if (sameAxeState(before, after)) return { steps, stableIndex: i };
+    before = after;
+    await page.waitForTimeout(2_000);
+  }
+  return { steps, stableIndex: null };
+}
+
+/** Our run before the step's reference run. */
+export function oursBefore(chain: ReferenceChain, first: AxeCapture | null, index: number): AxeCapture | null {
+  return index === 0 ? first : (chain.steps[index - 1]?.after ?? null);
 }
 
 export function compareAxeRuns(ours: AxeCapture | null, reference: ReferenceRun, oursAgain: AxeCapture | null): AxeComparison {

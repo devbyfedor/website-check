@@ -57,6 +57,8 @@ async function main(): Promise<void> {
       // Browser seconds for this run alone (client clock from before the launch), whatever the day budget says.
       'run-budget-s': { type: 'string', default: '120' },
       out: { type: 'string' },
+      // Folder under local/ for the run (A2: a2, A3: a3).
+      root: { type: 'string', default: 'a2' },
       'dev-vars': { type: 'string', default: 'worker/.dev.vars' },
       sites: { type: 'string', default: 'local/sites.txt' },
       'cpu-steps': { type: 'string' },
@@ -80,7 +82,7 @@ async function main(): Promise<void> {
    */
   const NEXT_PAGE_MS = 30_000;
   const runName = values.out ?? `run-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-  const outDir = resolve('local', 'a2', runName);
+  const outDir = resolve('local', values.root, runName);
   await mkdir(outDir, { recursive: true });
 
   let fixture: LabFixture | null = null;

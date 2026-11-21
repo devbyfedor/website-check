@@ -7,9 +7,8 @@ import { recheckCapture } from '../capture/failure.ts';
 import type { Capture, CaptureFailureReason } from '../capture/types.ts';
 import { DEFAULT_RULES } from '../data.ts';
 import type { AxeCapture } from '../a11y/types.ts';
-import { compareAxeRuns, runReferenceAxe, type AxeComparison, type ReferenceRun } from './axe-reference.ts';
-import { loadAxeSource } from './axe-source.ts';
-import { captureWithPlaywright, launchLocalBrowser, runAxeInPlaywright, type LocalCaptureResult } from './playwright-capture.ts';
+import { compareAxeRuns, oursBefore, runReferenceChain, type AxeComparison, type ReferenceChain } from './axe-reference.ts';
+import { captureWithPlaywright, launchLocalBrowser, type LocalCaptureResult } from './playwright-capture.ts';
 import { parseSitesFile } from './sites-file.ts';
 import { renderSummaryMarkdown, summarizeRun, type SiteRunResult } from './summary.ts';
 
@@ -26,7 +25,8 @@ import { renderSummaryMarkdown, summarizeRun, type SiteRunResult } from './summa
  *
  * `--axe-reference 3,7` (session A3): on these sites, right after our axe run, the standard
  * `@axe-core/playwright` run of the same rules and then our run once more, all on the same page
- * load; the comparison goes to local/results/axe-reference-site-07.json.
+ * load, repeated (at most 3 times) until our runs before and after the standard run see the same
+ * page; the comparison goes to local/results/axe-reference-site-07.json.
  */
 
 const RETRYABLE = new Set<CaptureFailureReason>(['timeout', 'unreachable', 'other']);
@@ -44,7 +44,7 @@ async function main(): Promise<void> {
     },
   });
   const referenceSites = new Set((values['axe-reference'] ?? '').split(',').map((n) => n.trim()).filter((n) => n !== '').map((n) => n.padStart(2, '0')));
-  const references: Record<string, AxeComparison> = {};
+  const references: Record<string, { first: AxeComparison; stable: AxeComparison | null; stableIndex: number | null; steps: number }> = {};
   const sitesPath = resolve(values.sites);
   const outDir = resolve(values.out);
   const retries = Number(values.retries);
@@ -88,11 +88,7 @@ async function main(): Promise<void> {
           artifacts: true,
           ...(withReference
             ? {
-                afterChecks: async (page) => {
-                  const reference = await runReferenceAxe(page);
-                  const again = await runAxeInPlaywright(page, await loadAxeSource(), 20_000);
-                  return { reference, again };
-                },
+                afterChecks: (page, checks) => runReferenceChain(page, checks.axe),
               }
             : {}),
         });
@@ -110,15 +106,26 @@ async function main(): Promise<void> {
       await writeResult(outDir, base, analysis);
       results.push({ label: site.label, kind: site.kind, platform: site.platform, attempts, capture, analysis });
       if (result.after !== undefined) {
-        const after = result.after as { reference?: ReferenceRun; again?: AxeCapture; error?: string };
-        const comparison = after.reference === undefined ? null : compareAxeRuns(capture.axe, after.reference, after.again ?? null);
-        if (comparison !== null) references[site.label] = comparison;
-        await writeFile(resolve(outDir, 'results', `axe-reference-${base}.json`), `${JSON.stringify({ label: site.label, ours: capture.axe, ...after, comparison }, null, 2)}\n`);
-        console.log(
-          comparison === null
-            ? `${site.label}: reference run failed: ${after.error ?? 'unknown'}`
-            : `${site.label}: axe ours vs standard ${comparison.allSame ? 'SAME' : 'DIFFERENT'} (${comparison.rules.map((r) => `${r.rule} ${r.ours}/${r.reference}/${r.oursAgain}`).join(', ')}); versions ${comparison.versions.ours}/${comparison.versions.reference}; standard run ${after.reference?.ms} ms`,
-        );
+        const chain = result.after as Partial<ReferenceChain> & { error?: string };
+        const firstStep = chain.steps?.[0];
+        if (chain.steps === undefined || firstStep === undefined) {
+          console.log(`${site.label}: reference run failed: ${chain.error ?? 'unknown'}`);
+        } else {
+          const full = chain as ReferenceChain;
+          // The first step as it is, and the first step whose page did not change around the standard run.
+          const first = compareAxeRuns(capture.axe, firstStep.reference, firstStep.after);
+          const index = full.stableIndex;
+          const stableStep = index === null ? undefined : full.steps[index];
+          const stable = index === null || stableStep === undefined ? null : compareAxeRuns(oursBefore(full, capture.axe, index), stableStep.reference, stableStep.after);
+          references[site.label] = { first, stable, stableIndex: index, steps: full.steps.length };
+          await writeFile(resolve(outDir, 'results', `axe-reference-${base}.json`), `${JSON.stringify({ label: site.label, ours: capture.axe, chain: full, first, stable }, null, 2)}\n`);
+          const show = (c: AxeComparison): string => `${c.allSame ? 'SAME' : 'DIFFERENT'} (${c.rules.map((r) => `${r.rule} ${r.ours}/${r.reference}/${r.oursAgain}`).join(', ')})`;
+          console.log(
+            `${site.label}: axe ours/standard/ours again, first step ${show(first)}; ` +
+              (stable === null ? `page never stable in ${full.steps.length} steps` : `stable at step ${(index ?? 0) + 1}: ${show(stable)}`) +
+              `; versions ${first.versions.ours}/${first.versions.reference}; standard run ${firstStep.reference.ms} ms`,
+          );
+        }
       }
       const a11y = capture.axe;
       const security = capture.ok ? analyzeCapture(capture, DEFAULT_RULES).security : null;
@@ -137,8 +144,13 @@ async function main(): Promise<void> {
 
   if (Object.keys(references).length > 0) {
     await writeFile(resolve(outDir, 'results', 'axe-reference.json'), `${JSON.stringify(references, null, 2)}\n`);
-    const same = Object.values(references).filter((c) => c.allSame).length;
-    console.log(`\naxe comparison with the standard run: ${same} of ${Object.keys(references).length} sites the same on every rule`);
+    const firstSame = Object.values(references).filter((c) => c.first.allSame).length;
+    const stableSame = Object.values(references).filter((c) => c.stable?.allSame === true).length;
+    const stable = Object.values(references).filter((c) => c.stable !== null).length;
+    console.log(
+      `\naxe comparison with the standard run: first step the same on every rule on ${firstSame} of ${Object.keys(references).length} sites; ` +
+        `with a stable page ${stableSame} of ${stable} (page stable on ${stable} of ${Object.keys(references).length})`,
+    );
   }
   if (only === null) await writeSummary(outDir, results);
 }

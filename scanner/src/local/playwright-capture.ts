@@ -57,9 +57,9 @@ export interface LocalCaptureOptions {
   httpProbe?: boolean;
   /**
    * Local comparisons only: runs on the same page right after the checks, before the HTML and the
-   * screenshot, outside the page's hard limit (at most 60 s). Its result is `after`.
+   * screenshot, outside the page's hard limit (at most 90 s), with the checks already made. Its result is `after`.
    */
-  afterChecks?: (page: Page) => Promise<unknown>;
+  afterChecks?: (page: Page, checks: { axe: AxeCapture | null }) => Promise<unknown>;
 }
 
 export interface LocalCaptureResult {
@@ -192,7 +192,7 @@ async function runCapture(
     artifacts: boolean;
     tools: readonly ConsentTool[];
     axeSource: string | null;
-    afterChecks: ((page: Page) => Promise<unknown>) | null;
+    afterChecks: ((page: Page, checks: { axe: AxeCapture | null }) => Promise<unknown>) | null;
   },
   environment: CaptureEnvironment,
   hardLimitHit: () => boolean,
@@ -381,7 +381,7 @@ async function runCapture(
   let after: unknown;
   if (settings.afterChecks !== null && pageUsable()) {
     disarmHardLimit();
-    after = await withTimeout(settings.afterChecks(page), 60_000).catch((error: unknown) => ({ error: errorText(error) }));
+    after = await withTimeout(settings.afterChecks(page, { axe }), 90_000).catch((error: unknown) => ({ error: errorText(error) }));
   }
   if (settings.artifacts && navigationError === null && !hardLimitHit() && !crashed) {
     html = await withTimeout(page.content(), 4_000).catch(() => null);
