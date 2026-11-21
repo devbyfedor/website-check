@@ -4,7 +4,8 @@ import { parseArgs } from 'node:util';
 import type { Capture, CaptureStrategy } from '../capture/types.ts';
 import { DEFAULT_RULES } from '../data.ts';
 import { compareCaptures, type CaptureComparison } from './compare-captures.ts';
-import { startLabFixture, type LabFixture, type RecordedRequest } from './lab-fixture.ts';
+import { AXE_RULES } from '../a11y/types.ts';
+import { a11yFixtureExpectations, startLabFixture, type LabFixture, type RecordedRequest } from './lab-fixture.ts';
 import { captureWithPlaywright, launchLocalBrowser } from './playwright-capture.ts';
 import { parseSitesFile } from './sites-file.ts';
 
@@ -56,6 +57,8 @@ async function main(): Promise<void> {
       // Browser seconds for this run alone (client clock from before the launch), whatever the day budget says.
       'run-budget-s': { type: 'string', default: '120' },
       out: { type: 'string' },
+      // Folder under local/ for the run (A2: a2, A3: a3).
+      root: { type: 'string', default: 'a2' },
       'dev-vars': { type: 'string', default: 'worker/.dev.vars' },
       sites: { type: 'string', default: 'local/sites.txt' },
       'cpu-steps': { type: 'string' },
@@ -79,7 +82,7 @@ async function main(): Promise<void> {
    */
   const NEXT_PAGE_MS = 30_000;
   const runName = values.out ?? `run-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-  const outDir = resolve('local', 'a2', runName);
+  const outDir = resolve('local', values.root, runName);
   await mkdir(outDir, { recursive: true });
 
   let fixture: LabFixture | null = null;
@@ -90,6 +93,8 @@ async function main(): Promise<void> {
     targets = [
       { label: 'Fixture', number: 'fx', url: fixture.startUrl },
       { label: 'Fixture 300 images', number: 'fm', url: fixture.manyUrl },
+      // A3: the accessibility fixture pages, compared with their expected counts below.
+      ...Object.entries(fixture.a11yUrls).map(([name, url]) => ({ label: `Fixture ${name}`, number: `a11y-${name.replace(/\.html$/, '')}`, url })),
     ];
   } else if (values['cpu-steps'] !== undefined) {
     targets = [];
@@ -189,6 +194,16 @@ async function main(): Promise<void> {
         if (result.status === 200 && body.capture !== undefined) {
           cloud.set(`${target.number}-${code}`, body.capture);
           const c = body.capture;
+          const axe = c.axe ?? null;
+          console.log(
+            `${target.label} (${code}): axe ${axe?.status ?? 'none'} ${axe?.status === 'ok' ? AXE_RULES.map((id) => `${id} ${axe.rules[id]?.violations}`).join(' ') : (axe?.error ?? '')}, ` +
+              `axe time ${axe?.timing.totalMs ?? 0} ms (inject ${axe?.timing.injectMs ?? '-'}, run ${axe?.timing.runMs ?? '-'}); redirect check ${c.httpProbe?.outcome ?? 'none'} in ${c.httpProbe?.durationMs ?? '-'} ms`,
+          );
+          const expected = target.number.startsWith('a11y-') ? a11yFixtureExpectations()[`${target.number.slice(5)}.html`] : undefined;
+          if (expected !== undefined) {
+            const wrong = AXE_RULES.filter((id) => axe?.rules[id]?.violations !== expected.violations[id] || axe?.rules[id]?.incomplete !== (expected.incomplete[id] ?? 0));
+            console.log(`  fixture ${wrong.length === 0 ? 'MATCHES expected.json' : `DIFFERS on ${wrong.join(', ')}`}`);
+          }
           console.log(
             `${target.label} (${code}): ${c.ok ? 'ok' : `FAILED ${c.failure?.reason} (HTTP ${c.failure?.status ?? '-'})`} ${c.requests.length} requests, ` +
               `banner ${c.consentBanner.detected ? `${c.consentBanner.toolId} at ${c.consentBanner.visibleAtMs} ms` : 'not seen'}, ` +
@@ -265,6 +280,10 @@ async function main(): Promise<void> {
         if (remote === undefined) continue;
         const comparison = compareCaptures(local, remote, DEFAULT_RULES);
         comparisons[`site-${target.number}-${code}`] = comparison;
+        // Different page loads, so differences can come from carousels or banners; for information only.
+        if (local.axe?.status === 'ok' && remote.axe?.status === 'ok') {
+          console.log(`${target.label} (${code}) axe local / cloud: ${AXE_RULES.map((id) => `${id} ${local.axe?.rules[id]?.violations}/${remote.axe?.rules[id]?.violations}`).join(', ')}`);
+        }
         console.log(
           `${target.label} (${code}) vs local: banner local ${comparison.local.banner.toolId ?? 'none'} / cloud ${comparison.cloud.banner.toolId ?? 'none'}; ` +
             `requests ${comparison.local.requests} / ${comparison.cloud.requests} without ${comparison.cloud.preflights} CORS preflights (completeness ${comparison.completenessPct} %, only cloud ${comparison.onlyCloudRequests}); ` +

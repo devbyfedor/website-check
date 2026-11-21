@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bäckerei Muster – Unser Angebot</title>
+<!--
+  Fixture for axe rule color-contrast (pass page). Expected counts: scanner/fixtures/a11y/expected.json.
+  Every visible text has enough contrast; the borderline cases (#767676 = 4.54:1, large text at 3.54:1)
+  pass. The disabled button and the hidden paragraph have low contrast but are not counted.
+-->
+<style>
+  body { margin: 0; padding: 24px 32px; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; color: #1a1a1a; background: #ffffff; }
+  h1 { font-size: 28px; margin: 0 0 16px; }
+  p { margin: 0 0 12px; }
+  a { color: #0b4f8a; }
+  .grenzwert { color: #767676; }                 /* 4.54:1 on white: pass */
+  .gross-ok { font-size: 24px; color: #888888; } /* large text, 3.54:1: pass */
+  .fett-ok { font-size: 18.66px; font-weight: bold; color: #888888; } /* bold 14 pt, 3.54:1: pass */
+  .dunkel { background: #1f3a5f; color: #ffffff; padding: 8px 12px; display: inline-block; }
+  .leicht-transparent { color: #000000; opacity: 0.8; } /* about #333 on white: pass */
+  .knopf { font-size: 16px; color: #ffffff; background: #7a3e00; border: 0; padding: 8px 16px; }
+  button.deaktiviert { font-size: 16px; color: #bbbbbb; background: #eeeeee; border: 1px solid #dddddd; padding: 8px 16px; }
+  .versteckt { display: none; color: #cccccc; }
+</style>
+</head>
+<body>
+  <h1>Unser Angebot</h1>
+  <p>Brot, Brötchen und Kuchen aus eigener Herstellung.</p>
+  <p class="grenzwert">Alle Preise inklusive Mehrwertsteuer.</p>
+  <p class="gross-ok">Brötchen ab 6 Uhr</p>
+  <p class="fett-ok">Kuchen ab 10 Uhr</p>
+  <p><span class="dunkel">Angebot der Woche: Dinkelbrot</span></p>
+  <p class="leicht-transparent">Solange der Vorrat reicht.</p>
+  <p>Mehr erfahren Sie auf der Seite <a href="kontakt.html">Kontakt</a>.</p>
+  <p><button type="button" class="knopf">Jetzt vorbestellen</button></p>
+  <p><button type="button" class="deaktiviert" disabled>Lieferung derzeit nicht möglich</button></p>
+  <p class="versteckt">Dieser Hinweis ist ausgeblendet.</p>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Muster GmbH – Anfahrt</title>
+<!--
+  Fixture for axe rule link-name (fail page). Expected counts: scanner/fixtures/a11y/expected.json.
+  Violations: empty link, link with an inline SVG icon only, link whose only content is aria-hidden,
+  link around a decorative image (alt=""), link with a CSS background icon only (5).
+  The image in the link has alt="", so image-alt passes and stays at 0.
+  Not counted: the empty link hidden with display:none and the anchor without href.
+-->
+<style>
+  body { margin: 0; padding: 24px 32px; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; color: #1a1a1a; background: #ffffff; }
+  h1 { font-size: 28px; margin: 0 0 16px; }
+  a { color: #0b4f8a; }
+  nav { display: flex; gap: 16px; align-items: center; margin: 0 0 16px; }
+  .icon-hintergrund {
+    display: inline-block; width: 24px; height: 24px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%230b4f8a'/%3E%3C/svg%3E") no-repeat center;
+  }
+  .versteckt { display: none; }
+</style>
+</head>
+<body>
+  <nav>
+    <a href="index.html"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='32'%3E%3Crect width='120' height='32' rx='6' fill='%231f3a5f'/%3E%3C/svg%3E" width="120" height="32" alt=""></a>
+    <a href="leistungen.html">Leistungen</a>
+    <a href="kontakt.html"></a>
+    <a href="soziales-netzwerk.html"><svg width="24" height="24" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="6" fill="#0b4f8a"/></svg></a>
+    <a href="newsletter.html"><span class="icon-hintergrund"></span></a>
+  </nav>
+  <h1>Anfahrt zur Muster GmbH</h1>
+  <p>Sie finden uns in der Musterstraße in Musterstadt. <a href="anfahrt.html"><span aria-hidden="true">&raquo;</span></a></p>
+  <p><a name="parken">Parkplätze</a> stehen im Hof zur Verfügung.</p>
+  <div class="versteckt"><a href="alt.html"></a></div>
+</body>
+</html>

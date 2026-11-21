@@ -4,6 +4,7 @@
 
 **Log**
 - 19.11.2026: v1 written. Stages A and B in detail, stages C and D outlined.
+- 21.11.2026: Fedor's choice of plan after A2 (`docs/decisions.md`): the checks run in a Durable Object in the EU jurisdiction, the Worker only accepts the job and passes it on. Noted in `<architecture>`.
 
 Read this file completely before every session, together with `design/README.md`. The session message tells you which session to do. Do that session and only that session.
 
@@ -90,7 +91,7 @@ Success criteria for version 1:
 
 **Platform: everything on Cloudflare free tiers.**
 - `web/`: Next.js with static export, TypeScript, Tailwind CSS v4. Served by Workers Static Assets. No server-side rendering on the Worker.
-- `worker/`: one Cloudflare Worker for the API, scan orchestration and later the lead form.
+- `worker/`: one Cloudflare Worker for the API, scan orchestration and later the lead form. Since 21.11.2026 (Fedor's choice after A2): the checks run in a Durable Object in the EU jurisdiction with strategy (a), request events through the browser protocol; the Worker only accepts the job and passes it on.
 - `scanner/`: plain TypeScript, no framework. Shared by the local runner and the Worker.
 - Cloudflare Browser Run (formerly Browser Rendering): a real Chromium for the scans.
 - Cloudflare D1: database. Cloudflare Turnstile: bot protection (stage C).

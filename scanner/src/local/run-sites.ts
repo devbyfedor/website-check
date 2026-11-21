@@ -6,6 +6,8 @@ import type { ThirdPartyAnalysis } from '../analyzers/third-party.ts';
 import { recheckCapture } from '../capture/failure.ts';
 import type { Capture, CaptureFailureReason } from '../capture/types.ts';
 import { DEFAULT_RULES } from '../data.ts';
+import type { AxeCapture } from '../a11y/types.ts';
+import { compareAxeRuns, oursBefore, runReferenceChain, type AxeComparison, type ReferenceChain } from './axe-reference.ts';
 import { captureWithPlaywright, launchLocalBrowser, type LocalCaptureResult } from './playwright-capture.ts';
 import { parseSitesFile } from './sites-file.ts';
 import { renderSummaryMarkdown, summarizeRun, type SiteRunResult } from './summary.ts';
@@ -20,6 +22,11 @@ import { renderSummaryMarkdown, summarizeRun, type SiteRunResult } from './summa
  *   local/results/site-07.json               the third-party analysis
  *   local/results/summary.json|.md           aggregated numbers, anonymous labels only
  * The console shows anonymous labels only.
+ *
+ * `--axe-reference 3,7` (session A3): on these sites, right after our axe run, the standard
+ * `@axe-core/playwright` run of the same rules and then our run once more, all on the same page
+ * load, repeated (at most 3 times) until our runs before and after the standard run see the same
+ * page; the comparison goes to local/results/axe-reference-site-07.json.
  */
 
 const RETRYABLE = new Set<CaptureFailureReason>(['timeout', 'unreachable', 'other']);
@@ -33,8 +40,11 @@ async function main(): Promise<void> {
       retries: { type: 'string', default: '1' },
       // Recompute analyses and the summary from the saved captures, without visiting any site.
       reanalyze: { type: 'boolean', default: false },
+      'axe-reference': { type: 'string' },
     },
   });
+  const referenceSites = new Set((values['axe-reference'] ?? '').split(',').map((n) => n.trim()).filter((n) => n !== '').map((n) => n.padStart(2, '0')));
+  const references: Record<string, { first: AxeComparison; stable: AxeComparison | null; stableIndex: number | null; steps: number }> = {};
   const sitesPath = resolve(values.sites);
   const outDir = resolve(values.out);
   const retries = Number(values.retries);
@@ -73,7 +83,15 @@ async function main(): Promise<void> {
       let result: LocalCaptureResult;
       for (;;) {
         attempts += 1;
-        result = await captureWithPlaywright(browser, site.url, { artifacts: true });
+        const withReference = referenceSites.has(site.number);
+        result = await captureWithPlaywright(browser, site.url, {
+          artifacts: true,
+          ...(withReference
+            ? {
+                afterChecks: (page, checks) => runReferenceChain(page, checks.axe),
+              }
+            : {}),
+        });
         const reason = result.capture.failure?.reason;
         if (reason === undefined || !RETRYABLE.has(reason) || attempts > retries) break;
         console.log(`${site.label}: ${reason}, retrying`);
@@ -87,16 +105,53 @@ async function main(): Promise<void> {
       const analysis = analyzeCapture(capture, DEFAULT_RULES).thirdParty;
       await writeResult(outDir, base, analysis);
       results.push({ label: site.label, kind: site.kind, platform: site.platform, attempts, capture, analysis });
+      if (result.after !== undefined) {
+        const chain = result.after as Partial<ReferenceChain> & { error?: string };
+        const firstStep = chain.steps?.[0];
+        if (chain.steps === undefined || firstStep === undefined) {
+          console.log(`${site.label}: reference run failed: ${chain.error ?? 'unknown'}`);
+        } else {
+          const full = chain as ReferenceChain;
+          // The first step as it is, and the first step whose page did not change around the standard run.
+          const first = compareAxeRuns(capture.axe, firstStep.reference, firstStep.after);
+          const index = full.stableIndex;
+          const stableStep = index === null ? undefined : full.steps[index];
+          const stable = index === null || stableStep === undefined ? null : compareAxeRuns(oursBefore(full, capture.axe, index), stableStep.reference, stableStep.after);
+          references[site.label] = { first, stable, stableIndex: index, steps: full.steps.length };
+          await writeFile(resolve(outDir, 'results', `axe-reference-${base}.json`), `${JSON.stringify({ label: site.label, ours: capture.axe, chain: full, first, stable }, null, 2)}\n`);
+          const show = (c: AxeComparison): string => `${c.allSame ? 'SAME' : 'DIFFERENT'} (${c.rules.map((r) => `${r.rule} ${r.ours}/${r.reference}/${r.oursAgain}`).join(', ')})`;
+          console.log(
+            `${site.label}: axe ours/standard/ours again, first step ${show(first)}; ` +
+              (stable === null ? `page never stable in ${full.steps.length} steps` : `stable at step ${(index ?? 0) + 1}: ${show(stable)}`) +
+              `; versions ${first.versions.ours}/${first.versions.reference}; standard run ${firstStep.reference.ms} ms`,
+          );
+        }
+      }
+      const a11y = capture.axe;
+      const security = capture.ok ? analyzeCapture(capture, DEFAULT_RULES).security : null;
       const line = capture.ok
         ? `ok ${(capture.timings.endMs / 1000).toFixed(1)} s (${capture.timings.stopReason}), ${capture.requests.length} requests, ` +
           `${analysis?.counts.findings ?? 0} findings, ${analysis?.counts.hints ?? 0} hints, banner ${capture.consentBanner.detected ? `${capture.consentBanner.toolId} at ${capture.consentBanner.visibleAtMs} ms` : 'not seen'}`
         : `FAILED ${capture.failure?.reason}: ${capture.failure?.message.slice(0, 100)}`;
-      console.log(`${site.label}: ${line}`);
+      const extra = capture.ok
+        ? `; axe ${a11y?.status ?? 'none'} ${a11y?.status === 'ok' ? Object.entries(a11y.rules).map(([id, r]) => `${id} ${r.violations}`).join(' ') : (a11y?.error ?? '')} in ${a11y?.timing.totalMs ?? 0} ms; https ${security?.https.result}, redirect ${capture.httpProbe?.outcome ?? 'none'}, headers ${security?.headersPresent}/5`
+        : '';
+      console.log(`${site.label}: ${line}${extra}`);
     }
   } finally {
     await browser.close();
   }
 
+  if (Object.keys(references).length > 0) {
+    await writeFile(resolve(outDir, 'results', 'axe-reference.json'), `${JSON.stringify(references, null, 2)}\n`);
+    const firstSame = Object.values(references).filter((c) => c.first.allSame).length;
+    const stableSame = Object.values(references).filter((c) => c.stable?.allSame === true).length;
+    const stable = Object.values(references).filter((c) => c.stable !== null).length;
+    console.log(
+      `\naxe comparison with the standard run: first step the same on every rule on ${firstSame} of ${Object.keys(references).length} sites; ` +
+        `with a stable page ${stableSame} of ${stable} (page stable on ${stable} of ${Object.keys(references).length})`,
+    );
+  }
   if (only === null) await writeSummary(outDir, results);
 }
 

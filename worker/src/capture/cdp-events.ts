@@ -1,7 +1,15 @@
 import { CDPSessionEvent, type Browser, type BrowserContext, type CDPSession, type Frame, type HTTPRequest, type HTTPResponse, type Page } from '@cloudflare/puppeteer';
 import {
+  AXE_RUN_EXPRESSION,
+  axeBudgetMs,
+  axeCaptureFrom,
+  axeNotRun,
   buildBannerProbeScript,
   CAPTURE_SCHEMA_VERSION,
+  httpVariantOf,
+  probeHttpRedirect,
+  type AxeCapture,
+  type HttpProbe,
   CAPTURE_SETTINGS,
   chromeVersionOf,
   LONG_LIVED_RESOURCE_TYPES,
@@ -95,9 +103,45 @@ export async function prepareVisitorPage(page: Page, client: CDPSession, userAge
   return failed;
 }
 
+/**
+ * Injects the pinned axe-core into the top-level document over the browser protocol and runs the
+ * seven rules; the page compacts the result (`AXE_RUN_EXPRESSION`). Never throws.
+ */
+export async function runAxeOverCdp(client: CDPSession, axeSource: string, budgetMs: number): Promise<AxeCapture> {
+  const started = Date.now();
+  const elapsed = (): number => Date.now() - started;
+  let injectMs: number | null = null;
+  try {
+    const injected = (await withTimeout(client.send('Runtime.evaluate', { expression: axeSource, returnByValue: true }), budgetMs)) as { exceptionDetails?: { text?: string } };
+    injectMs = elapsed();
+    if (injected.exceptionDetails !== undefined) return axeNotRun('error', `injecting axe-core failed: ${injected.exceptionDetails.text ?? 'exception'}`, { injectMs, totalMs: elapsed() });
+    const left = budgetMs - injectMs;
+    if (left < 300) return axeNotRun('timeout', 'no time left after injecting axe-core', { injectMs, totalMs: elapsed() });
+    const response = (await withTimeout(client.send('Runtime.evaluate', { expression: AXE_RUN_EXPRESSION, awaitPromise: true, returnByValue: true }), left)) as {
+      result?: { value?: unknown };
+      exceptionDetails?: { text?: string };
+    };
+    if (response.exceptionDetails !== undefined) return axeNotRun('error', `axe failed: ${response.exceptionDetails.text ?? 'exception'}`, { injectMs, totalMs: elapsed() });
+    return axeCaptureFrom(response.result?.value, { injectMs, totalMs: elapsed() });
+  } catch (error) {
+    const message = errorText(error);
+    return axeNotRun(/^Timeout \d+ ms exceeded/.test(message) ? 'timeout' : 'error', message, { injectMs, totalMs: elapsed() });
+  }
+}
+
 export async function captureWithCdpEvents(browser: Browser, url: string, options: CloudCaptureOptions = {}): Promise<CloudCaptureResult> {
   const settings = resolveSettings(options);
   const startedWall = Date.now();
+  // The redirect check needs no browser: it runs with fetch while the page loads.
+  const httpUrl = settings.httpProbe ? httpVariantOf(url) : null;
+  const probe: Promise<HttpProbe | null> | null =
+    httpUrl === null
+      ? null
+      : probeHttpRedirect(httpUrl, {
+          userAgent: cloudEnvironment(chromeVersionOf(await browser.version())).userAgent,
+          acceptLanguage: CAPTURE_SETTINGS.acceptLanguage,
+          ...(settings.isProbeTargetAllowed !== null ? { isAllowed: settings.isProbeTargetAllowed } : {}),
+        }).catch(() => null);
   const context = await browser.createBrowserContext();
   let hardLimitHit = false;
   const hardTimer = setTimeout(() => {
@@ -105,8 +149,13 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
     void context.close().catch(() => undefined);
   }, settings.hardLimitMs);
   try {
-    const result = await runCapture(browser, context, url, settings, () => hardLimitHit);
+    const result = await runCapture(browser, context, url, settings, () => hardLimitHit, startedWall);
     result.stats.wallMs = Date.now() - startedWall;
+    if (probe !== null) {
+      const waitStarted = Date.now();
+      result.capture.httpProbe = await probe;
+      result.stats.probeWaitMs = Date.now() - waitStarted;
+    }
     return result;
   } finally {
     clearTimeout(hardTimer);
@@ -120,6 +169,7 @@ async function runCapture(
   url: string,
   settings: CloudSettings,
   hardLimitHit: () => boolean,
+  contextStarted: number,
 ): Promise<CloudCaptureResult> {
   const environment = cloudEnvironment(chromeVersionOf(await browser.version()));
   const page = await context.newPage();
@@ -286,6 +336,21 @@ async function runCapture(
       .then((response) => response.result.value ?? null)
       .catch(() => null);
   }
+  const failure = failureOf(
+    navigationError,
+    mainResponse === null ? null : { status: mainResponse.status(), headers },
+    snapshot,
+    records.length,
+  );
+  // axe only on a page that was captured: an error page, a check page or a timeout costs no browser time.
+  let axe: AxeCapture | null = null;
+  if (settings.axeSource !== null) {
+    const budget = axeBudgetMs(Date.now() - contextStarted, settings.hardLimitMs);
+    if (failure !== null || snapshot === null || hardLimitHit() || crashed || page.isClosed())
+      axe = axeNotRun('skipped', failure === null ? 'the page did not load' : `the page was not captured (${failure.reason})`);
+    else if (budget === 0) axe = axeNotRun('skipped', 'no time left before the hard limit of the page');
+    else axe = await runAxeOverCdp(client, settings.axeSource, budget);
+  }
   const endMs = rel();
 
   const finalUrl = mainResponse?.url() ?? null;
@@ -297,12 +362,6 @@ async function runCapture(
     if (response !== mainResponse) redirectChain.push({ url: response.url(), status: response.status() });
   }
 
-  const failure = failureOf(
-    navigationError,
-    mainResponse === null ? null : { status: mainResponse.status(), headers },
-    snapshot,
-    records.length,
-  );
   // The probe uses the browser's clock; the first main document request starts at about the
   // browser's navigation start (`timeOrigin`).
   const firstDocument = records.find((r) => r.isMainFrame && r.isNavigation);
@@ -323,7 +382,7 @@ async function runCapture(
     requests: records,
     page: pageSnapshotOf(snapshot),
     consentBanner: bannerObservation(snapshot, toCaptureMs),
-    axe: null,
+    axe,
     timings: { domContentLoadedMs, loadMs, networkQuietMs, endMs, stopReason },
   };
   return { capture, stats: { events, polls: 0, emulationFailed, wallMs: 0 } };

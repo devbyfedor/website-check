@@ -1,3 +1,5 @@
+import { analyzeAccessibility, type A11yCheckId } from '../analyzers/accessibility.ts';
+import { analyzeSecurity, SECURITY_HEADERS, type CheckResult, type SecurityHeaderKey } from '../analyzers/security.ts';
 import type { ThirdPartyAnalysis } from '../analyzers/third-party.ts';
 import type { Capture, CaptureFailureReason } from '../capture/types.ts';
 import { RISK_CLASSES, type RiskClass } from '../rules/types.ts';
@@ -36,6 +38,36 @@ export interface RunSummary {
   serviceSites: { serviceId: string; sites: number }[];
   /** Labels of sites where Google Fonts is a confirmed finding */
   googleFontsSites: string[];
+  /** Session A3: axe on the captured pages (captures without axe data count as not checked). */
+  accessibility: {
+    checked: number;
+    notChecked: { label: string; reason: string }[];
+    /** Per error type: sites with at least one violation, and violations per checked page. */
+    byType: Record<A11yCheckId, { sites: number; median: number | null; max: number | null; total: number }>;
+    sitesWithAnyViolation: number;
+    sitesWithManualOnly: number;
+    axeTotalMs: { median: number | null; max: number | null };
+    axeRunMs: { median: number | null; max: number | null };
+    axeInjectMs: { median: number | null; max: number | null };
+  };
+  /** Session A3: HTTPS, the http redirect check and the five headers. */
+  security: {
+    https: Record<'pass' | 'fail' | 'manual', number>;
+    httpRedirect: Record<CheckResult, number>;
+    probeOutcomes: Record<string, number>;
+    probeMs: { median: number | null; max: number | null };
+    headerPresent: Record<SecurityHeaderKey, number>;
+    headerStatus: Record<SecurityHeaderKey, Record<string, number>>;
+    headersPresentPerSite: { median: number | null; min: number | null; max: number | null };
+  };
+}
+
+/** Free text from browsers and axe can name the site ("… at https://www.x.de/"): replace addresses and host names. */
+export function redactText(text: string): string {
+  return text
+    .replace(/\b(?:https?|wss?):\/\/\S+/gi, '<url>')
+    .replace(/\b(?:[a-z0-9-]+\.)+(?:de|com|net|org|eu|info|biz|shop|store|online|bayern|io|at|ch|co|uk|app|dev|site|website)\b/gi, '<host>')
+    .slice(0, 160);
 }
 
 function median(values: number[]): number | null {
@@ -106,7 +138,7 @@ export function summarizeRun(results: readonly SiteRunResult[]): RunSummary {
     captured: ok.length,
     failures: results
       .filter((r) => !r.capture.ok)
-      .map((r) => ({ label: r.label, reason: r.capture.failure?.reason ?? 'other', message: r.capture.failure?.message ?? '' })),
+      .map((r) => ({ label: r.label, reason: r.capture.failure?.reason ?? 'other', message: redactText(r.capture.failure?.message ?? '') })),
     byKind,
     retried: results.filter((r) => r.attempts > 1).length,
     captureMs: { median: median(ok.map((r) => r.capture.timings.endMs)), max: max(ok.map((r) => r.capture.timings.endMs)) },
@@ -126,6 +158,94 @@ export function summarizeRun(results: readonly SiteRunResult[]): RunSummary {
       .map(([serviceId, sites]) => ({ serviceId, sites }))
       .sort((a, b) => b.sites - a.sites || a.serviceId.localeCompare(b.serviceId)),
     googleFontsSites,
+    accessibility: summarizeAccessibility(ok),
+    security: summarizeSecurity(ok),
+  };
+}
+
+const A11Y_TYPES: A11yCheckId[] = ['color-contrast', 'image-alt', 'label', 'link-name', 'button-name', 'page-language'];
+
+function minimum(values: number[]): number | null {
+  return values.length === 0 ? null : Math.min(...values);
+}
+
+function summarizeAccessibility(ok: readonly SiteRunResult[]): RunSummary['accessibility'] {
+  const byType = Object.fromEntries(A11Y_TYPES.map((id) => [id, { sites: 0, median: null, max: null, total: 0 }])) as RunSummary['accessibility']['byType'];
+  const perType: Record<string, number[]> = {};
+  const notChecked: { label: string; reason: string }[] = [];
+  let checked = 0;
+  let sitesWithAnyViolation = 0;
+  let sitesWithManualOnly = 0;
+  const total: number[] = [];
+  const run: number[] = [];
+  const inject: number[] = [];
+  for (const result of ok) {
+    const axe = result.capture.axe ?? null;
+    if (axe !== null) {
+      total.push(axe.timing.totalMs);
+      if (axe.timing.runMs !== null) run.push(axe.timing.runMs);
+      if (axe.timing.injectMs !== null) inject.push(axe.timing.injectMs);
+    }
+    const analysis = analyzeAccessibility(result.capture);
+    if (analysis.status !== 'checked') {
+      notChecked.push({ label: result.label, reason: redactText(analysis.reason ?? 'unknown') });
+      continue;
+    }
+    checked += 1;
+    if (analysis.counts.failed > 0) sitesWithAnyViolation += 1;
+    else if (analysis.counts.manual > 0) sitesWithManualOnly += 1;
+    for (const check of analysis.checks) {
+      (perType[check.id] ??= []).push(check.violations);
+      const entry = byType[check.id];
+      entry.total += check.violations;
+      if (check.violations > 0) entry.sites += 1;
+    }
+  }
+  for (const id of A11Y_TYPES) {
+    byType[id].median = median(perType[id] ?? []);
+    byType[id].max = max(perType[id] ?? []);
+  }
+  return {
+    checked,
+    notChecked,
+    byType,
+    sitesWithAnyViolation,
+    sitesWithManualOnly,
+    axeTotalMs: { median: median(total), max: max(total) },
+    axeRunMs: { median: median(run), max: max(run) },
+    axeInjectMs: { median: median(inject), max: max(inject) },
+  };
+}
+
+function summarizeSecurity(ok: readonly SiteRunResult[]): RunSummary['security'] {
+  const https: RunSummary['security']['https'] = { pass: 0, fail: 0, manual: 0 };
+  const httpRedirect: Record<CheckResult, number> = { pass: 0, fail: 0, manual: 0, info: 0, 'not-checked': 0 };
+  const probeOutcomes: Record<string, number> = {};
+  const probeMs: number[] = [];
+  const headerPresent = Object.fromEntries(SECURITY_HEADERS.map((h) => [h.key, 0])) as Record<SecurityHeaderKey, number>;
+  const headerStatus = Object.fromEntries(SECURITY_HEADERS.map((h) => [h.key, {}])) as Record<SecurityHeaderKey, Record<string, number>>;
+  const present: number[] = [];
+  for (const result of ok) {
+    const analysis = analyzeSecurity(result.capture);
+    https[analysis.https.result] += 1;
+    httpRedirect[analysis.httpRedirect.result] += 1;
+    const probe = result.capture.httpProbe ?? null;
+    increment(probeOutcomes, probe?.outcome ?? 'none');
+    if (probe !== null) probeMs.push(probe.durationMs);
+    for (const header of analysis.headers) {
+      if (header.counts) headerPresent[header.key] += 1;
+      increment(headerStatus[header.key], header.status);
+    }
+    present.push(analysis.headersPresent);
+  }
+  return {
+    https,
+    httpRedirect,
+    probeOutcomes,
+    probeMs: { median: median(probeMs), max: max(probeMs) },
+    headerPresent,
+    headerStatus,
+    headersPresentPerSite: { median: median(present), min: minimum(present), max: max(present) },
   };
 }
 
@@ -171,5 +291,22 @@ export function renderSummaryMarkdown(summary: RunSummary): string {
     }.`,
   );
   lines.push(`- Google Fonts as a finding: ${summary.googleFontsSites.length} sites (${summary.googleFontsSites.join(', ') || 'none'}).`);
+  const a = summary.accessibility;
+  lines.push(`- Accessibility (axe): checked on ${a.checked} of ${summary.captured} captured pages; at least one violation on ${a.sitesWithAnyViolation}; only undecided elements (manual check) on ${a.sitesWithManualOnly}.`);
+  for (const n of a.notChecked) lines.push(`  - ${n.label}: not checked (${n.reason.slice(0, 120)})`);
+  lines.push(
+    `- Violations per error type (sites with any; per checked page median / max; total): ${A11Y_TYPES.map((id) => `${id} ${a.byType[id].sites} sites, ${a.byType[id].median ?? 'n/a'} / ${a.byType[id].max ?? 'n/a'}, ${a.byType[id].total}`).join('; ')}.`,
+  );
+  lines.push(
+    `- Time for axe per page: median ${seconds(a.axeTotalMs.median)}, max ${seconds(a.axeTotalMs.max)} (injection median ${a.axeInjectMs.median ?? 'n/a'} ms, axe.run median ${a.axeRunMs.median ?? 'n/a'} ms, max ${a.axeRunMs.max ?? 'n/a'} ms).`,
+  );
+  const sec = summary.security;
+  lines.push(`- HTTPS: pass ${sec.https.pass}, fail ${sec.https.fail}, manual ${sec.https.manual}. Redirect http to https: ${Object.entries(sec.httpRedirect).filter(([, v]) => v > 0).map(([k, v]) => `${k} ${v}`).join(', ')} (probe outcomes: ${Object.entries(sec.probeOutcomes).map(([k, v]) => `${k} ${v}`).join(', ')}; probe time median ${sec.probeMs.median ?? 'n/a'} ms, max ${sec.probeMs.max ?? 'n/a'} ms).`);
+  lines.push(
+    `- Security headers present (of ${summary.captured} sites): ${SECURITY_HEADERS.map((h) => `${h.key} ${sec.headerPresent[h.key]}`).join(', ')}; per site median ${sec.headersPresentPerSite.median ?? 'n/a'} of 5, min ${sec.headersPresentPerSite.min ?? 'n/a'}, max ${sec.headersPresentPerSite.max ?? 'n/a'}.`,
+  );
+  lines.push(
+    `- Header states: ${SECURITY_HEADERS.map((h) => `${h.key} (${Object.entries(sec.headerStatus[h.key]).map(([k, v]) => `${k} ${v}`).join(', ')})`).join('; ')}.`,
+  );
   return `${lines.join('\n')}\n`;
 }

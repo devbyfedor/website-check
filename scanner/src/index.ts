@@ -10,6 +10,27 @@ export const SCANNER_VERSION = '0.1.0';
 export * from './capture/types.ts';
 export { checkPageReason, classifyMainDocument, classifyNavigationError, pageEvidenceOf, recheckCapture, type PageEvidence } from './capture/failure.ts';
 export { analyzeCapture, type CaptureAnalysis, type CaptureState } from './analyzers/capture.ts';
+export * from './a11y/types.ts';
+export { AXE_REPORTER, AXE_RUN_EXPRESSION, AXE_RUN_OPTIONS, AXE_TIME, axeBudgetMs, axeCaptureFrom, axeNotRun, type AxeRunOutput } from './a11y/axe-script.ts';
+export { analyzeAccessibility, ACCESSIBILITY_ANALYSIS_VERSION, type A11yCheck, type A11yCheckId, type AccessibilityAnalysis } from './analyzers/accessibility.ts';
+export * from './security/types.ts';
+export { HTTP_PROBE_DEFAULTS, httpVariantOf, isDefaultProbeTarget, probeHttpRedirect, type HttpProbeOptions } from './security/http-probe.ts';
+export {
+  analyzeSecurity,
+  checkCsp,
+  checkHsts,
+  checkPermissionsPolicy,
+  checkReferrerPolicy,
+  checkXcto,
+  SECURITY_ANALYSIS_VERSION,
+  SECURITY_HEADERS,
+  type CheckResult,
+  type HeaderCheck,
+  type HeaderStatus,
+  type SecurityAnalysis,
+  type SecurityHeaderKey,
+  type SecurityHeaderName,
+} from './analyzers/security.ts';
 export { CAPTURE_SETTINGS, chromeVersionOf, desktopChromeUserAgent, LONG_LIVED_RESOURCE_TYPES } from './capture/settings.ts';
 export { lowerCaseHeaders, toInitiator, type CdpInitiator, type CdpStack } from './capture/cdp.ts';
 export {

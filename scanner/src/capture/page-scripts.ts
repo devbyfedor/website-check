@@ -48,6 +48,10 @@ export const SNAPSHOT_EXPRESSION = `(() => {
       };
     })(),
     timeOrigin: performance.timeOrigin,
+    securityMeta: (() => {
+      const read = (selector) => { const el = document.querySelector(selector); return el ? String(el.getAttribute('content') || '').slice(0, 1000) : null; };
+      return { csp: read('meta[http-equiv="content-security-policy" i]'), referrer: read('meta[name="referrer" i]') };
+    })(),
   };
 })()`;
 

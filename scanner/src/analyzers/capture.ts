@@ -1,6 +1,8 @@
 import { recheckCapture } from '../capture/failure.ts';
 import type { Capture, CaptureFailure } from '../capture/types.ts';
 import type { CompiledRules } from '../rules/match.ts';
+import { analyzeAccessibility, type AccessibilityAnalysis } from './accessibility.ts';
+import { analyzeSecurity, type SecurityAnalysis } from './security.ts';
 import { analyzeThirdParty, type ThirdPartyAnalysis } from './third-party.ts';
 
 /**
@@ -25,13 +27,23 @@ export interface CaptureAnalysis {
   failure: CaptureFailure | null;
   /** Null unless the state is `analyzed`. */
   thirdParty: ThirdPartyAnalysis | null;
+  /** Null unless the state is `analyzed`; `not-checked` inside when axe did not run. */
+  accessibility: AccessibilityAnalysis | null;
+  /** Null unless the state is `analyzed`. */
+  security: SecurityAnalysis | null;
 }
 
 export function analyzeCapture(capture: Capture, rules: CompiledRules): CaptureAnalysis {
   const checked = recheckCapture(capture);
   if (!checked.ok) {
     const failure = checked.failure ?? { reason: 'other' as const, message: 'capture not ok' };
-    return { state: failure.reason === 'blocked' ? 'blocked' : 'failed', failure, thirdParty: null };
+    return { state: failure.reason === 'blocked' ? 'blocked' : 'failed', failure, thirdParty: null, accessibility: null, security: null };
   }
-  return { state: 'analyzed', failure: null, thirdParty: analyzeThirdParty(checked, rules) };
+  return {
+    state: 'analyzed',
+    failure: null,
+    thirdParty: analyzeThirdParty(checked, rules),
+    accessibility: analyzeAccessibility(checked),
+    security: analyzeSecurity(checked),
+  };
 }

@@ -1,5 +1,10 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
+import { resolve } from 'node:path';
+
+/** Accessibility fixture pages of session A3, served as `www.a11y.test/<file>`. */
+const A11Y_DIR = resolve(import.meta.dirname, '../../fixtures/a11y');
 
 /**
  * A tiny HTTP server for the integration tests. It answers for several made-up host names
@@ -126,16 +131,49 @@ route('www.banner.test', '/look-alikes', (_req, res) =>
     shadowBox('consent-widget', 'aria-label="Cookie-Einstellungen" style="position:fixed;bottom:70px;right:190px;width:60px;height:44px"',
       '<button aria-label="Cookie-Einstellungen öffnen" style="width:60px;height:44px">C</button>'))));
 
-// 4. Error pages.
+// 4. Security (A3): a page with four headers and a referrer meta tag, and redirect chains for the
+//    http redirect check (requested by Node's fetch on 127.0.0.1, so they are routed by path).
+route('www.headers.test', '/', (_req, res) =>
+  send(res, 200, 'text/html; charset=utf-8', html('<h1>Kopfzeilen</h1>', '<meta name="referrer" content="no-referrer">'), {
+    'strict-transport-security': 'max-age=31536000',
+    'content-security-policy': "default-src 'self'",
+    'x-content-type-options': 'nosniff',
+    'permissions-policy': 'geolocation=()',
+  }),
+);
+route('127.0.0.1', '/redirect/start', (_req, res, port) => {
+  res.writeHead(301, { location: `http://127.0.0.1:${port}/redirect/www` });
+  res.end();
+});
+route('127.0.0.1', '/redirect/www', (_req, res) => {
+  res.writeHead(308, { location: 'https://www.secure.test/' });
+  res.end();
+});
+route('127.0.0.1', '/plain', (_req, res) => send(res, 200, 'text/html', html('Nur http')));
+route('127.0.0.1', '/loop', (_req, res) => {
+  res.writeHead(302, { location: '/loop' });
+  res.end();
+});
+
+// 5. Error pages.
 route('www.blocked.test', '/', (_req, res) => send(res, 403, 'text/html', html('Just a moment...'), { 'cf-mitigated': 'challenge' }));
 route('www.broken.test', '/', (_req, res) => send(res, 500, 'text/html', html('Internal Server Error')));
+
+function a11yPage(path: string): Handler | undefined {
+  try {
+    const body = readFileSync(resolve(A11Y_DIR, path.slice(1)), 'utf8');
+    return (_req, res) => send(res, 200, 'text/html; charset=utf-8', body);
+  } catch {
+    return undefined;
+  }
+}
 
 export async function startFixtureServer(): Promise<FixtureServer> {
   let port = 0;
   const server: Server = createServer((req, res) => {
     const host = (req.headers.host ?? '').split(':')[0] ?? '';
     const path = (req.url ?? '/').split('?')[0] ?? '/';
-    const handler = routes[`${host}${path}`];
+    const handler = routes[`${host}${path}`] ?? (host === 'www.a11y.test' && /^\/[a-z-]+\.html$/.test(path) ? a11yPage(path) : undefined);
     if (handler === undefined) send(res, 404, 'text/plain', 'not found');
     else handler(req, res, port);
   });

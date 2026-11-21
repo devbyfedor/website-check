@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Muster GmbH – Kontaktformular</title>
+<!--
+  Fixture for axe rule label (fail page). Expected counts: scanner/fixtures/a11y/expected.json.
+  Violations: text input next to unlinked text, textarea without label, checkbox next to plain text,
+  label for= pointing to a wrong id, empty label (5).
+  Not counted by axe: the field with a placeholder only (axe accepts a non-empty placeholder as a name),
+  the select without label (covered by the axe rule select-name, which we do not run),
+  type=hidden, type=submit, the button, and the input hidden with display:none.
+-->
+<style>
+  body { margin: 0; padding: 24px 32px; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; color: #1a1a1a; background: #ffffff; }
+  h1 { font-size: 28px; margin: 0 0 16px; }
+  .zeile { margin: 0 0 12px; }
+  input, textarea, select, button { font-size: 16px; color: #1a1a1a; }
+  .versteckt { display: none; }
+</style>
+</head>
+<body>
+  <h1>Kontakt zur Muster GmbH</h1>
+  <form action="danke.html" method="post">
+    <input type="hidden" name="formular" value="kontakt">
+    <div class="zeile"><span>Ihr Name</span> <input type="text" name="name"></div>
+    <div class="zeile"><input type="email" name="email" placeholder="E-Mail-Adresse"></div>
+    <div class="zeile"><span>Ihre Nachricht</span><br><textarea name="nachricht" rows="3" cols="40"></textarea></div>
+    <div class="zeile"><label for="plz-feld">Postleitzahl</label> <input type="text" id="plz" name="plz"></div>
+    <div class="zeile"><label for="ort"></label> <input type="text" id="ort" name="ort"></div>
+    <div class="zeile">
+      <select name="anliegen">
+        <option>Bestellung</option>
+        <option>Reklamation</option>
+      </select>
+    </div>
+    <div class="zeile"><input type="checkbox" name="rueckruf" value="ja"> Bitte rufen Sie mich zurück.</div>
+    <div class="versteckt"><input type="text" name="firma"></div>
+    <div class="zeile"><input type="submit" value="Absenden"> <button type="reset">Zurücksetzen</button></div>
+  </form>
+</body>
+</html>

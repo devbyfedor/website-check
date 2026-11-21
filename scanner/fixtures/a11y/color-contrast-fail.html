@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bäckerei Muster – Öffnungszeiten</title>
+<!--
+  Fixture for axe rule color-contrast (fail page). Expected counts: scanner/fixtures/a11y/expected.json.
+  Violations: .grau, .knapp, .hell-auf-hell, .blass, .gross-zu-hell (5).
+  Incomplete: .bild (text over a background image, axe cannot compute the background) and .sterne
+  (a light grey star rating: text made only of symbol characters is not judged, messageKey nonBmp).
+  Not counted: the disabled button (axe excludes disabled controls), the hidden paragraph.
+  Two-decimal ratios in the comments below are as axe reports them (axe truncates, it does not round).
+-->
+<style>
+  body { margin: 0; padding: 24px 32px; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; color: #1a1a1a; background: #ffffff; }
+  h1 { font-size: 28px; margin: 0 0 16px; }
+  p { margin: 0 0 12px; }
+  .grau { color: #999999; }                       /* 2.84:1 on white: fail */
+  .knapp { color: #777777; }                      /* 4.47:1 on white: just below 4.5:1, fail */
+  .hell-auf-hell { color: #aaaaaa; background: #f2f2f2; padding: 4px 8px; display: inline-block; } /* about 2.1:1: fail */
+  .blass { color: #1a1a1a; opacity: 0.3; }        /* dark text at 30 % opacity: fail */
+  .gross-zu-hell { font-size: 24px; color: #aaaaaa; } /* large text, 2.32:1 is below 3:1: fail */
+  .gross-ok { font-size: 24px; color: #888888; }  /* large text, 3.54:1 is at least 3:1: pass */
+  .fett-ok { font-size: 18.66px; font-weight: bold; color: #888888; } /* bold 14 pt, 3.54:1: pass */
+  .bild {
+    background-color: #6b4423;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%236b4423'/%3E%3Ccircle cx='20' cy='20' r='12' fill='%23d9b38c'/%3E%3C/svg%3E");
+    color: #ffffff; padding: 24px; margin: 0 0 12px; max-width: 640px;
+  }
+  .sterne { color: #cccccc; font-size: 16px; } /* symbols only: incomplete, not a violation */
+  button.deaktiviert { font-size: 16px; color: #bbbbbb; background: #eeeeee; border: 1px solid #dddddd; padding: 8px 16px; }
+  .versteckt { display: none; color: #cccccc; }
+</style>
+</head>
+<body>
+  <h1>Öffnungszeiten der Bäckerei Muster</h1>
+  <p>Wir backen jeden Morgen frisch für Sie.</p>
+  <p class="grau">Montag bis Freitag von 6 bis 18 Uhr geöffnet.</p>
+  <p class="knapp">Samstag von 7 bis 13 Uhr geöffnet.</p>
+  <p><span class="hell-auf-hell">Sonntag geschlossen.</span></p>
+  <p class="blass">An Feiertagen gelten gesonderte Zeiten.</p>
+  <p class="gross-zu-hell">Frühstück bis 11 Uhr</p>
+  <p class="gross-ok">Brötchen ab 6 Uhr</p>
+  <p class="fett-ok">Kuchen ab 10 Uhr</p>
+  <div class="bild">Unsere Backstube in Musterstadt</div>
+  <p class="sterne" aria-hidden="true">&#9733;&#9733;&#9733;&#9733;&#9734;</p>
+  <p><button type="button" class="deaktiviert" disabled>Vorbestellung derzeit nicht möglich</button></p>
+  <p class="versteckt">Dieser Hinweis ist ausgeblendet.</p>
+</body>
+</html>

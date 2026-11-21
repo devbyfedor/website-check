@@ -2,7 +2,7 @@
 
 ## Current state
 
-Stage A, sessions A1 and A2 are merged into `main`. A2 ends with Fedor's choice of plan: the recommendation in `docs/measurements/a2.md` is the capture in a Durable Object with strategy (a). Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
+Stage A, sessions A1, A2 and A3 are merged into `main`. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
 - Part 1 (done): the Cloudflare capture adapter in `worker/` with both strategies, and a check on three sites of whether consent tools behave the same with the Cloudflare browser as with the local run (banner, third-party requests before consent, browser location, Worker CPU and wall time).
 - Part 2 (done): the capture moves into a Durable Object in the EU jurisdiction; the Worker only checks the token and passes the job on. The scanner recognises blocked pages (a web host's check page such as "Einen Moment bitte") and gives no findings for them. Check on Cloudflare: browser location from the Durable Object, the three sites of part 1 with both strategies, Site 06 recognised as blocked, CPU of the Worker and of the Durable Object.
 - Part 3 (done): banner probe fixes, the measurement on 12 sites, `docs/measurements/a2.md` with the plan recommendation, the merge into `main`, and deleting the lab Worker.
@@ -190,7 +190,41 @@ Result: merged into `main` with `git merge --no-ff` (merge commit 0dca8ef); this
 
 Session time: about 45 minutes (13:45 to about 14:30). Browser time in this session: 75.8 s (1.3 browser minutes), all in step 3; steps 1, 2 and 4 used none. Browser time of the day: 149.4 s of 600.
 
+## A3: accessibility and security checks (21.11.2026)
+
+Branch `a3-a11y-security`. Session time: about 1 hour 15 minutes (14:35 to about 15:50). Browser time on Cloudflare: 52.6 s (0.88 browser minutes), all in step 6; browser time of the day 202 s of 600 (A2 used 149.4 s).
+
+Fedor's answers before the start (in `docs/decisions.md`): the plan is the Durable Object in the EU jurisdiction with strategy (a), which changes the architecture section of the brief (noted there); findings that depend on the country of the visit stay findings, the country is stored with every capture and named in the report (the field in the report schema is a backlog item for A5); the lab Worker may be deployed again for the Cloudflare check.
+
+### What was built
+
+- Step 2, axe-core: `axe-core` 4.14.1 pinned in `scanner/` and `worker/` (`@axe-core/playwright` 4.14.0 with the same axe-core for the reference). `scanner/src/a11y/`: the seven rules (`color-contrast`, `image-alt`, `label`, `link-name`, `button-name`, `html-has-lang`, `html-lang-valid`) on the top-level document, `iframes: false`, `preload: false`; a reporter in the page groups with axe's own `aggregateResult` and returns counts per rule (violations, incomplete, passes) and at most 5 examples (selector path, HTML up to 200 characters, contrast values), the lowest contrast and the frames of the page. Both adapters inject the same source after the page snapshot, only on a captured page, within the 20 s hard limit (at most 8 s); the Worker bundles `axe.min.js` as a text module. Analyzer `analyzeAccessibility`: the six error types of the brief, "bitte manuell prüfen" for undecided elements (also next to violations), "nicht geprüft" when axe did not run, a rule threw, or the content sits in frames.
+- Step 3, security without a browser: `scanner/src/security/http-probe.ts` checks the redirect from http:// to https:// with `fetch` and manual redirects (at most 5, 10 s, ports 80 and 443, the Durable Object's host check on every hop), in parallel with the page load; HTTPS and the five headers come from the main document the browser loaded. Analyzer `analyzeSecurity` with the header rules of the standards (HSTS only on HTTPS, CSP and referrer by meta tag count, Permissions-Policy parsed as a structured field, report-only and Feature-Policy apart, "bitte manuell prüfen" when the meta tags are unknown).
+- Step 4, fixture pages: 15 pages in `scanner/fixtures/a11y/` (a page with errors and one without for every rule, plus a mixed homepage with an open shadow root and a hidden menu), expected counts in `expected.json`, written by a helper and confirmed by an independent helper with plain `axe.run`. 36 German draft texts in `docs/content-drafts.md`, every one "Status: Entwurf"; an independent review found 22 problems, all fixed.
+- Step 5, local run of 30 sites and the comparison with a standard axe-core run on 5 sites (`npm run scan:local -- --axe-reference ...`): numbers in `docs/measurements/a3.md`.
+- Step 6, Cloudflare: the lab Worker deployed again, 5 sites through the Durable Object with all checks, then deleted.
+- An independent review before the Cloudflare run (3 reviewers, every finding checked by a skeptic) confirmed 6 problems (11 rejected); all 6 were fixed before the run (undecided elements next to violations, frameset pages, rule errors inside axe, Permissions-Policy parsing, unknown meta tags, addresses in error texts of the summary).
+
+### Numbers
+
+- Local run of the 30 sites: 30 of 30 captured, axe `ok` on 30 of 30, time for axe per page median 0.19 s, max 0.47 s. Violations on 25 of 30 pages; text contrast on 22 sites (191 elements), empty links on 11 (66), images without alternative text on 2 (28), empty buttons on 2 (7), form fields without labels on 1 (8), page language on 1 (1). HTTPS and the redirect from http to https on 30 of 30. Headers present: HSTS 20, CSP 7, X-Content-Type-Options 14, Referrer-Policy 5, Permissions-Policy 0 of 30; per site median 1 of 5.
+- Comparison with the standard run (Site 03, 06, 10, 14, 26: Shopify, WooCommerce, Shopware, WordPress, Wix): in the first run 4 of 5 the same; on Site 03, a page still loading at the 15 s limit, one image appeared between our run and the standard run (our second run gave the standard count). After the change to a comparison on a stable page (ours, standard, ours again, until our two runs agree), a new visit of the 5 homepages: 5 of 5 sites the same on every rule (35 of 35 rule results, 73 violations), also the first five selectors; incomplete counts the same on 4 of 5 (Site 03: 56 and 57, carousel; not part of the condition).
+- Cloudflare: browser in Vienna (`loc=AT`), object in the EU jurisdiction. Worker CPU 0 ms on every page request (1 ms on one limits request). Durable Object CPU per page 61 to 458 ms. 20 of 20 events `ok`. axe adds 0.68 to 1.65 s of browser time per page, mean 1.05 s. Session 52.6 s. Capacity of the free plan with axe on the homepage: about 54 full checks per day at the mean (A2: 60), 71 at the median, 16 in the worst case.
+
+### Merge condition of A3
+
+- `npm test` passes completely, with the fixture pages: 282 of 282 unit tests (among them the check of the fixture manifest); the fixture pages in Chromium (`npm run test:integration`): 37 of 37, all 15 pages equal to `expected.json` and to the standard run; `npm run typecheck`: no errors.
+- On 5 sites the number of violations per rule equals the standard run exactly: yes, 5 of 5 sites, 35 of 35 rule results (second comparison on a stable page; the first comparison had 4 of 5, with the cause shown above).
+- On Cloudflare the Worker's CPU at most 8 ms on every request: yes, at most 1 ms. The Durable Object never cut off: yes, 10 of 10 object events `ok`. At most 1.5 browser minutes for the whole step: 52.6 s.
+- No token, addresses or names of the sites in git: the lab token is in no tracked file, no commit of any branch and no commit message (checked with the value, not printed); none of the 32 domains of `local/sites.txt` and `local/sites-v1.txt`, nor their names without the ending, in the tracked files, any commit or any commit message; `git ls-files local` is empty.
+
+Result: every point holds; merged into `main` with `git merge --no-ff`.
+
+### Lab Worker deleted
+
+- `npx wrangler delete -c worker/wrangler.lab.jsonc`: "Successfully deleted website-check-lab". Check: its workers.dev address answers HTTP 404 with error 1042, the API answers "This Worker does not exist on your account" (code 10007). `LAB_TOKEN` is removed from the local `worker/.dev.vars`.
+
 ## Next
 
-- Fedor chooses the plan (recommendation: capture in a Durable Object with strategy a, `docs/measurements/a2.md`) and decides how findings that depend on the browser's country are shown (Site 06, `docs/backlog.md`).
-- Then A3: accessibility checks with a pinned axe-core and the security checks, fixture pages, 5 sites compared with a separate axe-core run, and 5 sites through Cloudflare within 1.5 browser minutes. Since the lab Worker is deleted, A3 needs a Worker with the Durable Object again for its Cloudflare check; that is a deploy and must be allowed in its session message.
+- A4: mandatory information (Impressum and Datenschutz links, Impressum fields with templates, Erklärung zur Barrierefreiheit) and system detection, with the Impressum opened in a second tab of the same browser; at least 20 synthetic Impressum fixtures. Decide there whether axe also runs on the Impressum (about 1 s of Cloudflare browser time per page).
+- Fedor: review the German draft texts in `docs/content-drafts.md` and the note at its end about the Prüfmaße heading of the design.

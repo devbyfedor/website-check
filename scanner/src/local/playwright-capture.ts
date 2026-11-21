@@ -1,4 +1,8 @@
-import { chromium, type Browser, type BrowserContext, type Frame, type Request, type Response } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type Frame, type Page, type Request, type Response } from 'playwright';
+import { AXE_RUN_EXPRESSION, axeBudgetMs, axeCaptureFrom, axeNotRun } from '../a11y/axe-script.ts';
+import type { AxeCapture } from '../a11y/types.ts';
+import { httpVariantOf, probeHttpRedirect } from '../security/http-probe.ts';
+import type { HttpProbe } from '../security/types.ts';
 import { classifyMainDocument, classifyNavigationError, pageEvidenceOf } from '../capture/failure.ts';
 import {
   CAPTURE_SCHEMA_VERSION,
@@ -18,6 +22,7 @@ import { CAPTURE_SETTINGS, desktopChromeUserAgent, LONG_LIVED_RESOURCE_TYPES } f
 import { buildBannerProbeScript } from '../consent/probe-script.ts';
 import type { ConsentTool } from '../consent/tools.ts';
 import { DEFAULT_CONSENT_TOOLS } from '../data.ts';
+import { loadAxeSource } from './axe-source.ts';
 
 /**
  * Local capture adapter: Playwright with Chromium on the laptop.
@@ -46,12 +51,23 @@ export interface LocalCaptureOptions {
   consentTools?: readonly ConsentTool[];
   /** Also return the final HTML and a viewport screenshot, for manual checks (local only). */
   artifacts?: boolean;
+  /** Run the pinned axe-core after the network is quiet (default true). */
+  accessibility?: boolean;
+  /** Check the redirect from http:// to https:// with plain HTTP requests, in parallel (default true). */
+  httpProbe?: boolean;
+  /**
+   * Local comparisons only: runs on the same page right after the checks, before the HTML and the
+   * screenshot, outside the page's hard limit (at most 90 s), with the checks already made. Its result is `after`.
+   */
+  afterChecks?: (page: Page, checks: { axe: AxeCapture | null }) => Promise<unknown>;
 }
 
 export interface LocalCaptureResult {
   capture: Capture;
   html: string | null;
   screenshot: Buffer | null;
+  /** Result of `afterChecks`, or its error text. */
+  after?: unknown;
 }
 
 export { desktopChromeUserAgent };
@@ -67,6 +83,27 @@ function errorText(error: unknown): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Injects the pinned axe-core into the top-level document and runs the seven rules
+ * (`AXE_RUN_EXPRESSION`). Never throws: a failure or timeout becomes the capture's axe status.
+ */
+export async function runAxeInPlaywright(page: Page, axeSource: string, budgetMs: number): Promise<AxeCapture> {
+  const started = performance.now();
+  const elapsed = (): number => Math.round(performance.now() - started);
+  let injectMs: number | null = null;
+  try {
+    await withTimeout(page.evaluate(axeSource), budgetMs);
+    injectMs = elapsed();
+    const left = budgetMs - injectMs;
+    if (left < 300) return axeNotRun('timeout', 'no time left after injecting axe-core', { injectMs, totalMs: elapsed() });
+    const output: unknown = await withTimeout(page.evaluate(AXE_RUN_EXPRESSION), left);
+    return axeCaptureFrom(output, { injectMs, totalMs: elapsed() });
+  } catch (error) {
+    const message = errorText(error);
+    return axeNotRun(/timed out after/.test(message) ? 'timeout' : 'error', message, { injectMs, totalMs: elapsed() });
+  }
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -107,6 +144,8 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
     hardLimitMs: options.hardLimitMs ?? LOCAL_CAPTURE_DEFAULTS.hardLimitMs,
     artifacts: options.artifacts ?? false,
     tools: options.consentTools ?? DEFAULT_CONSENT_TOOLS,
+    axeSource: options.accessibility === false ? null : await loadAxeSource(),
+    afterChecks: options.afterChecks ?? null,
   };
   const environment: CaptureEnvironment = {
     browser: `chromium ${browser.version()}`,
@@ -115,6 +154,11 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
     timezoneId: LOCAL_CAPTURE_DEFAULTS.timezoneId,
     viewport: { ...LOCAL_CAPTURE_DEFAULTS.viewport },
   };
+  // The redirect check needs no browser: it runs while the page loads.
+  const httpUrl = options.httpProbe === false ? null : httpVariantOf(url);
+  const probe: Promise<HttpProbe | null> | null =
+    httpUrl === null ? null : probeHttpRedirect(httpUrl, { userAgent: environment.userAgent, acceptLanguage: CAPTURE_SETTINGS.acceptLanguage }).catch(() => null);
+  const contextStarted = performance.now();
   const context = await browser.newContext({
     locale: environment.locale,
     timezoneId: environment.timezoneId,
@@ -129,7 +173,9 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
     void context.close().catch(() => undefined);
   }, settings.hardLimitMs);
   try {
-    return await runCapture(context, url, settings, environment, () => hardLimitHit);
+    const result = await runCapture(context, url, settings, environment, () => hardLimitHit, contextStarted, () => clearTimeout(hardTimer));
+    if (probe !== null) result.capture.httpProbe = await probe;
+    return result;
   } finally {
     clearTimeout(hardTimer);
     await context.close().catch(() => undefined);
@@ -139,9 +185,19 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
 async function runCapture(
   context: BrowserContext,
   url: string,
-  settings: { maxWaitMs: number; quietWindowMs: number; artifacts: boolean; tools: readonly ConsentTool[] },
+  settings: {
+    maxWaitMs: number;
+    quietWindowMs: number;
+    hardLimitMs: number;
+    artifacts: boolean;
+    tools: readonly ConsentTool[];
+    axeSource: string | null;
+    afterChecks: ((page: Page, checks: { axe: AxeCapture | null }) => Promise<unknown>) | null;
+  },
   environment: CaptureEnvironment,
   hardLimitHit: () => boolean,
+  contextStarted: number,
+  disarmHardLimit: () => void,
 ): Promise<LocalCaptureResult> {
   const page = await context.newPage();
   await page.addInitScript({ content: buildBannerProbeScript(settings.tools) });
@@ -302,7 +358,31 @@ async function runCapture(
   if (navigationError === null && !hardLimitHit() && !crashed) {
     snapshot = await withTimeout(page.evaluate(SNAPSHOT_EXPRESSION) as Promise<SnapshotResult>, 4_000).catch(() => null);
   }
+  let failure: CaptureFailure | null = null;
+  if (navigationError !== null) {
+    failure = { reason: classifyNavigationError(navigationError), message: navigationError };
+  } else if (mainResponse === null) {
+    failure = { reason: 'other', message: 'no main document response' };
+  } else {
+    failure = classifyMainDocument(mainResponse.status(), headers, snapshot?.title ?? '', pageEvidenceOf(snapshot, records.length));
+  }
+
+  // axe only on a page that was captured: an error page, a check page or a timeout gets no
+  // accessibility result and costs no browser time.
+  const pageUsable = (): boolean => failure === null && snapshot !== null && !hardLimitHit() && !crashed && !page.isClosed();
+  let axe: AxeCapture | null = null;
+  if (settings.axeSource !== null) {
+    const budget = axeBudgetMs(performance.now() - contextStarted, settings.hardLimitMs);
+    if (!pageUsable()) axe = axeNotRun('skipped', failure === null ? 'the page did not load' : `the page was not captured (${failure.reason})`);
+    else if (budget === 0) axe = axeNotRun('skipped', 'no time left before the hard limit of the page');
+    else axe = await runAxeInPlaywright(page, settings.axeSource, budget);
+  }
   const endMs = rel();
+  let after: unknown;
+  if (settings.afterChecks !== null && pageUsable()) {
+    disarmHardLimit();
+    after = await withTimeout(settings.afterChecks(page, { axe }), 90_000).catch((error: unknown) => ({ error: errorText(error) }));
+  }
   if (settings.artifacts && navigationError === null && !hardLimitHit() && !crashed) {
     html = await withTimeout(page.content(), 4_000).catch(() => null);
     screenshot = await withTimeout(page.screenshot({ type: 'png', timeout: 4_000 }), 5_000).catch(() => null);
@@ -327,15 +407,6 @@ async function runCapture(
     if (response !== mainResponse) redirectChain.push({ url: response.url(), status: response.status() });
   }
 
-  let failure: CaptureFailure | null = null;
-  if (navigationError !== null) {
-    failure = { reason: classifyNavigationError(navigationError), message: navigationError };
-  } else if (mainResponse === null) {
-    failure = { reason: 'other', message: 'no main document response' };
-  } else {
-    failure = classifyMainDocument(mainResponse.status(), headers, snapshot?.title ?? '', pageEvidenceOf(snapshot, records.length));
-  }
-
   const probe = snapshot?.probe ?? null;
   const consentBanner: ConsentBannerObservation = {
     detected: probe?.found != null,
@@ -357,6 +428,7 @@ async function runCapture(
           textTruncated: snapshot.textTruncated,
           links: snapshot.links,
           linksTruncated: snapshot.linksTruncated,
+          ...(snapshot.securityMeta ? { securityMeta: snapshot.securityMeta } : {}),
         };
 
   const capture: Capture = {
@@ -372,8 +444,8 @@ async function runCapture(
     requests: records,
     page: pageSnapshot,
     consentBanner,
-    axe: null,
+    axe,
     timings: { domContentLoadedMs, loadMs, networkQuietMs, endMs, stopReason },
   };
-  return { capture, html, screenshot };
+  return { capture, html, screenshot, ...(settings.afterChecks !== null ? { after } : {}) };
 }
