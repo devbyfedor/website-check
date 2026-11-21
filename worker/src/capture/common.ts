@@ -20,6 +20,12 @@ export interface CloudCaptureOptions {
   quietWindowMs?: number;
   hardLimitMs?: number;
   consentTools?: readonly ConsentTool[];
+  /** The pinned axe-core source; without it the accessibility check is not run (strategy a only). */
+  axeSource?: string | null;
+  /** Check the redirect from http:// to https:// with `fetch`, in parallel to the page (no browser time). */
+  httpProbe?: boolean;
+  /** Every address of the redirect check before it is requested. Default: http or https on ports 80 and 443. */
+  isProbeTargetAllowed?: (url: URL) => boolean;
 }
 
 export interface CloudSettings {
@@ -27,6 +33,9 @@ export interface CloudSettings {
   quietWindowMs: number;
   hardLimitMs: number;
   tools: readonly ConsentTool[];
+  axeSource: string | null;
+  httpProbe: boolean;
+  isProbeTargetAllowed: ((url: URL) => boolean) | null;
 }
 
 /** What the Worker saw while capturing, for the measurement (not part of the capture). */
@@ -39,6 +48,8 @@ export interface CaptureStats {
   emulationFailed: string[];
   /** Wall time of the capture in the Worker, ms (Worker clocks only advance on I/O). */
   wallMs: number;
+  /** How long the capture waited for the http redirect check after the page was done (0 if it was faster). */
+  probeWaitMs?: number;
 }
 
 export interface CloudCaptureResult {
@@ -52,6 +63,9 @@ export function resolveSettings(options: CloudCaptureOptions): CloudSettings {
     quietWindowMs: options.quietWindowMs ?? CAPTURE_SETTINGS.quietWindowMs,
     hardLimitMs: options.hardLimitMs ?? CAPTURE_SETTINGS.hardLimitMs,
     tools: options.consentTools ?? DEFAULT_CONSENT_TOOLS,
+    axeSource: options.axeSource ?? null,
+    httpProbe: options.httpProbe ?? false,
+    isProbeTargetAllowed: options.isProbeTargetAllowed ?? null,
   };
 }
 
@@ -92,6 +106,7 @@ export function pageSnapshotOf(snapshot: SnapshotResult | null): PageSnapshot | 
     textTruncated: snapshot.textTruncated,
     links: snapshot.links,
     linksTruncated: snapshot.linksTruncated,
+    ...(snapshot.securityMeta ? { securityMeta: snapshot.securityMeta } : {}),
   };
 }
 

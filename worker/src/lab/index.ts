@@ -1,11 +1,12 @@
 import { DurableObject } from 'cloudflare:workers';
 import puppeteer, { type Browser, type BrowserWorker, type Page } from '@cloudflare/puppeteer';
-import { chromeVersionOf } from '@website-check/scanner';
+import { chromeVersionOf, isDefaultProbeTarget } from '@website-check/scanner';
+import { AXE_SOURCE } from '../capture/axe-source.ts';
 import { captureWithCdpEvents, clientOf, prepareVisitorPage } from '../capture/cdp-events.ts';
 import { cloudEnvironment, withTimeout } from '../capture/common.ts';
 import { ENVIRONMENT_EXPRESSION, type EnvironmentCheck } from '../capture/emulation.ts';
 import { captureWithResourceTiming } from '../capture/resource-timing.ts';
-import { createLabGate, createLabRoutes, parseTrace, type LabDeps, type LabEnv, type SessionUsage, type TraceResult } from './handler.ts';
+import { createLabGate, createLabRoutes, isScannableUrl, parseTrace, type LabDeps, type LabEnv, type SessionUsage, type TraceResult } from './handler.ts';
 
 /**
  * Entry point of the lab Worker `website-check-lab` (session A2): only the measurement
@@ -145,8 +146,17 @@ export class LabBrowser extends DurableObject<Env> {
         return { ...result, object };
       },
 
-      capture: (_env, sessionId, url, strategy) =>
-        this.#withBrowser(sessionId, (browser) => (strategy === 'cdp-events' ? captureWithCdpEvents(browser, url) : captureWithResourceTiming(browser, url))),
+      capture: (_env, sessionId, url, strategy, { devMode }) =>
+        this.#withBrowser(sessionId, (browser) =>
+          strategy === 'cdp-events'
+            ? captureWithCdpEvents(browser, url, {
+                axeSource: AXE_SOURCE,
+                httpProbe: true,
+                // Every hop of the redirect check passes the same host check as the job's address.
+                isProbeTargetAllowed: (target) => isScannableUrl(target.href, devMode) && (devMode || isDefaultProbeTarget(target)),
+              })
+            : captureWithResourceTiming(browser, url),
+        ),
 
       close: async (env, sessionId): Promise<SessionUsage | null> => {
         const { browser } = await this.#browserFor(sessionId);

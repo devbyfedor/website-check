@@ -16,6 +16,7 @@ import { cpuWork, isValidSteps, MAX_CPU_STEPS } from './cpu.ts';
  *   POST /lab/session                         open a browser, returns its session id
  *   POST /lab/trace    {sessionId}            open the Cloudflare trace page: loc, colo, emulation check
  *   POST /lab/capture  {sessionId, url, strategy: "cdp-events" | "resource-timing"}
+ *                                             since A3 strategy (a) also runs axe-core and the http redirect check
  *   POST /lab/close    {sessionId}            close the browser, returns its usage from history
  *
  * Every request needs `Authorization: Bearer <LAB_TOKEN>`. Without a configured token the
@@ -59,7 +60,8 @@ export interface LabDeps<E> {
   open(env: E): Promise<{ sessionId: string; browserVersion: string }>;
   /** `traceUrl` replaces the Cloudflare trace page only in local development. */
   trace(env: E, sessionId: string, traceUrl: string | null): Promise<TraceResult>;
-  capture(env: E, sessionId: string, url: string, strategy: CaptureStrategy): Promise<{ capture: Capture; stats: CaptureStats }>;
+  /** `devMode`: local wrangler dev against the fixture site (loopback addresses allowed for the redirect check too). */
+  capture(env: E, sessionId: string, url: string, strategy: CaptureStrategy, options: { devMode: boolean }): Promise<{ capture: Capture; stats: CaptureStats }>;
   close(env: E, sessionId: string): Promise<SessionUsage | null>;
 }
 
@@ -185,7 +187,7 @@ export function createLabRoutes<E extends LabEnv>(deps: LabDeps<E>): Handler<E> 
         if (typeof strategy !== 'string' || !STRATEGIES.includes(strategy as CaptureStrategy)) {
           return json({ error: 'bad_request', message: `strategy must be one of ${STRATEGIES.join(', ')}` }, 400);
         }
-        const result = await deps.capture(env, sessionId, url, strategy as CaptureStrategy);
+        const result = await deps.capture(env, sessionId, url, strategy as CaptureStrategy, { devMode });
         return json({ ...result, doWallMs: Date.now() - started });
       }
       return json({ error: 'not_found' }, 404);

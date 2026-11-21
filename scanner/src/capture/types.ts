@@ -9,6 +9,9 @@
  * navigation to the requested URL begins.
  */
 
+import type { AxeCapture } from '../a11y/types.ts';
+import type { HttpProbe } from '../security/types.ts';
+
 export const CAPTURE_SCHEMA_VERSION = 1;
 
 export type CaptureAdapterId = 'playwright-local' | 'cloudflare-browser-run';
@@ -109,6 +112,16 @@ export interface PageSnapshot {
   textTruncated: boolean;
   links: PageLink[];
   linksTruncated: boolean;
+  /**
+   * Security settings made by meta tags instead of headers (session A3): the first
+   * `<meta http-equiv="Content-Security-Policy">` and `<meta name="referrer">`. Missing in older captures.
+   */
+  securityMeta?: SecurityMeta;
+}
+
+export interface SecurityMeta {
+  csp: string | null;
+  referrer: string | null;
 }
 
 export interface ConsentBannerObservation {
@@ -178,7 +191,15 @@ export interface Capture {
   requests: CapturedRequest[];
   page: PageSnapshot | null;
   consentBanner: ConsentBannerObservation;
-  /** Accessibility results: filled from session A3 on. */
-  axe: null;
+  /**
+   * Accessibility results of the pinned axe-core on the top-level document (session A3); null in
+   * captures made before A3 or when the adapter was told not to run it.
+   */
+  axe: AxeCapture | null;
+  /**
+   * The redirect from http:// to https://, checked with plain HTTP requests in parallel to the
+   * page load (no browser time). Missing or null when not checked.
+   */
+  httpProbe?: HttpProbe | null;
   timings: CaptureTimings;
 }

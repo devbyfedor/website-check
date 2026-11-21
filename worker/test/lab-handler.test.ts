@@ -11,7 +11,7 @@ function deps(): LabDeps<LabEnv> {
     limits: vi.fn(async () => ({ limits: { maxConcurrentSessions: 3 } })),
     open: vi.fn(async () => ({ sessionId: 'session-0001', browserVersion: 'HeadlessChrome/152.0.0.0' })),
     trace: vi.fn(async () => ({ loc: 'DE', colo: 'FRA', http: 'http/2', tls: 'TLSv1.3', environment: null })),
-    capture: vi.fn(async (_env, _id, url, strategy) => ({
+    capture: vi.fn(async (_env, _id, url, strategy, _options) => ({
       capture: { requestedUrl: url, strategy } as never,
       stats: { events: 1, polls: 0, emulationFailed: [], wallMs: 5 },
     })),
