@@ -13,6 +13,9 @@ export interface CdpCommand {
   params: Record<string, unknown>;
 }
 
+/** `navigator.platform` of the local run (Windows laptop); Browser Run itself runs on Linux. */
+export const VISITOR_PLATFORM = 'Win32';
+
 /** Client hints as Playwright computes them for a Windows desktop user agent. */
 export function userAgentMetadataOf(userAgent: string): Record<string, unknown> {
   const windows = /Windows\D+(\d+(\.\d+)?(\.\d+)?)/.exec(userAgent);
@@ -30,15 +33,16 @@ export function frameEmulation(userAgent: string): CdpCommand[] {
   return [
     {
       method: 'Emulation.setUserAgentOverride',
-      params: { userAgent, acceptLanguage: CAPTURE_SETTINGS.acceptLanguage, userAgentMetadata: userAgentMetadataOf(userAgent) },
+      // platform: navigator.platform as on Fedor's Windows laptop, so it matches the Windows user agent.
+      params: { userAgent, acceptLanguage: CAPTURE_SETTINGS.acceptLanguage, userAgentMetadata: userAgentMetadataOf(userAgent), platform: VISITOR_PLATFORM },
     },
     { method: 'Emulation.setLocaleOverride', params: { locale: CAPTURE_SETTINGS.locale } },
     { method: 'Emulation.setTimezoneOverride', params: { timezoneId: CAPTURE_SETTINGS.timezoneId } },
   ];
 }
 
-/** Everything for the top-level page: frame emulation plus viewport, screen and focus. */
-export function pageEmulation(userAgent: string): CdpCommand[] {
+/** Viewport, screen and focus of the top-level page. */
+export function viewportEmulation(): CdpCommand[] {
   const { width, height } = CAPTURE_SETTINGS.viewport;
   return [
     { method: 'Emulation.setFocusEmulationEnabled', params: { enabled: true } },
@@ -54,8 +58,17 @@ export function pageEmulation(userAgent: string): CdpCommand[] {
         screenOrientation: { angle: 0, type: 'landscapePrimary' },
       },
     },
-    ...frameEmulation(userAgent),
   ];
+}
+
+/** Everything for the top-level page: frame emulation plus viewport, screen and focus. */
+export function pageEmulation(userAgent: string): CdpCommand[] {
+  return [...viewportEmulation(), ...frameEmulation(userAgent)];
+}
+
+/** Sends the commands without waiting between them (like Playwright), errors ignored. */
+export function sendAll(send: CdpSend, commands: readonly CdpCommand[]): void {
+  for (const command of commands) void send(command.method, command.params).catch(() => undefined);
 }
 
 export type CdpSend = (method: string, params: Record<string, unknown>) => Promise<unknown>;

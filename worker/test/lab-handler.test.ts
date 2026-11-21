@@ -121,6 +121,25 @@ describe('lab helpers', () => {
     }
     expect(isScannableUrl('http://127.0.0.1:4000/start', true)).toBe(true);
     expect(isScannableUrl('http://172.32.0.1/')).toBe(true);
+    for (const url of ['http://localhost./', 'http://printer.local./', 'http://metadata.google.internal./', 'http://0.0.0.1/', 'http://100.64.0.1/', 'http://100.127.255.1/']) {
+      expect(isScannableUrl(url), url).toBe(false);
+    }
+    expect(isScannableUrl('http://100.128.0.1/')).toBe(true);
+  });
+
+  it('honours the dev switches only for requests to a loopback address', async () => {
+    const d = deps();
+    const handler = createLabHandler(d);
+    const devEnv: LabEnv = { LAB_TOKEN: TOKEN, LAB_ALLOW_LOCAL: '1', LAB_TRACE_URL: 'http://127.0.0.1:8790/cdn-cgi/trace' };
+    const body = { sessionId: 'session-0001', url: 'http://127.0.0.1:8790/start', strategy: 'cdp-events' };
+    const remote = (path: string, b: unknown) => post(path, b);
+    const local = (path: string, b: unknown) =>
+      new Request(`http://127.0.0.1:8787${path}`, { method: 'POST', headers: { authorization: `Bearer ${TOKEN}` }, body: JSON.stringify(b) });
+    expect((await handler(remote('/lab/capture', body), devEnv)).status).toBe(400);
+    expect((await handler(local('/lab/capture', body), devEnv)).status).toBe(200);
+    await handler(remote('/lab/trace', { sessionId: 'session-0001' }), devEnv);
+    await handler(local('/lab/trace', { sessionId: 'session-0001' }), devEnv);
+    expect(vi.mocked(d.trace).mock.calls.map((call) => call[2])).toEqual([null, 'http://127.0.0.1:8790/cdn-cgi/trace']);
   });
 
   it('reads loc and colo from the trace page', () => {
@@ -141,6 +160,7 @@ describe('visitor emulation', () => {
           userAgent: ua,
           acceptLanguage: 'de-DE',
           userAgentMetadata: { mobile: false, model: '', architecture: 'x86', platform: 'Windows', platformVersion: '10.0' },
+          platform: 'Win32',
         },
       },
       { method: 'Emulation.setLocaleOverride', params: { locale: 'de-DE' } },

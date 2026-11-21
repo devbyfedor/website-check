@@ -115,7 +115,8 @@ export function sleep(ms: number): Promise<void> {
 export async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`timed out after ${ms} ms`)), ms);
+    // Worded like Playwright's timeouts, so `classifyNavigationError` gives 'timeout' for both adapters.
+    timer = setTimeout(() => reject(new Error(`Timeout ${ms} ms exceeded`)), ms);
   });
   try {
     return await Promise.race([promise, timeout]);

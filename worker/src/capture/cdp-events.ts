@@ -1,7 +1,8 @@
-import type { Browser, BrowserContext, CDPSession, Frame, HTTPRequest, HTTPResponse, Page } from '@cloudflare/puppeteer';
+import { CDPSessionEvent, type Browser, type BrowserContext, type CDPSession, type Frame, type HTTPRequest, type HTTPResponse, type Page } from '@cloudflare/puppeteer';
 import {
   buildBannerProbeScript,
   CAPTURE_SCHEMA_VERSION,
+  CAPTURE_SETTINGS,
   chromeVersionOf,
   LONG_LIVED_RESOURCE_TYPES,
   SNAPSHOT_EXPRESSION,
@@ -26,7 +27,7 @@ import {
   type CloudCaptureResult,
   type CloudSettings,
 } from './common.ts';
-import { applyEmulation, pageEmulation, userAgentMetadataOf } from './emulation.ts';
+import { applyEmulation, frameEmulation, sendAll, userAgentMetadataOf, viewportEmulation, VISITOR_PLATFORM } from './emulation.ts';
 
 /**
  * Strategy (a): request events through the browser protocol.
@@ -39,7 +40,7 @@ import { applyEmulation, pageEmulation, userAgentMetadataOf } from './emulation.
  */
 
 /** Puppeteer's own session of a page. Internal API, so it falls back to a new session. */
-async function clientOf(page: Page): Promise<CDPSession> {
+export async function clientOf(page: Page): Promise<CDPSession> {
   const internal = (page as unknown as { _client?: () => CDPSession })._client;
   return typeof internal === 'function' ? internal.call(page) : page.createCDPSession();
 }
@@ -61,6 +62,34 @@ function frameUrlsOf(frame: Frame, main: Frame): string[] {
     current = current.parentFrame();
   }
   return urls;
+}
+
+/**
+ * Sets up a Puppeteer page as the same visitor as the local Playwright adapter, in every frame:
+ * Puppeteer's own user agent override (applied to every frame session, out-of-process iframes
+ * included) carries the language and the platform; time zone and locale go to the page through
+ * Puppeteer and to every iframe session as soon as it attaches, before Puppeteer resumes it.
+ * Returns the browser protocol commands that failed.
+ */
+export async function prepareVisitorPage(page: Page, client: CDPSession, userAgent: string): Promise<string[]> {
+  const failed: string[] = [];
+  const childCommands = frameEmulation(userAgent);
+  const emulateChild = (session: CDPSession): void => {
+    session.on(CDPSessionEvent.SessionAttached, emulateChild);
+    sendAll((method, params) => session.send(method as never, params as never), childCommands);
+  };
+  client.on(CDPSessionEvent.SessionAttached, emulateChild);
+  const step = async (name: string, work: () => Promise<unknown>): Promise<void> => {
+    await work().catch(() => failed.push(name));
+  };
+  await step('setUserAgent', () =>
+    page.setUserAgent({ userAgent, userAgentMetadata: userAgentMetadataOf(userAgent) as never, platform: VISITOR_PLATFORM }),
+  );
+  await step('emulateLocale', () => page.emulateLocale(CAPTURE_SETTINGS.locale));
+  await step('emulateTimezone', () => page.emulateTimezone(CAPTURE_SETTINGS.timezoneId));
+  await step('setBypassServiceWorker', () => page.setBypassServiceWorker(true));
+  failed.push(...(await applyEmulation((method, params) => client.send(method as never, params as never), viewportEmulation())));
+  return failed;
 }
 
 export async function captureWithCdpEvents(browser: Browser, url: string, options: CloudCaptureOptions = {}): Promise<CloudCaptureResult> {
@@ -92,14 +121,7 @@ async function runCapture(
   const environment = cloudEnvironment(chromeVersionOf(await browser.version()));
   const page = await context.newPage();
   const client = await clientOf(page);
-  const userAgent = environment.userAgent;
-  // Puppeteer applies these to out-of-process iframes too; the raw commands below then set the
-  // top-level page exactly like Playwright does (language, client hints, screen, focus).
-  await page.setUserAgent({ userAgent, userAgentMetadata: userAgentMetadataOf(userAgent) as never }).catch(() => undefined);
-  await page.emulateTimezone(environment.timezoneId).catch(() => undefined);
-  await page.setExtraHTTPHeaders({ 'Accept-Language': environment.locale }).catch(() => undefined);
-  await page.setBypassServiceWorker(true).catch(() => undefined);
-  const emulationFailed = await applyEmulation((method, params) => client.send(method as never, params as never), pageEmulation(userAgent));
+  const emulationFailed = await prepareVisitorPage(page, client, environment.userAgent);
   await page.evaluateOnNewDocument(buildBannerProbeScript(settings.tools));
   const mainFrame = page.mainFrame();
 

@@ -1,8 +1,8 @@
-import puppeteer, { type Browser, type BrowserWorker, type CDPSession, type Page } from '@cloudflare/puppeteer';
+import puppeteer, { type Browser, type BrowserWorker, type Page } from '@cloudflare/puppeteer';
 import { chromeVersionOf } from '@website-check/scanner';
-import { captureWithCdpEvents } from '../capture/cdp-events.ts';
+import { captureWithCdpEvents, clientOf, prepareVisitorPage } from '../capture/cdp-events.ts';
 import { cloudEnvironment, withTimeout } from '../capture/common.ts';
-import { applyEmulation, ENVIRONMENT_EXPRESSION, pageEmulation, type EnvironmentCheck } from '../capture/emulation.ts';
+import { ENVIRONMENT_EXPRESSION, type EnvironmentCheck } from '../capture/emulation.ts';
 import { captureWithResourceTiming } from '../capture/resource-timing.ts';
 import { createLabHandler, parseTrace, type LabEnv, type SessionUsage, type TraceResult } from './handler.ts';
 
@@ -13,8 +13,6 @@ import { createLabHandler, parseTrace, type LabEnv, type SessionUsage, type Trac
 
 interface Env extends LabEnv {
   BROWSER: BrowserWorker;
-  /** Only with LAB_ALLOW_LOCAL=1 in `.dev.vars`: a fake trace page of the local fixture site. */
-  LAB_TRACE_URL?: string;
 }
 
 /** Idle timeout of the lab browser: the minimum Browser Run allows, so a crash wastes little time. */
@@ -33,10 +31,24 @@ async function connectWithRetry(env: Env, sessionId: string): Promise<Browser> {
   }
 }
 
-async function withBrowser<T>(env: Env, sessionId: string, work: (browser: Browser) => Promise<T>): Promise<T> {
+/**
+ * Lab requests run strictly one after the other, so a browser context that exists when a request
+ * starts was left by an earlier request that the runtime terminated (for example for CPU); close it.
+ */
+async function closeStaleContexts(browser: Browser): Promise<number> {
+  let closed = 0;
+  for (const context of browser.browserContexts()) {
+    if (context.id === undefined) continue;
+    await context.close().then(() => (closed += 1)).catch(() => undefined);
+  }
+  return closed;
+}
+
+async function withBrowser<T extends object>(env: Env, sessionId: string, work: (browser: Browser) => Promise<T>): Promise<T & { staleContextsClosed: number }> {
   const browser = await connectWithRetry(env, sessionId);
   try {
-    return await work(browser);
+    const staleContextsClosed = await closeStaleContexts(browser);
+    return { ...(await work(browser)), staleContextsClosed };
   } finally {
     await browser.disconnect().catch(() => undefined);
   }
@@ -45,11 +57,6 @@ async function withBrowser<T>(env: Env, sessionId: string, work: (browser: Brows
 async function evaluateJson<T>(page: Page, expression: string): Promise<T> {
   const text = (await page.evaluate(`JSON.stringify(${expression})`)) as string;
   return JSON.parse(text) as T;
-}
-
-async function clientOf(page: Page): Promise<CDPSession> {
-  const internal = (page as unknown as { _client?: () => CDPSession })._client;
-  return typeof internal === 'function' ? internal.call(page) : page.createCDPSession();
 }
 
 const handler = createLabHandler<Env>({
@@ -66,18 +73,19 @@ const handler = createLabHandler<Env>({
     return { sessionId, browserVersion };
   },
 
-  async trace(env, sessionId): Promise<TraceResult> {
+  async trace(env, sessionId, traceUrlOverride): Promise<TraceResult> {
     return withBrowser(env, sessionId, async (browser) => {
       const context = await browser.createBrowserContext();
       try {
         const page = await context.newPage();
         const environment = cloudEnvironment(chromeVersionOf(await browser.version()));
-        await applyEmulation((method, params) => clientOf(page).then((c) => c.send(method as never, params as never)), pageEmulation(environment.userAgent));
-        const traceUrl = env.LAB_ALLOW_LOCAL === '1' && env.LAB_TRACE_URL !== undefined ? env.LAB_TRACE_URL : TRACE_URL;
+        // The same setup as strategy (a), so the check below shows what the sites see.
+        const setupFailed = await prepareVisitorPage(page, await clientOf(page), environment.userAgent);
+        const traceUrl = traceUrlOverride ?? TRACE_URL;
         await withTimeout(page.goto(traceUrl, { waitUntil: 'load', timeout: 10_000 }), 12_000);
         const text = await evaluateJson<string>(page, 'document.body ? document.body.innerText : ""');
         const check = await evaluateJson<EnvironmentCheck>(page, ENVIRONMENT_EXPRESSION).catch(() => null);
-        return { ...parseTrace(text), environment: check };
+        return { ...parseTrace(text), environment: check, setupFailed };
       } finally {
         await context.close().catch(() => undefined);
       }

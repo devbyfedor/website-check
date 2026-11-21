@@ -15,6 +15,8 @@ export interface RecordedRequest {
   userAgent: string | null;
   acceptLanguage: string | null;
   chUaPlatform: string | null;
+  /** Query of `/frame-env`: time zone, language and platform as seen inside the cross-site iframe. */
+  query: string;
 }
 
 export interface LabFixture {
@@ -44,6 +46,7 @@ function handle(req: IncomingMessage, res: ServerResponse, port: number, recorde
     userAgent: req.headers['user-agent'] ?? null,
     acceptLanguage: req.headers['accept-language'] ?? null,
     chUaPlatform: (req.headers['sec-ch-ua-platform'] as string | undefined) ?? null,
+    query: url.pathname === '/frame-env' ? url.search : '',
   });
   const shop = (path: string): string => `http://127.0.0.1:${port}${path}`;
   const third = (path: string): string => `http://localhost:${port}${path}`;
@@ -91,6 +94,7 @@ tls=off
     case 'localhost/test.woff2':
       send(res, 200, 'font/woff2', 'not really a font');
       return;
+    case 'localhost/frame-env':
     case 'localhost/logo.png':
     case 'localhost/pixel.gif':
     case '127.0.0.1/pixel.gif':
@@ -103,7 +107,17 @@ tls=off
       send(res, 204, 'text/plain', '');
       return;
     case 'localhost/embed':
-      send(res, 200, 'text/html', page(`<img src="${third('/pixel.gif')}" alt=""><script>fetch('${third('/frame-xhr')}');</script>`));
+      send(
+        res,
+        200,
+        'text/html',
+        page(
+          `<img src="${third('/pixel.gif')}" alt=""><script>fetch('${third('/frame-xhr')}');
+           new Image().src = '${third('/frame-env')}?tz=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
+             + '&lang=' + encodeURIComponent(navigator.language) + '&intl=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().locale)
+             + '&platform=' + encodeURIComponent(navigator.platform);</script>`,
+        ),
+      );
       return;
     case 'localhost/frame-xhr':
       send(res, 200, 'application/json', '{}', { 'access-control-allow-origin': '*' });

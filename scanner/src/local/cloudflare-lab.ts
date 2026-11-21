@@ -47,7 +47,8 @@ async function main(): Promise<void> {
       trace: { type: 'boolean', default: false },
       local: { type: 'boolean', default: true },
       strategies: { type: 'string', default: 'resource-timing,cdp-events' },
-      'budget-s': { type: 'string', default: '150' },
+      // Browser seconds for the whole step (all runs of the day): Cloudflare's usedBrowserTimeSeconds counts.
+      'budget-s': { type: 'string', default: '180' },
       out: { type: 'string' },
       'dev-vars': { type: 'string', default: 'worker/.dev.vars' },
       sites: { type: 'string', default: 'local/sites.txt' },
@@ -56,9 +57,14 @@ async function main(): Promise<void> {
   });
   if (values.base === undefined) throw new Error('--base is required');
   const base = values.base.replace(/\/$/, '');
+  const baseUrl = new URL(base);
+  if (baseUrl.protocol !== 'https:' && !['127.0.0.1', 'localhost'].includes(baseUrl.hostname)) throw new Error('--base must be https (or a local wrangler dev address)');
   const token = await readToken(resolve(values['dev-vars']));
   const strategies = values.strategies.split(',').map((s) => s.trim()) as CaptureStrategy[];
-  const budgetMs = Number(values['budget-s']) * 1000;
+  const budgetS = Number(values['budget-s']);
+  if (!Number.isFinite(budgetS) || budgetS <= 0) throw new Error('--budget-s must be a positive number of seconds');
+  /** Worst case for one more page: the hard limit of 20 s plus setup and closing. */
+  const NEXT_PAGE_MS = 25_000;
   const runName = values.out ?? `run-${new Date().toISOString().replace(/[:.]/g, '-')}`;
   const outDir = resolve('local', 'a2', runName);
   await mkdir(outDir, { recursive: true });
@@ -88,6 +94,8 @@ async function main(): Promise<void> {
     const started = Date.now();
     const response = await fetch(`${base}${path}`, {
       method,
+      redirect: 'error',
+      signal: AbortSignal.timeout(45_000),
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'user-agent': 'website-check-lab-client/0.1' },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
@@ -106,17 +114,25 @@ async function main(): Promise<void> {
   await save('limits-before.json', limits);
   console.log(`limits: HTTP ${limits.status} ${JSON.stringify(limits.json).slice(0, 300)}`);
   if (limits.status !== 200) throw new Error('lab endpoint not ready');
+  // Local wrangler dev reports no usage; on Cloudflare this is today's browser time of the account.
+  const usedBefore = (limits.json as { limits?: { usedBrowserTimeSeconds?: number } }).limits?.usedBrowserTimeSeconds ?? 0;
+  const remainingMs = (budgetS - usedBefore) * 1000;
+  console.log(`browser budget: ${budgetS} s for the step, ${usedBefore} s already used today, ${Math.round(remainingMs / 1000)} s left`);
+  if (remainingMs < NEXT_PAGE_MS + 10_000) throw new Error('browser budget for this step is used up; not opening a session');
 
   const cloud = new Map<string, Capture>();
   const headerLog: Record<string, RecordedRequest[]> = {};
+  // The clock starts before the launch, so the launch itself counts against the budget.
+  const clockStart = Date.now();
   const opened = await call('POST', '/lab/session?label=open');
   await save('session-open.json', opened);
   const openedAt = Date.now();
+  const fits = (): boolean => Date.now() - clockStart + NEXT_PAGE_MS <= remainingMs;
   const sessionId = (opened.json as { sessionId?: string }).sessionId;
   if (opened.status !== 200 || sessionId === undefined) throw new Error(`open failed: HTTP ${opened.status} ${JSON.stringify(opened.json)}`);
   console.log(`session open: ${(opened.json as { browserVersion?: string }).browserVersion}, ${opened.clientMs} ms`);
   try {
-    if (values.trace) {
+    if (values.trace && fits()) {
       const trace = await call('POST', '/lab/trace?label=trace', { sessionId });
       await save('trace.json', trace);
       const t = trace.json as { loc?: string; colo?: string; environment?: unknown };
@@ -125,8 +141,8 @@ async function main(): Promise<void> {
     for (const target of targets) {
       for (const strategy of strategies) {
         const code = STRATEGY_CODE[strategy];
-        if (Date.now() - openedAt > budgetMs) {
-          console.log(`${target.label} (${code}): skipped, browser budget of ${budgetMs / 1000} s reached`);
+        if (!fits()) {
+          console.log(`${target.label} (${code}): skipped, the next page might not fit into the browser budget`);
           continue;
         }
         const before = fixture?.recorded.length ?? 0;
@@ -194,6 +210,8 @@ async function main(): Promise<void> {
     for (const [who, list] of Object.entries(headerLog)) {
       const summary = new Set(list.map((r) => `${r.host}${r.path.startsWith('/pixel') ? '/pixel*' : r.path} lang=${r.acceptLanguage} platform=${r.chUaPlatform} ua=${/Headless/.test(r.userAgent ?? '') ? 'HEADLESS' : (r.userAgent ?? '').slice(0, 40)}`));
       console.log(`headers ${who}:\n  ${[...summary].join('\n  ')}`);
+      const frameEnv = list.find((r) => r.path === '/frame-env');
+      if (frameEnv !== undefined) console.log(`  inside the cross-site iframe: ${decodeURIComponent(frameEnv.query)}`);
     }
     await fixture.close();
   }

@@ -20,8 +20,12 @@ import type { EnvironmentCheck } from '../capture/emulation.ts';
 
 export interface LabEnv {
   LAB_TOKEN?: string;
-  /** `1` only in `worker/.dev.vars`, for the local fixture site; never set on Cloudflare. */
+  /**
+   * Dev switches for the local fixture site, passed only by `npm run lab:dev` (`wrangler dev --var`).
+   * They are honoured only for requests to a loopback address, so they can never act on Cloudflare.
+   */
   LAB_ALLOW_LOCAL?: string;
+  LAB_TRACE_URL?: string;
 }
 
 export interface TraceResult {
@@ -30,6 +34,8 @@ export interface TraceResult {
   http: string | null;
   tls: string | null;
   environment: EnvironmentCheck | null;
+  /** Setup steps the browser rejected (should be empty). */
+  setupFailed?: string[];
 }
 
 export interface SessionUsage {
@@ -42,7 +48,8 @@ export interface SessionUsage {
 export interface LabDeps<E> {
   limits(env: E): Promise<unknown>;
   open(env: E): Promise<{ sessionId: string; browserVersion: string }>;
-  trace(env: E, sessionId: string): Promise<TraceResult>;
+  /** `traceUrl` replaces the Cloudflare trace page only in local development. */
+  trace(env: E, sessionId: string, traceUrl: string | null): Promise<TraceResult>;
   capture(env: E, sessionId: string, url: string, strategy: CaptureStrategy): Promise<{ capture: Capture; stats: CaptureStats }>;
   close(env: E, sessionId: string): Promise<SessionUsage | null>;
 }
@@ -77,7 +84,7 @@ function authorized(request: Request, env: LabEnv): boolean {
 }
 
 /** Host names that must never be opened from the Cloudflare browser (lab-level check by name only; full SSRF protection comes in A5). */
-const LOCAL_HOST = /^(?:localhost|.*\.localhost|.*\.local|.*\.internal|0\.0\.0\.0|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|\[.*\])$/i;
+const LOCAL_HOST = /^(?:localhost|.*\.localhost|.*\.local|.*\.internal|0\.\d+\.\d+\.\d+|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|\[.*\])$/i;
 
 export function isScannableUrl(value: unknown, allowLocal = false): value is string {
   if (typeof value !== 'string' || value.length > 2000) return false;
@@ -85,7 +92,7 @@ export function isScannableUrl(value: unknown, allowLocal = false): value is str
     const url = new URL(value);
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
     if (url.username !== '' || url.password !== '') return false;
-    return allowLocal || !LOCAL_HOST.test(url.hostname);
+    return allowLocal || !LOCAL_HOST.test(url.hostname.replace(/\.$/, ''));
   } catch {
     return false;
   }
@@ -109,7 +116,8 @@ export function createLabHandler<E extends LabEnv>(deps: LabDeps<E>): (request: 
   return async (request, env) => {
     if (env.LAB_TOKEN === undefined || env.LAB_TOKEN.length < 32) return json({ error: 'lab_disabled' }, 503);
     if (!authorized(request, env)) return json({ error: 'unauthorized' }, 401);
-    const { pathname } = new URL(request.url);
+    const { pathname, hostname } = new URL(request.url);
+    const devMode = env.LAB_ALLOW_LOCAL === '1' && (hostname === '127.0.0.1' || hostname === 'localhost');
     const started = Date.now();
     try {
       if (pathname === '/lab/limits' && request.method === 'GET') return json(await deps.limits(env));
@@ -118,12 +126,15 @@ export function createLabHandler<E extends LabEnv>(deps: LabDeps<E>): (request: 
       const input = await body(request);
       const sessionId = sessionIdOf(input);
       if (sessionId === null) return json({ error: 'bad_request', message: 'sessionId missing or invalid' }, 400);
-      if (pathname === '/lab/trace') return json({ ...(await deps.trace(env, sessionId)), workerWallMs: Date.now() - started });
+      if (pathname === '/lab/trace') {
+        const traceUrl = devMode && env.LAB_TRACE_URL !== undefined ? env.LAB_TRACE_URL : null;
+        return json({ ...(await deps.trace(env, sessionId, traceUrl)), workerWallMs: Date.now() - started });
+      }
       if (pathname === '/lab/close') return json({ usage: await deps.close(env, sessionId), workerWallMs: Date.now() - started });
       if (pathname === '/lab/capture') {
         const url = input?.['url'];
         const strategy = input?.['strategy'];
-        if (!isScannableUrl(url, env.LAB_ALLOW_LOCAL === '1')) return json({ error: 'bad_request', message: 'url must be a public http or https address' }, 400);
+        if (!isScannableUrl(url, devMode)) return json({ error: 'bad_request', message: 'url must be a public http or https address' }, 400);
         if (typeof strategy !== 'string' || !STRATEGIES.includes(strategy as CaptureStrategy)) {
           return json({ error: 'bad_request', message: `strategy must be one of ${STRATEGIES.join(', ')}` }, 400);
         }
