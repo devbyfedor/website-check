@@ -40,6 +40,11 @@ export interface TraceResult {
   environment: EnvironmentCheck | null;
   /** Setup steps the browser rejected (should be empty). */
   setupFailed?: string[];
+  /**
+   * Where the Durable Object itself runs (A2 part 2): the jurisdiction of its id, and `loc` and
+   * `colo` of a request to the same trace page made by the object, not by the browser.
+   */
+  object?: { jurisdiction: string | null; loc: string | null; colo: string | null };
 }
 
 export interface SessionUsage {

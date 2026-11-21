@@ -122,8 +122,12 @@ export class LabBrowser extends DurableObject<Env> {
         return { sessionId: browser.sessionId(), browserVersion: await browser.version() };
       },
 
-      trace: (_env, sessionId, traceUrlOverride): Promise<TraceResult> =>
-        this.#withBrowser(sessionId, async (browser) => {
+      trace: async (_env, sessionId, traceUrlOverride): Promise<TraceResult> => {
+        const objectTrace = await fetch(traceUrlOverride ?? TRACE_URL, { signal: AbortSignal.timeout(5_000) })
+          .then(async (response) => parseTrace(await response.text()))
+          .catch(() => ({ loc: null, colo: null }));
+        const object = { jurisdiction: this.ctx.id.jurisdiction ?? null, loc: objectTrace.loc, colo: objectTrace.colo };
+        const result = await this.#withBrowser(sessionId, async (browser) => {
           const context = await browser.createBrowserContext();
           try {
             const page = await context.newPage();
@@ -137,7 +141,9 @@ export class LabBrowser extends DurableObject<Env> {
           } finally {
             await context.close().catch(() => undefined);
           }
-        }),
+        });
+        return { ...result, object };
+      },
 
       capture: (_env, sessionId, url, strategy) =>
         this.#withBrowser(sessionId, (browser) => (strategy === 'cdp-events' ? captureWithCdpEvents(browser, url) : captureWithResourceTiming(browser, url))),

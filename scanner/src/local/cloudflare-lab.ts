@@ -152,8 +152,8 @@ async function main(): Promise<void> {
     if (values.trace && fits()) {
       const trace = await call('POST', '/lab/trace?label=trace', { sessionId });
       await save('trace.json', trace);
-      const t = trace.json as { loc?: string; colo?: string; environment?: unknown };
-      console.log(`trace: HTTP ${trace.status} loc=${t.loc} colo=${t.colo} env=${JSON.stringify(t.environment)}`);
+      const t = trace.json as { loc?: string; colo?: string; environment?: unknown; object?: unknown };
+      console.log(`trace: HTTP ${trace.status} browser loc=${t.loc} colo=${t.colo}; object ${JSON.stringify(t.object)}; env=${JSON.stringify(t.environment)}`);
     }
     for (const target of targets) {
       for (const strategy of strategies) {
