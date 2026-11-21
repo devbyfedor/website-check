@@ -13,11 +13,15 @@ import { parseSitesFile } from './sites-file.ts';
  *
  *   npm run lab:cloudflare -- --base https://website-check-lab.<sub>.workers.dev --only 10,6,4 --trace
  *   npm run lab:cloudflare -- --base http://127.0.0.1:8787 --fixture        (plain wrangler dev)
+ *   npm run lab:cloudflare -- --base https://... --cpu-steps 1100000000      (CPU experiment, no browser)
+ *   npm run lab:cloudflare -- --base https://... --only 10,4,14,6 --trace --compare-with local/a2/cf-run-1,local/a2/cf-run-2
  *
  * Opens ONE browser session, optionally reads the Cloudflare trace page, captures every site
  * with each strategy (one request per page and strategy, labelled `?label=site-07-b` so the
  * Worker's CPU time can be matched in `wrangler tail`), and closes the session in any case.
- * Then it captures the same sites locally with Playwright and compares. Everything goes to
+ * Then it captures the same sites locally with Playwright and compares. With `--compare-with` it
+ * also compares every new capture with the capture of the same site and strategy saved by an
+ * earlier run (A2 part 2 against part 1). Everything goes to
  * `local/a2/<run>/` (git-ignored); the console shows anonymous labels only. The token is read
  * from `worker/.dev.vars` and never printed.
  */
@@ -52,6 +56,8 @@ async function main(): Promise<void> {
       out: { type: 'string' },
       'dev-vars': { type: 'string', default: 'worker/.dev.vars' },
       sites: { type: 'string', default: 'local/sites.txt' },
+      'cpu-steps': { type: 'string' },
+      'compare-with': { type: 'string' },
     },
     allowNegative: true,
   });
@@ -78,6 +84,8 @@ async function main(): Promise<void> {
       { label: 'Fixture', number: 'fx', url: fixture.startUrl },
       { label: 'Fixture 300 images', number: 'fm', url: fixture.manyUrl },
     ];
+  } else if (values['cpu-steps'] !== undefined) {
+    targets = [];
   } else {
     if (values.only === undefined) throw new Error('--only is required for real sites');
     const { sites, errors } = parseSitesFile(await readFile(resolve(values.sites), 'utf8'));
@@ -109,6 +117,15 @@ async function main(): Promise<void> {
     return { status: response.status, json, clientMs: Date.now() - started };
   };
   const save = (name: string, data: unknown): Promise<void> => writeFile(resolve(outDir, name), `${JSON.stringify(data, null, 2)}\n`);
+
+  if (values['cpu-steps'] !== undefined) {
+    // CPU experiment of A2 part 2: no browser; the CPU time comes from wrangler tail (label cpu-<steps>).
+    const steps = Number(values['cpu-steps']);
+    const result = await call('POST', `/lab/cpu?label=cpu-${steps}`, { steps });
+    await save(`cpu-${steps}.json`, result);
+    console.log(`cpu ${steps} steps: HTTP ${result.status} ${JSON.stringify(result.json)} in ${result.clientMs} ms (client clock)`);
+    return;
+  }
 
   const limits = await call('GET', '/lab/limits');
   await save('limits-before.json', limits);
@@ -149,14 +166,14 @@ async function main(): Promise<void> {
         const result = await call('POST', `/lab/capture?label=site-${target.number}-${code}`, { sessionId, url: target.url, strategy });
         await save(`cloud-site-${target.number}-${code}.json`, result);
         if (fixture !== null) headerLog[`cloud-${code}-${target.number}`] = fixture.recorded.slice(before);
-        const body = result.json as { capture?: Capture; stats?: unknown; workerWallMs?: number; error?: string; message?: string };
+        const body = result.json as { capture?: Capture; stats?: unknown; doWallMs?: number; error?: string; message?: string };
         if (result.status === 200 && body.capture !== undefined) {
           cloud.set(`${target.number}-${code}`, body.capture);
           const c = body.capture;
           console.log(
-            `${target.label} (${code}): ${c.ok ? 'ok' : `FAILED ${c.failure?.reason}`} ${c.requests.length} requests, ` +
+            `${target.label} (${code}): ${c.ok ? 'ok' : `FAILED ${c.failure?.reason} (${c.failure?.message.slice(0, 80)})`} ${c.requests.length} requests, ` +
               `banner ${c.consentBanner.detected ? `${c.consentBanner.toolId} at ${c.consentBanner.visibleAtMs} ms` : 'not seen'}, ` +
-              `stop ${c.timings.stopReason} at ${c.timings.endMs} ms, worker wall ${body.workerWallMs} ms, stats ${JSON.stringify(body.stats)}`,
+              `stop ${c.timings.stopReason} at ${c.timings.endMs} ms, object wall ${body.doWallMs} ms, stats ${JSON.stringify(body.stats)}`,
           );
         } else {
           console.log(`${target.label} (${code}): HTTP ${result.status} ${body.error ?? ''} ${body.message ?? ''}`);
@@ -172,6 +189,34 @@ async function main(): Promise<void> {
     const after = await call('GET', '/lab/limits?label=limits-after').catch((error: unknown) => ({ status: 0, json: String(error), clientMs: 0 }));
     await save('limits-after.json', after);
     console.log(`limits after: ${JSON.stringify(after.json).slice(0, 300)}`);
+  }
+
+  if (values['compare-with'] !== undefined) {
+    const earlier: Record<string, CaptureComparison> = {};
+    const dirs = values['compare-with'].split(',').map((d) => resolve(d.trim()));
+    for (const [key, capture] of cloud) {
+      let before: Capture | null = null;
+      for (const dir of dirs) {
+        const text = await readFile(resolve(dir, `cloud-site-${key}.json`), 'utf8').catch(() => null);
+        const saved = text === null ? undefined : (JSON.parse(text) as { json?: { capture?: Capture } }).json?.capture;
+        if (saved !== undefined) {
+          before = saved;
+          break;
+        }
+      }
+      if (before === null) {
+        console.log(`site-${key}: no earlier capture to compare with`);
+        continue;
+      }
+      const comparison = compareCaptures(before, capture, DEFAULT_RULES);
+      earlier[`site-${key}`] = comparison;
+      console.log(
+        `site-${key} now vs earlier run: ok ${comparison.local.ok} -> ${comparison.cloud.ok}; banner ${comparison.local.banner.toolId ?? 'none'} -> ${comparison.cloud.banner.toolId ?? 'none'}; ` +
+          `requests ${comparison.local.requests} -> ${comparison.cloud.requests}; third-party hosts only now ${comparison.thirdPartyHosts.onlyCloud.length}, only earlier ${comparison.thirdPartyHosts.onlyLocal.length}; ` +
+          `findings only now ${comparison.findings.onlyCloud.length}, only earlier ${comparison.findings.onlyLocal.length}`,
+      );
+    }
+    await save('compare-earlier.json', earlier);
   }
 
   if (!values.local) {

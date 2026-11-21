@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { frameEmulation, pageEmulation, userAgentMetadataOf } from '../src/capture/emulation.ts';
-import { createLabHandler, isScannableUrl, parseTrace, sameToken, type LabDeps, type LabEnv } from '../src/lab/handler.ts';
+import { cpuWork, isValidSteps, MAX_CPU_STEPS } from '../src/lab/cpu.ts';
+import { createLabGate, createLabHandler, isScannableUrl, parseTrace, sameToken, type LabDeps, type LabEnv } from '../src/lab/handler.ts';
 
 const TOKEN = 'a'.repeat(64);
 const env: LabEnv = { LAB_TOKEN: TOKEN };
@@ -96,6 +97,66 @@ describe('lab endpoint', () => {
     const response = await createLabHandler(d)(post('/lab/session', {}), env);
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({ error: 'failed', message: 'Unable to create new browser: code: 429: message: Browser time limit exceeded for today' });
+  });
+});
+
+describe('lab gate in the Worker', () => {
+  it('forwards nothing without a valid token', async () => {
+    const forward = vi.fn(async () => new Response('{}'));
+    const gate = createLabGate(forward);
+    expect((await gate(post('/lab/session', {}), {})).status).toBe(503);
+    expect((await gate(post('/lab/session', {}, 'b'.repeat(64)), env)).status).toBe(401);
+    expect(forward).not.toHaveBeenCalled();
+  });
+
+  it('passes URL, method and body on, but not the authorization header', async () => {
+    const forward = vi.fn(async (_request: Request) => new Response('{"from":"object"}', { status: 207 }));
+    const gate = createLabGate(forward);
+    const response = await gate(post('/lab/capture?label=site-07-a', { sessionId: 'session-0001', url: 'https://www.example.de/', strategy: 'cdp-events' }), env);
+    expect(response.status).toBe(207);
+    expect(await response.text()).toBe('{"from":"object"}');
+    const job = forward.mock.calls[0]?.[0] as Request;
+    expect(job.url).toBe('https://lab.example.test/lab/capture?label=site-07-a');
+    expect(job.method).toBe('POST');
+    expect(job.headers.get('authorization')).toBeNull();
+    expect(await job.json()).toEqual({ sessionId: 'session-0001', url: 'https://www.example.de/', strategy: 'cdp-events' });
+  });
+
+  it('forwards GET requests without a body', async () => {
+    const forward = vi.fn(async (_request: Request) => new Response('{}'));
+    await createLabGate(forward)(new Request('https://lab.example.test/lab/limits', { headers: { authorization: `Bearer ${TOKEN}` } }), env);
+    const job = forward.mock.calls[0]?.[0] as Request;
+    expect(job.method).toBe('GET');
+    expect(job.body).toBeNull();
+  });
+
+  it('rejects a large body and reports a failing object as 502', async () => {
+    const forward = vi.fn(async () => {
+      throw new Error('Durable Object reset because its code was updated.\nstack');
+    });
+    const gate = createLabGate(forward);
+    expect((await gate(post('/lab/capture', { url: `https://www.example.de/${'x'.repeat(5000)}` }), env)).status).toBe(413);
+    const failed = await gate(post('/lab/session', {}), env);
+    expect(failed.status).toBe(502);
+    expect(await failed.json()).toEqual({ error: 'forward_failed', message: 'Durable Object reset because its code was updated.' });
+  });
+});
+
+describe('CPU experiment', () => {
+  it('runs a fixed number of steps and returns a checksum', async () => {
+    expect(cpuWork(1_000)).toBe(cpuWork(1_000));
+    expect(cpuWork(1_000)).not.toBe(cpuWork(1_001));
+    const response = await createLabHandler(deps())(post('/lab/cpu', { steps: 1_000 }), env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ steps: 1_000, checksum: cpuWork(1_000) });
+  });
+
+  it('accepts only a positive integer number of steps up to the maximum', async () => {
+    for (const steps of [0, -1, 1.5, '1000', MAX_CPU_STEPS + 1, null]) {
+      expect(isValidSteps(steps), String(steps)).toBe(false);
+      expect((await createLabHandler(deps())(post('/lab/cpu', { steps }), env)).status).toBe(400);
+    }
+    expect(isValidSteps(MAX_CPU_STEPS)).toBe(true);
   });
 });
 

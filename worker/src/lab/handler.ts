@@ -1,14 +1,18 @@
 import type { Capture, CaptureStrategy } from '@website-check/scanner';
 import type { CaptureStats } from '../capture/common.ts';
 import type { EnvironmentCheck } from '../capture/emulation.ts';
+import { cpuWork, isValidSteps, MAX_CPU_STEPS } from './cpu.ts';
 
 /**
  * Lab endpoint of session A2: measurement only, behind a token, no site and no storage.
  *
- * One browser session is opened, used for several tabs over several requests (one request per
- * page and strategy, so the Worker's CPU time can be read per page), and closed at the end.
+ * Since A2 part 2 the Worker only checks the token (`createLabGate`) and passes the job on to one
+ * Durable Object in the EU jurisdiction, which runs the routes below (`createLabRoutes`): it opens
+ * one browser session, uses it for several tabs over several requests (one request per page and
+ * strategy, so the CPU time can be read per page), and closes it at the end.
  *
  *   GET  /lab/limits                          Browser Run limits and open sessions (no browser)
+ *   POST /lab/cpu      {steps}                CPU load without a browser (experiment of part 2)
  *   POST /lab/session                         open a browser, returns its session id
  *   POST /lab/trace    {sessionId}            open the Cloudflare trace page: loc, colo, emulation check
  *   POST /lab/capture  {sessionId, url, strategy: "cdp-events" | "resource-timing"}
@@ -112,25 +116,63 @@ function sessionIdOf(input: Record<string, unknown> | null): string | null {
   return typeof value === 'string' && SESSION_ID.test(value) ? value : null;
 }
 
-export function createLabHandler<E extends LabEnv>(deps: LabDeps<E>): (request: Request, env: E) => Promise<Response> {
+type Handler<E> = (request: Request, env: E) => Promise<Response>;
+
+/**
+ * The Worker's part (A2 part 2): it checks the token and passes the job on to the Durable Object,
+ * nothing else. The forwarded request keeps the URL (path, `label` for `wrangler tail`, host name
+ * for the dev switches) and the small JSON body as text; the authorization header stays in the
+ * Worker. The answer of the Durable Object goes back unchanged, so the Worker never parses a capture.
+ */
+export const MAX_JOB_BODY = 4_096;
+
+export function createLabGate<E extends LabEnv>(forward: Handler<E>): Handler<E> {
   return async (request, env) => {
     if (env.LAB_TOKEN === undefined || env.LAB_TOKEN.length < 32) return json({ error: 'lab_disabled' }, 503);
     if (!authorized(request, env)) return json({ error: 'unauthorized' }, 401);
+    const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
+    const text = hasBody ? await request.text() : '';
+    if (text.length > MAX_JOB_BODY) return json({ error: 'bad_request', message: 'body too large' }, 413);
+    const job = new Request(request.url, {
+      method: request.method,
+      headers: { 'content-type': 'application/json' },
+      ...(hasBody ? { body: text } : {}),
+    });
+    try {
+      return await forward(job, env);
+    } catch (error) {
+      const message = error instanceof Error ? error.message.split('\n')[0] : String(error);
+      return json({ error: 'forward_failed', message: message?.slice(0, 300) ?? 'unknown' }, 502);
+    }
+  };
+}
+
+/**
+ * The Durable Object's part: the lab routes. Reached only through the gate (a Durable Object has
+ * no public address), so it does not check the token again.
+ */
+export function createLabRoutes<E extends LabEnv>(deps: LabDeps<E>): Handler<E> {
+  return async (request, env) => {
     const { pathname, hostname } = new URL(request.url);
     const devMode = env.LAB_ALLOW_LOCAL === '1' && (hostname === '127.0.0.1' || hostname === 'localhost');
     const started = Date.now();
     try {
       if (pathname === '/lab/limits' && request.method === 'GET') return json(await deps.limits(env));
       if (request.method !== 'POST') return json({ error: 'not_found' }, 404);
-      if (pathname === '/lab/session') return json({ ...(await deps.open(env)), workerWallMs: Date.now() - started });
+      if (pathname === '/lab/session') return json({ ...(await deps.open(env)), doWallMs: Date.now() - started });
       const input = await body(request);
+      if (pathname === '/lab/cpu') {
+        const steps = input?.['steps'];
+        if (!isValidSteps(steps)) return json({ error: 'bad_request', message: `steps must be an integer from 1 to ${MAX_CPU_STEPS}` }, 400);
+        return json({ steps, checksum: cpuWork(steps), doWallMs: Date.now() - started });
+      }
       const sessionId = sessionIdOf(input);
       if (sessionId === null) return json({ error: 'bad_request', message: 'sessionId missing or invalid' }, 400);
       if (pathname === '/lab/trace') {
         const traceUrl = devMode && env.LAB_TRACE_URL !== undefined ? env.LAB_TRACE_URL : null;
-        return json({ ...(await deps.trace(env, sessionId, traceUrl)), workerWallMs: Date.now() - started });
+        return json({ ...(await deps.trace(env, sessionId, traceUrl)), doWallMs: Date.now() - started });
       }
-      if (pathname === '/lab/close') return json({ usage: await deps.close(env, sessionId), workerWallMs: Date.now() - started });
+      if (pathname === '/lab/close') return json({ usage: await deps.close(env, sessionId), doWallMs: Date.now() - started });
       if (pathname === '/lab/capture') {
         const url = input?.['url'];
         const strategy = input?.['strategy'];
@@ -139,7 +181,7 @@ export function createLabHandler<E extends LabEnv>(deps: LabDeps<E>): (request: 
           return json({ error: 'bad_request', message: `strategy must be one of ${STRATEGIES.join(', ')}` }, 400);
         }
         const result = await deps.capture(env, sessionId, url, strategy as CaptureStrategy);
-        return json({ ...result, workerWallMs: Date.now() - started });
+        return json({ ...result, doWallMs: Date.now() - started });
       }
       return json({ error: 'not_found' }, 404);
     } catch (error) {
@@ -147,6 +189,11 @@ export function createLabHandler<E extends LabEnv>(deps: LabDeps<E>): (request: 
       return json({ error: 'failed', message: message?.slice(0, 300) ?? 'unknown' }, 502);
     }
   };
+}
+
+/** Gate and routes in one process, as on Cloudflare but without the Durable Object (tests). */
+export function createLabHandler<E extends LabEnv>(deps: LabDeps<E>): Handler<E> {
+  return createLabGate(createLabRoutes(deps));
 }
 
 /** Reads `key=value` lines of https://www.cloudflare.com/cdn-cgi/trace (only the keys we keep). */

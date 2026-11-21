@@ -1,6 +1,8 @@
 // Lab Worker of session A2 (Fedor's decision of 21.11.2026, docs/decisions.md):
 // only the measurement endpoint behind a token, on workers.dev, no site, no storage.
-// Deleted after part 2 of A2: npx wrangler delete -c worker/wrangler.lab.jsonc
+// Deleted after part 3 of A2: npx wrangler delete -c worker/wrangler.lab.jsonc
+// Part 2: the capture runs in the Durable Object LabBrowser (EU jurisdiction, chosen in the code);
+// the Worker only checks the token. Free plan: SQLite-backed Durable Objects only.
 {
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "website-check-lab",
@@ -15,5 +17,9 @@
     "logs": { "enabled": false, "invocation_logs": false },
     "traces": { "enabled": false }
   },
-  "browser": { "binding": "BROWSER" }
+  "browser": { "binding": "BROWSER" },
+  "durable_objects": {
+    "bindings": [{ "name": "LAB_BROWSER", "class_name": "LabBrowser" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LabBrowser"] }]
 }

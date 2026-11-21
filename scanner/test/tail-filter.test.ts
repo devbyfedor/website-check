@@ -23,6 +23,13 @@ describe('tail filter', () => {
     const record = toTailRecord(event);
     expect(record).toMatchObject({ outcome: 'ok', cpuTime: 7, wallTime: 5123, method: 'POST', path: '/lab/capture', label: 'site-07-b', exceptions: 0 });
     expect(JSON.stringify(record)).not.toContain('secret-token-value');
+    expect(record).toMatchObject({ executionModel: null, entrypoint: null, status: null });
+  });
+
+  it('tells the Durable Object from the Worker', () => {
+    const record = toTailRecord({ ...event, executionModel: 'durableObject', entrypoint: 'LabBrowser', event: { ...event.event, response: { status: 200 } } });
+    expect(record).toMatchObject({ executionModel: 'durableObject', entrypoint: 'LabBrowser', status: 200, label: 'site-07-b' });
+    expect(toTailRecord({ ...event, executionModel: 'stateless', event: null })).toMatchObject({ executionModel: 'stateless', path: null, label: null });
   });
 
   it('splits pretty-printed objects across chunks, with braces inside strings', () => {
