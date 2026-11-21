@@ -148,7 +148,7 @@ Fedor's changes to the plan of part 3 (21.11.2026, before the start):
 - The A2 report says how many full checks per day the free plan allows and which limit runs out first.
 - Answers before the start: (1) yes, the capture stays in the Durable Object with 30 s CPU per request on the free plan (three confirmations, see `docs/decisions.md`); (2) Site 06 is one of the 12 sites, once in the common run, not repeated.
 
-### Step 1: banners (about 40 minutes, within the 45)
+### Step 1: banners (about 15 minutes, 13:45 to 14:00; limit 45)
 
 - Why banners were missed (saved screenshots of A1 plus one debug visit of five homepages, no interaction): two Shopify consent dialogs (Pandectes) and one top bar of a site builder's consent banner are drawn inside an open shadow root whose host element has no size, so the probe saw only an empty host; a Cookie Notice bar (70 px, classes `cn-bottom bootstrap`) sat below the lowest probe point and did not match the narrow selector. The Borlabs box of A1 loads lazily and appeared after the capture had ended.
 - Fix in `scanner/src/consent/probe-script.ts` (shared by both adapters): the heuristic follows a hit into open shadow roots and back out through the host, reads `aria-label`, checks two more points 3 % from the top and bottom edge, and accepts bars from 36 px; a bar lower than 100 px must mention cookies or consent outside its links and buttons. Cookie Notice is found by `#cookie-notice`.
@@ -180,6 +180,15 @@ Fedor's changes to the plan of part 3 (21.11.2026, before the start):
 - `npm test` passes completely: 221 of 221 unit tests. Also `npm run test:integration` 15 of 15 and `npm run typecheck` without errors.
 - No secrets in git: the lab token is in no tracked file, in no commit of any branch and in no commit message (checked with the value from `worker/.dev.vars`, not printed).
 - No addresses or names of the test sites in git: none of the 32 domains of `local/sites.txt` and `local/sites-v1.txt`, and none of their names without the ending, in the tracked files, in any commit or in any commit message. `git ls-files local` is empty.
+
+Result: merged into `main` with `git merge --no-ff` (merge commit 0dca8ef); this record follows in a second merge.
+
+### Step 5: lab Worker deleted
+
+- `npx wrangler delete -c worker/wrangler.lab.jsonc`: "Successfully deleted website-check-lab" (with a warning that wrangler could not check for Container applications, which the lab never used).
+- Check: the workers.dev address answers HTTP 404 with Cloudflare error 1042 (no Worker there), and the API answers "This Worker does not exist on your account" (code 10007). `LAB_TOKEN` is removed from the local `worker/.dev.vars`.
+
+Session time: about 45 minutes (13:45 to about 14:30). Browser time in this session: 75.8 s (1.3 browser minutes), all in step 3; steps 1, 2 and 4 used none. Browser time of the day: 149.4 s of 600.
 
 ## Next
 
