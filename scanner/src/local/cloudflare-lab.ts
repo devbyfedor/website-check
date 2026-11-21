@@ -152,6 +152,10 @@ async function main(): Promise<void> {
     const closedAt = Date.now();
     await save('session-close.json', { ...closed, openedAt, closedAt, clientSessionMs: closedAt - openedAt });
     console.log(`session closed: HTTP ${closed.status} ${JSON.stringify(closed.json)}, open for about ${Math.round((closedAt - openedAt) / 1000)} s (client clock)`);
+    // Cloudflare reports the day's browser time in the limits (usedBrowserTimeSeconds).
+    const after = await call('GET', '/lab/limits?label=limits-after').catch((error: unknown) => ({ status: 0, json: String(error), clientMs: 0 }));
+    await save('limits-after.json', after);
+    console.log(`limits after: ${JSON.stringify(after.json).slice(0, 300)}`);
   }
 
   if (!values.local) {
