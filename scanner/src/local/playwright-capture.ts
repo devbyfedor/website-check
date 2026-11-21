@@ -8,12 +8,14 @@ import {
   type CapturedRequest,
   type CaptureTimings,
   type ConsentBannerObservation,
-  type ConsentSignals,
   type PageSnapshot,
   type RedirectHop,
   type RequestInitiator,
 } from '../capture/types.ts';
-import { buildBannerProbeScript, type BannerProbeState } from '../consent/probe-script.ts';
+import { toInitiator, type CdpInitiator } from '../capture/cdp.ts';
+import { SNAPSHOT_EXPRESSION, type SnapshotResult } from '../capture/page-scripts.ts';
+import { CAPTURE_SETTINGS, desktopChromeUserAgent, LONG_LIVED_RESOURCE_TYPES } from '../capture/settings.ts';
+import { buildBannerProbeScript } from '../consent/probe-script.ts';
 import type { ConsentTool } from '../consent/tools.ts';
 import { DEFAULT_CONSENT_TOOLS } from '../data.ts';
 
@@ -25,20 +27,15 @@ import { DEFAULT_CONSENT_TOOLS } from '../data.ts';
  * returns a plain `Capture`. The Cloudflare adapter (stage A2) returns the same shape.
  */
 
+/** The same settings as every other adapter (`scanner/src/capture/settings.ts`). */
 export const LOCAL_CAPTURE_DEFAULTS = {
-  locale: 'de-DE',
-  timezoneId: 'Europe/Berlin',
-  viewport: { width: 1440, height: 900 },
-  /** Stop waiting for a quiet network 15 s after the start. */
-  maxWaitMs: 15_000,
-  /** The network is quiet when nothing is open and nothing started for this long after the load event. */
-  quietWindowMs: 1_500,
-  /** Absolute limit for one page, including data collection. */
-  hardLimitMs: 20_000,
+  locale: CAPTURE_SETTINGS.locale,
+  timezoneId: CAPTURE_SETTINGS.timezoneId,
+  viewport: CAPTURE_SETTINGS.viewport,
+  maxWaitMs: CAPTURE_SETTINGS.maxWaitMs,
+  quietWindowMs: CAPTURE_SETTINGS.quietWindowMs,
+  hardLimitMs: CAPTURE_SETTINGS.hardLimitMs,
 } as const;
-
-/** Resource types that stay open by design and must not keep the network "busy". */
-const LONG_LIVED = new Set(['websocket', 'eventsource']);
 
 export interface LocalCaptureOptions {
   maxWaitMs?: number;
@@ -57,75 +54,11 @@ export interface LocalCaptureResult {
   screenshot: Buffer | null;
 }
 
-/** User agent of a regular desktop Chrome on Windows with the given version (reduced UA format). */
-export function desktopChromeUserAgent(browserVersion: string): string {
-  const major = browserVersion.split('.')[0] ?? '0';
-  return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`;
-}
+export { desktopChromeUserAgent };
 
 /** Launches the Playwright Chromium in headless mode (full browser, not the headless shell). */
 export async function launchLocalBrowser(extraArgs: readonly string[] = []): Promise<Browser> {
   return chromium.launch({ channel: 'chromium', headless: true, args: [...extraArgs] });
-}
-
-const SNAPSHOT_EXPRESSION = `(() => {
-  const MAX_TEXT = 100000;
-  const MAX_LINKS = 1500;
-  const body = document.body;
-  const text = body ? (body.innerText || '') : '';
-  const anchors = Array.from(document.querySelectorAll('a[href]'));
-  const links = [];
-  for (const a of anchors.slice(0, MAX_LINKS)) {
-    const raw = a.getAttribute('href') || '';
-    let href = raw;
-    try { href = new URL(raw, document.baseURI).href; } catch (e) { href = raw; }
-    const label = (a.innerText || a.getAttribute('aria-label') || a.getAttribute('title') || '').replace(/\\s+/g, ' ').trim().slice(0, 200);
-    links.push({ href, text: label });
-  }
-  return {
-    title: document.title || '',
-    lang: document.documentElement.getAttribute('lang'),
-    text: text.slice(0, MAX_TEXT),
-    textTruncated: text.length > MAX_TEXT,
-    links,
-    linksTruncated: anchors.length > MAX_LINKS,
-    probe: window.__wcBannerProbe || null,
-    signals: (() => {
-      const read = (fn) => { try { return fn(); } catch (e) { return null; } };
-      const cb = window.Cookiebot;
-      const uc = window.UC_UI;
-      return {
-        cookiebot: cb ? read(() => ({ consented: !!cb.consented, declined: !!cb.declined, method: (cb.consent && cb.consent.method) || null })) : null,
-        usercentrics: uc && typeof uc.areAllConsentsAccepted === 'function' ? read(() => ({ allAccepted: !!uc.areAllConsentsAccepted() })) : null,
-      };
-    })(),
-  };
-})()`;
-
-interface SnapshotResult extends PageSnapshot {
-  probe: BannerProbeState | null;
-  signals: ConsentSignals | null;
-}
-
-interface CdpStack {
-  callFrames: { url: string }[];
-  parent?: CdpStack;
-}
-
-interface CdpInitiator {
-  type: string;
-  url?: string;
-  stack?: CdpStack;
-}
-
-function toInitiator(initiator: CdpInitiator): RequestInitiator {
-  let url: string | null = initiator.url !== undefined && initiator.url !== '' ? initiator.url : null;
-  let stack = initiator.stack;
-  while (url === null && stack !== undefined) {
-    url = stack.callFrames.find((frame) => frame.url !== '')?.url ?? null;
-    stack = stack.parent;
-  }
-  return { type: initiator.type, url };
 }
 
 function errorText(error: unknown): string {
@@ -253,7 +186,7 @@ async function runCapture(
     };
     records.push(record);
     byRequest.set(request, record);
-    if (!LONG_LIVED.has(record.resourceType)) inflight.add(request);
+    if (!LONG_LIVED_RESOURCE_TYPES.has(record.resourceType)) inflight.add(request);
     lastActivity = record.startMs;
   });
   page.on('response', (response) => {
