@@ -62,6 +62,14 @@ export interface RunSummary {
   };
 }
 
+/** Free text from browsers and axe can name the site ("… at https://www.x.de/"): replace addresses and host names. */
+export function redactText(text: string): string {
+  return text
+    .replace(/\b(?:https?|wss?):\/\/\S+/gi, '<url>')
+    .replace(/\b(?:[a-z0-9-]+\.)+(?:de|com|net|org|eu|info|biz|shop|store|online|bayern|io|at|ch|co|uk|app|dev|site|website)\b/gi, '<host>')
+    .slice(0, 160);
+}
+
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
@@ -130,7 +138,7 @@ export function summarizeRun(results: readonly SiteRunResult[]): RunSummary {
     captured: ok.length,
     failures: results
       .filter((r) => !r.capture.ok)
-      .map((r) => ({ label: r.label, reason: r.capture.failure?.reason ?? 'other', message: r.capture.failure?.message ?? '' })),
+      .map((r) => ({ label: r.label, reason: r.capture.failure?.reason ?? 'other', message: redactText(r.capture.failure?.message ?? '') })),
     byKind,
     retried: results.filter((r) => r.attempts > 1).length,
     captureMs: { median: median(ok.map((r) => r.capture.timings.endMs)), max: max(ok.map((r) => r.capture.timings.endMs)) },
@@ -180,7 +188,7 @@ function summarizeAccessibility(ok: readonly SiteRunResult[]): RunSummary['acces
     }
     const analysis = analyzeAccessibility(result.capture);
     if (analysis.status !== 'checked') {
-      notChecked.push({ label: result.label, reason: analysis.reason ?? 'unknown' });
+      notChecked.push({ label: result.label, reason: redactText(analysis.reason ?? 'unknown') });
       continue;
     }
     checked += 1;

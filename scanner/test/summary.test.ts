@@ -35,6 +35,15 @@ const results: SiteRunResult[] = [
   failed('Site 05', 'builder'),
 ];
 
+describe('redactText', () => {
+  it('removes addresses and host names from free text, keeps the rest', async () => {
+    const { redactText } = await import('../src/local/summary.ts');
+    expect(redactText('page.goto: net::ERR_NAME_NOT_RESOLVED at https://www.shop-eins.de/start')).toBe('page.goto: net::ERR_NAME_NOT_RESOLVED at <url>');
+    expect(redactText('error: www.shop-eins.de refused, see cdn.example.com')).toBe('error: <host> refused, see <host>');
+    expect(redactText('page.goto: Timeout 15000ms exceeded.')).toBe('page.goto: Timeout 15000ms exceeded.');
+  });
+});
+
 describe('summarizeRun', () => {
   const summary = summarizeRun(results);
 

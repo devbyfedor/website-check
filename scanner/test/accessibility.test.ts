@@ -33,7 +33,7 @@ describe('analyzeAccessibility', () => {
       ['page-language', ['html-has-lang', 'html-lang-valid']],
     ]);
     expect(result.checks.every((c) => c.result === 'pass' && c.textId === null)).toBe(true);
-    expect(result.counts).toEqual({ failed: 0, manual: 0, violations: 0 });
+    expect(result.counts).toEqual({ failed: 0, manual: 0, withManual: 0, notChecked: 0, violations: 0 });
   });
 
   it('a violation is a fail with its text and examples; undecided elements are a manual check', () => {
@@ -49,9 +49,12 @@ describe('analyzeAccessibility', () => {
     const result = analyzeAccessibility(capture);
     const byId = Object.fromEntries(result.checks.map((c) => [c.id, c]));
     expect(byId['color-contrast']).toMatchObject({ result: 'fail', violations: 14, incomplete: 3, textId: 'a11y-color-contrast', examples: [example] });
+    // Undecided elements are kept next to the violations.
+    expect(byId['color-contrast']?.manual).toEqual({ count: 3, textId: 'a11y-manual-check-contrast', examples: [example, example] });
+    expect(byId['image-alt']?.manual).toBeNull();
     expect(byId['image-alt']).toMatchObject({ result: 'fail', textId: 'a11y-image-alt' });
-    expect(byId['label']).toMatchObject({ result: 'manual', textId: 'a11y-manual-check', examples: [example] });
-    expect(result.counts).toEqual({ failed: 2, manual: 1, violations: 19 });
+    expect(byId['label']).toMatchObject({ result: 'manual', textId: 'a11y-manual-check', examples: [example], manual: { count: 2, textId: 'a11y-manual-check' } });
+    expect(result.counts).toEqual({ failed: 2, manual: 1, withManual: 2, notChecked: 0, violations: 19 });
     expect(result.images).toEqual({ total: 17, withDescription: 12 });
   });
 
@@ -76,6 +79,25 @@ describe('analyzeAccessibility', () => {
     const ok = { ...low, ratio: 4.6 };
     expect(analyzeAccessibility(makeCapture({ requests: [], axe: axe({}, { lowestContrast: { violation: low, pass: ok } }) })).lowestContrast).toMatchObject({ ratio: 2.9, result: 'fail' });
     expect(analyzeAccessibility(makeCapture({ requests: [], axe: axe({}, { lowestContrast: { violation: null, pass: ok } }) })).lowestContrast).toMatchObject({ ratio: 4.6, result: 'pass' });
+  });
+
+  it('a rule that threw inside axe makes its error type not checked, not one undecided place', () => {
+    const result = analyzeAccessibility(makeCapture({ requests: [], axe: axe({ label: { incomplete: 1, incompleteExamples: [example] } }, { ruleErrors: ['label'] }) }));
+    const label = result.checks.find((c) => c.id === 'label');
+    expect(label).toMatchObject({ result: 'not-checked', textId: 'a11y-check-not-checked', examples: [], manual: null, incomplete: 0 });
+    expect(result.counts).toMatchObject({ notChecked: 1, manual: 0, withManual: 0 });
+  });
+
+  it('a page whose content is in a frameset or one large iframe is not checked', () => {
+    const frameset = analyzeAccessibility(makeCapture({ requests: [], axe: axe({}, { scope: { frameset: true, frames: 2, largestFrameShare: 0 } }) }));
+    expect(frameset).toMatchObject({ status: 'not-checked', checks: [] });
+    expect(frameset.reason).toMatch(/^content in frames/);
+    const empty = Object.fromEntries(['color-contrast', 'image-alt', 'label', 'link-name', 'button-name'].map((id) => [id, { passes: 0 }]));
+    const wrapper = analyzeAccessibility(makeCapture({ requests: [], axe: axe(empty, { scope: { frameset: false, frames: 1, largestFrameShare: 0.97 } }) }));
+    expect(wrapper.status).toBe('not-checked');
+    // A large map or video next to the page's own content is fine.
+    const map = analyzeAccessibility(makeCapture({ requests: [], axe: axe({ 'color-contrast': { passes: 40 } }, { scope: { frameset: false, frames: 1, largestFrameShare: 0.9 } }) }));
+    expect(map.status).toBe('checked');
   });
 
   it('claims nothing when axe did not run', () => {

@@ -57,6 +57,15 @@ export interface AxeRuleResult {
   incompleteExamples: AxeExample[];
 }
 
+export interface AxeScope {
+  /** The document is a frameset. */
+  frameset: boolean;
+  /** Number of iframe and frame elements in the top-level document. */
+  frames: number;
+  /** Largest share of the window covered by one iframe (0 to 1, two decimals). */
+  largestFrameShare: number;
+}
+
 export type AxeStatus =
   /** axe ran; `rules` holds every rule. */
   | 'ok'
@@ -75,8 +84,17 @@ export interface AxeCapture {
   axeVersion: string | null;
   /** Every rule of `AXE_RULES` when the status is `ok`, otherwise empty. */
   rules: Partial<Record<AxeRuleId, AxeRuleResult>>;
-  /** Rules that threw inside axe (their elements are counted as incomplete by axe). */
+  /**
+   * Rules that threw inside axe. axe then replaces the whole result of that rule with one
+   * undecided node, so its counts say nothing about the page.
+   */
   ruleErrors: string[];
+  /**
+   * What the top-level document holds besides its own content (read in the same call as axe):
+   * a page whose content is in a frameset or in one large iframe was not really checked.
+   * Missing in captures made before this field existed.
+   */
+  scope?: AxeScope | null;
   /** Lowest contrast among the failing elements and among the passing ones. */
   lowestContrast: { violation: AxeContrast | null; pass: AxeContrast | null };
   timing: {

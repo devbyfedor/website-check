@@ -9,7 +9,7 @@ import type { HttpProbeOutcome } from '../security/types.ts';
  * missing header a violation; when the scanner cannot tell, the result is `manual`.
  */
 
-export const SECURITY_ANALYSIS_VERSION = 1;
+export const SECURITY_ANALYSIS_VERSION = 2;
 
 export const SECURITY_HEADERS = [
   { key: 'hsts', header: 'strict-transport-security' },
@@ -34,7 +34,9 @@ export type HeaderStatus =
   /** Only `Content-Security-Policy-Report-Only`: reports, blocks nothing. */
   | 'report-only'
   /** Only the old `Feature-Policy` instead of `Permissions-Policy`. */
-  | 'legacy';
+  | 'legacy'
+  /** No header, and the page's meta tags could not be read (no page snapshot): bitte manuell prüfen. */
+  | 'manual';
 
 export interface HeaderCheck {
   key: SecurityHeaderKey;
@@ -94,6 +96,7 @@ function defaultTextId(key: SecurityHeaderKey, status: HeaderStatus): string | n
       return 'security-header-permissions-policy-legacy';
     case 'missing':
     case 'invalid':
+    case 'manual':
       return `security-header-${key}-${status}`;
   }
 }
@@ -132,12 +135,15 @@ function directivesOf(policy: string): string[] {
     .filter((name) => name !== '');
 }
 
-export function checkCsp(value: string | undefined, reportOnly: string | undefined, meta: string | null): HeaderCheck {
+/** `meta`: the content of the meta tag, null if there is none, undefined if the page's meta tags were not read. */
+export function checkCsp(value: string | undefined, reportOnly: string | undefined, meta: string | null | undefined): HeaderCheck {
   if (value !== undefined && value.trim() !== '') {
     const policy = value.replace(/\n/g, ', ').trim();
     return check('csp', 'content-security-policy', 'present', policy, `directives: ${[...new Set(directivesOf(policy))].join(', ')}`);
   }
-  if (meta !== null && meta.trim() !== '') return check('csp', 'content-security-policy', 'meta', meta.trim(), `directives: ${[...new Set(directivesOf(meta))].join(', ')}`);
+  if (meta !== null && meta !== undefined && meta.trim() !== '') return check('csp', 'content-security-policy', 'meta', meta.trim(), `directives: ${[...new Set(directivesOf(meta))].join(', ')}`);
+  // Unknown meta tags: a meta CSP would count, so neither report-only nor missing is certain.
+  if (meta === undefined) return check('csp', 'content-security-policy', 'manual', reportOnly?.trim() || null, 'meta-not-read');
   if (reportOnly !== undefined && reportOnly.trim() !== '') return check('csp', 'content-security-policy', 'report-only', reportOnly.trim());
   return check('csp', 'content-security-policy', 'missing', null);
 }
@@ -160,10 +166,10 @@ const LEGACY_META_REFERRER: Record<string, string> = {
 };
 
 /** The browser uses the last token it knows; unknown tokens are skipped. A valid meta tag wins over an unusable header. */
-export function checkReferrerPolicy(value: string | undefined, meta: string | null): HeaderCheck {
+export function checkReferrerPolicy(value: string | undefined, meta: string | null | undefined): HeaderCheck {
   const known = (raw: string): string[] => raw.split(/[,\n]/).map((t) => t.trim().toLowerCase()).filter((t) => REFERRER_TOKENS.has(t));
   const metaPolicy = ((): string | null => {
-    if (meta === null) return null;
+    if (meta === null || meta === undefined) return null;
     const token = meta.trim().toLowerCase();
     return REFERRER_TOKENS.has(token) ? token : (LEGACY_META_REFERRER[token] ?? null);
   })();
@@ -174,16 +180,96 @@ export function checkReferrerPolicy(value: string | undefined, meta: string | nu
     if (tokens.length > 0) return check('referrer-policy', 'referrer-policy', 'present', policy, `effective: ${tokens.at(-1)}`);
     invalidHeader = policy;
   }
-  if (meta !== null && metaPolicy !== null) return check('referrer-policy', 'referrer-policy', 'meta', meta.trim(), `effective: ${metaPolicy}`);
+  if (meta !== null && meta !== undefined && metaPolicy !== null) return check('referrer-policy', 'referrer-policy', 'meta', meta.trim(), `effective: ${metaPolicy}`);
+  // Unknown meta tags: a valid meta tag would win over an unusable or missing header.
+  if (meta === undefined) return check('referrer-policy', 'referrer-policy', 'manual', invalidHeader, 'meta-not-read');
   if (invalidHeader !== null) return check('referrer-policy', 'referrer-policy', 'invalid', invalidHeader, 'no-known-token');
   return check('referrer-policy', 'referrer-policy', 'missing', null);
 }
 
-/** Structured field: `feature=(allowlist)`, comma separated. Without any `=` browsers ignore it. */
+/** Features that browsers no longer know; a header with nothing else restricts nothing. */
+const RETIRED_FEATURES = new Set(['interest-cohort']);
+
+const SF_KEY = /^[a-z*][a-z0-9_.*-]*/;
+const SF_TOKEN = /^[A-Za-z*][A-Za-z0-9!#$%&'*+.^_`|~:/-]*/;
+const SF_STRING = /^"(?:[^"\\\x00-\x1f\x7f]|\\["\\])*"/;
+const SF_NUMBER = /^-?\d{1,15}(?:\.\d{1,3})?/;
+
+/**
+ * Members of a Structured Field dictionary (RFC 8941) as browsers parse Permissions-Policy, or null
+ * if the value does not parse: then Chromium drops the whole header. Values are bare items (token,
+ * string, number, boolean) or inner lists of them, each with optional parameters. A member without
+ * `=` is a boolean and gives no allowlist, so it is listed in `bare`.
+ */
+export function parseSfDictionaryKeys(input: string): { keys: string[]; bare: string[] } | null {
+  let s = input.replace(/^[ \t]+|[ \t]+$/g, '');
+  const keys: string[] = [];
+  const bare: string[] = [];
+  const bareItem = (): boolean => {
+    for (const re of [SF_STRING, SF_TOKEN, SF_NUMBER, /^\?[01]/]) {
+      const m = re.exec(s);
+      if (m !== null) {
+        s = s.slice(m[0].length);
+        return true;
+      }
+    }
+    return false;
+  };
+  const params = (): boolean => {
+    while (s.startsWith(';')) {
+      s = s.slice(1).replace(/^ +/, '');
+      const key = SF_KEY.exec(s);
+      if (key === null) return false;
+      s = s.slice(key[0].length);
+      if (s.startsWith('=')) {
+        s = s.slice(1);
+        if (!bareItem()) return false;
+      }
+    }
+    return true;
+  };
+  if (s === '') return { keys, bare };
+  for (;;) {
+    const key = SF_KEY.exec(s);
+    if (key === null) return null;
+    s = s.slice(key[0].length);
+    if (s.startsWith('=')) keys.push(key[0]);
+    else bare.push(key[0]);
+    if (s.startsWith('=')) {
+      s = s.slice(1);
+      if (s.startsWith('(')) {
+        s = s.slice(1);
+        for (;;) {
+          s = s.replace(/^ +/, '');
+          if (s.startsWith(')')) {
+            s = s.slice(1);
+            break;
+          }
+          if (!bareItem() || !params()) return null;
+          if (!s.startsWith(' ') && !s.startsWith(')')) return null;
+        }
+        if (!params()) return null;
+      } else if (!bareItem() || !params()) return null;
+    } else if (!params()) return null;
+    s = s.replace(/^[ \t]+/, '');
+    if (s === '') return { keys, bare };
+    if (!s.startsWith(',')) return null;
+    s = s.slice(1).replace(/^[ \t]+/, '');
+    if (s === '') return null;
+  }
+}
+
+/** Structured field: `feature=(allowlist)`, comma separated. A value that does not parse, or only retired features, restricts nothing. */
 export function checkPermissionsPolicy(value: string | undefined, featurePolicy: string | undefined): HeaderCheck {
   if (value !== undefined && value.trim() !== '') {
     const policy = value.replace(/\n/g, ', ').trim();
-    return policy.includes('=') ? check('permissions-policy', 'permissions-policy', 'present', policy) : check('permissions-policy', 'permissions-policy', 'invalid', policy, 'no-feature');
+    const parsed = parseSfDictionaryKeys(policy);
+    if (parsed === null) return check('permissions-policy', 'permissions-policy', 'invalid', policy, 'not-structured-field');
+    const keys = parsed.keys;
+    const ignored = [...keys.filter((k) => RETIRED_FEATURES.has(k)), ...parsed.bare];
+    if (keys.every((k) => RETIRED_FEATURES.has(k)))
+      return check('permissions-policy', 'permissions-policy', 'invalid', policy, keys.length === 0 ? 'no-feature' : `only retired features: ${ignored.join(', ')}`);
+    return check('permissions-policy', 'permissions-policy', 'present', policy, ignored.length > 0 ? `ignored: ${ignored.join(', ')}` : null);
   }
   if (featurePolicy !== undefined && featurePolicy.trim() !== '') return check('permissions-policy', 'permissions-policy', 'legacy', featurePolicy.trim());
   return check('permissions-policy', 'permissions-policy', 'missing', null);
@@ -224,12 +310,13 @@ export function analyzeSecurity(capture: Capture): SecurityAnalysis {
   const probe = capture.httpProbe ?? null;
   const redirect = redirectResult(probe?.outcome ?? null);
   const h = capture.mainDocument?.headers ?? {};
-  const meta = capture.page?.securityMeta ?? null;
+  // undefined: the page's meta tags were not read (no snapshot, or a capture made before A3).
+  const meta = capture.page?.securityMeta;
   const headers = [
     checkHsts(h['strict-transport-security'], isHttps),
-    checkCsp(h['content-security-policy'], h['content-security-policy-report-only'], meta?.csp ?? null),
+    checkCsp(h['content-security-policy'], h['content-security-policy-report-only'], meta === undefined ? undefined : meta.csp),
     checkXcto(h['x-content-type-options']),
-    checkReferrerPolicy(h['referrer-policy'], meta?.referrer ?? null),
+    checkReferrerPolicy(h['referrer-policy'], meta === undefined ? undefined : meta.referrer),
     checkPermissionsPolicy(h['permissions-policy'], h['feature-policy']),
   ];
   return {

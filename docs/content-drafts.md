@@ -104,7 +104,15 @@ Every German text in this file is a DRAFT. The agent wrote these texts in sessio
 - Title: Barrierefreiheit nicht geprüft
 - Fact and risk: Die automatische Prüfung der Barrierefreiheit ist auf dieser Seite nicht durchgelaufen (Grund: {reason}). Über Kontrast, Bilder, Formularfelder, Links, Schaltflächen und Seitensprache können wir hier deshalb nichts sagen.
 - Fix: Starten Sie später eine neue Prüfung. Bis dahin gilt für diese Punkte: bitte manuell prüfen.
-- Used when: axe did not finish on the page (timeout or error), or the capture has no accessibility data because it was made without a browser; `{reason}` is "Zeitüberschreitung", "technischer Fehler" or "Schnellprüfung ohne Browser". The analyzer gives its reason in English (for example "no accessibility data in this capture"); the renderer maps it to one of these phrases, and the report names the page (Startseite or Impressum) next to the text.
+- Used when: axe did not finish on the page (timeout or error), or the capture has no accessibility data because it was made without a browser, or the page shows its content in a frameset or in one iframe over almost the whole window (frames are not checked); `{reason}` is "Zeitüberschreitung", "technischer Fehler", "Schnellprüfung ohne Browser" or "Inhalt in einem Frame, den wir nicht prüfen". The analyzer gives its reason in English (for example "no accessibility data in this capture"); the renderer maps it to one of these phrases, and the report names the page (Startseite or Impressum) next to the text.
+- Status: Entwurf
+
+### `a11y-check-not-checked`
+
+- Title: Bitte manuell prüfen: {check}
+- Fact and risk: Die automatische Prüfung dieses Punkts ist auf dieser Seite nicht vollständig durchgelaufen. Ob es hier Barrieren gibt, können wir deshalb nicht sagen.
+- Fix: Starten Sie später eine neue Prüfung. Bis dahin: bitte manuell prüfen.
+- Used when: the axe rule of this error type threw inside axe (`ruleErrors`); axe then drops the rule's whole result, so neither violations nor undecided places of this type are shown.
 - Status: Entwurf
 
 ### `a11y-no-findings`
@@ -113,7 +121,7 @@ Every German text in this file is a DRAFT. The agent wrote these texts in sessio
 - Fact and risk: Auf dieser Seite haben wir keinen der sechs geprüften Fehlertypen gefunden: Kontrast, Bilder, Formularfelder, Links, Schaltflächen und Seitensprache. Eine automatische Prüfung erfasst aber nur einen Teil der Barrierefreiheit und ist kein Nachweis, dass Ihre Seite barrierefrei ist oder die WCAG erfüllt.
 - Fix: Bei diesen sechs Punkten haben wir nichts gefunden. Vieles lässt sich nur von Menschen prüfen, zum Beispiel ob alles per Tastatur bedienbar ist und ob die Texte verständlich sind.
 - Optional sentence, placed directly after the first sentence of the fix: Prüfen Sie nur die Stellen, die unter „Bitte manuell prüfen“ stehen.
-- Used when: all seven rules ran on the page and returned 0 violations; it may appear together with `a11y-manual-check` or `a11y-manual-check-contrast`, and only then the optional sentence is added. "Häufigsten" relies on the WebAIM Million (see Sources).
+- Used when: all seven rules ran on the page, none threw, and they returned 0 violations; it may appear together with `a11y-manual-check` or `a11y-manual-check-contrast`, and only then the optional sentence is added. Not used when any error type is `a11y-check-not-checked`. "Häufigsten" relies on the WebAIM Million (see Sources).
 - Status: Entwurf
 
 ## Security
@@ -224,6 +232,14 @@ Shared note for all header texts: they describe a common protective measure and 
 - Used when: only Content-Security-Policy-Report-Only is set and no enforcing policy (header or meta); counts as not present in the Prüfmaße.
 - Status: Entwurf
 
+### `security-header-csp-manual`
+
+- Title: Content-Security-Policy: bitte manuell prüfen
+- Fact and risk: Ihre Seite sendet keinen Header Content-Security-Policy. Ob die Regeln stattdessen in einem meta-Element der Seite stehen, konnten wir diesmal nicht lesen.
+- Fix: Bitte manuell prüfen: Suchen Sie im Quelltext der Startseite nach `<meta http-equiv="Content-Security-Policy"`.
+- Used when: no CSP header and the page's meta tags were not read (no page snapshot, or a capture made before A3); counts neither as present nor as missing.
+- Status: Entwurf
+
 ### `security-header-csp-meta`
 
 - Title: Content-Security-Policy im Quelltext statt im Header
@@ -264,6 +280,14 @@ Shared note for all header texts: they describe a common protective measure and 
 - Used when: the header contains no value that browsers recognise and there is no meta element with a recognised value; low priority.
 - Status: Entwurf
 
+### `security-header-referrer-policy-manual`
+
+- Title: Referrer-Policy: bitte manuell prüfen
+- Fact and risk: Ihre Seite sendet keinen verwendbaren Header Referrer-Policy. Ob die Regel stattdessen in einem meta-Element der Seite steht, konnten wir diesmal nicht lesen.
+- Fix: Bitte manuell prüfen: Suchen Sie im Quelltext der Startseite nach `<meta name="referrer"`.
+- Used when: no Referrer-Policy header with a known value and the page's meta tags were not read; counts neither as present nor as missing.
+- Status: Entwurf
+
 ### `security-header-referrer-policy-meta`
 
 - Title: Referrer-Policy im Quelltext statt im Header
@@ -285,7 +309,7 @@ Shared note for all header texts: they describe a common protective measure and 
 - Title: Permissions-Policy fehlerhaft geschrieben
 - Fact and risk: Ihre Seite sendet den Header Permissions-Policy, aber nicht in der Schreibweise, die der Browser erwartet: „{value}“. Der Browser ignoriert den Header dann ganz oder teilweise.
 - Fix: Schreiben Sie jede Funktion in der Form Name=Wert, zum Beispiel camera=() für „nirgends erlaubt“, geolocation=(self) für „nur Ihre eigene Seite“ oder fullscreen=* für „überall erlaubt“, und trennen Sie die Einträge mit Komma.
-- Used when: the value contains no '=' (old Feature-Policy syntax such as `camera 'none'`).
+- Used when: the value does not parse as a structured field, so Chromium drops the whole header (semicolons instead of commas, single-quoted 'self', old Feature-Policy syntax such as `camera 'none'`, no '='), or it names only retired features such as `interest-cohort` (the old FLoC opt-out), which restrict nothing.
 - Status: Entwurf
 
 ### `security-header-permissions-policy-legacy`

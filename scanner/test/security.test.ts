@@ -47,7 +47,15 @@ describe('header checks', () => {
 
   it('Permissions-Policy: structured value; Feature-Policy is the old name', () => {
     expect(checkPermissionsPolicy('geolocation=(), camera=()', undefined).status).toBe('present');
+    expect(checkPermissionsPolicy('geolocation=self, fullscreen=*, camera=(self "https://www.example.de")', undefined).status).toBe('present');
     expect(checkPermissionsPolicy('geolocation', undefined)).toMatchObject({ status: 'invalid', detail: 'no-feature' });
+    // Chromium drops the whole header when it does not parse as a structured field.
+    expect(checkPermissionsPolicy('camera=(); microphone=()', undefined)).toMatchObject({ status: 'invalid', detail: 'not-structured-field', textId: 'security-header-permissions-policy-invalid' });
+    expect(checkPermissionsPolicy("camera=('self')", undefined)).toMatchObject({ status: 'invalid', detail: 'not-structured-field' });
+    expect(checkPermissionsPolicy("geolocation 'none'", undefined)).toMatchObject({ status: 'invalid', detail: 'not-structured-field' });
+    // A retired feature alone restricts nothing; next to a real one it is only noted.
+    expect(checkPermissionsPolicy('interest-cohort=()', undefined)).toMatchObject({ status: 'invalid', detail: 'only retired features: interest-cohort' });
+    expect(checkPermissionsPolicy('interest-cohort=(), camera=()', undefined)).toMatchObject({ status: 'present', detail: 'ignored: interest-cohort' });
     expect(checkPermissionsPolicy(undefined, "geolocation 'none'")).toMatchObject({ status: 'legacy', counts: false, textId: 'security-header-permissions-policy-legacy' });
     expect(checkPermissionsPolicy(undefined, undefined).status).toBe('missing');
   });
@@ -61,6 +69,7 @@ describe('analyzeSecurity', () => {
       requests: [],
       finalUrl: 'https://www.example.de/',
       mainDocument: { status: 200, redirectChain: [], headers: { 'strict-transport-security': 'max-age=63072000', 'x-content-type-options': 'nosniff' } },
+      page: { title: '', lang: 'de', text: '', textTruncated: false, links: [], linksTruncated: false, securityMeta: { csp: null, referrer: null } },
       httpProbe: probe('redirects-to-https'),
     });
     const result = analyzeSecurity(capture);
@@ -83,6 +92,17 @@ describe('analyzeSecurity', () => {
     expect(result.httpRedirect).toMatchObject({ result: 'fail', textId: 'security-http-no-redirect' });
     expect(result.headers[0]).toMatchObject({ status: 'invalid', detail: 'not-https' });
     expect(result.headersPresent).toBe(0);
+  });
+
+  it('without the meta tags of the page, a missing CSP or referrer header is a manual check, not missing', () => {
+    for (const page of [null, { title: '', lang: 'de', text: '', textTruncated: false, links: [], linksTruncated: false }]) {
+      const result = analyzeSecurity(makeCapture({ requests: [], page, mainDocument: { status: 200, redirectChain: [], headers: { 'referrer-policy': 'bogus' } } }));
+      expect(result.headers.find((h) => h.key === 'csp')).toMatchObject({ status: 'manual', counts: false, textId: 'security-header-csp-manual' });
+      expect(result.headers.find((h) => h.key === 'referrer-policy')).toMatchObject({ status: 'manual', textId: 'security-header-referrer-policy-manual' });
+    }
+    // A header that decides it does not need the meta tags.
+    const decided = analyzeSecurity(makeCapture({ requests: [], page: null, mainDocument: { status: 200, redirectChain: [], headers: { 'content-security-policy': "default-src 'self'", 'referrer-policy': 'no-referrer' } } }));
+    expect(decided.headers.filter((h) => h.status === 'present').map((h) => h.key)).toEqual(['csp', 'referrer-policy']);
   });
 
   it('meta tags of the page count for CSP and referrer policy', () => {

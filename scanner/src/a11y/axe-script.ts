@@ -1,4 +1,4 @@
-import { AXE_HTML_MAX, AXE_MAX_EXAMPLES, AXE_RULES, type AxeCapture, type AxeContrast, type AxeExample, type AxeRuleId, type AxeRuleResult, type AxeStatus } from './types.ts';
+import { AXE_HTML_MAX, AXE_MAX_EXAMPLES, AXE_RULES, type AxeCapture, type AxeContrast, type AxeExample, type AxeRuleId, type AxeRuleResult, type AxeScope, type AxeStatus } from './types.ts';
 
 /**
  * JavaScript that capture adapters evaluate in the page after `axe.min.js` of the pinned
@@ -37,6 +37,23 @@ export const AXE_RUN_EXPRESSION = `(async () => {
   if (!axe || typeof axe.run !== 'function' || !axe.utils || typeof axe.utils.aggregateResult !== 'function' || typeof axe.addReporter !== 'function') {
     return Object.assign({ status: 'error', error: 'axe-core is not available in the page', axeVersion: (axe && axe.version) || null, runMs: null }, empty);
   }
+  // Frames are not checked (iframes: false); a page whose content sits in a frameset or in one
+  // large iframe must not look clean, so the analyzer needs to know.
+  const scope = (() => {
+    try {
+      const frames = Array.from(document.querySelectorAll('iframe, frame'));
+      const vw = window.innerWidth || 1;
+      const vh = window.innerHeight || 1;
+      let largest = 0;
+      for (const f of frames) {
+        const r = f.getBoundingClientRect();
+        const w = Math.max(0, Math.min(r.right, vw) - Math.max(r.left, 0));
+        const h = Math.max(0, Math.min(r.bottom, vh) - Math.max(r.top, 0));
+        largest = Math.max(largest, (w * h) / (vw * vh));
+      }
+      return { frameset: !!document.querySelector('frameset'), frames: frames.length, largestFrameShare: Math.round(largest * 100) / 100 };
+    } catch (e) { return null; }
+  })();
   const str = (v) => (typeof v === 'string' ? v : null);
   const contrastOf = (nodeResult) => {
     const checks = [].concat(nodeResult.any || [], nodeResult.all || [], nodeResult.none || []);
@@ -94,7 +111,7 @@ export const AXE_RUN_EXPRESSION = `(async () => {
   });
   try {
     const result = await axe.run(document, { runOnly: { type: 'rule', values: RULES }, iframes: false, preload: false, reporter: '${AXE_REPORTER}' });
-    return Object.assign({ status: 'ok', error: null, axeVersion: axe.version || null }, result, { runMs: Math.round(performance.now() - started) });
+    return Object.assign({ status: 'ok', error: null, axeVersion: axe.version || null }, result, { scope, runMs: Math.round(performance.now() - started) });
   } catch (e) {
     return Object.assign({ status: 'error', error: String((e && e.message) || e).slice(0, 300), axeVersion: axe.version || null, runMs: Math.round(performance.now() - started) }, empty);
   }
@@ -108,6 +125,7 @@ export interface AxeRunOutput {
   rules: Record<string, unknown>;
   ruleErrors: unknown[];
   lowestContrast: { violation: unknown; pass: unknown };
+  scope?: unknown;
   runMs: number | null;
 }
 
@@ -156,6 +174,13 @@ function ruleOf(value: unknown): AxeRuleResult | null {
   };
 }
 
+function scopeOf(value: unknown): AxeScope | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const v = value as Record<string, unknown>;
+  const share = typeof v['largestFrameShare'] === 'number' && Number.isFinite(v['largestFrameShare']) ? Math.min(1, Math.max(0, v['largestFrameShare'])) : 0;
+  return { frameset: v['frameset'] === true, frames: count(v['frames']), largestFrameShare: share };
+}
+
 /** An axe result that did not run: no rules, no counts. */
 export function axeNotRun(status: Exclude<AxeStatus, 'ok'>, error: string, timing: Partial<AxeCapture['timing']> = {}, axeVersion: string | null = null): AxeCapture {
   return {
@@ -195,6 +220,7 @@ export function axeCaptureFrom(output: unknown, timing: { injectMs: number | nul
     rules,
     ruleErrors: Array.isArray(o.ruleErrors) ? o.ruleErrors.filter((r): r is string => typeof r === 'string') : [],
     lowestContrast: { violation: contrastOf(lowest.violation), pass: contrastOf(lowest.pass) },
+    scope: scopeOf(o.scope),
     timing: { injectMs: timing.injectMs, runMs, totalMs: timing.totalMs },
   };
 }
