@@ -100,10 +100,11 @@ export function failureOf(
   navigationError: string | null,
   main: { status: number; headers: Record<string, string> } | null,
   snapshot: SnapshotResult | null,
+  requests?: number,
 ): CaptureFailure | null {
   if (navigationError !== null) return { reason: classifyNavigationError(navigationError), message: navigationError };
   if (main === null) return { reason: 'other', message: 'no main document response' };
-  return classifyMainDocument(main.status, main.headers, snapshot?.title ?? '', pageEvidenceOf(snapshot));
+  return classifyMainDocument(main.status, main.headers, snapshot?.title ?? '', pageEvidenceOf(snapshot, requests));
 }
 
 export function errorText(error: unknown): string {

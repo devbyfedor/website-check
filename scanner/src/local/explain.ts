@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { analyzeThirdParty } from '../analyzers/third-party.ts';
+import { analyzeCapture } from '../analyzers/capture.ts';
+import { recheckCapture } from '../capture/failure.ts';
 import type { Capture, CapturedRequest } from '../capture/types.ts';
 import { DEFAULT_RULES } from '../data.ts';
 import { hostOf } from '../domain/site.ts';
@@ -33,8 +34,14 @@ async function main(): Promise<void> {
   if (values.site === undefined) throw new Error('usage: --site 07 [--service google-fonts]');
   const number = values.site.padStart(2, '0');
   const base = resolve(values.dir, 'captures', `site-${number}`);
-  const capture = JSON.parse(await readFile(`${base}.json`, 'utf8')) as Capture;
-  const analysis = analyzeThirdParty(capture, DEFAULT_RULES);
+  // Decided again like every analysis, so a check page saved as a normal page is not explained as one.
+  const capture = recheckCapture(JSON.parse(await readFile(`${base}.json`, 'utf8')) as Capture);
+  const result = analyzeCapture(capture, DEFAULT_RULES);
+  if (result.thirdParty === null) {
+    console.log(`Site ${number}: not analyzed, state ${result.state} (${result.failure?.reason}), ${capture.requests.length} requests. No findings for this capture.`);
+    return;
+  }
+  const analysis = result.thirdParty;
   const key = values.service;
   const service = analysis.services.find((s) => s.key === key);
   console.log(`Site ${number}: capture ok=${capture.ok}, ${capture.requests.length} requests, first party ${analysis.firstPartySites.join(', ')}`);

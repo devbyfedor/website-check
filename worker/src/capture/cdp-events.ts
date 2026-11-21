@@ -39,6 +39,9 @@ import { applyEmulation, frameEmulation, sendAll, userAgentMetadataOf, viewportE
  * session A2 measures how much.
  */
 
+/** How often the wait loop sends a command, well below the shortest idle timeout of Browser Run (10 s). */
+const KEEP_ALIVE_PING_MS = 3_000;
+
 /** Puppeteer's own session of a page. Internal API, so it falls back to a new session. */
 export async function clientOf(page: Page): Promise<CDPSession> {
   const internal = (page as unknown as { _client?: () => CDPSession })._client;
@@ -249,6 +252,7 @@ async function runCapture(
   let networkQuietMs: number | null = null;
   if (navigationError === null) {
     stopReason = 'max-wait';
+    let lastCommandMs = rel();
     for (;;) {
       if (crashed || hardLimitHit() || page.isClosed()) {
         stopReason = 'error';
@@ -261,6 +265,12 @@ async function runCapture(
         break;
       }
       if (now >= settings.maxWaitMs) break;
+      // Browser Run closes a browser that receives no command for its idle timeout (10 s in the
+      // lab); waiting for a quiet network sends none, so send a harmless one every few seconds.
+      if (now - lastCommandMs >= KEEP_ALIVE_PING_MS) {
+        lastCommandMs = now;
+        await client.send('Runtime.evaluate', { expression: '0', returnByValue: true }).catch(() => undefined);
+      }
       await sleep(100);
     }
   }
@@ -291,6 +301,7 @@ async function runCapture(
     navigationError,
     mainResponse === null ? null : { status: mainResponse.status(), headers },
     snapshot,
+    records.length,
   );
   // The probe uses the browser's clock; the first main document request starts at about the
   // browser's navigation start (`timeOrigin`).

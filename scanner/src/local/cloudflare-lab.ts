@@ -53,6 +53,8 @@ async function main(): Promise<void> {
       strategies: { type: 'string', default: 'resource-timing,cdp-events' },
       // Browser seconds for the whole step (all runs of the day): Cloudflare's usedBrowserTimeSeconds counts.
       'budget-s': { type: 'string', default: '180' },
+      // Browser seconds for this run alone (client clock from before the launch), whatever the day budget says.
+      'run-budget-s': { type: 'string', default: '120' },
       out: { type: 'string' },
       'dev-vars': { type: 'string', default: 'worker/.dev.vars' },
       sites: { type: 'string', default: 'local/sites.txt' },
@@ -69,8 +71,13 @@ async function main(): Promise<void> {
   const strategies = values.strategies.split(',').map((s) => s.trim()) as CaptureStrategy[];
   const budgetS = Number(values['budget-s']);
   if (!Number.isFinite(budgetS) || budgetS <= 0) throw new Error('--budget-s must be a positive number of seconds');
-  /** Worst case for one more page: the hard limit of 20 s plus setup and closing. */
-  const NEXT_PAGE_MS = 25_000;
+  const runBudgetS = Number(values['run-budget-s']);
+  if (!Number.isFinite(runBudgetS) || runBudgetS <= 0) throw new Error('--run-budget-s must be a positive number of seconds');
+  /**
+   * Worst case for one more page: the hard limit of 20 s plus setup and closing. Trace and capture
+   * requests are cut off by the client after this time too, so the guard's worst case is the real one.
+   */
+  const NEXT_PAGE_MS = 30_000;
   const runName = values.out ?? `run-${new Date().toISOString().replace(/[:.]/g, '-')}`;
   const outDir = resolve('local', 'a2', runName);
   await mkdir(outDir, { recursive: true });
@@ -98,12 +105,20 @@ async function main(): Promise<void> {
     });
   }
 
-  const call = async (method: 'GET' | 'POST', path: string, body?: unknown): Promise<{ status: number; json: unknown; clientMs: number }> => {
+  // Every label starts with the run name, so tail records of different runs in one stream never mix.
+  const labelled = (path: string, label: string): string => `${path}?label=${encodeURIComponent(`${runName}.${label}`)}`;
+  const call = async (
+    method: 'GET' | 'POST',
+    path: string,
+    body?: unknown,
+    timeoutMs = 45_000,
+  ): Promise<{ status: number; json: unknown; clientMs: number; startedAt: string }> => {
     const started = Date.now();
+    const startedAt = new Date(started).toISOString();
     const response = await fetch(`${base}${path}`, {
       method,
       redirect: 'error',
-      signal: AbortSignal.timeout(45_000),
+      signal: AbortSignal.timeout(timeoutMs),
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'user-agent': 'website-check-lab-client/0.1' },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
@@ -114,34 +129,36 @@ async function main(): Promise<void> {
     } catch {
       // keep the text
     }
-    return { status: response.status, json, clientMs: Date.now() - started };
+    return { status: response.status, json, clientMs: Date.now() - started, startedAt };
   };
+  /** Console text without addresses: error messages of the browser can end with " at <url>". */
+  const redact = (text: string | undefined): string => (text ?? '').replace(/https?:\/\/\S+/g, '<url>').slice(0, 120);
   const save = (name: string, data: unknown): Promise<void> => writeFile(resolve(outDir, name), `${JSON.stringify(data, null, 2)}\n`);
 
   if (values['cpu-steps'] !== undefined) {
     // CPU experiment of A2 part 2: no browser; the CPU time comes from wrangler tail (label cpu-<steps>).
     const steps = Number(values['cpu-steps']);
-    const result = await call('POST', `/lab/cpu?label=cpu-${steps}`, { steps });
+    const result = await call('POST', labelled('/lab/cpu', `cpu-${steps}`), { steps });
     await save(`cpu-${steps}.json`, result);
     console.log(`cpu ${steps} steps: HTTP ${result.status} ${JSON.stringify(result.json)} in ${result.clientMs} ms (client clock)`);
     return;
   }
 
-  const limits = await call('GET', '/lab/limits');
+  const limits = await call('GET', labelled('/lab/limits', 'limits-before'));
   await save('limits-before.json', limits);
   console.log(`limits: HTTP ${limits.status} ${JSON.stringify(limits.json).slice(0, 300)}`);
   if (limits.status !== 200) throw new Error('lab endpoint not ready');
   // Local wrangler dev reports no usage; on Cloudflare this is today's browser time of the account.
   const usedBefore = (limits.json as { limits?: { usedBrowserTimeSeconds?: number } }).limits?.usedBrowserTimeSeconds ?? 0;
-  const remainingMs = (budgetS - usedBefore) * 1000;
-  console.log(`browser budget: ${budgetS} s for the step, ${usedBefore} s already used today, ${Math.round(remainingMs / 1000)} s left`);
+  const remainingMs = Math.min((budgetS - usedBefore) * 1000, runBudgetS * 1000);
+  console.log(`browser budget: ${budgetS} s for the day, ${usedBefore} s already used today, at most ${runBudgetS} s for this run: ${Math.round(remainingMs / 1000)} s`);
   if (remainingMs < NEXT_PAGE_MS + 10_000) throw new Error('browser budget for this step is used up; not opening a session');
 
   const cloud = new Map<string, Capture>();
   const headerLog: Record<string, RecordedRequest[]> = {};
   // The clock starts before the launch, so the launch itself counts against the budget.
   const clockStart = Date.now();
-  const opened = await call('POST', '/lab/session?label=open');
+  const opened = await call('POST', labelled('/lab/session', 'open'), undefined, NEXT_PAGE_MS);
   await save('session-open.json', opened);
   const openedAt = Date.now();
   const fits = (): boolean => Date.now() - clockStart + NEXT_PAGE_MS <= remainingMs;
@@ -150,7 +167,7 @@ async function main(): Promise<void> {
   console.log(`session open: ${(opened.json as { browserVersion?: string }).browserVersion}, ${opened.clientMs} ms`);
   try {
     if (values.trace && fits()) {
-      const trace = await call('POST', '/lab/trace?label=trace', { sessionId });
+      const trace = await call('POST', labelled('/lab/trace', 'trace'), { sessionId }, NEXT_PAGE_MS);
       await save('trace.json', trace);
       const t = trace.json as { loc?: string; colo?: string; environment?: unknown; object?: unknown };
       console.log(`trace: HTTP ${trace.status} browser loc=${t.loc} colo=${t.colo}; object ${JSON.stringify(t.object)}; env=${JSON.stringify(t.environment)}`);
@@ -163,7 +180,9 @@ async function main(): Promise<void> {
           continue;
         }
         const before = fixture?.recorded.length ?? 0;
-        const result = await call('POST', `/lab/capture?label=site-${target.number}-${code}`, { sessionId, url: target.url, strategy });
+        const result = await call('POST', labelled('/lab/capture', `site-${target.number}-${code}`), { sessionId, url: target.url, strategy }, NEXT_PAGE_MS).catch(
+          (error: unknown) => ({ status: 0, json: { error: 'client', message: error instanceof Error ? error.message : String(error) }, clientMs: NEXT_PAGE_MS, startedAt: '' }),
+        );
         await save(`cloud-site-${target.number}-${code}.json`, result);
         if (fixture !== null) headerLog[`cloud-${code}-${target.number}`] = fixture.recorded.slice(before);
         const body = result.json as { capture?: Capture; stats?: unknown; doWallMs?: number; error?: string; message?: string };
@@ -171,22 +190,31 @@ async function main(): Promise<void> {
           cloud.set(`${target.number}-${code}`, body.capture);
           const c = body.capture;
           console.log(
-            `${target.label} (${code}): ${c.ok ? 'ok' : `FAILED ${c.failure?.reason} (${c.failure?.message.slice(0, 80)})`} ${c.requests.length} requests, ` +
+            `${target.label} (${code}): ${c.ok ? 'ok' : `FAILED ${c.failure?.reason} (HTTP ${c.failure?.status ?? '-'})`} ${c.requests.length} requests, ` +
               `banner ${c.consentBanner.detected ? `${c.consentBanner.toolId} at ${c.consentBanner.visibleAtMs} ms` : 'not seen'}, ` +
               `stop ${c.timings.stopReason} at ${c.timings.endMs} ms, object wall ${body.doWallMs} ms, stats ${JSON.stringify(body.stats)}`,
           );
         } else {
-          console.log(`${target.label} (${code}): HTTP ${result.status} ${body.error ?? ''} ${body.message ?? ''}`);
+          console.log(`${target.label} (${code}): HTTP ${result.status} ${body.error ?? ''} ${redact(body.message)}`);
         }
       }
     }
   } finally {
-    const closed = await call('POST', '/lab/close?label=close', { sessionId });
+    // The close is retried: a browser left open keeps using the day's minutes until its idle timeout.
+    let closed: { status: number; json: unknown; clientMs: number; startedAt: string } = { status: 0, json: null, clientMs: 0, startedAt: '' };
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        closed = await call('POST', labelled('/lab/close', `close-${attempt}`), { sessionId }, 20_000);
+        if (closed.status === 200) break;
+      } catch (error) {
+        closed = { status: 0, json: { error: 'client', message: error instanceof Error ? error.message : String(error) }, clientMs: 0, startedAt: '' };
+      }
+    }
     const closedAt = Date.now();
     await save('session-close.json', { ...closed, openedAt, closedAt, clientSessionMs: closedAt - openedAt });
     console.log(`session closed: HTTP ${closed.status} ${JSON.stringify(closed.json)}, open for about ${Math.round((closedAt - openedAt) / 1000)} s (client clock)`);
     // Cloudflare reports the day's browser time in the limits (usedBrowserTimeSeconds).
-    const after = await call('GET', '/lab/limits?label=limits-after').catch((error: unknown) => ({ status: 0, json: String(error), clientMs: 0 }));
+    const after = await call('GET', labelled('/lab/limits', 'limits-after')).catch((error: unknown) => ({ status: 0, json: String(error), clientMs: 0, startedAt: '' }));
     await save('limits-after.json', after);
     console.log(`limits after: ${JSON.stringify(after.json).slice(0, 300)}`);
   }

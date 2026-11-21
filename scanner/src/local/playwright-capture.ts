@@ -333,7 +333,7 @@ async function runCapture(
   } else if (mainResponse === null) {
     failure = { reason: 'other', message: 'no main document response' };
   } else {
-    failure = classifyMainDocument(mainResponse.status(), headers, snapshot?.title ?? '', pageEvidenceOf(snapshot));
+    failure = classifyMainDocument(mainResponse.status(), headers, snapshot?.title ?? '', pageEvidenceOf(snapshot, records.length));
   }
 
   const probe = snapshot?.probe ?? null;

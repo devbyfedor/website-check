@@ -24,53 +24,65 @@ export function classifyNavigationError(message: string): CaptureFailureReason {
 }
 
 const CHALLENGE_TITLE =
-  /just a moment|attention required|access denied|zugriff verweigert|request (?:blocked|rejected)|are you a (?:robot|human)|captcha|ddos[- ]guard|security check|bot (?:check|protection)|sucuri website firewall|checking your browser|sicherheits(?:über)?prüfung|browserprüfung/i;
+  /just a moment|attention required|access denied|zugriff verweigert|request (?:blocked|rejected)|are you a (?:robot|human)|captcha|ddos[- ]guard|security check|bot (?:check|protection)|sucuri website firewall|checking your browser/i;
 /** Only unambiguous challenge titles count on their own when the status is 2xx. */
 const CHALLENGE_TITLE_STRONG = /^(?:just a moment\.*|attention required!?.*|checking your browser.*|ddos-guard)$/i;
 
 /**
  * What the page showed at the end of the visit, for recognising check pages: the title, the
- * visible text and the number of links.
+ * visible text, the number of links and, when the adapter knows it, the number of requests.
  */
 export interface PageEvidence {
   title: string;
   text: string;
   links: number;
+  requests?: number;
 }
 
 /**
- * Check pages of web hosts and bot protection that answer with HTTP 200 (A2 part 2): a short
- * "please wait" title or a sentence saying that the request or the browser is being checked,
- * on a page that is almost empty. Seen on a test site: title "Einen Moment bitte …", text
- * "Bitte warten Sie, während Ihre Anfrage geprüft wird …", no links. A normal page with such a
- * phrase somewhere has more text and links, so it stays a normal page.
+ * Check pages of web hosts and bot protection that answer with HTTP 200 (A2 part 2), on a page
+ * that is almost empty and loaded almost nothing:
+ * - the whole title is a "please wait" phrase ("Einen Moment bitte …", "Bitte warten",
+ *   "One moment, please"), or
+ * - the text says that the request or the browser is being checked ("während Ihre Anfrage
+ *   geprüft wird", "Ihr Browser wird überprüft", "Checking your browser", …), whatever the title.
+ * Seen on a test site: title "Einen Moment bitte …", text "Bitte warten Sie, während Ihre
+ * Anfrage geprüft wird …", no links, 2 requests. Deliberately narrow, because a normal homepage
+ * taken for a check page would hide its findings: a title that only starts with such words
+ * ("Sicherheitsprüfung & HU – Kfz-Prüfstelle …") does not count, and neither does a page that
+ * says it redirects the visitor.
  */
-const END = String.raw`(?=$|[\s.,:;!?…–-])`;
-const WAIT_TITLE = new RegExp(
-  String.raw`^(?:einen? moment,? bitte|bitte (?:kurz )?warten|one moment,? please|please wait|sicherheits(?:über)?prüfung|browserprüfung|überprüfung (?:ihres browsers|läuft)|verifying (?:your browser|you are human))${END}`,
-  'iu',
-);
+const WAIT_TITLE = /^(?:einen? moment,? bitte|bitte (?:kurz )?warten|one moment,? please|please wait)[\s.…!]*$/iu;
 // Not "Ihre Anfrage wird geprüft" alone: a thank-you page after a contact form says that too.
 const CHECK_TEXT =
   /während (?:wir )?ihre anfrage (?:geprüft|überprüft)|ihr browser wird (?:geprüft|überprüft)|überprüfung ihres browsers|wir (?:prüfen|überprüfen) ihren browser|checking your browser|checking if the site connection is secure|verify(?:ing)? (?:that )?you are (?:a )?human|your request is being (?:checked|verified)/iu;
+const REDIRECT_TEXT = /weitergeleitet|weiterleitung|redirect/iu;
 /** "Almost empty": what a check page shows, far less than any homepage. */
 const CHECK_PAGE_MAX_TEXT = 600;
 const CHECK_PAGE_MAX_LINKS = 3;
+/** The check page of the test site made 2 requests; a homepage with a tracker and fonts makes far more. */
+const CHECK_PAGE_MAX_REQUESTS = 15;
 
 function normalize(value: string): string {
   return value.replace(/\s+/gu, ' ').trim();
 }
 
-/** Null for a normal page, otherwise why the page is a check page. */
+/**
+ * Null for a normal page, otherwise why the page is a check page. The reason names the rule and
+ * the sizes, not the title, so it can be shown in logs without a site name.
+ */
 export function checkPageReason(page: PageEvidence): string | null {
   const title = normalize(page.title);
   const text = normalize(page.text);
   if (text.length > CHECK_PAGE_MAX_TEXT || page.links > CHECK_PAGE_MAX_LINKS) return null;
+  if (page.requests !== undefined && page.requests > CHECK_PAGE_MAX_REQUESTS) return null;
+  if (REDIRECT_TEXT.test(text)) return null;
   const titleMatch = WAIT_TITLE.test(title);
-  const textMatch = CHECK_TEXT.exec(text);
-  if (!titleMatch && textMatch === null) return null;
-  const parts = [titleMatch ? `title "${title.slice(0, 80)}"` : null, textMatch !== null ? `text "${textMatch[0]}"` : null];
-  return `check page: ${parts.filter((p) => p !== null).join(', ')}, ${text.length} characters, ${page.links} links`;
+  const textMatch = CHECK_TEXT.test(text);
+  if (!titleMatch && !textMatch) return null;
+  const rule = [titleMatch ? 'wait title' : null, textMatch ? 'check text' : null].filter((r) => r !== null).join(' and ');
+  const requests = page.requests === undefined ? '' : `, ${page.requests} requests`;
+  return `check page (${rule}): ${text.length} characters, ${page.links} links${requests}`;
 }
 
 /**
@@ -101,8 +113,9 @@ export function classifyMainDocument(status: number, headers: Record<string, str
 }
 
 /** Page evidence of a capture, or undefined if the capture has no page snapshot. */
-export function pageEvidenceOf(page: { title: string; text: string; links: readonly unknown[] } | null): PageEvidence | undefined {
-  return page === null ? undefined : { title: page.title, text: page.text, links: page.links.length };
+export function pageEvidenceOf(page: { title: string; text: string; links: readonly unknown[] } | null, requests?: number): PageEvidence | undefined {
+  if (page === null) return undefined;
+  return { title: page.title, text: page.text, links: page.links.length, ...(requests === undefined ? {} : { requests }) };
 }
 
 /**
@@ -114,6 +127,6 @@ export function pageEvidenceOf(page: { title: string; text: string; links: reado
 export function recheckCapture(capture: Capture): Capture {
   if (!capture.ok || capture.mainDocument === null) return capture;
   const { status, headers } = capture.mainDocument;
-  const failure = classifyMainDocument(status, headers, capture.page?.title ?? '', pageEvidenceOf(capture.page));
+  const failure = classifyMainDocument(status, headers, capture.page?.title ?? '', pageEvidenceOf(capture.page, capture.requests.length));
   return failure === null ? capture : { ...capture, ok: false, failure };
 }
