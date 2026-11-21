@@ -31,8 +31,9 @@ export {
   type ResourceTimingEntry,
 } from './capture/resource-timing.ts';
 export { firstPartySites, hostOf, isIpAddress, normalizeHost, siteOfHost, siteOfUrl } from './domain/site.ts';
+export { googleCanonicalHost, parseGoogleDomainsFile, type GoogleDomainsFile } from './domain/google.ts';
 export * from './rules/types.ts';
-export { compileRules, parseHostPattern, parseRulesFile, type CompiledRules, type HostPattern, type RuleMatch } from './rules/match.ts';
+export { compileRules, parseHostPattern, parseRulesFile, type CompileOptions, type CompiledRules, type HostPattern, type RuleMatch } from './rules/match.ts';
 export * from './consent/tools.ts';
 export { BANNER_PROBE_GLOBAL, buildBannerProbeScript, type BannerProbeState } from './consent/probe-script.ts';
 export {

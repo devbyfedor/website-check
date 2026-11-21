@@ -146,7 +146,8 @@ export function analyzeThirdParty(capture: Capture, rules: CompiledRules): Third
     if (host === null) return null;
     const match = rules.match(url);
     if (match !== null) return { kind: 'service', key: match.rule.id, match };
-    const site = siteOfHost(host);
+    // Grouped by the canonical host's site, so www.google.it and www.google.de are one group.
+    const site = siteOfHost(rules.canonicalHost(host));
     return { kind: 'unknown', key: `unknown:${site}`, site };
   };
 

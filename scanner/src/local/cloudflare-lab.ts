@@ -185,14 +185,14 @@ async function main(): Promise<void> {
         );
         await save(`cloud-site-${target.number}-${code}.json`, result);
         if (fixture !== null) headerLog[`cloud-${code}-${target.number}`] = fixture.recorded.slice(before);
-        const body = result.json as { capture?: Capture; stats?: unknown; doWallMs?: number; error?: string; message?: string };
+        const body = result.json as { capture?: Capture; stats?: unknown; doWallMs?: number; reconnected?: boolean; error?: string; message?: string };
         if (result.status === 200 && body.capture !== undefined) {
           cloud.set(`${target.number}-${code}`, body.capture);
           const c = body.capture;
           console.log(
             `${target.label} (${code}): ${c.ok ? 'ok' : `FAILED ${c.failure?.reason} (HTTP ${c.failure?.status ?? '-'})`} ${c.requests.length} requests, ` +
               `banner ${c.consentBanner.detected ? `${c.consentBanner.toolId} at ${c.consentBanner.visibleAtMs} ms` : 'not seen'}, ` +
-              `stop ${c.timings.stopReason} at ${c.timings.endMs} ms, object wall ${body.doWallMs} ms, stats ${JSON.stringify(body.stats)}`,
+              `stop ${c.timings.stopReason} at ${c.timings.endMs} ms, object wall ${body.doWallMs} ms, reconnected ${body.reconnected}, stats ${JSON.stringify(body.stats)}`,
           );
         } else {
           console.log(`${target.label} (${code}): HTTP ${result.status} ${body.error ?? ''} ${redact(body.message)}`);
@@ -267,7 +267,7 @@ async function main(): Promise<void> {
         comparisons[`site-${target.number}-${code}`] = comparison;
         console.log(
           `${target.label} (${code}) vs local: banner local ${comparison.local.banner.toolId ?? 'none'} / cloud ${comparison.cloud.banner.toolId ?? 'none'}; ` +
-            `requests ${comparison.local.requests} / ${comparison.cloud.requests} (completeness ${comparison.completenessPct} %); ` +
+            `requests ${comparison.local.requests} / ${comparison.cloud.requests} without ${comparison.cloud.preflights} CORS preflights (completeness ${comparison.completenessPct} %, only cloud ${comparison.onlyCloudRequests}); ` +
             `third-party hosts only cloud ${comparison.thirdPartyHosts.onlyCloud.length}, only local ${comparison.thirdPartyHosts.onlyLocal.length}; ` +
             `findings only cloud ${comparison.findings.onlyCloud.length}, only local ${comparison.findings.onlyLocal.length}` +
             (comparison.needsReview ? '  -> review' : ''),

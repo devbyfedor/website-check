@@ -1,7 +1,7 @@
 import { analyzeCapture } from '../analyzers/capture.ts';
 import type { ThirdPartyAnalysis } from '../analyzers/third-party.ts';
 import { recheckCapture } from '../capture/failure.ts';
-import type { Capture } from '../capture/types.ts';
+import type { Capture, CapturedRequest } from '../capture/types.ts';
 import { firstPartySites, hostOf, siteOfUrl } from '../domain/site.ts';
 import type { CompiledRules } from '../rules/match.ts';
 
@@ -9,13 +9,22 @@ import type { CompiledRules } from '../rules/match.ts';
  * Compares two captures of the same page (for session A2: the local Playwright run and a
  * Cloudflare run). Pure function; the result holds host names and service ids of one site,
  * so it stays in `local/` like every per-site result.
+ *
+ * CORS preflight requests (`OPTIONS` before a cross-origin request) are left out of counts,
+ * hosts and completeness: Puppeteer reports them as requests of their own, Playwright does not,
+ * and the request they prepare is in both captures. They are counted separately. Hosts on
+ * Google's country domains count as the same host on google.com (`rules.canonicalHost`): the
+ * Cloudflare browser runs in different EU countries and Google answers it on www.google.it.
  */
 
 export interface CaptureSide {
   ok: boolean;
   failure: string | null;
+  /** Requests without CORS preflights */
   requests: number;
   thirdPartyRequests: number;
+  /** CORS preflight requests (left out of the other numbers) */
+  preflights: number;
   stopReason: string;
   endMs: number;
   banner: { detected: boolean; toolId: string | null; visibleAtMs: number | null };
@@ -44,21 +53,34 @@ export interface CaptureComparison {
    * capture also has, in percent. Dynamic query strings differ between two visits anyway.
    */
   completenessPct: number;
+  /** Requests of the cloud capture (by host and path) that the local capture does not have */
+  onlyCloudRequests: number;
   /** The cloud capture has a third-party host, service or finding that the local one lacks, or no banner where the local one has one. */
   needsReview: boolean;
 }
 
+/** A CORS preflight as the browser protocol reports it (initiator type `preflight`). */
+export function isPreflight(request: CapturedRequest): boolean {
+  return request.initiator?.type === 'preflight';
+}
+
+function requestsOf(capture: Capture): CapturedRequest[] {
+  return capture.requests.filter((r) => !isPreflight(r));
+}
+
 function side(capture: Capture, analysis: ThirdPartyAnalysis | null): CaptureSide {
   const firstParty = firstPartySites(capture);
-  const thirdParty = capture.requests.filter((r) => {
+  const requests = requestsOf(capture);
+  const thirdParty = requests.filter((r) => {
     const site = siteOfUrl(r.url);
     return site !== null && !firstParty.has(site);
   });
   return {
     ok: capture.ok,
     failure: capture.failure === null ? null : `${capture.failure.reason}: ${capture.failure.message.slice(0, 120)}`,
-    requests: capture.requests.length,
+    requests: requests.length,
     thirdPartyRequests: thirdParty.length,
+    preflights: capture.requests.length - requests.length,
     stopReason: capture.timings.stopReason,
     endMs: capture.timings.endMs,
     banner: { detected: capture.consentBanner.detected, toolId: capture.consentBanner.toolId, visibleAtMs: capture.consentBanner.visibleAtMs },
@@ -69,13 +91,13 @@ function side(capture: Capture, analysis: ThirdPartyAnalysis | null): CaptureSid
   };
 }
 
-function thirdPartyHosts(capture: Capture): Set<string> {
+function thirdPartyHosts(capture: Capture, canonicalHost: (host: string) => string): Set<string> {
   const firstParty = firstPartySites(capture);
   const hosts = new Set<string>();
-  for (const request of capture.requests) {
+  for (const request of requestsOf(capture)) {
     const site = siteOfUrl(request.url);
     const host = hostOf(request.url);
-    if (site !== null && host !== null && !firstParty.has(site)) hosts.add(host);
+    if (site !== null && host !== null && !firstParty.has(site)) hosts.add(canonicalHost(host));
   }
   return hosts;
 }
@@ -90,10 +112,11 @@ function diff(local: Iterable<string>, cloud: Iterable<string>): SetDiff {
   };
 }
 
-function hostPath(url: string): string | null {
+function hostPath(url: string, canonicalHost: (host: string) => string): string | null {
   try {
     const parsed = new URL(url);
-    return `${parsed.host}${parsed.pathname}`;
+    const host = hostOf(url);
+    return `${host === null ? parsed.host : canonicalHost(host)}${parsed.port === '' ? '' : `:${parsed.port}`}${parsed.pathname}`;
   } catch {
     return null;
   }
@@ -107,10 +130,14 @@ export function compareCaptures(localCapture: Capture, cloudCapture: Capture, ru
   const cloudAnalysis = analyzeCapture(cloud, rules).thirdParty;
   const localSide = side(local, localAnalysis);
   const cloudSide = side(cloud, cloudAnalysis);
-  const cloudPaths = new Set(cloud.requests.map((r) => hostPath(r.url)).filter((x): x is string => x !== null));
-  const localPaths = local.requests.map((r) => hostPath(r.url)).filter((x): x is string => x !== null);
+  const pathsOf = (capture: Capture): string[] =>
+    requestsOf(capture).map((r) => hostPath(r.url, rules.canonicalHost)).filter((x): x is string => x !== null);
+  const cloudPathList = pathsOf(cloud);
+  const cloudPaths = new Set(cloudPathList);
+  const localPaths = pathsOf(local);
+  const localPathSet = new Set(localPaths);
   const matched = localPaths.filter((p) => cloudPaths.has(p)).length;
-  const hosts = diff(thirdPartyHosts(local), thirdPartyHosts(cloud));
+  const hosts = diff(thirdPartyHosts(local, rules.canonicalHost), thirdPartyHosts(cloud, rules.canonicalHost));
   const services = diff([...localSide.findings, ...localSide.hints], [...cloudSide.findings, ...cloudSide.hints]);
   const findings = diff(localSide.findings, cloudSide.findings);
   return {
@@ -120,6 +147,7 @@ export function compareCaptures(localCapture: Capture, cloudCapture: Capture, ru
     services,
     findings,
     completenessPct: localPaths.length === 0 ? 100 : Math.round((matched / localPaths.length) * 1000) / 10,
+    onlyCloudRequests: cloudPathList.filter((p) => !localPathSet.has(p)).length,
     needsReview:
       hosts.onlyCloud.length > 0 || services.onlyCloud.length > 0 || findings.onlyCloud.length > 0 || (localSide.banner.detected && !cloudSide.banner.detected),
   };

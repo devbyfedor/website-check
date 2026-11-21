@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-20",
+  "updated": "2026-11-21",
   "services": [
     {
       "id": "adobe-fonts",
@@ -457,9 +457,7 @@
         "*.googleadservices.com",
         "adservice.google.com",
         "www.google.com/pagead/",
-        "www.google.de/pagead/",
-        "www.google.com/ads/",
-        "www.google.de/ads/"
+        "www.google.com/ads/"
       ],
       "sources": [
         "tdddg-25",
@@ -481,8 +479,7 @@
       "dataLocation": "us-possible",
       "hosts": [
         "stats.g.doubleclick.net",
-        "www.google.com/ads/ga-audiences",
-        "www.google.de/ads/ga-audiences"
+        "www.google.com/ads/ga-audiences"
       ],
       "sources": [
         "tdddg-25",
@@ -666,8 +663,7 @@
         "maps.googleapis.com",
         "maps.gstatic.com",
         "www.google.com/maps/",
-        "maps.google.com",
-        "maps.google.de"
+        "maps.google.com"
       ],
       "sources": [
         "lfdi-bw-faq-tracking-2022-maps",

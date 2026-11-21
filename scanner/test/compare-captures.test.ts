@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_RULES } from '../src/data.ts';
 import { compareCaptures } from '../src/local/compare-captures.ts';
 import { loadTestRules, makeCapture } from './helpers.ts';
 
@@ -52,5 +53,39 @@ describe('compare captures', () => {
     expect(result.local.banner.detected).toBe(true);
     expect(result.cloud.banner.detected).toBe(false);
     expect(result.needsReview).toBe(true);
+  });
+
+  it('leaves CORS preflights out of counts, hosts and completeness and counts them apart', () => {
+    const cloud = makeCapture({
+      requests: [
+        { url: 'https://www.example.de/', status: 200, isNavigation: true, resourceType: 'document' },
+        { url: 'https://fonts.googleapis.com/css2?family=A', status: 200 },
+        { url: 'https://www.example.de/app.js?v=1', status: 200 },
+        { url: 'https://fonts.googleapis.com/css2?family=A', method: 'OPTIONS', resourceType: 'other', status: 204, initiator: { type: 'preflight', url: null } },
+      ],
+      consentBanner: banner(true),
+    });
+    const result = compareCaptures(local, cloud, rules);
+    expect(result.cloud).toMatchObject({ requests: 3, thirdPartyRequests: 1, preflights: 1 });
+    expect(result.local.preflights).toBe(0);
+    expect(result.thirdPartyHosts.onlyCloud).toEqual([]);
+    expect(result.onlyCloudRequests).toBe(0);
+    expect(result.needsReview).toBe(false);
+  });
+
+  it('counts a Google country domain as google.com', () => {
+    const withGoogle = (host: string) =>
+      makeCapture({
+        requests: [
+          { url: 'https://www.example.de/', status: 200, isNavigation: true, resourceType: 'document' },
+          { url: `https://${host}/ads/ga-audiences?v=1&tid=G-TEST`, status: 200, resourceType: 'image' },
+        ],
+        consentBanner: banner(true),
+      });
+    const result = compareCaptures(withGoogle('www.google.de'), withGoogle('www.google.it'), DEFAULT_RULES);
+    expect(result.thirdPartyHosts).toEqual({ both: ['www.google.com'], onlyLocal: [], onlyCloud: [] });
+    expect(result.completenessPct).toBe(100);
+    expect(result.findings.onlyCloud).toEqual([]);
+    expect(result.needsReview).toBe(false);
   });
 });
