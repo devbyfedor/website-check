@@ -9,8 +9,9 @@ describe('header checks', () => {
     expect(checkHsts('max-age=31536000; includeSubDomains', true)).toMatchObject({ status: 'present', counts: true, detail: 'max-age=31536000', textId: null });
     expect(checkHsts('max-age="15552000"', true).status).toBe('present');
     expect(checkHsts('max-age=0', true)).toMatchObject({ status: 'invalid', counts: false, detail: 'max-age=0', textId: 'security-header-hsts-invalid' });
-    expect(checkHsts('includeSubDomains', true)).toMatchObject({ status: 'invalid', detail: 'no-max-age' });
-    expect(checkHsts('max-age=31536000', false)).toMatchObject({ status: 'invalid', detail: 'not-https' });
+    expect(checkHsts('includeSubDomains', true)).toMatchObject({ status: 'invalid', detail: 'no-max-age', textId: 'security-header-hsts-no-max-age' });
+    expect(checkHsts('max-age=31536000', false)).toMatchObject({ status: 'invalid', detail: 'not-https', textId: null });
+    expect(checkHsts(undefined, false)).toMatchObject({ status: 'missing', detail: 'not-https', textId: null });
     expect(checkHsts(undefined, true)).toMatchObject({ status: 'missing', textId: 'security-header-hsts-missing' });
     // Only the first header counts (RFC 6797 section 8.1).
     expect(checkHsts('max-age=0\nmax-age=31536000', true).status).toBe('invalid');
@@ -37,6 +38,11 @@ describe('header checks', () => {
     expect(checkReferrerPolicy('always', null)).toMatchObject({ status: 'invalid', textId: 'security-header-referrer-policy-invalid' });
     expect(checkReferrerPolicy(undefined, 'same-origin')).toMatchObject({ status: 'meta', counts: true, textId: 'security-header-referrer-policy-meta' });
     expect(checkReferrerPolicy(undefined, 'whatever').status).toBe('missing');
+    // Old meta values of the HTML standard, and a valid meta tag next to an unusable header.
+    expect(checkReferrerPolicy(undefined, 'always')).toMatchObject({ status: 'meta', detail: 'effective: unsafe-url' });
+    expect(checkReferrerPolicy(undefined, 'never')).toMatchObject({ status: 'meta', detail: 'effective: no-referrer' });
+    expect(checkReferrerPolicy('always', null).status).toBe('invalid');
+    expect(checkReferrerPolicy('bogus', 'same-origin')).toMatchObject({ status: 'meta', detail: 'effective: same-origin' });
   });
 
   it('Permissions-Policy: structured value; Feature-Policy is the old name', () => {
@@ -88,6 +94,10 @@ describe('analyzeSecurity', () => {
     expect(result.headers.find((h) => h.key === 'csp')?.status).toBe('meta');
     expect(result.headers.find((h) => h.key === 'referrer-policy')?.status).toBe('meta');
     expect(result.headersPresent).toBe(2);
+  });
+
+  it('an unknown final address is a manual check, not a missing HTTPS', () => {
+    expect(analyzeSecurity(makeCapture({ requests: [], finalUrl: null })).https).toEqual({ result: 'manual', finalUrl: null, textId: 'security-https-manual' });
   });
 
   it('maps every probe outcome; unsure means manual, no http at all is only information', () => {

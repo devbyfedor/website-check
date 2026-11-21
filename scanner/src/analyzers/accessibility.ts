@@ -58,7 +58,7 @@ function sum(rules: AxeRuleResult[], key: 'violations' | 'incomplete' | 'passes'
 
 function textIdOf(id: A11yCheckId, result: A11yCheck['result'], axe: AxeCapture): string | null {
   if (result === 'pass') return null;
-  if (result === 'manual') return 'a11y-manual-check';
+  if (result === 'manual') return id === 'color-contrast' ? 'a11y-manual-check-contrast' : 'a11y-manual-check';
   if (id !== 'page-language') return `a11y-${id}`;
   return (axe.rules['html-has-lang']?.violations ?? 0) > 0 ? 'a11y-html-has-lang' : 'a11y-html-lang-valid';
 }

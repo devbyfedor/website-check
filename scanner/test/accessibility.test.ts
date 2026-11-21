@@ -43,6 +43,7 @@ describe('analyzeAccessibility', () => {
         'color-contrast': { violations: 14, incomplete: 3, examples: [example], incompleteExamples: [example, example] },
         'image-alt': { violations: 5, passes: 12, incomplete: 0 },
         label: { incomplete: 2, incompleteExamples: [example] },
+        'button-name': { violations: 0 },
       }),
     });
     const result = analyzeAccessibility(capture);
@@ -52,6 +53,11 @@ describe('analyzeAccessibility', () => {
     expect(byId['label']).toMatchObject({ result: 'manual', textId: 'a11y-manual-check', examples: [example] });
     expect(result.counts).toEqual({ failed: 2, manual: 1, violations: 19 });
     expect(result.images).toEqual({ total: 17, withDescription: 12 });
+  });
+
+  it('undecided contrast gets its own manual-check text', () => {
+    const result = analyzeAccessibility(makeCapture({ requests: [], axe: axe({ 'color-contrast': { incomplete: 4, incompleteExamples: [example] } }) }));
+    expect(result.checks[0]).toMatchObject({ id: 'color-contrast', result: 'manual', textId: 'a11y-manual-check-contrast', examples: [example] });
   });
 
   it('names the page-language text by the rule that failed', () => {

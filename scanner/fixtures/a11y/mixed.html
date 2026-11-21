@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bäckerei Muster – Frisches Brot aus Musterstadt</title>
+<!--
+  Mixed fixture: a small homepage of an invented bakery with several errors at once.
+  Expected counts: scanner/fixtures/a11y/expected.json.
+  color-contrast (4): hero subline, "Angebot der Woche" badge, footer address line, and the hint line
+    inside the cookie bar, which lives in an OPEN shadow root.
+  image-alt (2): logo without alt, one product image without alt.
+  link-name (2): the logo link (its only image has no alt), one social icon link without a name.
+  button-name (2): search button with an icon only, and the close button of the cookie bar (shadow root).
+  label (1): search field without label and without placeholder. The newsletter field has a placeholder only,
+    which axe accepts.
+  Not counted: everything in the mobile menu, which is hidden with display:none (empty button, image without
+    alt, input without label, empty link, light text).
+  The page fits into a 1440 x 900 viewport, so the fixed cookie bar covers no content.
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; color: #1f1f1f; background: #ffffff; padding-bottom: 120px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 12px 40px; border-bottom: 1px solid #e5e5e5; }
+  .logo img { display: block; }
+  nav ul { display: flex; gap: 24px; list-style: none; margin: 0; padding: 0; }
+  nav a { color: #1f3a5f; text-decoration: none; font-weight: bold; }
+  .suche { display: flex; gap: 8px; align-items: center; margin: 0; }
+  .suche input { font-size: 16px; padding: 6px 8px; border: 1px solid #767676; color: #1f1f1f; background: #ffffff; }
+  .suche button { width: 36px; height: 34px; border: 1px solid #1f3a5f; background: #1f3a5f; padding: 0; }
+  .hero { background: #f6efe6; padding: 28px 40px; }
+  .hero h1 { font-size: 36px; margin: 0 0 8px; color: #3b2a1a; }
+  .hero p { margin: 0 0 14px; }
+  .hero .unterzeile { color: #b3a594; font-size: 18px; }
+  .badge { display: inline-block; background: #f0a040; color: #ffffff; padding: 4px 8px; font-size: 14px; font-weight: bold; }
+  .cta { display: inline-block; background: #7a3e00; color: #ffffff; padding: 10px 16px; text-decoration: none; font-weight: bold; }
+  .produkte { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px 24px; padding: 20px 40px; }
+  .produkte h2 { grid-column: 1 / -1; margin: 0; font-size: 24px; }
+  .karte img { display: block; width: 100%; height: 110px; object-fit: cover; }
+  .karte h3 { font-size: 18px; margin: 8px 0 2px; }
+  .karte .preis { margin: 0; color: #5c4a36; }
+  .newsletter { padding: 0 40px 20px; display: flex; gap: 12px; align-items: center; }
+  .newsletter input { font-size: 16px; padding: 6px 8px; border: 1px solid #767676; width: 360px; color: #1f1f1f; background: #ffffff; }
+  .newsletter button { font-size: 16px; padding: 7px 14px; background: #1f3a5f; color: #ffffff; border: 0; }
+  footer { background: #2b2b2b; color: #e0e0e0; padding: 16px 40px; display: flex; justify-content: space-between; align-items: center; }
+  footer ul { display: flex; gap: 16px; list-style: none; margin: 0; padding: 0; }
+  footer a { color: #ffffff; }
+  footer .klein { color: #6b6b6b; font-size: 13px; margin: 6px 0 0; }
+  .social { display: flex; gap: 12px; }
+  .social a { display: inline-block; width: 24px; height: 24px; }
+  .mobile-menu { display: none; }
+  .mobile-menu p { color: #dddddd; }
+  #cookie-hinweis { position: fixed; left: 0; right: 0; bottom: 0; }
+</style>
+</head>
+<body>
+  <header>
+    <a class="logo" href="index.html"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='44'%3E%3Crect width='180' height='44' rx='8' fill='%237a3e00'/%3E%3Ccircle cx='22' cy='22' r='12' fill='%23f6efe6'/%3E%3C/svg%3E" width="180" height="44"></a>
+    <nav aria-label="Hauptnavigation">
+      <ul>
+        <li><a href="sortiment.html">Sortiment</a></li>
+        <li><a href="filialen.html">Filialen</a></li>
+        <li><a href="ueber-uns.html">Über uns</a></li>
+        <li><a href="kontakt.html">Kontakt</a></li>
+      </ul>
+    </nav>
+    <form class="suche" action="suche.html" role="search">
+      <input type="search" name="q">
+      <button type="submit"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="7.5" cy="7.5" r="5.5" fill="none" stroke="#ffffff" stroke-width="2"/><path d="M11.5 11.5 L16 16" stroke="#ffffff" stroke-width="2"/></svg></button>
+    </form>
+  </header>
+
+  <div class="mobile-menu">
+    <button type="button"></button>
+    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Crect width='24' height='24' fill='%237a3e00'/%3E%3C/svg%3E" width="24" height="24">
+    <input type="text" name="mobil-suche">
+    <a href="menue.html"></a>
+    <p>Menü</p>
+  </div>
+
+  <main>
+    <section class="hero">
+      <h1>Frisches Brot aus Musterstadt</h1>
+      <p class="unterzeile">Seit drei Generationen backen wir jeden Morgen für Sie.</p>
+      <p><span class="badge">Angebot der Woche: Dinkelbrot</span></p>
+      <a class="cta" href="sortiment.html">Zum Sortiment</a>
+    </section>
+
+    <section class="produkte">
+      <h2>Beliebt bei unseren Kunden</h2>
+      <div class="karte">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='110'%3E%3Crect width='320' height='110' fill='%23c9a26b'/%3E%3Cellipse cx='160' cy='60' rx='90' ry='34' fill='%238a5a2b'/%3E%3C/svg%3E" width="320" height="110" alt="Roggenbrot im Anschnitt">
+        <h3>Roggenbrot</h3>
+        <p class="preis">3,40 €</p>
+      </div>
+      <div class="karte">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='110'%3E%3Crect width='320' height='110' fill='%23e8d5b5'/%3E%3Ccircle cx='160' cy='55' r='36' fill='%23a0522d'/%3E%3C/svg%3E" width="320" height="110" alt="Laugenbrezel mit grobem Salz">
+        <h3>Brezel</h3>
+        <p class="preis">0,90 €</p>
+      </div>
+      <div class="karte">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='110'%3E%3Crect width='320' height='110' fill='%23f3e3c3'/%3E%3Cpath d='M90 85 Q160 10 230 85 Z' fill='%23d2913d'/%3E%3C/svg%3E" width="320" height="110">
+        <h3>Croissant</h3>
+        <p class="preis">1,30 €</p>
+      </div>
+      <div class="karte">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='110'%3E%3Crect width='320' height='110' fill='%23ead7c0'/%3E%3Crect x='100' y='30' width='120' height='50' rx='10' fill='%23b5651d'/%3E%3C/svg%3E" width="320" height="110" alt="Ein Stück Apfelkuchen">
+        <h3>Apfelkuchen</h3>
+        <p class="preis">2,80 €</p>
+      </div>
+    </section>
+
+    <section class="newsletter">
+      <input type="email" name="newsletter" placeholder="Ihre E-Mail-Adresse für den Newsletter">
+      <button type="button">Anmelden</button>
+    </section>
+  </main>
+
+  <footer>
+    <div>
+      <ul>
+        <li><a href="impressum.html">Impressum</a></li>
+        <li><a href="datenschutz.html">Datenschutz</a></li>
+        <li><a href="barrierefreiheit.html">Barrierefreiheit</a></li>
+      </ul>
+      <p class="klein">© 2026 Bäckerei Muster, Musterstraße 1, 12345 Musterstadt</p>
+    </div>
+    <div class="social">
+      <a href="netzwerk-a.html" aria-label="Bäckerei Muster im Netzwerk A"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="2" y="2" width="20" height="20" rx="6" fill="#ffffff"/></svg></a>
+      <a href="netzwerk-b.html"><svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#ffffff"/></svg></a>
+    </div>
+  </footer>
+
+  <div id="cookie-hinweis"></div>
+  <script>
+    (function () {
+      var root = document.getElementById('cookie-hinweis').attachShadow({ mode: 'open' });
+      root.innerHTML =
+        '<style>' +
+        '.leiste { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 12px 40px;' +
+        ' background: #ffffff; border-top: 1px solid #d0d0d0; color: #1f1f1f; font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 1.4; }' +
+        '.leiste p { margin: 0; }' +
+        '.leiste a { color: #1f3a5f; }' +
+        '.hinweis { color: #a0a0a0; }' +
+        '.knoepfe { display: flex; gap: 12px; align-items: center; }' +
+        '.knoepfe button { font-size: 15px; padding: 8px 14px; cursor: pointer; }' +
+        '.ok { background: #1f3a5f; color: #ffffff; border: 1px solid #1f3a5f; }' +
+        '.nur { background: #ffffff; color: #1f3a5f; border: 1px solid #1f3a5f; }' +
+        '.knoepfe .zu { width: 32px; height: 32px; padding: 0; background: #ffffff; border: 0; }' +
+        '</style>' +
+        '<div class="leiste">' +
+        '<div>' +
+        '<p class="text">Wir verwenden Cookies, um unsere Website zu verbessern. Mehr dazu in der <a href="datenschutz.html">Datenschutzerklärung</a>.</p>' +
+        '<p class="hinweis">Ihre Auswahl können Sie jederzeit in den Einstellungen ändern.</p>' +
+        '</div>' +
+        '<div class="knoepfe">' +
+        '<button type="button" class="ok">Alle akzeptieren</button>' +
+        '<button type="button" class="nur">Nur notwendige</button>' +
+        '<button type="button" class="zu"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M1 1 L13 13 M13 1 L1 13" stroke="#1f1f1f" stroke-width="2"/></svg></button>' +
+        '</div>' +
+        '</div>';
+    })();
+  </script>
+</body>
+</html>

@@ -336,10 +336,18 @@ async function runCapture(
       .then((response) => response.result.value ?? null)
       .catch(() => null);
   }
+  const failure = failureOf(
+    navigationError,
+    mainResponse === null ? null : { status: mainResponse.status(), headers },
+    snapshot,
+    records.length,
+  );
+  // axe only on a page that was captured: an error page, a check page or a timeout costs no browser time.
   let axe: AxeCapture | null = null;
   if (settings.axeSource !== null) {
     const budget = axeBudgetMs(Date.now() - contextStarted, settings.hardLimitMs);
-    if (navigationError !== null || snapshot === null || hardLimitHit() || crashed || page.isClosed()) axe = axeNotRun('skipped', 'the page did not load');
+    if (failure !== null || snapshot === null || hardLimitHit() || crashed || page.isClosed())
+      axe = axeNotRun('skipped', failure === null ? 'the page did not load' : `the page was not captured (${failure.reason})`);
     else if (budget === 0) axe = axeNotRun('skipped', 'no time left before the hard limit of the page');
     else axe = await runAxeOverCdp(client, settings.axeSource, budget);
   }
@@ -354,12 +362,6 @@ async function runCapture(
     if (response !== mainResponse) redirectChain.push({ url: response.url(), status: response.status() });
   }
 
-  const failure = failureOf(
-    navigationError,
-    mainResponse === null ? null : { status: mainResponse.status(), headers },
-    snapshot,
-    records.length,
-  );
   // The probe uses the browser's clock; the first main document request starts at about the
   // browser's navigation start (`timeOrigin`).
   const firstDocument = records.find((r) => r.isMainFrame && r.isNavigation);

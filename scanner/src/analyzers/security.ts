@@ -82,19 +82,44 @@ function firstValue(value: string): string {
   return (value.split(/\n/)[0] ?? '').trim();
 }
 
-function check(key: SecurityHeaderKey, header: SecurityHeaderName, status: HeaderStatus, value: string | null, detail: string | null = null): HeaderCheck {
-  const counts = status === 'present' || status === 'meta';
-  const textId = counts && status === 'present' ? null : status === 'meta' ? `security-header-${key}-meta` : status === 'report-only' ? 'security-header-csp-report-only' : status === 'legacy' ? 'security-header-permissions-policy-legacy' : `security-header-${key}-${status}`;
-  return { key, header, status, counts, value: clip(value), detail, textId };
+function defaultTextId(key: SecurityHeaderKey, status: HeaderStatus): string | null {
+  switch (status) {
+    case 'present':
+      return null;
+    case 'meta':
+      return `security-header-${key}-meta`;
+    case 'report-only':
+      return 'security-header-csp-report-only';
+    case 'legacy':
+      return 'security-header-permissions-policy-legacy';
+    case 'missing':
+    case 'invalid':
+      return `security-header-${key}-${status}`;
+  }
 }
 
-/** RFC 6797: only the first header counts; `max-age` is required, 0 removes the policy. */
+function check(
+  key: SecurityHeaderKey,
+  header: SecurityHeaderName,
+  status: HeaderStatus,
+  value: string | null,
+  detail: string | null = null,
+  textId: string | null = defaultTextId(key, status),
+): HeaderCheck {
+  return { key, header, status, counts: status === 'present' || status === 'meta', value: clip(value), detail, textId };
+}
+
+/**
+ * RFC 6797: only the first header counts; `max-age` is required, 0 removes the policy. On a page
+ * without HTTPS the header has no effect and gets no text of its own: `security-https-missing` covers it.
+ */
 export function checkHsts(value: string | undefined, isHttps: boolean): HeaderCheck {
-  if (value === undefined || value.trim() === '') return check('hsts', 'strict-transport-security', 'missing', null);
-  const first = (firstValue(value).split(',')[0] ?? '').trim();
-  if (!isHttps) return check('hsts', 'strict-transport-security', 'invalid', first, 'not-https');
+  const set = value !== undefined && value.trim() !== '';
+  const first = set ? (firstValue(value).split(',')[0] ?? '').trim() : null;
+  if (!isHttps) return check('hsts', 'strict-transport-security', set ? 'invalid' : 'missing', first, 'not-https', null);
+  if (first === null) return check('hsts', 'strict-transport-security', 'missing', null);
   const match = /(?:^|;)\s*max-age\s*=\s*"?(\d+)"?\s*(?:;|$)/i.exec(first);
-  if (match === null) return check('hsts', 'strict-transport-security', 'invalid', first, 'no-max-age');
+  if (match === null) return check('hsts', 'strict-transport-security', 'invalid', first, 'no-max-age', 'security-header-hsts-no-max-age');
   const maxAge = Number(match[1]);
   if (maxAge === 0) return check('hsts', 'strict-transport-security', 'invalid', first, 'max-age=0');
   return check('hsts', 'strict-transport-security', 'present', first, `max-age=${maxAge}`);
@@ -123,15 +148,34 @@ export function checkXcto(value: string | undefined): HeaderCheck {
   return first.toLowerCase() === 'nosniff' ? check('xcto', 'x-content-type-options', 'present', first) : check('xcto', 'x-content-type-options', 'invalid', first, 'not-nosniff');
 }
 
-/** The browser uses the last token it knows; unknown tokens are skipped. */
+/**
+ * Old values that the HTML standard still accepts in `<meta name="referrer">` (not in the header):
+ * never, default, always, origin-when-crossorigin.
+ */
+const LEGACY_META_REFERRER: Record<string, string> = {
+  never: 'no-referrer',
+  default: 'strict-origin-when-cross-origin',
+  always: 'unsafe-url',
+  'origin-when-crossorigin': 'origin-when-cross-origin',
+};
+
+/** The browser uses the last token it knows; unknown tokens are skipped. A valid meta tag wins over an unusable header. */
 export function checkReferrerPolicy(value: string | undefined, meta: string | null): HeaderCheck {
   const known = (raw: string): string[] => raw.split(/[,\n]/).map((t) => t.trim().toLowerCase()).filter((t) => REFERRER_TOKENS.has(t));
+  const metaPolicy = ((): string | null => {
+    if (meta === null) return null;
+    const token = meta.trim().toLowerCase();
+    return REFERRER_TOKENS.has(token) ? token : (LEGACY_META_REFERRER[token] ?? null);
+  })();
+  let invalidHeader: string | null = null;
   if (value !== undefined && value.trim() !== '') {
     const tokens = known(value);
     const policy = value.replace(/\n/g, ', ').trim();
-    return tokens.length > 0 ? check('referrer-policy', 'referrer-policy', 'present', policy, `effective: ${tokens.at(-1)}`) : check('referrer-policy', 'referrer-policy', 'invalid', policy, 'no-known-token');
+    if (tokens.length > 0) return check('referrer-policy', 'referrer-policy', 'present', policy, `effective: ${tokens.at(-1)}`);
+    invalidHeader = policy;
   }
-  if (meta !== null && known(meta).length > 0) return check('referrer-policy', 'referrer-policy', 'meta', meta.trim(), `effective: ${known(meta).at(-1)}`);
+  if (meta !== null && metaPolicy !== null) return check('referrer-policy', 'referrer-policy', 'meta', meta.trim(), `effective: ${metaPolicy}`);
+  if (invalidHeader !== null) return check('referrer-policy', 'referrer-policy', 'invalid', invalidHeader, 'no-known-token');
   return check('referrer-policy', 'referrer-policy', 'missing', null);
 }
 
@@ -176,7 +220,7 @@ export function analyzeSecurity(capture: Capture): SecurityAnalysis {
       ? { result: 'pass', finalUrl: capture.finalUrl, textId: 'security-https-ok' }
       : protocol === 'http:'
         ? { result: 'fail', finalUrl: capture.finalUrl, textId: 'security-https-missing' }
-        : { result: 'manual', finalUrl: capture.finalUrl, textId: 'security-https-missing' };
+        : { result: 'manual', finalUrl: capture.finalUrl, textId: 'security-https-manual' };
   const probe = capture.httpProbe ?? null;
   const redirect = redirectResult(probe?.outcome ?? null);
   const h = capture.mainDocument?.headers ?? {};

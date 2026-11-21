@@ -6,7 +6,10 @@ import type { ThirdPartyAnalysis } from '../analyzers/third-party.ts';
 import { recheckCapture } from '../capture/failure.ts';
 import type { Capture, CaptureFailureReason } from '../capture/types.ts';
 import { DEFAULT_RULES } from '../data.ts';
-import { captureWithPlaywright, launchLocalBrowser, type LocalCaptureResult } from './playwright-capture.ts';
+import type { AxeCapture } from '../a11y/types.ts';
+import { compareAxeRuns, runReferenceAxe, type AxeComparison, type ReferenceRun } from './axe-reference.ts';
+import { loadAxeSource } from './axe-source.ts';
+import { captureWithPlaywright, launchLocalBrowser, runAxeInPlaywright, type LocalCaptureResult } from './playwright-capture.ts';
 import { parseSitesFile } from './sites-file.ts';
 import { renderSummaryMarkdown, summarizeRun, type SiteRunResult } from './summary.ts';
 
@@ -20,6 +23,10 @@ import { renderSummaryMarkdown, summarizeRun, type SiteRunResult } from './summa
  *   local/results/site-07.json               the third-party analysis
  *   local/results/summary.json|.md           aggregated numbers, anonymous labels only
  * The console shows anonymous labels only.
+ *
+ * `--axe-reference 3,7` (session A3): on these sites, right after our axe run, the standard
+ * `@axe-core/playwright` run of the same rules and then our run once more, all on the same page
+ * load; the comparison goes to local/results/axe-reference-site-07.json.
  */
 
 const RETRYABLE = new Set<CaptureFailureReason>(['timeout', 'unreachable', 'other']);
@@ -33,8 +40,11 @@ async function main(): Promise<void> {
       retries: { type: 'string', default: '1' },
       // Recompute analyses and the summary from the saved captures, without visiting any site.
       reanalyze: { type: 'boolean', default: false },
+      'axe-reference': { type: 'string' },
     },
   });
+  const referenceSites = new Set((values['axe-reference'] ?? '').split(',').map((n) => n.trim()).filter((n) => n !== '').map((n) => n.padStart(2, '0')));
+  const references: Record<string, AxeComparison> = {};
   const sitesPath = resolve(values.sites);
   const outDir = resolve(values.out);
   const retries = Number(values.retries);
@@ -73,7 +83,19 @@ async function main(): Promise<void> {
       let result: LocalCaptureResult;
       for (;;) {
         attempts += 1;
-        result = await captureWithPlaywright(browser, site.url, { artifacts: true });
+        const withReference = referenceSites.has(site.number);
+        result = await captureWithPlaywright(browser, site.url, {
+          artifacts: true,
+          ...(withReference
+            ? {
+                afterChecks: async (page) => {
+                  const reference = await runReferenceAxe(page);
+                  const again = await runAxeInPlaywright(page, await loadAxeSource(), 20_000);
+                  return { reference, again };
+                },
+              }
+            : {}),
+        });
         const reason = result.capture.failure?.reason;
         if (reason === undefined || !RETRYABLE.has(reason) || attempts > retries) break;
         console.log(`${site.label}: ${reason}, retrying`);
@@ -87,16 +109,37 @@ async function main(): Promise<void> {
       const analysis = analyzeCapture(capture, DEFAULT_RULES).thirdParty;
       await writeResult(outDir, base, analysis);
       results.push({ label: site.label, kind: site.kind, platform: site.platform, attempts, capture, analysis });
+      if (result.after !== undefined) {
+        const after = result.after as { reference?: ReferenceRun; again?: AxeCapture; error?: string };
+        const comparison = after.reference === undefined ? null : compareAxeRuns(capture.axe, after.reference, after.again ?? null);
+        if (comparison !== null) references[site.label] = comparison;
+        await writeFile(resolve(outDir, 'results', `axe-reference-${base}.json`), `${JSON.stringify({ label: site.label, ours: capture.axe, ...after, comparison }, null, 2)}\n`);
+        console.log(
+          comparison === null
+            ? `${site.label}: reference run failed: ${after.error ?? 'unknown'}`
+            : `${site.label}: axe ours vs standard ${comparison.allSame ? 'SAME' : 'DIFFERENT'} (${comparison.rules.map((r) => `${r.rule} ${r.ours}/${r.reference}/${r.oursAgain}`).join(', ')}); versions ${comparison.versions.ours}/${comparison.versions.reference}; standard run ${after.reference?.ms} ms`,
+        );
+      }
+      const a11y = capture.axe;
+      const security = capture.ok ? analyzeCapture(capture, DEFAULT_RULES).security : null;
       const line = capture.ok
         ? `ok ${(capture.timings.endMs / 1000).toFixed(1)} s (${capture.timings.stopReason}), ${capture.requests.length} requests, ` +
           `${analysis?.counts.findings ?? 0} findings, ${analysis?.counts.hints ?? 0} hints, banner ${capture.consentBanner.detected ? `${capture.consentBanner.toolId} at ${capture.consentBanner.visibleAtMs} ms` : 'not seen'}`
         : `FAILED ${capture.failure?.reason}: ${capture.failure?.message.slice(0, 100)}`;
-      console.log(`${site.label}: ${line}`);
+      const extra = capture.ok
+        ? `; axe ${a11y?.status ?? 'none'} ${a11y?.status === 'ok' ? Object.entries(a11y.rules).map(([id, r]) => `${id} ${r.violations}`).join(' ') : (a11y?.error ?? '')} in ${a11y?.timing.totalMs ?? 0} ms; https ${security?.https.result}, redirect ${capture.httpProbe?.outcome ?? 'none'}, headers ${security?.headersPresent}/5`
+        : '';
+      console.log(`${site.label}: ${line}${extra}`);
     }
   } finally {
     await browser.close();
   }
 
+  if (Object.keys(references).length > 0) {
+    await writeFile(resolve(outDir, 'results', 'axe-reference.json'), `${JSON.stringify(references, null, 2)}\n`);
+    const same = Object.values(references).filter((c) => c.allSame).length;
+    console.log(`\naxe comparison with the standard run: ${same} of ${Object.keys(references).length} sites the same on every rule`);
+  }
   if (only === null) await writeSummary(outDir, results);
 }
 

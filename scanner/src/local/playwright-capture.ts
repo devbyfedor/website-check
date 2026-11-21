@@ -358,11 +358,22 @@ async function runCapture(
   if (navigationError === null && !hardLimitHit() && !crashed) {
     snapshot = await withTimeout(page.evaluate(SNAPSHOT_EXPRESSION) as Promise<SnapshotResult>, 4_000).catch(() => null);
   }
-  const pageUsable = (): boolean => navigationError === null && snapshot !== null && !hardLimitHit() && !crashed && !page.isClosed();
+  let failure: CaptureFailure | null = null;
+  if (navigationError !== null) {
+    failure = { reason: classifyNavigationError(navigationError), message: navigationError };
+  } else if (mainResponse === null) {
+    failure = { reason: 'other', message: 'no main document response' };
+  } else {
+    failure = classifyMainDocument(mainResponse.status(), headers, snapshot?.title ?? '', pageEvidenceOf(snapshot, records.length));
+  }
+
+  // axe only on a page that was captured: an error page, a check page or a timeout gets no
+  // accessibility result and costs no browser time.
+  const pageUsable = (): boolean => failure === null && snapshot !== null && !hardLimitHit() && !crashed && !page.isClosed();
   let axe: AxeCapture | null = null;
   if (settings.axeSource !== null) {
     const budget = axeBudgetMs(performance.now() - contextStarted, settings.hardLimitMs);
-    if (!pageUsable()) axe = axeNotRun('skipped', 'the page did not load');
+    if (!pageUsable()) axe = axeNotRun('skipped', failure === null ? 'the page did not load' : `the page was not captured (${failure.reason})`);
     else if (budget === 0) axe = axeNotRun('skipped', 'no time left before the hard limit of the page');
     else axe = await runAxeInPlaywright(page, settings.axeSource, budget);
   }
@@ -394,15 +405,6 @@ async function runCapture(
     }
     redirectChain.push(...hops);
     if (response !== mainResponse) redirectChain.push({ url: response.url(), status: response.status() });
-  }
-
-  let failure: CaptureFailure | null = null;
-  if (navigationError !== null) {
-    failure = { reason: classifyNavigationError(navigationError), message: navigationError };
-  } else if (mainResponse === null) {
-    failure = { reason: 'other', message: 'no main document response' };
-  } else {
-    failure = classifyMainDocument(mainResponse.status(), headers, snapshot?.title ?? '', pageEvidenceOf(snapshot, records.length));
   }
 
   const probe = snapshot?.probe ?? null;

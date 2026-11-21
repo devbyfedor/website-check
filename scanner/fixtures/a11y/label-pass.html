@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Muster GmbH – Rückrufservice</title>
+<!--
+  Fixture for axe rule label (pass page). Expected counts: scanner/fixtures/a11y/expected.json.
+  Every field has a name: label for=, wrapping label, aria-label, aria-labelledby, title, checkbox in a label.
+  Not counted: type=hidden, type=submit, the button, and the unlabelled input hidden with display:none.
+-->
+<style>
+  body { margin: 0; padding: 24px 32px; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; color: #1a1a1a; background: #ffffff; }
+  h1 { font-size: 28px; margin: 0 0 16px; }
+  h2 { font-size: 18px; margin: 0 0 4px; }
+  .zeile { margin: 0 0 12px; }
+  input, textarea, select, button { font-size: 16px; color: #1a1a1a; }
+  .versteckt { display: none; }
+</style>
+</head>
+<body>
+  <h1>Rückruf bei der Muster GmbH</h1>
+  <form action="danke.html" method="post">
+    <input type="hidden" name="formular" value="rueckruf">
+    <div class="zeile"><label for="name">Ihr Name</label> <input type="text" id="name" name="name"></div>
+    <div class="zeile"><label>E-Mail-Adresse <input type="email" name="email"></label></div>
+    <div class="zeile"><input type="search" name="suche" aria-label="Produkte durchsuchen"></div>
+    <div class="zeile"><h2 id="telefon-titel">Telefonnummer für den Rückruf</h2><input type="tel" name="telefon" aria-labelledby="telefon-titel"></div>
+    <div class="zeile"><input type="text" name="plz" title="Postleitzahl"></div>
+    <div class="zeile"><label for="nachricht">Ihre Nachricht</label><br><textarea id="nachricht" name="nachricht" rows="3" cols="40"></textarea></div>
+    <div class="zeile"><label><input type="checkbox" name="einwilligung" value="ja"> Ich möchte zurückgerufen werden.</label></div>
+    <div class="versteckt"><input type="text" name="firma"></div>
+    <div class="zeile"><input type="submit" value="Absenden"> <button type="reset">Zurücksetzen</button></div>
+  </form>
+</body>
+</html>

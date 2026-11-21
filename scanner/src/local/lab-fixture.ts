@@ -1,5 +1,21 @@
+import { readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { basename, resolve } from 'node:path';
+
+/** The accessibility fixture pages of session A3 (`scanner/fixtures/a11y/`), served at `/a11y/<file>`. */
+export const A11Y_FIXTURE_DIR = resolve(import.meta.dirname, '../../fixtures/a11y');
+
+export interface A11yFixtureExpectation {
+  violations: Record<string, number>;
+  incomplete: Record<string, number>;
+  note?: string;
+}
+
+export function a11yFixtureExpectations(): Record<string, A11yFixtureExpectation> {
+  const manifest = JSON.parse(readFileSync(resolve(A11Y_FIXTURE_DIR, 'expected.json'), 'utf8')) as { pages: Record<string, A11yFixtureExpectation> };
+  return manifest.pages;
+}
 
 /**
  * Local fixture site for debugging the Cloudflare adapter with plain `wrangler dev` (which
@@ -25,6 +41,8 @@ export interface LabFixture {
   startUrl: string;
   /** Page with 300 images, more than the default Resource Timing buffer of 250. */
   manyUrl: string;
+  /** The accessibility fixture pages (A3), by file name. */
+  a11yUrls: Record<string, string>;
   recorded: RecordedRequest[];
   close(): Promise<void>;
 }
@@ -127,8 +145,16 @@ tls=off
       send(res, 200, 'text/html; charset=utf-8', page(images));
       return;
     }
-    default:
+    default: {
+      if (host === '127.0.0.1' && url.pathname.startsWith('/a11y/')) {
+        const name = basename(url.pathname);
+        if (/^[a-z-]+\.html$/.test(name) && name in a11yFixtureExpectations()) {
+          send(res, 200, 'text/html; charset=utf-8', readFileSync(resolve(A11Y_FIXTURE_DIR, name), 'utf8'));
+          return;
+        }
+      }
       send(res, 404, 'text/plain', 'not found');
+    }
   }
 }
 
@@ -142,6 +168,7 @@ export async function startLabFixture(port = 0): Promise<LabFixture> {
     port: actualPort,
     startUrl: `http://127.0.0.1:${actualPort}/start`,
     manyUrl: `http://127.0.0.1:${actualPort}/many`,
+    a11yUrls: Object.fromEntries(Object.keys(a11yFixtureExpectations()).map((name) => [name, `http://127.0.0.1:${actualPort}/a11y/${name}`])),
     recorded,
     close: () => new Promise((resolve) => server.close(() => resolve())),
   };
