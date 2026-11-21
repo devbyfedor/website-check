@@ -103,6 +103,43 @@ The lab Worker (redeployed) passes `/lab/cpu` to the Durable Object `LabBrowser`
 
 Result: a Durable Object on the free plan ran 1.5 s and 5 s of CPU in one request without being stopped, 150 to 500 times the 10 ms of a Worker.
 
+### Step 2: capture inside the Durable Object
+
+- `worker/src/lab/`: the Worker (`createLabGate`) checks the token and passes the request on unchanged in URL and body, without the authorization header, to the Durable Object `LabBrowser` in `LAB_BROWSER.jurisdiction("eu")`; the answer goes back unparsed. The object (`createLabRoutes`) runs the same routes as in part 1 (limits, session, trace, capture, close) plus `/lab/cpu`. As in Cloudflare's guide it keeps the browser in memory and reuses it while it is connected; an alarm closes a browser that got no job for 30 s, the browser's own idle timeout is 10 s. Local `wrangler dev` has no jurisdictions, so only there (dev switch and loopback address) the plain namespace is used.
+- Both strategies unchanged, same `Capture` format. Strategy (a) now sends a harmless command every 3 s while it waits, so the kept browser is not closed as idle on a page that runs to the 15 s limit.
+- Debugged on plain `wrangler dev` with the local Chrome against the fixture site, 0 Cloudflare minutes: the same requests as in part 1 (strategy a 13 of 13, strategy b 9 of 13, 300 of 300 images in both), the same language, time zone and platform in a cross-site iframe.
+
+### Step 3: blocked pages
+
+- `scanner/src/capture/failure.ts`: a check page of a web host with HTTP 200 (or 503) is `blocked` (rule and reason in `docs/decisions.md`): almost empty page and either a whole "please wait" title or a sentence that the request or the browser is being checked. Both adapters pass title, text, links and the number of requests.
+- `scanner/src/analyzers/capture.ts`: `analyzeCapture` is the one entry point of the analysis; a blocked or failed capture gives its state and no analysis, so no findings. Saved captures are decided again (`recheckCapture`); the local runner, the comparison and `explain` use it.
+- Tests on synthetic samples only (no real names): 9 check pages recognised, 11 normal pages kept, among them a homepage with a "Bitte warten" phrase, a thank-you page, a Kfz page titled "Sicherheitsprüfung & HU …" and a redirect page; a blocked capture with a tracker request gives no findings, the same requests on a normal page give the finding.
+- On all 72 saved captures (A1 and A2), no site visited: exactly the 2 Cloudflare captures of Site 06 from part 1 change to `blocked`, the other 70 stay as they were.
+- An independent review of steps 2 and 3 before the run found 2 important and 6 minor problems; all were fixed before the run (the title rule was too broad, no browser cap per run, idle closing in strategy a, labels without the run, titles on the console, `explain` and old result files).
+
+### Step 4: check on Cloudflare (one browser session, 21.11.2026, 13:17 to 13:18)
+
+- Browser session: 32.9 s by Cloudflare's history (open to close, `NormalClosure`), one session for the trace page and 8 pages; every page reused the kept browser (no reconnect, no left-over tab). The limit for the step was 2 minutes.
+- Where things run: the Durable Object reports the jurisdiction `eu` and `colo=MXP` (Milan) for its own request to the trace page (its `loc` shows `DE`; what `loc` means for a request made by an object is not documented). The browser it started: `loc=IT`, `colo=MXP`. Part 1 (browser started from a plain Worker) had `loc=NL`, `colo=AMS`. So the browser runs in the EU, but not in Germany, and the place can change between sessions. Inside the page the emulation held: Windows user agent, `de-DE`, `Europe/Berlin`, `Win32`, 1440 x 900, focus.
+- The three sites of part 1 (Site 10, Site 04, Site 14), both strategies, compared with the part 1 capture of the same site and strategy: the set of third-party hosts is the same in 6 of 6 (0 only now, 0 only then), the findings are the same in 6 of 6, the banner is the same tool in 6 of 6. Request counts: Site 10 and Site 14 exactly as in part 1, Site 04 297 and 299 instead of 301 and 306 (dynamic requests of the shop, same hosts).
+- Site 06 was not blocked this time: from Milan its web host let the browser in, and both strategies captured the real homepage (CookieYes banner, 90 and 108 requests). The scanner therefore correctly treated both captures as normal pages. Recognition of the check page was shown on the two saved captures of part 1 (both `blocked`, no findings). Compared with the local capture made right after: strategy (a) has the same third-party hosts and the same 2 findings (Google Analytics, Google Tag Manager); strategy (b) shows both only as hints (the known hidden status) and has 3 hosts more and 1 less, among them `www.google.it`: Google chose the Italian domain for the browser in Italy.
+- CPU and wall time from `wrangler tail`, outcome `ok` on all 28 events (14 of the Worker, 14 of the Durable Object, including one small CPU request that checked the log stream):
+  - Worker: 0 ms CPU on every request (trace, 8 pages, open, close, limits).
+  - Durable Object per page: strategy (b) 17, 12, 17, 10 ms CPU, wall 3.6, 4.1, 5.7, 4.0 s; strategy (a) 93, 65, 204, 45 ms CPU, wall 2.7, 3.1, 5.6, 3.4 s (Site 10, Site 06, Site 04, Site 14). Trace page 19 ms, opening the browser 8 ms, closing 1 ms.
+  - The Durable Object was never stopped; its largest page (204 ms) is below 1 % of the 30 s per request.
+- Worker outcome `canceled` from step 1 did not appear: this time one driver process sent all requests over one connection, which fits the guess that the short-lived driver process closed the connection early.
+
+### Merge condition of part 2 (no merge in this part)
+
+- `npm test` passes completely: 208 of 208 unit tests. `npm run test:integration`: 10 of 10. `npm run typecheck`: no errors.
+- CPU of the Worker on every request at most 8 ms: yes, 0 ms on all 14 Worker events of the run (and 0 to 1 ms in step 1).
+- The Durable Object never stopped: yes, outcome `ok` on all 14 object events of the run and all 5 of step 1.
+- At most 2 browser minutes for step 4: 32.9 s. Browser time of the day: 73.5 s of 600 (part 1 40.6 s plus 32.9 s); Cloudflare's `usedBrowserTimeSeconds` lags and still showed 40.6 s right after the close.
+- Site 06 recognised as blocked: not possible live, because Site 06 did not block the browser this time; recognised on the 2 saved check pages of part 1.
+- `git ls-files local` is empty; no token in any tracked file.
+
+Session time: about 45 minutes (12:37 to 13:22). Browser minutes in this session: 0.55 (32.9 s), all in step 4; steps 1 to 3 used none.
+
 ## Next
 
-- A2 part 2, as Fedor planned: banner probe fixes (shadow roots, Cookie Notice, late banners), the measurement on 12 sites with both strategies, `docs/measurements/a2.md` with the plan recommendation (A, B or C) with numbers, the merge into `main`, and deleting the lab Worker (`npx wrangler delete -c worker/wrangler.lab.jsonc`). From part 1, in `docs/backlog.md`: blocked pages with HTTP 200, preflights and `data:` requests in strategy (a), the hidden status in strategy (b), the browser location (Netherlands), and where the fixed CPU cost of about 13 ms comes from.
+- A2 part 3, as Fedor planned: banner probe fixes (shadow roots, Cookie Notice, late banners), the measurement on 12 sites with both strategies through the Durable Object, `docs/measurements/a2.md` with the plan recommendation with numbers, the merge into `main`, and deleting the lab Worker (`npx wrangler delete -c worker/wrangler.lab.jsonc`). Quick Actions (plan B) cannot capture the requests of a page (see above). Open items in `docs/backlog.md`: preflights and `data:` requests in strategy (a), the hidden status in strategy (b) (it turned findings into hints on 2 of 4 sites in part 2), the browser location (EU, not Germany, changes between sessions), and one page that runs to the 15 s limit on Cloudflare to check the keep-alive command of strategy (a). Site 06 should be in the 12 sites: whether its web host blocks the browser seems to depend on where the browser runs.
