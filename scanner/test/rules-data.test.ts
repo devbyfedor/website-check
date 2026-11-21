@@ -114,6 +114,10 @@ describe('consent tools data', () => {
     }
   });
 
+  it('finds the Cookie Notice bar by its id alone, whatever its position classes', () => {
+    expect(CONSENT_TOOLS_FILE.tools.find((t) => t.id === 'cookie-notice')?.selectors).toContain('#cookie-notice');
+  });
+
   it('has non-empty selectors and evidence links', () => {
     for (const tool of CONSENT_TOOLS_FILE.tools) {
       expect(tool.selectors.every((s) => s.trim() !== ''), tool.id).toBe(true);

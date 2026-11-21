@@ -109,6 +109,30 @@ describe('captureWithPlaywright on a fixture shop page', () => {
   });
 });
 
+describe('consent banner probe on fixture pages', () => {
+  const banner = async (path: string) => (await captureWithPlaywright(browser, server.url('www.banner.test', path), { maxWaitMs: 5_000 })).capture.consentBanner;
+
+  it('sees a dialog inside the open shadow root of a zero-size element', async () => {
+    expect(await banner('/shadow-dialog')).toMatchObject({ detected: true, toolId: 'generic', method: 'heuristic', selector: 'dialog' });
+  });
+
+  it('sees a fixed bar inside the open shadow root of an empty wrapper', async () => {
+    expect(await banner('/shadow-top')).toMatchObject({ detected: true, toolId: 'generic', method: 'heuristic' });
+  });
+
+  it('sees a 40 px bar at the very bottom of the window', async () => {
+    expect(await banner('/bottom-bar')).toMatchObject({ detected: true, toolId: 'generic', selector: 'div.notice' });
+  });
+
+  it('recognises the Cookie Notice bar by its id, whatever its position classes', async () => {
+    expect(await banner('/cookie-notice')).toMatchObject({ detected: true, toolId: 'cookie-notice', method: 'selector', selector: '#cookie-notice' });
+  });
+
+  it('takes no settings tab, sticky header, newsletter popup or hidden bar for a banner', async () => {
+    expect(await banner('/look-alikes')).toMatchObject({ detected: false, toolId: null, toolsInDom: ['cookie-notice'] });
+  });
+});
+
 describe('captureWithPlaywright limits and failures', () => {
   it('stops a page that never gets quiet at maxWaitMs', async () => {
     const { capture } = await captureWithPlaywright(browser, server.url('www.busy.test'), { maxWaitMs: 3_000 });

@@ -19,6 +19,14 @@ describe('buildBannerProbeScript', () => {
     expect(script).toContain('"shadow":true');
   });
 
+  it('looks into open shadow roots and close to the top and bottom edges', () => {
+    expect(script).toContain('el.shadowRoot.elementFromPoint(x, y)');
+    expect(script).toContain('el.parentNode.host');
+    expect(script).toContain('[0.5, 0.97]');
+    expect(script).toContain('[0.5, 0.03]');
+    expect(script).toContain("cur.getAttribute('aria-label')");
+  });
+
   it('only watches the top-level document and never clicks', () => {
     expect(script).toContain('if (window.top !== window) return;');
     expect(script).not.toMatch(/\.click\(|dispatchEvent|submit\(/);

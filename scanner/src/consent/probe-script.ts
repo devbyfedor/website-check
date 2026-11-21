@@ -29,8 +29,22 @@ export function buildBannerProbeScript(tools: readonly ConsentTool[]): string {
   const state = { found: null, present: {} };
   Object.defineProperty(window, '${BANNER_PROBE_GLOBAL}', { value: state, configurable: true, enumerable: false });
   const now = () => performance.timeOrigin + performance.now();
-  const points = () => [[0.5, 0.92], [0.5, 0.5], [0.5, 0.08], [0.15, 0.9], [0.85, 0.9], [0.1, 0.5], [0.9, 0.5]]
+  // Probe points: centre, near the top and bottom edges (thin bars), bottom corners, sides.
+  const points = () => [[0.5, 0.92], [0.5, 0.97], [0.5, 0.5], [0.5, 0.08], [0.5, 0.03], [0.15, 0.9], [0.85, 0.9], [0.1, 0.5], [0.9, 0.5]]
     .map(([fx, fy]) => [Math.floor(innerWidth * fx), Math.floor(innerHeight * fy)]);
+  // The innermost element at a point, through open shadow roots (a hit inside a shadow root
+  // is reported as its host by document.elementFromPoint). Closed shadow roots stay closed.
+  const deepAt = (x, y) => {
+    let el = document.elementFromPoint(x, y);
+    for (let i = 0; el && el.shadowRoot && i < 10; i += 1) {
+      const inner = el.shadowRoot.elementFromPoint(x, y);
+      if (!inner || inner === el || !el.shadowRoot.contains(inner)) break;
+      el = inner;
+    }
+    return el;
+  };
+  // Parent element, leaving a shadow root through its host.
+  const up = (el) => el.parentElement || (el.parentNode && el.parentNode.host) || null;
   const onScreen = (r) => r.width >= 2 && r.height >= 2 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
   const shown = (el) => {
     if (!el || !el.isConnected) return false;
@@ -74,9 +88,11 @@ export function buildBannerProbeScript(tools: readonly ConsentTool[]): string {
     else if (typeof el.className === 'string' && el.className.trim()) s += '.' + el.className.trim().split(/\\s+/).slice(0, 2).join('.');
     return s;
   };
+  // A visible fixed, sticky or dialog element of at least 15,000 px² and 36 px height that
+  // mentions cookies or consent (text or aria-label) and holds a button or link.
   const checkHeuristic = () => {
     for (const [x, y] of points()) {
-      let cur = document.elementFromPoint(x, y);
+      let cur = deepAt(x, y);
       let depth = 0;
       while (cur && cur !== document.body && cur !== document.documentElement && depth < 30) {
         const style = getComputedStyle(cur);
@@ -84,14 +100,14 @@ export function buildBannerProbeScript(tools: readonly ConsentTool[]): string {
           || cur.getAttribute('role') === 'dialog' || cur.getAttribute('aria-modal') === 'true';
         if (dialogLike) {
           const r = cur.getBoundingClientRect();
-          const text = (cur.innerText || '').slice(0, 4000);
-          if (r.width * r.height >= 15000 && r.height >= 50 && onScreen(r) && CONSENT_WORDS.test(text)
+          const text = ((cur.innerText || '').slice(0, 4000)) + ' ' + (cur.getAttribute('aria-label') || '');
+          if (r.width * r.height >= 15000 && r.height >= 36 && onScreen(r) && CONSENT_WORDS.test(text)
               && cur.querySelector('button, [role="button"], input[type="button"], input[type="submit"], a')) {
             state.found = { toolId: 'generic', selector: describe(cur), method: 'heuristic', at: now() };
             return true;
           }
         }
-        cur = cur.parentElement;
+        cur = up(cur);
         depth += 1;
       }
     }
