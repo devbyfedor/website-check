@@ -2,7 +2,9 @@
 
 ## Current state
 
-Stage A, session A1 (project setup and the first check, locally) is done and merged into `main` with a real merge (`git merge --no-ff a1-setup`). Every point of the merge condition holds (numbers below). Next: session A2, measurement on Cloudflare.
+Stage A, session A1 is merged into `main`. Session A2 (measurement on Cloudflare) is split into two parts (Fedor's decision of 21.11.2026), on branch `a2-cloudflare`:
+- Part 1 (this session): the Cloudflare capture adapter in `worker/` with both strategies, and a check on three sites of whether consent tools behave the same with the Cloudflare browser as with the local run (banner, third-party requests before consent, browser location, Worker CPU and wall time).
+- Part 2 (next session): banner probe fixes, the measurement on 12 sites, `docs/measurements/a2.md` with the plan recommendation, and the merge into `main`. Part 2 also deletes the lab Worker if part 1 deployed one.
 
 ## A1: project setup and the first check, locally (20.11.2026)
 
