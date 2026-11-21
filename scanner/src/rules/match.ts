@@ -13,6 +13,9 @@ import {
  * Matching precedence for a URL: exact host with the longest matching path prefix, then
  * exact host without path, then the most specific wildcard (`*.sub.example.com` before
  * `*.example.com`), again preferring the longest path prefix.
+ *
+ * Hosts can be mapped to a canonical host before matching (`canonicalHost`, for example a
+ * Google country domain to google.com); the data then only names the canonical host.
  */
 
 export interface HostPattern {
@@ -36,6 +39,13 @@ export interface CompiledRules {
   /** Number of host patterns over all services */
   readonly patternCount: number;
   match(url: string): RuleMatch | null;
+  /** The host that matching and grouping use (identity unless a mapping was given) */
+  canonicalHost(host: string): string;
+}
+
+export interface CompileOptions {
+  /** Maps a host to the host the rules name, e.g. `www.google.it` to `www.google.com` */
+  canonicalHost?: (host: string) => string;
 }
 
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -136,13 +146,18 @@ function pickByPath(entries: readonly RuleMatch[] | undefined, path: string): Ru
   return best;
 }
 
-export function compileRules(file: RulesFile): CompiledRules {
+export function compileRules(file: RulesFile, options: CompileOptions = {}): CompiledRules {
+  const canonicalHost = options.canonicalHost ?? ((host: string): string => host);
   const exact = new Map<string, RuleMatch[]>();
   const wildcard = new Map<string, RuleMatch[]>();
   let patternCount = 0;
   for (const rule of file.services) {
     for (const raw of rule.hosts) {
       const pattern = parseHostPattern(raw);
+      const canonical = canonicalHost(pattern.host);
+      if (canonical !== pattern.host) {
+        throw new Error(`${rule.id}: host pattern "${raw}" is matched through ${canonical}; name that host instead`);
+      }
       const index = pattern.wildcard ? wildcard : exact;
       const list = index.get(pattern.host) ?? [];
       list.push({ rule, pattern });
@@ -153,8 +168,9 @@ export function compileRules(file: RulesFile): CompiledRules {
   const byId = new Map(file.services.map((rule) => [rule.id, rule]));
 
   function match(url: string): RuleMatch | null {
-    const host = hostOf(url);
-    if (host === null) return null;
+    const rawHost = hostOf(url);
+    if (rawHost === null) return null;
+    const host = canonicalHost(rawHost);
     let path = '/';
     try {
       path = new URL(url).pathname;
@@ -171,5 +187,5 @@ export function compileRules(file: RulesFile): CompiledRules {
     return null;
   }
 
-  return { services: file.services, byId, patternCount, match };
+  return { services: file.services, byId, patternCount, match, canonicalHost };
 }

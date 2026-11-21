@@ -1,4 +1,4 @@
-import type { CaptureFailure, CaptureFailureReason } from './types.ts';
+import type { Capture, CaptureFailure, CaptureFailureReason } from './types.ts';
 
 /**
  * Classification of capture failures, shared by all capture adapters.
@@ -25,14 +25,72 @@ export function classifyNavigationError(message: string): CaptureFailureReason {
 
 const CHALLENGE_TITLE =
   /just a moment|attention required|access denied|zugriff verweigert|request (?:blocked|rejected)|are you a (?:robot|human)|captcha|ddos[- ]guard|security check|bot (?:check|protection)|sucuri website firewall|checking your browser/i;
-/** Only unambiguous challenge titles count when the status is 2xx. */
+/** Only unambiguous challenge titles count on their own when the status is 2xx. */
 const CHALLENGE_TITLE_STRONG = /^(?:just a moment\.*|attention required!?.*|checking your browser.*|ddos-guard)$/i;
 
 /**
- * Decides from the final main document whether the page counts as captured.
- * Returns null for a normal page, otherwise the failure.
+ * What the page showed at the end of the visit, for recognising check pages: the title, the
+ * visible text, the number of links and, when the adapter knows it, the number of requests.
  */
-export function classifyMainDocument(status: number, headers: Record<string, string>, title: string): CaptureFailure | null {
+export interface PageEvidence {
+  title: string;
+  text: string;
+  links: number;
+  requests?: number;
+}
+
+/**
+ * Check pages of web hosts and bot protection that answer with HTTP 200 (A2 part 2), on a page
+ * that is almost empty and loaded almost nothing:
+ * - the whole title is a "please wait" phrase ("Einen Moment bitte …", "Bitte warten",
+ *   "One moment, please"), or
+ * - the text says that the request or the browser is being checked ("während Ihre Anfrage
+ *   geprüft wird", "Ihr Browser wird überprüft", "Checking your browser", …), whatever the title.
+ * Seen on a test site: title "Einen Moment bitte …", text "Bitte warten Sie, während Ihre
+ * Anfrage geprüft wird …", no links, 2 requests. Deliberately narrow, because a normal homepage
+ * taken for a check page would hide its findings: a title that only starts with such words
+ * ("Sicherheitsprüfung & HU – Kfz-Prüfstelle …") does not count, and neither does a page that
+ * says it redirects the visitor.
+ */
+const WAIT_TITLE = /^(?:einen? moment,? bitte|bitte (?:kurz )?warten|one moment,? please|please wait)[\s.…!]*$/iu;
+// Not "Ihre Anfrage wird geprüft" alone: a thank-you page after a contact form says that too.
+const CHECK_TEXT =
+  /während (?:wir )?ihre anfrage (?:geprüft|überprüft)|ihr browser wird (?:geprüft|überprüft)|überprüfung ihres browsers|wir (?:prüfen|überprüfen) ihren browser|checking your browser|checking if the site connection is secure|verify(?:ing)? (?:that )?you are (?:a )?human|your request is being (?:checked|verified)/iu;
+const REDIRECT_TEXT = /weitergeleitet|weiterleitung|redirect/iu;
+/** "Almost empty": what a check page shows, far less than any homepage. */
+const CHECK_PAGE_MAX_TEXT = 600;
+const CHECK_PAGE_MAX_LINKS = 3;
+/** The check page of the test site made 2 requests; a homepage with a tracker and fonts makes far more. */
+const CHECK_PAGE_MAX_REQUESTS = 15;
+
+function normalize(value: string): string {
+  return value.replace(/\s+/gu, ' ').trim();
+}
+
+/**
+ * Null for a normal page, otherwise why the page is a check page. The reason names the rule and
+ * the sizes, not the title, so it can be shown in logs without a site name.
+ */
+export function checkPageReason(page: PageEvidence): string | null {
+  const title = normalize(page.title);
+  const text = normalize(page.text);
+  if (text.length > CHECK_PAGE_MAX_TEXT || page.links > CHECK_PAGE_MAX_LINKS) return null;
+  if (page.requests !== undefined && page.requests > CHECK_PAGE_MAX_REQUESTS) return null;
+  if (REDIRECT_TEXT.test(text)) return null;
+  const titleMatch = WAIT_TITLE.test(title);
+  const textMatch = CHECK_TEXT.test(text);
+  if (!titleMatch && !textMatch) return null;
+  const rule = [titleMatch ? 'wait title' : null, textMatch ? 'check text' : null].filter((r) => r !== null).join(' and ');
+  const requests = page.requests === undefined ? '' : `, ${page.requests} requests`;
+  return `check page (${rule}): ${text.length} characters, ${page.links} links${requests}`;
+}
+
+/**
+ * Decides from the final main document whether the page counts as captured.
+ * Returns null for a normal page, otherwise the failure. `page` (title, text and links of the
+ * page) recognises check pages with HTTP 200; without it only the title is used.
+ */
+export function classifyMainDocument(status: number, headers: Record<string, string>, title: string, page?: PageEvidence): CaptureFailure | null {
   const mitigated = headers['cf-mitigated'];
   if (mitigated !== undefined && /challenge/i.test(mitigated)) {
     return { reason: 'blocked', message: `challenge page (cf-mitigated: ${mitigated})`, status };
@@ -43,10 +101,32 @@ export function classifyMainDocument(status: number, headers: Record<string, str
   if (status === 503 && CHALLENGE_TITLE.test(title)) {
     return { reason: 'blocked', message: `HTTP 503 challenge page, title "${title.slice(0, 80)}"`, status };
   }
+  const checkPage = page === undefined ? null : checkPageReason(page);
+  if (status === 503 && checkPage !== null) return { reason: 'blocked', message: `${checkPage}, HTTP 503`, status };
   if (status >= 400) return { reason: 'http-error', message: `HTTP ${status}`, status };
   if (status >= 200 && status < 300 && CHALLENGE_TITLE_STRONG.test(title.trim())) {
     return { reason: 'blocked', message: `challenge page with HTTP ${status}, title "${title}"`, status };
   }
   if (status < 200 || status >= 300) return { reason: 'other', message: `unexpected HTTP status ${status}`, status };
+  if (checkPage !== null) return { reason: 'blocked', message: `${checkPage}, HTTP ${status}`, status };
   return null;
+}
+
+/** Page evidence of a capture, or undefined if the capture has no page snapshot. */
+export function pageEvidenceOf(page: { title: string; text: string; links: readonly unknown[] } | null, requests?: number): PageEvidence | undefined {
+  if (page === null) return undefined;
+  return { title: page.title, text: page.text, links: page.links.length, ...(requests === undefined ? {} : { requests }) };
+}
+
+/**
+ * The capture with its failure decided again from its own data (main document and page). For
+ * captures saved before a classification rule existed, for example the check pages of A2 part 2:
+ * such a capture becomes `blocked` instead of a normal page. Returns the same object if nothing
+ * changes; never turns a failed capture into a captured one.
+ */
+export function recheckCapture(capture: Capture): Capture {
+  if (!capture.ok || capture.mainDocument === null) return capture;
+  const { status, headers } = capture.mainDocument;
+  const failure = classifyMainDocument(status, headers, capture.page?.title ?? '', pageEvidenceOf(capture.page, capture.requests.length));
+  return failure === null ? capture : { ...capture, ok: false, failure };
 }

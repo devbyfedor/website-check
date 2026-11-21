@@ -263,7 +263,7 @@
       "name": "Cookie Notice & Compliance (Hu-manity)",
       "kind": "wordpress-plugin",
       "selectors": [
-        "#cookie-notice[class*='cn-position-']",
+        "#cookie-notice",
         "#hu.hu-visible"
       ],
       "shadowRoot": false,
@@ -274,7 +274,7 @@
         "https://plugins.svn.wordpress.org/cookie-notice/trunk/includes/frontend.php",
         "https://plugins.svn.wordpress.org/cookie-notice/trunk/includes/bot-detect.php"
       ],
-      "note": "Hides its banner for user agents on the CrawlerDetect list (which contains HeadlessChrome)."
+      "note": "Hides its banner for user agents on the CrawlerDetect list (which contains HeadlessChrome). The bar is #cookie-notice in the plugin source; one test site had the classes 'cn-bottom bootstrap' instead of 'cn-position-*', so the selector is the id alone."
     },
     {
       "id": "moove-gdpr",

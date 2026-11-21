@@ -2,7 +2,7 @@
  * The capture: a plain data object that a capture adapter returns after loading one page.
  *
  * Capture and analysis are separate. Two adapters produce this shape: local Playwright on
- * the laptop (`scanner/src/local/`) and Cloudflare Browser Run (stage A2). Analyzers are pure
+ * the laptop (`scanner/src/local/`) and Cloudflare Browser Run (`worker/src/capture/`). Analyzers are pure
  * functions from a capture to findings and never touch a browser.
  *
  * All times are milliseconds since the capture start, which is the moment right before
@@ -12,6 +12,13 @@
 export const CAPTURE_SCHEMA_VERSION = 1;
 
 export type CaptureAdapterId = 'playwright-local' | 'cloudflare-browser-run';
+
+/**
+ * How the Cloudflare adapter collected the requests (session A2 measures both):
+ * `cdp-events`: request events through the browser protocol, like the local adapter;
+ * `resource-timing`: one call into the page that reads the Resource Timing API.
+ */
+export type CaptureStrategy = 'cdp-events' | 'resource-timing';
 
 /** Why a page could not be captured. */
 export type CaptureFailureReason =
@@ -155,6 +162,8 @@ export interface CaptureTimings {
 export interface Capture {
   schemaVersion: typeof CAPTURE_SCHEMA_VERSION;
   adapter: CaptureAdapterId;
+  /** Set by the Cloudflare adapter; the local adapter always records CDP request events. */
+  strategy?: CaptureStrategy;
   environment: CaptureEnvironment;
   requestedUrl: string;
   /** ISO 8601 time of the capture start. */

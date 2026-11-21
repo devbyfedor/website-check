@@ -16,7 +16,9 @@
     "test:integration": "vitest run --config scanner/vitest.integration.config.ts",
     "typecheck": "tsc -p scanner && tsc -p worker",
     "scan:local": "node scanner/src/local/run-sites.ts",
-    "explain": "node scanner/src/local/explain.ts"
+    "explain": "node scanner/src/local/explain.ts",
+    "lab:cloudflare": "node scanner/src/local/cloudflare-lab.ts",
+    "lab:dev": "wrangler dev -c worker/wrangler.lab.jsonc --ip 127.0.0.1 --port 8787 --var LAB_ALLOW_LOCAL:1 --var LAB_TRACE_URL:http://127.0.0.1:8790/cdn-cgi/trace"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
