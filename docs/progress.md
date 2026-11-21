@@ -2,10 +2,10 @@
 
 ## Current state
 
-Stage A, session A1 is merged into `main`. Session A2 (measurement on Cloudflare) runs on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
+Stage A, sessions A1 and A2 are merged into `main`. A2 ends with Fedor's choice of plan: the recommendation in `docs/measurements/a2.md` is the capture in a Durable Object with strategy (a). Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
 - Part 1 (done): the Cloudflare capture adapter in `worker/` with both strategies, and a check on three sites of whether consent tools behave the same with the Cloudflare browser as with the local run (banner, third-party requests before consent, browser location, Worker CPU and wall time).
-- Part 2 (this session): the capture moves into a Durable Object in the EU jurisdiction; the Worker only checks the token and passes the job on. The scanner recognises blocked pages (a web host's check page such as "Einen Moment bitte") and gives no findings for them. Check on Cloudflare: browser location from the Durable Object, the three sites of part 1 with both strategies, Site 06 recognised as blocked, CPU of the Worker and of the Durable Object.
-- Part 3 (next session): banner probe fixes, the measurement on 12 sites, `docs/measurements/a2.md` with the plan recommendation, the merge into `main`, and deleting the lab Worker.
+- Part 2 (done): the capture moves into a Durable Object in the EU jurisdiction; the Worker only checks the token and passes the job on. The scanner recognises blocked pages (a web host's check page such as "Einen Moment bitte") and gives no findings for them. Check on Cloudflare: browser location from the Durable Object, the three sites of part 1 with both strategies, Site 06 recognised as blocked, CPU of the Worker and of the Durable Object.
+- Part 3 (done): banner probe fixes, the measurement on 12 sites, `docs/measurements/a2.md` with the plan recommendation, the merge into `main`, and deleting the lab Worker.
 
 Why three parts (Fedor, 21.11.2026): "Cloudflare did not stop any request" in part 1 is no proof. By the Workers limits page the free plan has only an allowance for occasional overruns of the 10 ms CPU limit; with constant overruns requests fail with error 1102. Part 1 measured 13 to 183 ms per page, so a capture in a plain Worker on the free plan does not fit. A Durable Object has 30 seconds of CPU per request by the limits table and is available on the free plan with SQLite storage only; part 2 checks whether the capture fits there before the 12-site measurement is planned on top of it.
 
@@ -148,6 +148,40 @@ Fedor's changes to the plan of part 3 (21.11.2026, before the start):
 - The A2 report says how many full checks per day the free plan allows and which limit runs out first.
 - Answers before the start: (1) yes, the capture stays in the Durable Object with 30 s CPU per request on the free plan (three confirmations, see `docs/decisions.md`); (2) Site 06 is one of the 12 sites, once in the common run, not repeated.
 
+### Step 1: banners (about 40 minutes, within the 45)
+
+- Why banners were missed (saved screenshots of A1 plus one debug visit of five homepages, no interaction): two Shopify consent dialogs (Pandectes) and one top bar of a site builder's consent banner are drawn inside an open shadow root whose host element has no size, so the probe saw only an empty host; a Cookie Notice bar (70 px, classes `cn-bottom bootstrap`) sat below the lowest probe point and did not match the narrow selector. The Borlabs box of A1 loads lazily and appeared after the capture had ended.
+- Fix in `scanner/src/consent/probe-script.ts` (shared by both adapters): the heuristic follows a hit into open shadow roots and back out through the host, reads `aria-label`, checks two more points 3 % from the top and bottom edge, and accepts bars from 36 px; a bar lower than 100 px must mention cookies or consent outside its links and buttons. Cookie Notice is found by `#cookie-notice`.
+- Tests: five fixture pages in the Playwright integration test (shadow dialog, shadow top bar, 40 px bottom bar, Cookie Notice bar, and a page of look-alikes under the probe points: header and footer bar with a cookie link, a small settings box, a reopener with an aria-label, a newsletter popup, a hidden bar). With the old probe the five tests fail, with the new one they pass; without the rule for low bars the look-alike test fails.
+- Check on the 30 sites: a new local run (homepages only, into `local/a2/banner-run/`, the A1 captures stay as they were), then six independent reviewers looked at the 30 new screenshots without knowing the scanner's result. A banner is visible on 23 screenshots and the probe recognised 23 of 23 (before: 19 detected); no banner is visible on 7 and the probe reported none (false banners: 0). Reasons for the 7: two sites show only a small button to reopen the cookie settings, one page showed only a loading spinner when the network went quiet, one consent tool was in the page but did not show its box within the capture, three sites have no banner.
+- After the review fixes (low bars), all 8 banners found by the generic heuristic on the 30 sites are higher than 200 px, so the new rule does not change the check.
+
+### Step 2: Google country domains
+
+- `scanner/data/google-domains.json`: Google's 186 country search domains (https://www.google.com/supported_domains). Matching and the grouping of unknown hosts map a host on any of them to the same host on google.com; the rules data names only google.com. The comparison of captures uses the same mapping.
+- Re-analysis of the saved captures without visiting any site: 0 of 30 sites change in the A1 set (which has requests to `www.google.de`) and 0 of 30 in the new local set.
+
+### Step 3: the measurement on Cloudflare (14:17 to 14:21)
+
+- Lab Worker redeployed with the new probe (allowed by the session message). An independent review of steps 1 and 2 before the run found 5 real problems (2 important in the capture comparison: a real POST taken for a CORS preflight, `data:` URLs counted as missing locally; 3 minor: footer bars with a cookie link, a look-alike test that did not test what it said, `explain` without the Google mapping); all were fixed before the run.
+- Session 1: trace page and 12 sites (Site 10, 23, 06, 04, 14, 13, 03, 11, 19, 26, 28, 30; 5 shops, 4 service businesses, 3 site builders), strategy (a), through the Durable Object. 57.5 s of browser time. Browser `loc=IT`, `colo=MXP`; object jurisdiction `eu`.
+- No page ran to the 15 s limit on Cloudflare, so session 2 captured two more pages (18.4 s): Site 25 stopped at 15,031 ms, the browser lived to the end, the next page reported `reconnected: false`, the session closed normally.
+- Right after each session the same sites were captured locally.
+- Per site numbers and the plan comparison: `docs/measurements/a2.md`. In short: Worker CPU 0 to 1 ms; Durable Object CPU per page median 43 ms, max 334 ms; object wall median 3.5 s, max 11.6 s (15.3 s on the 15 s page); 48 of 48 events `ok`; Site 28 blocked by its own Cloudflare protection (no findings); banner the same as locally on 11 of 11 sites that let the browser in; completeness median 99.0 %, minimum 91.7 %, without 17 CORS preflights and 56 `data:`/`blob:` URLs; findings the same on 10 of 11.
+- Site 06 has one finding more on Cloudflare: the analytics tag sent Google signals requests (`stats.g.doubleclick.net`, `www.google.it/ads/ga-audiences`) to the browser in Italy (2 of 3 Cloudflare captures), never in 5 local captures from Germany. The requests are real, but depend on the country of the browser.
+- Browser time: 75.8 s for the step (limit 3 minutes); 149.4 s of the day's 600 s (parts 1 and 2 used 73.5 s).
+
+### Step 4: report
+
+- `docs/measurements/a2.md`: per-site numbers, plans A, B, C and the Durable Object compared, recommendation, capacity of the free plan (first limit: Browser Run's 10 minutes per day, about 60 full checks of homepage and Impressum per day at the measured mean, 79 at the median, 19 in the worst case), paid options only as a note.
+
+### Merge condition of A2
+
+- `npm test` passes completely: 221 of 221 unit tests. Also `npm run test:integration` 15 of 15 and `npm run typecheck` without errors.
+- No secrets in git: the lab token is in no tracked file, in no commit of any branch and in no commit message (checked with the value from `worker/.dev.vars`, not printed).
+- No addresses or names of the test sites in git: none of the 32 domains of `local/sites.txt` and `local/sites-v1.txt`, and none of their names without the ending, in the tracked files, in any commit or in any commit message. `git ls-files local` is empty.
+
 ## Next
 
-- A2 part 3, as Fedor planned: banner probe fixes (shadow roots, Cookie Notice, late banners), the measurement on 12 sites with both strategies through the Durable Object, `docs/measurements/a2.md` with the plan recommendation with numbers, the merge into `main`, and deleting the lab Worker (`npx wrangler delete -c worker/wrangler.lab.jsonc`). Quick Actions (plan B) cannot capture the requests of a page (see above). Open items in `docs/backlog.md`: preflights and `data:` requests in strategy (a), the hidden status in strategy (b) (it turned findings into hints on 2 of 4 sites in part 2), the browser location (EU, not Germany, changes between sessions), and one page that runs to the 15 s limit on Cloudflare to check the keep-alive command of strategy (a). Site 06 should be in the 12 sites: whether its web host blocks the browser seems to depend on where the browser runs.
+- Fedor chooses the plan (recommendation: capture in a Durable Object with strategy a, `docs/measurements/a2.md`) and decides how findings that depend on the browser's country are shown (Site 06, `docs/backlog.md`).
+- Then A3: accessibility checks with a pinned axe-core and the security checks, fixture pages, 5 sites compared with a separate axe-core run, and 5 sites through Cloudflare within 1.5 browser minutes. Since the lab Worker is deleted, A3 needs a Worker with the Durable Object again for its Cloudflare check; that is a deploy and must be allowed in its session message.
