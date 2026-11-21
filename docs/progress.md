@@ -47,6 +47,37 @@ Done by hand in the saved captures (`npm run explain`, saved HTML, screenshots) 
 
 Result: merged into `main` with `git merge --no-ff`.
 
+## A2 part 1: Cloudflare adapter and the consent check on three sites (21.11.2026)
+
+Branch `a2-cloudflare`, not merged (part 2 merges). The session took about 1 hour 10 minutes. Browser time on Cloudflare: 40.6 s (0.68 browser minutes) by Cloudflare's own counter (`usedBrowserTimeSeconds`), the same as the two sessions in the history (31.3 s and 9.3 s, both closed normally). The limit for the step was 3 minutes.
+
+### What was built
+
+- Cloudflare capture adapter in `worker/src/capture/` with the Browser Run binding and `@cloudflare/puppeteer` 2.0.1 (Chrome 152, the same as Browser Run). It returns the same `Capture` as the local adapter (`adapter: cloudflare-browser-run`, new optional field `strategy`).
+  - Strategy (a) `cdp-events`: request events through the browser protocol, like the local adapter.
+  - Strategy (b) `resource-timing`: its own tab without network events; all requests come from one Resource Timing call in the page; status, headers and redirects of the main document from document interception.
+- Same visitor as the local run: `de-DE`, `Europe/Berlin`, 1440 x 900 window and screen, desktop Chrome user agent on Windows with the same client hints and `navigator.platform` `Win32`, focus emulation. The values are shared in `scanner/src/capture/settings.ts`, the protocol commands copied from Playwright in `worker/src/capture/emulation.ts`.
+- Lab endpoint `worker/src/lab/` behind a token from `worker/.dev.vars` (open session, trace page, capture, close, limits), driver `npm run lab:cloudflare`, local fixture site, capture comparison, filter for `wrangler tail`.
+- Debugged on plain `wrangler dev` with the local Chrome against the fixture site, 0 Cloudflare minutes: strategy (a) gave the same 13 requests as the local adapter; the fixture server got the same `Accept-Language`, client hints and user agent from all three; inside a cross-site iframe all three saw `Europe/Berlin`, `de-DE` and `Win32`; 300 images (more than the browser's buffer of 250) were all captured by both strategies.
+- An independent review before the run found 4 important and 4 minor problems; all were fixed before the run (time zone and language missing in out-of-process iframes in strategy a, left-over tabs after a terminated request, a browser budget per script run instead of per step, dev switches, host checks, timeout wording, platform).
+- Lab Worker `website-check-lab` deployed to workers.dev (allowed by Fedor for the CPU measurement): only the measurement endpoint, Workers Logs off, no preview URLs, token secret set from `.dev.vars`. It is deleted after part 2.
+- `npm test`: 170 of 170. `npm run test:integration`: 10 of 10. `npm run typecheck`: no errors. `git ls-files local` is empty; the token is in no tracked file and nowhere in the git history.
+
+### Result on Cloudflare (Worker and browser both on Cloudflare)
+
+- Where the browser runs: both sessions `loc=NL`, `colo=AMS` (Amsterdam), not Germany. Inside the page the emulation held: Windows user agent, `de-DE`, `Europe/Berlin`, `Win32`, 1440 x 900, focus.
+- Sites: three sites with three different consent tools where the local run sees the banner: Site 10 (Usercentrics, Shopware), Site 04 (built-in Shopify banner), Site 14 (Borlabs Cookie, WordPress). Each with both strategies, then at once locally.
+- Site 06 (CookieYes, WooCommerce) does not let the Cloudflare browser in: its web host answers with a bot check page ("Einen Moment bitte …", HTTP 200) and the check did not pass; locally the site loads normally. It was replaced by Site 14 in a second, short browser session. Our classifier counted the check page as a captured page (gap, see backlog).
+- Banner: seen on Cloudflare in 6 of 6 captures of the three sites, with the same tool as locally. It became visible earlier than locally (0.7 to 1.7 s on Cloudflare, 1.4 to 2.1 s locally). Usercentrics loaded the same German GDPR settings as locally and reported no consent at the end (`allAccepted: false`) on Cloudflare too.
+- Third-party requests before consent: the set of third-party hosts is the same as locally in 6 of 6 captures (0 hosts only on Cloudflare, 0 only locally). Strategy (b) has exactly the local number of third-party requests (60, 33, 0). Strategy (a) has more on two sites, checked one by one: Site 10 one more, Site 04 three more. All of them are CORS preflight requests (`OPTIONS`) to the same hosts right before requests that the local run has too (Usercentrics consent API, Shopify telemetry). Puppeteer reports preflights as their own requests, Playwright does not: a difference of the adapters, not of the sites. Site 14 has 11 more first-party entries in (a), all `data:` images and one SVG fragment that Playwright does not report.
+- Findings: strategy (a) has the same findings as locally on all three sites. Strategy (b) has one finding less on Site 10 (Google Tag Manager becomes a hint), because the page cannot see the HTTP status of cross-origin resources.
+- Completeness (requests by host and path, compared with the local capture made right after): (a) 97.9 %, 99.7 %, 100 %; (b) 97.9 %, 99.0 %, 100 % (Site 10, Site 04, Site 14). Strategy (b) misses requests inside iframes and requests still open at the end.
+- Worker CPU time per page (from `wrangler tail`): (a) 93 ms, 183 ms, 34 ms; (b) 21 ms, 20 ms, 13 ms (Site 10, Site 04, Site 14; on the blocked check page of Site 06 14 ms and 13 ms). Opening the browser 8 and 5 ms, trace page 28 and 16 ms, closing 3 and 2 ms. No capture stayed within the 10 ms of the free plan, also not strategy (b), but Cloudflare did not stop any request (every outcome `ok`, no `exceededCpu`). Even the blocked page with 2 requests costs 13 ms in (b), so most of (b) is a fixed cost of connecting and preparing the tab.
+- Worker wall time per page: (a) 3.4 s, 6.8 s, 3.8 s; (b) 4.5 s, 8.3 s, 4.3 s. Network events handled by the Worker in (a): 429, 918, 249; in (b) 2 to 4 events plus 11 to 26 in-page polls.
+- Other: Site 04 had 5 findings in the A1 run on 20.11.2026 (Google Fonts, Google Tag Manager, Google Ads, Google Analytics); on 21.11.2026 it has none, locally and on Cloudflare alike. The other sites match their A1 captures and the integration test passes, so the site itself changed. Site 04 was one of the 5 checked Google Fonts sites of A1.
+
+Answer to the main question of part 1: on the three sites that let it in, the Cloudflare browser saw the same banners and the same third-party hosts before consent as the local run from Germany, although it runs in the Netherlands. No site showed trackers that run only for the Cloudflare browser. One of four sites blocks the Cloudflare browser entirely.
+
 ## Next
 
-- A2: measurement on Cloudflare, as in the brief (Fedor runs `npx wrangler login` when asked). Also from the backlog: banner probe fixes for shadow roots, Cookie Notice and late banners; check where Browser Run starts its browsers, because consent tools consent automatically by location.
+- A2 part 2, as Fedor planned: banner probe fixes (shadow roots, Cookie Notice, late banners), the measurement on 12 sites with both strategies, `docs/measurements/a2.md` with the plan recommendation (A, B or C) with numbers, the merge into `main`, and deleting the lab Worker (`npx wrangler delete -c worker/wrangler.lab.jsonc`). From part 1, in `docs/backlog.md`: blocked pages with HTTP 200, preflights and `data:` requests in strategy (a), the hidden status in strategy (b), the browser location (Netherlands), and where the fixed CPU cost of about 13 ms comes from.
