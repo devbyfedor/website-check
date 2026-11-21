@@ -2,9 +2,12 @@
 
 ## Current state
 
-Stage A, session A1 is merged into `main`. Session A2 (measurement on Cloudflare) is split into two parts (Fedor's decision of 21.11.2026), on branch `a2-cloudflare`:
-- Part 1 (this session): the Cloudflare capture adapter in `worker/` with both strategies, and a check on three sites of whether consent tools behave the same with the Cloudflare browser as with the local run (banner, third-party requests before consent, browser location, Worker CPU and wall time).
-- Part 2 (next session): banner probe fixes, the measurement on 12 sites, `docs/measurements/a2.md` with the plan recommendation, and the merge into `main`. Part 2 also deletes the lab Worker if part 1 deployed one.
+Stage A, session A1 is merged into `main`. Session A2 (measurement on Cloudflare) runs on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
+- Part 1 (done): the Cloudflare capture adapter in `worker/` with both strategies, and a check on three sites of whether consent tools behave the same with the Cloudflare browser as with the local run (banner, third-party requests before consent, browser location, Worker CPU and wall time).
+- Part 2 (this session): the capture moves into a Durable Object in the EU jurisdiction; the Worker only checks the token and passes the job on. The scanner recognises blocked pages (a web host's check page such as "Einen Moment bitte") and gives no findings for them. Check on Cloudflare: browser location from the Durable Object, the three sites of part 1 with both strategies, Site 06 recognised as blocked, CPU of the Worker and of the Durable Object.
+- Part 3 (next session): banner probe fixes, the measurement on 12 sites, `docs/measurements/a2.md` with the plan recommendation, the merge into `main`, and deleting the lab Worker.
+
+Why three parts (Fedor, 21.11.2026): "Cloudflare did not stop any request" in part 1 is no proof. By the Workers limits page the free plan has only an allowance for occasional overruns of the 10 ms CPU limit; with constant overruns requests fail with error 1102. Part 1 measured 13 to 183 ms per page, so a capture in a plain Worker on the free plan does not fit. A Durable Object has 30 seconds of CPU per request by the limits table and is available on the free plan with SQLite storage only; part 2 checks whether the capture fits there before the 12-site measurement is planned on top of it.
 
 ## A1: project setup and the first check, locally (20.11.2026)
 
