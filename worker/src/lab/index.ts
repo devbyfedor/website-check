@@ -21,8 +21,20 @@ interface Env extends LabEnv {
 const KEEP_ALIVE_MS = 10_000;
 const TRACE_URL = 'https://www.cloudflare.com/cdn-cgi/trace';
 
+/** Right after the previous request disconnected, the session can still be busy for a moment. */
+async function connectWithRetry(env: Env, sessionId: string): Promise<Browser> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await puppeteer.connect(env.BROWSER, sessionId);
+    } catch (error) {
+      if (attempt >= 3) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+}
+
 async function withBrowser<T>(env: Env, sessionId: string, work: (browser: Browser) => Promise<T>): Promise<T> {
-  const browser = await puppeteer.connect(env.BROWSER, sessionId);
+  const browser = await connectWithRetry(env, sessionId);
   try {
     return await work(browser);
   } finally {
@@ -79,7 +91,7 @@ const handler = createLabHandler<Env>({
   },
 
   async close(env, sessionId): Promise<SessionUsage | null> {
-    const browser = await puppeteer.connect(env.BROWSER, sessionId);
+    const browser = await connectWithRetry(env, sessionId);
     await browser.close();
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const history: unknown = await puppeteer.history(env.BROWSER).catch(() => []);
