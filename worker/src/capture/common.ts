@@ -4,6 +4,7 @@ import {
   classifyNavigationError,
   DEFAULT_CONSENT_TOOLS,
   desktopChromeUserAgent,
+  pageEvidenceOf,
   type Capture,
   type CaptureEnvironment,
   type CaptureFailure,
@@ -94,14 +95,15 @@ export function pageSnapshotOf(snapshot: SnapshotResult | null): PageSnapshot | 
   };
 }
 
+/** Shared by both strategies: the page snapshot also recognises check pages with HTTP 200. */
 export function failureOf(
   navigationError: string | null,
   main: { status: number; headers: Record<string, string> } | null,
-  title: string,
+  snapshot: SnapshotResult | null,
 ): CaptureFailure | null {
   if (navigationError !== null) return { reason: classifyNavigationError(navigationError), message: navigationError };
   if (main === null) return { reason: 'other', message: 'no main document response' };
-  return classifyMainDocument(main.status, main.headers, title);
+  return classifyMainDocument(main.status, main.headers, snapshot?.title ?? '', pageEvidenceOf(snapshot));
 }
 
 export function errorText(error: unknown): string {

@@ -189,7 +189,7 @@ async function runCapture(browser: Browser, session: CDPSession, url: string, se
   const mainDocument = documents.filter((d) => d.status < 300 || d.status >= 400).at(-1) ?? null;
   const redirectChain: RedirectHop[] = documents.filter((d) => d !== mainDocument).map((d) => ({ url: d.url, status: d.status }));
   const requests = timing === null ? [] : requestsFromResourceTiming(documents, timing);
-  const failure = failureOf(navigationError, mainDocument, snapshot?.title ?? '');
+  const failure = failureOf(navigationError, mainDocument, snapshot);
   const nav = timing?.navigation ?? null;
   const positive = (n: number | undefined): number | null => (n !== undefined && n > 0 ? n : null);
 

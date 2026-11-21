@@ -1,4 +1,6 @@
-import { analyzeThirdParty, type ThirdPartyAnalysis } from '../analyzers/third-party.ts';
+import { analyzeCapture } from '../analyzers/capture.ts';
+import type { ThirdPartyAnalysis } from '../analyzers/third-party.ts';
+import { recheckCapture } from '../capture/failure.ts';
 import type { Capture } from '../capture/types.ts';
 import { firstPartySites, hostOf, siteOfUrl } from '../domain/site.ts';
 import type { CompiledRules } from '../rules/match.ts';
@@ -97,9 +99,12 @@ function hostPath(url: string): string | null {
   }
 }
 
-export function compareCaptures(local: Capture, cloud: Capture, rules: CompiledRules): CaptureComparison {
-  const localAnalysis = local.ok ? analyzeThirdParty(local, rules) : null;
-  const cloudAnalysis = cloud.ok ? analyzeThirdParty(cloud, rules) : null;
+export function compareCaptures(localCapture: Capture, cloudCapture: Capture, rules: CompiledRules): CaptureComparison {
+  // Both sides decided again, so a check page saved as a normal page before A2 part 2 counts as blocked.
+  const local = recheckCapture(localCapture);
+  const cloud = recheckCapture(cloudCapture);
+  const localAnalysis = analyzeCapture(local, rules).thirdParty;
+  const cloudAnalysis = analyzeCapture(cloud, rules).thirdParty;
   const localSide = side(local, localAnalysis);
   const cloudSide = side(cloud, cloudAnalysis);
   const cloudPaths = new Set(cloud.requests.map((r) => hostPath(r.url)).filter((x): x is string => x !== null));

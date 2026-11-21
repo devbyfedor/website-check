@@ -290,7 +290,7 @@ async function runCapture(
   const failure = failureOf(
     navigationError,
     mainResponse === null ? null : { status: mainResponse.status(), headers },
-    snapshot?.title ?? '',
+    snapshot,
   );
   // The probe uses the browser's clock; the first main document request starts at about the
   // browser's navigation start (`timeOrigin`).

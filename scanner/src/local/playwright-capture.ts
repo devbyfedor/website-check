@@ -1,5 +1,5 @@
 import { chromium, type Browser, type BrowserContext, type Frame, type Request, type Response } from 'playwright';
-import { classifyMainDocument, classifyNavigationError } from '../capture/failure.ts';
+import { classifyMainDocument, classifyNavigationError, pageEvidenceOf } from '../capture/failure.ts';
 import {
   CAPTURE_SCHEMA_VERSION,
   type Capture,
@@ -333,7 +333,7 @@ async function runCapture(
   } else if (mainResponse === null) {
     failure = { reason: 'other', message: 'no main document response' };
   } else {
-    failure = classifyMainDocument(mainResponse.status(), headers, snapshot?.title ?? '');
+    failure = classifyMainDocument(mainResponse.status(), headers, snapshot?.title ?? '', pageEvidenceOf(snapshot));
   }
 
   const probe = snapshot?.probe ?? null;

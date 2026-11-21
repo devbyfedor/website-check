@@ -8,7 +8,8 @@
 export const SCANNER_VERSION = '0.1.0';
 
 export * from './capture/types.ts';
-export { classifyMainDocument, classifyNavigationError } from './capture/failure.ts';
+export { checkPageReason, classifyMainDocument, classifyNavigationError, pageEvidenceOf, recheckCapture, type PageEvidence } from './capture/failure.ts';
+export { analyzeCapture, type CaptureAnalysis, type CaptureState } from './analyzers/capture.ts';
 export { CAPTURE_SETTINGS, chromeVersionOf, desktopChromeUserAgent, LONG_LIVED_RESOURCE_TYPES } from './capture/settings.ts';
 export { lowerCaseHeaders, toInitiator, type CdpInitiator, type CdpStack } from './capture/cdp.ts';
 export {
