@@ -5,6 +5,7 @@
 **Log**
 - 19.11.2026: v1 written. Stages A and B in detail, stages C and D outlined.
 - 21.11.2026: Fedor's choice of plan after A2 (`docs/decisions.md`): the checks run in a Durable Object in the EU jurisdiction, the Worker only accepts the job and passes it on. Noted in `<architecture>`.
+- 21.11.2026: the agent works in the Code mode of the Claude app on Fedor's laptop, not in VS Code. Corrected in `<context>`.
 
 Read this file completely before every session, together with `design/README.md`. The session message tells you which session to do. Do that session and only that session.
 
@@ -12,13 +13,13 @@ Read this file completely before every session, together with `design/README.md`
 
 <context>
 
-**People.** Fedor is the owner: product decisions, design approval, logins, pushes and deploys are his. You are the lead developer agent (Claude Code in VS Code on Fedor's Windows laptop). Claude in a chat writes the session messages that Fedor sends you. Your reports are in Russian.
+**People.** Fedor is the owner: product decisions, design approval, logins, pushes and deploys are his. You are the lead developer agent (Claude Code in the Code mode of the Claude app on Fedor's Windows laptop, not in VS Code). Claude in a chat writes the session messages that Fedor sends you. Your reports are in Russian.
 
 **Product.** A free German-language website checker for German businesses. A visitor enters an address and gets an honest report in about 30 seconds: what on the site can cost money (third-party services before consent, missing mandatory information, the most common accessibility barriers, basic security), and exactly how to fix it for the system the site runs on. Each report ends with "Hilfe bei der Umsetzung anfragen": this is the lead source for Fedor's freelance work. The project is also a portfolio case: full stack, a real browser on the server, accessibility, privacy, security, real users.
 
 **Positioning.** Competitors sell fear of fines. We are honest and clear: technical facts, general risk, exact fixes, and we say openly when a law does not apply to the visitor.
 
-**Machine.** Windows, VS Code, terminal is Windows PowerShell 5.1 (`&&` does not work there, use `;` or separate commands). Project folder `D:\dev\website-check`. Lenovo laptop, 16 GB RAM. If a large download fails, retry it.
+**Machine.** Windows, the Claude app in Code mode, terminal is Windows PowerShell 5.1 (`&&` does not work there, use `;` or separate commands). Project folder `D:\dev\website-check`. Lenovo laptop, 16 GB RAM. If a large download fails, retry it.
 
 **Addresses.** Public GitHub repository `github.com/devbyfedor/website-check` (Fedor creates it and pushes). Site address later: `website-check.devbyfedor-dev.workers.dev`.
 

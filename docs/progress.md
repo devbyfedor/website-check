@@ -2,7 +2,7 @@
 
 ## Current state
 
-Stage A, sessions A1, A2 and A3 are merged into `main`. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
+Stage A, sessions A1, A2 and A3 are merged into `main`. Before the first push the history of all branches was rewritten to remove personal details about the owner (21.11.2026, section "History cleanup before the first push" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
 - Part 1 (done): the Cloudflare capture adapter in `worker/` with both strategies, and a check on three sites of whether consent tools behave the same with the Cloudflare browser as with the local run (banner, third-party requests before consent, browser location, Worker CPU and wall time).
 - Part 2 (done): the capture moves into a Durable Object in the EU jurisdiction; the Worker only checks the token and passes the job on. The scanner recognises blocked pages (a web host's check page such as "Einen Moment bitte") and gives no findings for them. Check on Cloudflare: browser location from the Durable Object, the three sites of part 1 with both strategies, Site 06 recognised as blocked, CPU of the Worker and of the Durable Object.
 - Part 3 (done): banner probe fixes, the measurement on 12 sites, `docs/measurements/a2.md` with the plan recommendation, the merge into `main`, and deleting the lab Worker.
@@ -181,7 +181,7 @@ Fedor's changes to the plan of part 3 (21.11.2026, before the start):
 - No secrets in git: the lab token is in no tracked file, in no commit of any branch and in no commit message (checked with the value from `worker/.dev.vars`, not printed).
 - No addresses or names of the test sites in git: none of the 32 domains of `local/sites.txt` and `local/sites-v1.txt`, and none of their names without the ending, in the tracked files, in any commit or in any commit message. `git ls-files local` is empty.
 
-Result: merged into `main` with `git merge --no-ff` (merge commit 0dca8ef); this record follows in a second merge.
+Result: merged into `main` with `git merge --no-ff` (merge commit cc34dbc; before the history cleanup of 21.11.2026 it was 0dca8ef); this record follows in a second merge.
 
 ### Step 5: lab Worker deleted
 
@@ -224,7 +224,27 @@ Result: every point holds; merged into `main` with `git merge --no-ff`.
 
 - `npx wrangler delete -c worker/wrangler.lab.jsonc`: "Successfully deleted website-check-lab". Check: its workers.dev address answers HTTP 404 with error 1042, the API answers "This Worker does not exist on your account" (code 10007). `LAB_TOKEN` is removed from the local `worker/.dev.vars`.
 
+## History cleanup before the first push (21.11.2026)
+
+Branch `history-cleanup`. A short service session at Fedor's request, no new functions: the repository becomes public, so personal details about the owner had to leave every file and every commit before the first push. Session time: about 20 minutes (17:28 to about 17:50). No browser, no site visited.
+
+- Backup first: `git bundle` with HEAD and all four branches in `local/backup/` (git-ignored). `git bundle verify`: complete history; a clone of the bundle has 47 commits and 4 merges, `git fsck --full` without errors. The map of old to new commit hashes lies next to it.
+- Search: all 287 file versions of all commits and all 47 commit messages, in English, German and Russian. A keyword search, then 8 independent readers read all 10,392 unique text lines of the history, and a ninth checked the raw files for what they missed. Result: 6 wordings in 5 files, in 31 file versions; none in commit messages, file names or code.
+- Rewrite: `git filter-repo` 2.47.0 (in a temporary Python environment outside the repository) with literal text replacements of these lines only. First on a clone of the bundle, then the same command on the repository: both gave the same commit hashes.
+
+Checks:
+- Search after the rewrite: 0 places in the 47 commits of all branches, 0 in the commit messages, 0 in the working copy.
+- 47 commits and 4 merges before, 47 and 4 after. Every commit compared with its old version: author, committer, e-mail addresses, dates with time zone, message and parents are the same, and every file equals the old file with only the replacements applied: 0 differences.
+- The last commit of `main` differs from the old one by 7 lines in 5 files, exactly the replaced lines.
+- `npm test`: 282 of 282 tests. `npm run typecheck`: no errors.
+- No branch, tag, stash or other reference leads to the old history: the 4 branches are on the new history; no tags, no stash, no replace refs; reflogs empty; `ORIG_HEAD` removed. Of the 47 old commits 0 are still in the repository, of the 31 old file versions with the details 0. The old history exists only in the bundle in `local/backup/`.
+
+Normal commits after the rewrite: the brief says that the agent works in the Code mode of the Claude app, not in VS Code; `docs/decisions.md` records the rewrite; the hash of the A2 merge commit above is updated to the new history (no other commit hash is named in the repository).
+
+Result: every check holds; merged into `main` with `git merge --no-ff`.
+
 ## Next
 
 - A4: mandatory information (Impressum and Datenschutz links, Impressum fields with templates, Erklärung zur Barrierefreiheit) and system detection, with the Impressum opened in a second tab of the same browser; at least 20 synthetic Impressum fixtures. Decide there whether axe also runs on the Impressum (about 1 s of Cloudflare browser time per page).
+- Fedor: push `main` (nothing has been pushed yet). Keep the bundle in `local/backup/` until the push is checked on GitHub.
 - Fedor: review the German draft texts in `docs/content-drafts.md` and the note at its end about the Prüfmaße heading of the design.
