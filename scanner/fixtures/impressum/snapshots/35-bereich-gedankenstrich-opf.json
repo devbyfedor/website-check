@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/35-bereich-gedankenstrich-opf.html",
+  "sha256": "0cdfa905f57452e688a0c2116287362fb1ac43b0263b1ba99e19a6524c77bc53",
+  "url": "https://fixtures.example/impressum/pages/35-bereich-gedankenstrich-opf.html",
+  "title": "Impressum – Möbelhaus Polsterfabel GmbH",
+  "lang": "de",
+  "text": "Möbelhaus Polsterfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nMöbelhaus Polsterfabel GmbH\nGewerbering 12–14\n92345 Altmusterau i.d.OPf.\n\nGeschäftsführerin: Paula Polster\n\nE-Mail: Info@Polsterfabel.example\n\nHandelsregister: HRB 8080, Amtsgericht Fabelhofen\n\nUSt-IdNr.: DE404505606\n\nImpressum Datenschutz\n\n© 2026 Möbelhaus Polsterfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

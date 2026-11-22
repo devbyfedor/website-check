@@ -1,0 +1,45 @@
+{
+  "source": "impressum/pages/07-mailto-linktext.html",
+  "sha256": "3b64c93b3515bc7c5bffe9dce8983f9a128881a43ad11e8c808e3ee4c65dfd85",
+  "url": "https://fixtures.example/impressum/pages/07-mailto-linktext.html",
+  "title": "Impressum – Schreibbüro Tintenfabel",
+  "lang": "de",
+  "text": "Schreibbüro Tintenfabel\nStart Leistungen Über uns Kontakt\nImpressum\nAngaben gemäß § 5 DDG\n\nSchreibbüro Tintenfabel UG (haftungsbeschränkt)\nFederkielstraße 15\n34567 Beispielsee\n\nVertreten durch die Geschäftsführerin Tanja Tinte\n\nKontakt\n\nTelefon: +49 3456 789012\nE-Mail schreiben\n\nRegistereintrag\n\nAmtsgericht Musterbrück, HRB 3456\n\nUSt-IdNr.: DE271828182\n\nImpressum Datenschutz\n\n© 2026 Schreibbüro Tintenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "mailto:anfrage@tintenfabel.example?subject=Anfrage%20%C3%BCber%20die%20Website",
+      "text": "E-Mail schreiben",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

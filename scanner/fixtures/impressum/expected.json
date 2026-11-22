@@ -1,0 +1,631 @@
+{
+  "note": "Synthetic Impressum pages for session A4. Every company, person, street, town, postcode, phone, register and VAT number is invented; every domain ends in .example (RFC 2606). Fields come only from the Impressum page itself. address: postal address of the operator (street with house number exactly as written, five-digit postcode without a \"D-\" prefix, town as written without country and trailing punctuation); a Postfach is not an address; addresses of agencies, photographers, hosting providers, arbitration boards, chambers, authorities, insurers and external data protection officers are not the operator's; with several operator addresses the first in reading order. email: the operator's first e-mail in reading order, lower case; form is plain (visible text, also when written by a script), mailto (only in a mailto: link), obfuscated ([at], (at), {at}, [ät], \" at \" with an E-Mail or Mail label on the same line, [dot], (dot), \" dot \", [punkt]) or cloudflare (/cdn-cgi/l/email-protection#hex, first byte is the XOR key); an address only in an image or reversed in the DOM is null. handelsregister: HRA or HRB, number as digits only, court = town of the register court or null; PR, VR and GnR do not count; a Gerichtsstand is not a register court. ustId: DE plus 9 digits without spaces; a Steuernummer or an IBAN is not a VAT ID. accessibilityStatement: href exactly as written of a link to an accessibility statement, not of a toolbar link (href \"#\" or javascript:). null always means \"nicht gefunden, bitte manuell prüfen\". Page 08 embeds the address as a base64 SVG image (the SVG contains only its namespace URI); page 09 has no Cloudflare decode script.",
+  "cases": {
+    "01-gmbh-klassisch": {
+      "description": "GmbH, classic layout: \"Angaben gemäß § 5 DDG\", multi-line address with <br> and a house number with a separate letter, plain e-mail, HRB and \"Amtsgericht X\" on one line, USt-IdNr after the § 27 a UStG label.",
+      "address": {
+        "street": "Erlenweg 12 a",
+        "postcode": "87654",
+        "town": "Musterhausen"
+      },
+      "email": {
+        "value": "info@fabelholz.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "12345",
+        "court": "Beispielburg"
+      },
+      "ustId": "DE123456789",
+      "accessibilityStatement": null
+    },
+    "02-einzelunternehmen-at-eckig": {
+      "description": "Sole trader (Inhaberin), e-mail hidden with \"[at]\", USt-IdNr, no commercial register, chamber named without an address.",
+      "address": {
+        "street": "Beispielgasse 4",
+        "postcode": "76543",
+        "town": "Beispielfeld"
+      },
+      "email": {
+        "value": "kontakt@farbfabel.example",
+        "form": "obfuscated"
+      },
+      "handelsregister": null,
+      "ustId": "DE987654321",
+      "accessibilityStatement": null
+    },
+    "03-gbr-at-dot-rund": {
+      "description": "GbR with two partners, e-mail hidden with \"(at)\" and \"(dot)\", Kleinunternehmer note that names the USt-IdNr label but gives no number, no register.",
+      "address": {
+        "street": "Lindenstraße 27",
+        "postcode": "65432",
+        "town": "Erfundenheim"
+      },
+      "email": {
+        "value": "post@gruenschnitt-fiktiv.example",
+        "form": "obfuscated"
+      },
+      "handelsregister": null,
+      "ustId": null,
+      "accessibilityStatement": null
+    },
+    "04-ek-registergericht-getrennt": {
+      "description": "e.K. (eingetragener Kaufmann): \"Registergericht: Amtsgericht X\" and \"Registernummer: HRA ...\" in two separate paragraphs, town with a hyphenated district.",
+      "address": {
+        "street": "Marktplatz 3",
+        "postcode": "54321",
+        "town": "Fiktivstadt-Süd"
+      },
+      "email": {
+        "value": "info@feinkost-erdacht.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRA",
+        "number": "1234",
+        "court": "Exempelstadt"
+      },
+      "ustId": "DE246813579",
+      "accessibilityStatement": null
+    },
+    "05-eine-zeile-kommas": {
+      "description": "Everything in one paragraph separated by commas: company, street with an attached letter, postcode and town, phone, e-mail, managing director, register court and HRB, USt-IdNr.",
+      "address": {
+        "street": "Quellweg 3a",
+        "postcode": "12345",
+        "town": "Phantasiefeld"
+      },
+      "email": {
+        "value": "service@tropffabel.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "6789",
+        "court": "Fabelhofen"
+      },
+      "ustId": "DE135792468",
+      "accessibilityStatement": null
+    },
+    "06-tabelle": {
+      "description": "Table layout with label cells \"Firma\", \"Anschrift\", \"E-Mail\", \"Registergericht\", \"Registernummer\", \"USt-ID\"; the address cell has a <br>.",
+      "address": {
+        "street": "Kabelweg 8",
+        "postcode": "23456",
+        "town": "Erdachtingen"
+      },
+      "email": {
+        "value": "kontakt@funkenfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "5678",
+        "court": "Vorlagenburg"
+      },
+      "ustId": "DE314159265",
+      "accessibilityStatement": null
+    },
+    "07-mailto-linktext": {
+      "description": "The e-mail exists only as a mailto: link (with a ?subject= query) whose text is \"E-Mail schreiben\"; the address is not in the visible text. UG (haftungsbeschränkt).",
+      "address": {
+        "street": "Federkielstraße 15",
+        "postcode": "34567",
+        "town": "Beispielsee"
+      },
+      "email": {
+        "value": "anfrage@tintenfabel.example",
+        "form": "mailto"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "3456",
+        "court": "Musterbrück"
+      },
+      "ustId": "DE271828182",
+      "accessibilityStatement": null
+    },
+    "08-email-als-bild": {
+      "description": "The e-mail is shown only as an image (base64 data: SVG) whose alt text does not contain the address, so it is not readable as text: email null (manual check).",
+      "address": {
+        "street": "Objektivweg 2",
+        "postcode": "45678",
+        "town": "Exemplarhausen"
+      },
+      "email": null,
+      "handelsregister": null,
+      "ustId": "DE192837465",
+      "accessibilityStatement": null
+    },
+    "09-cloudflare-email": {
+      "description": "Cloudflare email protection markup (link to /cdn-cgi/l/email-protection#hex and a span with data-cfemail) without the decode script, so the visible text is \"[email protected]\"; the address is the XOR-decoded hex (key 0x4a).",
+      "address": {
+        "street": "Ofengasse 11",
+        "postcode": "56789",
+        "town": "Beispielhausen"
+      },
+      "email": {
+        "value": "info@krumenfabel.example",
+        "form": "cloudflare"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "2468",
+        "court": "Musterhausen"
+      },
+      "ustId": "DE564738291",
+      "accessibilityStatement": null
+    },
+    "10-email-umgedreht": {
+      "description": "The only e-mail is written reversed in the DOM and flipped back for the eye by CSS (unicode-bidi: bidi-override; direction: rtl); the text a scanner reads is reversed: email null (manual check).",
+      "address": {
+        "street": "Hobelbankweg 6",
+        "postcode": "67890",
+        "town": "Fabelhausen"
+      },
+      "email": null,
+      "handelsregister": null,
+      "ustId": "DE111222333",
+      "accessibilityStatement": null
+    },
+    "11-nur-postfach": {
+      "description": "Only a Postfach with postcode and town, no street address: address null (manual check). Register and VAT ID are present.",
+      "address": null,
+      "email": {
+        "value": "redaktion@seitenfabel-verlag.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "7531",
+        "court": "Lesehausen"
+      },
+      "ustId": "DE159753487",
+      "accessibilityStatement": null
+    },
+    "12-dorf-ortsteil": {
+      "description": "Village-style street without a suffix such as -straße or -weg, and a town with a hyphenated district.",
+      "address": {
+        "street": "Hofmark 7",
+        "postcode": "84321",
+        "town": "Erfundenheim-Nord"
+      },
+      "email": {
+        "value": "imkerei@honigfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": null,
+      "ustId": "DE369258148",
+      "accessibilityStatement": null
+    },
+    "13-plz-mit-d-praefix": {
+      "description": "Postcode written with a \"D-\" prefix and the country \"Deutschland\" on the next line; the town is given without the country.",
+      "address": {
+        "street": "Am Fabelbrunnen 9",
+        "postcode": "72345",
+        "town": "Schablonau"
+      },
+      "email": {
+        "value": "werkstatt@schraubfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "8642",
+        "court": "Schablonau"
+      },
+      "ustId": "DE482615937",
+      "accessibilityStatement": null
+    },
+    "14-telefon-fax-fuenfstellig": {
+      "description": "Phone and fax numbers with five-digit groups stand right before the street address (each on its own line); they must not be taken for postcodes.",
+      "address": {
+        "street": "Kirchplatz 5",
+        "postcode": "93456",
+        "town": "Platzhalterried"
+      },
+      "email": {
+        "value": "info@granitfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "1357",
+        "court": "Platzhalterried"
+      },
+      "ustId": "DE753159852",
+      "accessibilityStatement": null
+    },
+    "15-agentur-vor-betreiber": {
+      "description": "A web-agency credit and a photo credit, each with its own street address and e-mail, come before the operator block in reading order; the operator block is expected. The register court is a town name with spaces.",
+      "address": {
+        "street": "Rosenhang 6",
+        "postcode": "22334",
+        "town": "Neudorf am Testbach"
+      },
+      "email": {
+        "value": "garten@fabelflor.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "4321",
+        "court": "Neudorf am Testbach"
+      },
+      "ustId": "DE852963741",
+      "accessibilityStatement": null
+    },
+    "16-schlichtungsstelle-danach": {
+      "description": "Operator block first, then a consumer arbitration board (Verbraucherschlichtungsstelle) with its own address, website and e-mail; only the operator data are expected.",
+      "address": {
+        "street": "Kofferstraße 14",
+        "postcode": "33445",
+        "town": "Exempelstadt"
+      },
+      "email": {
+        "value": "buchung@fernfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "5566",
+        "court": "Exempelstadt"
+      },
+      "ustId": "DE741852963",
+      "accessibilityStatement": null
+    },
+    "17-hrb-mit-b-suffix": {
+      "description": "Berlin-style register number with a trailing \" B\" (\"HRB ... B\") after \"Amtsgericht X\"; the number is expected without the suffix.",
+      "address": {
+        "street": "Röstweg 2",
+        "postcode": "13579",
+        "town": "Beispielburg"
+      },
+      "email": {
+        "value": "hallo@bohnenfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "123456",
+        "court": "Beispielburg"
+      },
+      "ustId": "DE918273645",
+      "accessibilityStatement": null
+    },
+    "18-ustid-mit-leerzeichen": {
+      "description": "OHG with HRA; the USt-IdNr is written with spaces in groups of three (\"DE ... ... ...\"); the value is expected without spaces.",
+      "address": {
+        "street": "Kettenweg 19",
+        "postcode": "66778",
+        "town": "Musterbrück"
+      },
+      "email": {
+        "value": "laden@speichenfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRA",
+        "number": "2233",
+        "court": "Musterbrück"
+      },
+      "ustId": "DE284619376",
+      "accessibilityStatement": null
+    },
+    "19-iban-und-steuernummer": {
+      "description": "A German IBAN (DE plus 20 digits in groups of four, invalid check digits 00) and a Steuernummer, but no VAT ID: ustId null. No register.",
+      "address": {
+        "street": "Kehrweg 4",
+        "postcode": "77889",
+        "town": "Fiktivbach"
+      },
+      "email": {
+        "value": "hausmeister@besenfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": null,
+      "ustId": null,
+      "accessibilityStatement": null
+    },
+    "20-englisch-legal-notice": {
+      "description": "English page: \"Legal notice\", address followed by \"Germany\", \"Email: info (at) ...\", \"Commercial register: Local court X, HRB ...\", \"VAT ID: DE...\", and an \"Accessibility statement\" link in the footer.",
+      "address": {
+        "street": "Bitstraße 101",
+        "postcode": "88990",
+        "town": "Musterstadt"
+      },
+      "email": {
+        "value": "info@codefabel.example",
+        "form": "obfuscated"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "9876",
+        "court": "Musterstadt"
+      },
+      "ustId": "DE502468013",
+      "accessibilityStatement": "/en/accessibility-statement"
+    },
+    "21-impressum-und-datenschutz": {
+      "description": "Combined page \"Impressum und Datenschutz\": the Impressum comes first, then a long privacy text that names a hosting provider, an external data protection officer and a supervisory authority with their own addresses and e-mails. No register.",
+      "address": {
+        "street": "Walzerweg 3",
+        "postcode": "99001",
+        "town": "Walzerfeld"
+      },
+      "email": {
+        "value": "tanzen@taktfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": null,
+      "ustId": "DE623451789",
+      "accessibilityStatement": null
+    },
+    "22-hr-b-mit-leerzeichen-ag": {
+      "description": "Register written \"HR B ...\" with a space and \"AG X\" (Amtsgericht) right after the number; a Steuernummer is present too, besides the USt-IdNr.",
+      "address": {
+        "street": "Firstweg 8",
+        "postcode": "31313",
+        "town": "Musterdorf"
+      },
+      "email": {
+        "value": "dach@ziegelfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "4711",
+        "court": "Musterdorf"
+      },
+      "ustId": "DE161803399",
+      "accessibilityStatement": null
+    },
+    "23-at-dot-woerter-partg": {
+      "description": "E-mail written with the words \" at \" and \" dot \" after the label \"E-Mail:\" on the same line. A Partnerschaftsgesellschaft with a PR number (not HRA/HRB): handelsregister null. Chamber and professional liability insurer with their own addresses come after the operator.",
+      "address": {
+        "street": "Paragrafenplatz 1",
+        "postcode": "41414",
+        "town": "Vorlagenburg"
+      },
+      "email": {
+        "value": "buero@zahlenfabel.example",
+        "form": "obfuscated"
+      },
+      "handelsregister": null,
+      "ustId": "DE271314159",
+      "accessibilityStatement": null
+    },
+    "24-zwei-betreiber-emails": {
+      "description": "Two operator e-mails: a general info address first, a data protection address later in the page; the first is expected.",
+      "address": {
+        "street": "Laufbahnstraße 40",
+        "postcode": "52525",
+        "town": "Sprintfeld"
+      },
+      "email": {
+        "value": "info@sprintfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "7788",
+        "court": "Beispielburg"
+      },
+      "ustId": "DE445566778",
+      "accessibilityStatement": null
+    },
+    "25-hausnummernbereich-abkuerzung": {
+      "description": "Abbreviated street with a house number range (\"...str. 12-14\", hyphen) and a town with an abbreviation that belongs to the name (\"... a. Inn\"). GmbH & Co. KG with HRA.",
+      "address": {
+        "street": "Industriestr. 12-14",
+        "postcode": "85858",
+        "town": "Musterau a. Inn"
+      },
+      "email": {
+        "value": "info@ambossfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRA",
+        "number": "3344",
+        "court": "Beispielburg"
+      },
+      "ustId": "DE334455667",
+      "accessibilityStatement": null
+    },
+    "26-mittelpunkte-und-pipes": {
+      "description": "Address on one line separated by middle dots (\"Name · Street · Postcode Town\"), contact line separated by pipes; the header shows the company name and a phone number with five-digit groups before the Impressum.",
+      "address": {
+        "street": "Am Anger 2",
+        "postcode": "46464",
+        "town": "Fönhausen"
+      },
+      "email": {
+        "value": "salon@scherenfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": null,
+      "ustId": "DE998877665",
+      "accessibilityStatement": null
+    },
+    "27-erklaerung-barrierefreiheit": {
+      "description": "Online shop with a link \"Erklärung zur Barrierefreiheit\" in the footer, next to AGB and Widerrufsbelehrung.",
+      "address": {
+        "street": "Maschenstraße 18",
+        "postcode": "57575",
+        "town": "Maschenfeld"
+      },
+      "email": {
+        "value": "shop@wollfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "6655",
+        "court": "Vorlagenburg"
+      },
+      "ustId": "DE556677889",
+      "accessibilityStatement": "/erklaerung-zur-barrierefreiheit"
+    },
+    "28-barrierefreiheit-toolbar": {
+      "description": "A link \"Barrierefreiheit anpassen\" with href \"#\" opens an accessibility toolbar; there is no accessibility statement: accessibilityStatement null.",
+      "address": {
+        "street": "Kannenweg 5",
+        "postcode": "58585",
+        "town": "Blattheim"
+      },
+      "email": {
+        "value": "tee@blattfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": null,
+      "ustId": "DE667788991",
+      "accessibilityStatement": null
+    },
+    "29-email-per-skript": {
+      "description": "The e-mail is assembled by an inline script at page load and written as text into an empty span; the HTML source never contains the address in one piece, the rendered page shows it as plain text.",
+      "address": {
+        "street": "Fensterweg 21",
+        "postcode": "59595",
+        "town": "Gläserfeld"
+      },
+      "email": {
+        "value": "kontakt@scheibenfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": null,
+      "ustId": "DE778899001",
+      "accessibilityStatement": null
+    },
+    "30-fast-leer": {
+      "description": "Nearly empty Impressum: only a company name and \"Kontakt über unser Formular\" with a link to the contact page; every field null (manual check).",
+      "address": null,
+      "email": null,
+      "handelsregister": null,
+      "ustId": null,
+      "accessibilityStatement": null
+    },
+    "31-email-geschweift-punkt": {
+      "description": "E-mail hidden with \"{at}\" and \"[punkt]\".",
+      "address": {
+        "street": "Kellenstraße 30",
+        "postcode": "61616",
+        "town": "Kellenfeld"
+      },
+      "email": {
+        "value": "bestellung@moertelfabel.example",
+        "form": "obfuscated"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "9911",
+        "court": "Kellenfeld"
+      },
+      "ustId": "DE889900112",
+      "accessibilityStatement": null
+    },
+    "32-email-ae-dot-eckig": {
+      "description": "E-mail hidden with \"[ät]\" and \"[dot]\" after the label \"Mail:\"; house number with an attached letter.",
+      "address": {
+        "street": "Gartenzeile 2b",
+        "postcode": "62626",
+        "town": "Strauchhausen"
+      },
+      "email": {
+        "value": "laden@bluetenfabel.example",
+        "form": "obfuscated"
+      },
+      "handelsregister": null,
+      "ustId": "DE990011223",
+      "accessibilityStatement": null
+    },
+    "33-verein-vereinsregister": {
+      "description": "Registered association (e.V.) with a Vereinsregister number (VR) at an Amtsgericht and a Steuernummer: neither is HRA/HRB nor a VAT ID, so handelsregister and ustId are null.",
+      "address": {
+        "street": "Notenweg 10",
+        "postcode": "63636",
+        "town": "Klangfeld"
+      },
+      "email": {
+        "value": "vorstand@fabelklang.example",
+        "form": "plain"
+      },
+      "handelsregister": null,
+      "ustId": null,
+      "accessibilityStatement": null
+    },
+    "34-hrb-ohne-gericht-gerichtsstand": {
+      "description": "HRB number without a register court; a \"Gerichtsstand\" (place of jurisdiction) follows, which is not a register court: court null.",
+      "address": {
+        "street": "Setzerweg 5",
+        "postcode": "64646",
+        "town": "Druckhausen"
+      },
+      "email": {
+        "value": "auftrag@letternfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "24680",
+        "court": null
+      },
+      "ustId": "DE101202304",
+      "accessibilityStatement": null
+    },
+    "35-bereich-gedankenstrich-opf": {
+      "description": "House number range with an en dash (\"12–14\") and a town whose name ends with an abbreviation and a period (\"i.d.OPf.\"); the e-mail has capital letters and is expected in lower case.",
+      "address": {
+        "street": "Gewerbering 12–14",
+        "postcode": "92345",
+        "town": "Altmusterau i.d.OPf."
+      },
+      "email": {
+        "value": "info@polsterfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "8080",
+        "court": "Fabelhofen"
+      },
+      "ustId": "DE404505606",
+      "accessibilityStatement": null
+    },
+    "36-hauptsitz-und-filiale": {
+      "description": "Two operator addresses (Hauptsitz first, Filiale second): the first is expected. A link \"Barrierefreiheitserklärung\" with an absolute URL inside the main text.",
+      "address": {
+        "street": "Sehweg 1",
+        "postcode": "35353",
+        "town": "Brillstadt"
+      },
+      "email": {
+        "value": "service@brillenfabel.example",
+        "form": "plain"
+      },
+      "handelsregister": {
+        "register": "HRB",
+        "number": "9090",
+        "court": "Brillstadt"
+      },
+      "ustId": "DE707808909",
+      "accessibilityStatement": "https://www.brillenfabel.example/barrierefreiheitserklaerung"
+    },
+    "37-genossenschaft-gnr": {
+      "description": "Cooperative (eG) with a Genossenschaftsregister number (GnR) at an Amtsgericht: not HRA/HRB, so handelsregister null; the VAT ID is present.",
+      "address": {
+        "street": "Windradweg 3",
+        "postcode": "37373",
+        "town": "Rotorfeld"
+      },
+      "email": {
+        "value": "mitglieder@fabelwind.example",
+        "form": "plain"
+      },
+      "handelsregister": null,
+      "ustId": "DE202303404",
+      "accessibilityStatement": null
+    }
+  }
+}

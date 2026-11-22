@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/37-genossenschaft-gnr.html",
+  "sha256": "e3b373421170e2d497a9553ad73d946ec8454adf2275498b20d94a07d96cbff7",
+  "url": "https://fixtures.example/impressum/pages/37-genossenschaft-gnr.html",
+  "title": "Impressum – Bürgerenergie Fabelwind eG",
+  "lang": "de",
+  "text": "Bürgerenergie Fabelwind\nStart Leistungen Über uns Kontakt\nImpressum\n\nBürgerenergie Fabelwind eG\nWindradweg 3\n37373 Rotorfeld\n\nVorstand: Wiebke Wind, Rudi Rotor\n\nE-Mail: mitglieder@fabelwind.example\n\nGenossenschaftsregister: Amtsgericht Rotorfeld, GnR 321\n\nUSt-IdNr.: DE202303404\n\nImpressum Datenschutz\n\n© 2026 Bürgerenergie Fabelwind",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teeladen Blattfabel – Tee aus aller Welt</title>
+<!--
+  Synthetic homepage for legal link finding (session A4), case 17-impressum-nur-javascript.
+  The only Impressum link has a javascript: href (it opens a layer), which does not count, and no href contains the word: impressum null (manual check). The privacy link is normal.
+  Every company and place is invented; every domain ends in .example.
+  Expected values: scanner/fixtures/legal-links/expected.json.
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.5; color: #1f1f1f; background: #ffffff; }
+  header, main, footer, .site-footer, [role="contentinfo"] { padding: 16px 32px; }
+  .kopf { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; justify-content: space-between; border-bottom: 1px solid #dddddd; }
+  .logo { font-weight: bold; font-size: 20px; color: #1f1f1f; text-decoration: none; }
+  nav a { margin-right: 16px; color: #1f3a5f; }
+  .hero { background: #f3f0ea; padding: 24px; margin: 16px 0; }
+  footer, .site-footer, [role="contentinfo"] { border-top: 1px solid #dddddd; font-size: 14px; }
+
+</style>
+</head>
+<body>
+<header class="kopf">
+  <a class="logo" href="/">Teeladen Blattfabel</a>
+  <nav aria-label="Hauptnavigation">
+      <a href="/">Start</a>
+      <a href="/leistungen">Leistungen</a>
+      <a href="/ueber-uns">Über uns</a>
+      <a href="/kontakt">Kontakt</a>
+  </nav>
+  
+</header>
+<main>
+<section class="hero">
+  <h1>Tee aus aller Welt</h1>
+  <p>Grüner, schwarzer und weißer Tee.</p>
+</section>
+<div id="impressum-layer" hidden><p>Die Angaben nach § 5 DDG erscheinen hier.</p></div>
+</main>
+<footer>
+  <nav aria-label="Rechtliches">
+      <a href="javascript:void(0)" onclick="document.getElementById('impressum-layer').hidden = false;">Impressum</a>
+      <a href="/datenschutz">Datenschutz</a>
+  </nav>
+  <p>© 2026 Teeladen Blattfabel</p>
+</footer>
+</body>
+</html>

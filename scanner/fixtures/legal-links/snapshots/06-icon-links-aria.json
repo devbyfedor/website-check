@@ -1,0 +1,45 @@
+{
+  "source": "legal-links/06-icon-links-aria.html",
+  "sha256": "4804f6a131b5d99492f8cf3e5faa513bf96d0a09ad12c7ce9be56c70e81764c2",
+  "url": "https://fixtures.example/legal-links/06-icon-links-aria.html",
+  "title": "Fotostudio Blendenfabel – Porträts und Hochzeiten",
+  "lang": "de",
+  "text": "Fotostudio Blendenfabel\nStart Leistungen Über uns Kontakt\nBilder, die bleiben\n\nPorträts, Hochzeiten und Firmenfotos.\n\n \n\n© 2026 Fotostudio Blendenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Fotostudio Blendenfabel",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

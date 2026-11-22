@@ -4,6 +4,8 @@ import type { AxeCapture } from '../a11y/types.ts';
 import { httpVariantOf, probeHttpRedirect } from '../security/http-probe.ts';
 import type { HttpProbe } from '../security/types.ts';
 import { classifyMainDocument, classifyNavigationError, pageEvidenceOf } from '../capture/failure.ts';
+import { IMPRESSUM_SETTINGS, pollText, type TextWatch } from '../legal/impressum-capture.ts';
+import { chooseImpressumTarget } from '../legal/links.ts';
 import {
   CAPTURE_SCHEMA_VERSION,
   type Capture,
@@ -12,12 +14,13 @@ import {
   type CapturedRequest,
   type CaptureTimings,
   type ConsentBannerObservation,
+  type ImpressumCapture,
   type PageSnapshot,
   type RedirectHop,
   type RequestInitiator,
 } from '../capture/types.ts';
 import { toInitiator, type CdpInitiator } from '../capture/cdp.ts';
-import { SNAPSHOT_EXPRESSION, type SnapshotResult } from '../capture/page-scripts.ts';
+import { IMPRESSUM_SNAPSHOT_EXPRESSION, SNAPSHOT_EXPRESSION, TEXT_PROGRESS_EXPRESSION, type SnapshotResult, type TextProgress } from '../capture/page-scripts.ts';
 import { CAPTURE_SETTINGS, desktopChromeUserAgent, LONG_LIVED_RESOURCE_TYPES } from '../capture/settings.ts';
 import { buildBannerProbeScript } from '../consent/probe-script.ts';
 import type { ConsentTool } from '../consent/tools.ts';
@@ -55,6 +58,8 @@ export interface LocalCaptureOptions {
   accessibility?: boolean;
   /** Check the redirect from http:// to https:// with plain HTTP requests, in parallel (default true). */
   httpProbe?: boolean;
+  /** Open the Impressum link of the homepage in a second tab and read its text (default true, session A4). */
+  impressum?: boolean;
   /**
    * Local comparisons only: runs on the same page right after the checks, before the HTML and the
    * screenshot, outside the page's hard limit (at most 90 s), with the checks already made. Its result is `after`.
@@ -66,6 +71,9 @@ export interface LocalCaptureResult {
   capture: Capture;
   html: string | null;
   screenshot: Buffer | null;
+  /** Local extras of the Impressum tab for manual checks (with `artifacts`), not counted in its browser time. */
+  impressumHtml?: string | null;
+  impressumScreenshot?: Buffer | null;
   /** Result of `afterChecks`, or its error text. */
   after?: unknown;
 }
@@ -173,8 +181,22 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
     void context.close().catch(() => undefined);
   }, settings.hardLimitMs);
   try {
-    const result = await runCapture(context, url, settings, environment, () => hardLimitHit, contextStarted, () => clearTimeout(hardTimer));
-    if (probe !== null) result.capture.httpProbe = await probe;
+    const { result, startedAt } = await runCapture(context, url, settings, environment, () => hardLimitHit, contextStarted, () => clearTimeout(hardTimer));
+    // The homepage is done: its hard limit no longer applies, the Impressum tab has its own.
+    clearTimeout(hardTimer);
+    const capture = result.capture;
+    if (options.impressum !== false && capture.ok && capture.page !== null && !hardLimitHit) {
+      const target = chooseImpressumTarget(capture.page.links, capture.page.url ?? capture.finalUrl);
+      if (target.action === 'open') {
+        const tab = await captureImpressumTab(context, target.url, startedAt, settings.artifacts);
+        capture.impressum = tab.impressum;
+        result.impressumHtml = tab.html;
+        result.impressumScreenshot = tab.screenshot;
+      } else {
+        capture.impressum = null;
+      }
+    }
+    if (probe !== null) capture.httpProbe = await probe;
     return result;
   } finally {
     clearTimeout(hardTimer);
@@ -198,7 +220,7 @@ async function runCapture(
   hardLimitHit: () => boolean,
   contextStarted: number,
   disarmHardLimit: () => void,
-): Promise<LocalCaptureResult> {
+): Promise<{ result: LocalCaptureResult; startedAt: number }> {
   const page = await context.newPage();
   await page.addInitScript({ content: buildBannerProbeScript(settings.tools) });
   const mainFrame = page.mainFrame();
@@ -422,6 +444,7 @@ async function runCapture(
     snapshot === null
       ? null
       : {
+          ...(snapshot.url ? { url: snapshot.url } : {}),
           title: snapshot.title,
           lang: snapshot.lang,
           text: snapshot.text,
@@ -429,6 +452,7 @@ async function runCapture(
           links: snapshot.links,
           linksTruncated: snapshot.linksTruncated,
           ...(snapshot.securityMeta ? { securityMeta: snapshot.securityMeta } : {}),
+          ...(snapshot.platform ? { platform: snapshot.platform } : {}),
         };
 
   const capture: Capture = {
@@ -441,11 +465,115 @@ async function runCapture(
     failure,
     finalUrl,
     mainDocument: mainResponse === null ? null : { status: mainResponse.status(), headers, redirectChain },
-    requests: records,
+    // A copy: the homepage tab stays open while the Impressum loads, and must not add to its capture.
+    requests: records.map((record) => ({ ...record })),
     page: pageSnapshot,
     consentBanner,
     axe,
     timings: { domContentLoadedMs, loadMs, networkQuietMs, endMs, stopReason },
   };
-  return { capture, html, screenshot, ...(settings.afterChecks !== null ? { after } : {}) };
+  return { result: { capture, html, screenshot, ...(settings.afterChecks !== null ? { after } : {}) }, startedAt: t0 };
 }
+
+/**
+ * Session A4: opens the Impressum in a second tab of the same browser context (no new browser, the
+ * consent state of the homepage visit), waits for DOMContentLoaded and then only until the text stops
+ * growing (`IMPRESSUM_SETTINGS`), reads title, text and links, and closes the tab. No interaction, no
+ * accessibility check. `totalMs` is the browser time of the tab: opening, loading, reading and closing;
+ * the local extras (HTML and screenshot for manual checks) are taken before closing but not counted.
+ */
+export async function captureImpressumTab(
+  context: BrowserContext,
+  url: string,
+  homepageStartedAt: number,
+  artifacts: boolean,
+): Promise<{ impressum: ImpressumCapture; html: string | null; screenshot: Buffer | null }> {
+  const opened = performance.now();
+  const since = (): number => Math.max(0, Math.round(performance.now() - opened));
+  const page = await context.newPage();
+  let requestCount = 0;
+  let domContentLoadedMs: number | null = null;
+  page.on('request', () => {
+    requestCount += 1;
+  });
+  page.on('domcontentloaded', () => {
+    domContentLoadedMs ??= since();
+  });
+  let hardLimitHit = false;
+  const hardTimer = setTimeout(() => {
+    hardLimitHit = true;
+    void page.close().catch(() => undefined);
+  }, IMPRESSUM_SETTINGS.hardLimitMs);
+  let navigationError: string | null = null;
+  let response: Response | null = null;
+  let stopReason: ImpressumCapture['timings']['stopReason'] = 'error';
+  let snapshot: SnapshotResult | null = null;
+  let snapshotMs: number | null = null;
+  let html: string | null = null;
+  let screenshot: Buffer | null = null;
+  let extrasMs = 0;
+  try {
+    try {
+      response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: IMPRESSUM_SETTINGS.navigationTimeoutMs });
+      if (response === null) navigationError = 'navigation returned no response';
+    } catch (error) {
+      navigationError = hardLimitHit ? 'Timeout: hard limit for the Impressum reached' : errorText(error);
+    }
+    if (navigationError === null) {
+      const settleStart = performance.now();
+      let watch: TextWatch = { length: -1, changedAtMs: 0 };
+      for (;;) {
+        if (hardLimitHit || page.isClosed()) break;
+        const progress =
+          (await withTimeout(page.evaluate(TEXT_PROGRESS_EXPRESSION) as Promise<TextProgress>, 2_000).catch(() => null)) ?? { readyState: 'loading', length: 0 };
+        const step = pollText(watch, progress.length, progress.readyState === 'complete', Math.round(performance.now() - settleStart));
+        watch = step.watch;
+        if (step.done !== null) {
+          stopReason = step.done;
+          break;
+        }
+        await sleep(IMPRESSUM_SETTINGS.pollMs);
+      }
+      if (!hardLimitHit && !page.isClosed()) {
+        snapshot = await withTimeout(page.evaluate(IMPRESSUM_SNAPSHOT_EXPRESSION) as Promise<SnapshotResult>, 4_000).catch(() => null);
+        snapshotMs = since();
+      }
+      if (artifacts && snapshot !== null && !hardLimitHit && !page.isClosed()) {
+        const extrasStart = performance.now();
+        html = await withTimeout(page.content(), 4_000).catch(() => null);
+        screenshot = await withTimeout(page.screenshot({ type: 'png', timeout: 5_000, fullPage: true }), 6_000).catch(() => null);
+        extrasMs = Math.round(performance.now() - extrasStart);
+      }
+    }
+  } finally {
+    clearTimeout(hardTimer);
+    await page.close().catch(() => undefined);
+  }
+  const totalMs = Math.max(0, since() - extrasMs);
+  let failure: CaptureFailure | null;
+  if (navigationError !== null) failure = { reason: classifyNavigationError(navigationError), message: navigationError };
+  else if (response === null) failure = { reason: 'other', message: 'no Impressum response' };
+  else if (snapshot === null) failure = { reason: hardLimitHit ? 'timeout' : 'other', message: 'the text of the Impressum could not be read' };
+  else failure = classifyMainDocument(response.status(), response.headers(), snapshot.title, pageEvidenceOf(snapshot, requestCount));
+  const impressum: ImpressumCapture = {
+    url,
+    ok: failure === null,
+    failure,
+    finalUrl: response?.url() ?? null,
+    status: response?.status() ?? null,
+    page:
+      snapshot === null
+        ? null
+        : { ...(snapshot.url ? { url: snapshot.url } : {}), title: snapshot.title, lang: snapshot.lang, text: snapshot.text, textTruncated: snapshot.textTruncated, links: snapshot.links, linksTruncated: snapshot.linksTruncated },
+    requestCount,
+    timings: {
+      openedAtMs: Math.max(0, Math.round(opened - homepageStartedAt)),
+      domContentLoadedMs,
+      snapshotMs,
+      totalMs,
+      stopReason: failure === null ? stopReason : 'error',
+    },
+  };
+  return { impressum, html, screenshot };
+}
+

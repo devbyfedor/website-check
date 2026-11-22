@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/11-nur-postfach.html",
+  "sha256": "a42a43fc6cdad1dc6ecdbcb61adcf91b0a09bfdf4f95e10b19d18fd1b9b4ace0",
+  "url": "https://fixtures.example/impressum/pages/11-nur-postfach.html",
+  "title": "Impressum – Verlag Seitenfabel GmbH",
+  "lang": "de",
+  "text": "Verlag Seitenfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nVerlag Seitenfabel GmbH\nPostfach 12 34 56\n98705 Lesehausen\n\nGeschäftsführerin: Petra Papier\n\nE-Mail: redaktion@seitenfabel-verlag.example\n\nAmtsgericht Lesehausen, HRB 7531\nUSt-IdNr.: DE159753487\n\nImpressum Datenschutz\n\n© 2026 Verlag Seitenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

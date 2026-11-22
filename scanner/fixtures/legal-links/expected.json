@@ -1,0 +1,137 @@
+{
+  "note": "Synthetic homepages for finding the Impressum, privacy policy and accessibility statement links (session A4). Every company and place is invented; every domain ends in .example (RFC 2606). Values are the href attribute exactly as written. A link counts when its visible text (or, without text, its aria-label or title) names it; links in the footer (<footer>, role=\"contentinfo\", or an element whose id or class contains \"footer\") come first, otherwise the first match in document order; only if no text matches, a link whose href path contains impressum/imprint/legal-notice or datenschutz/privacy. javascript: links and a bare \"#\" never count; consent settings links (Datenschutz-Einstellungen, Cookie-Einstellungen, Privatsphäre-Einstellungen, Privacy settings, Cookie settings) are not the privacy policy; accessibility toolbar links are not a statement. null means \"nicht gefunden, bitte manuell prüfen\"; no address such as /impressum is ever guessed.",
+  "cases": {
+    "01-footer-deutsch": {
+      "description": "Basic German homepage: \"Impressum\" and \"Datenschutz\" links in a <footer>, plus AGB.",
+      "impressum": "/impressum",
+      "datenschutz": "/datenschutz",
+      "accessibilityStatement": null
+    },
+    "02-englisch": {
+      "description": "English site: \"Imprint\", \"Privacy Policy\" and \"Accessibility Statement\" in the footer.",
+      "impressum": "/en/imprint",
+      "datenschutz": "/en/privacy-policy",
+      "accessibilityStatement": "/en/accessibility-statement"
+    },
+    "03-kombinierter-link": {
+      "description": "One combined footer link \"Impressum & Datenschutz\" (href without either word) serves both: impressum and datenschutz are the same href.",
+      "impressum": "/rechtliches",
+      "datenschutz": "/rechtliches",
+      "accessibilityStatement": null
+    },
+    "04-einstellungen-vor-datenschutz": {
+      "description": "Consent settings links \"Datenschutz-Einstellungen\" (href \"#\") and \"Cookie-Einstellungen\" (javascript:) come before the real \"Datenschutzerklärung\" link in the footer; the real one is expected.",
+      "impressum": "/impressum",
+      "datenschutz": "/datenschutzerklaerung",
+      "accessibilityStatement": null
+    },
+    "05-ohne-impressum-link": {
+      "description": "No Impressum and no privacy link at all, only \"Kontakt\" and \"Über uns\"; the word \"Impressum\" appears as plain text without a link. Both null, and no address such as /impressum may be guessed.",
+      "impressum": null,
+      "datenschutz": null,
+      "accessibilityStatement": null
+    },
+    "06-icon-links-aria": {
+      "description": "Icon-only footer links without text: the Impressum link is named by aria-label, the privacy link by title.",
+      "impressum": "/impressum",
+      "datenschutz": "/datenschutz",
+      "accessibilityStatement": null
+    },
+    "07-bildlink-href-fallback": {
+      "description": "The Impressum link is an image with an empty alt and no aria-label or title, so no link text matches; the href fallback (\"impressum\" in the path) finds it.",
+      "impressum": "/impressum.html",
+      "datenschutz": "/datenschutz.html",
+      "accessibilityStatement": null
+    },
+    "08-onepager-anker": {
+      "description": "One-pager: the footer links are same-page anchors \"#impressum\" and \"#datenschutz\" to sections further down.",
+      "impressum": "#impressum",
+      "datenschutz": "#datenschutz",
+      "accessibilityStatement": null
+    },
+    "09-header-und-footer": {
+      "description": "The header navigation has \"Impressum\" and \"Datenschutz\" links to other paths before the footer links; the footer links win.",
+      "impressum": "/impressum",
+      "datenschutz": "/datenschutz",
+      "accessibilityStatement": null
+    },
+    "10-toolbar-und-erklaerung": {
+      "description": "A header link \"Barrierefreiheit\" with href \"#\" opens an accessibility toolbar; the real \"Erklärung zur Barrierefreiheit\" link is in the footer and is expected.",
+      "impressum": "/impressum",
+      "datenschutz": "/datenschutz",
+      "accessibilityStatement": "/erklaerung-barrierefreiheit"
+    },
+    "11-impressum-als-pdf": {
+      "description": "The Impressum link points to a PDF file.",
+      "impressum": "/downloads/impressum.pdf",
+      "datenschutz": "/datenschutz",
+      "accessibilityStatement": null
+    },
+    "12-anbieterkennzeichnung": {
+      "description": "The Impressum link text is \"Anbieterkennzeichnung\", the privacy link text is \"Datenschutzhinweise\".",
+      "impressum": "/anbieterkennzeichnung",
+      "datenschutz": "/datenschutzhinweise",
+      "accessibilityStatement": null
+    },
+    "13-shop-policies": {
+      "description": "Shop-style policy paths: \"Impressum\" to /policies/legal-notice and \"Datenschutzerklärung\" to /policies/privacy-policy, next to AGB and Widerrufsbelehrung policies.",
+      "impressum": "/policies/legal-notice",
+      "datenschutz": "/policies/privacy-policy",
+      "accessibilityStatement": null
+    },
+    "14-viele-links-davor": {
+      "description": "An inline script adds 1,600 category links to a navigation before the footer; the footer with Impressum, Datenschutz and a \"Barrierefreiheit\" statement link comes after them in document order.",
+      "impressum": "/impressum",
+      "datenschutz": "/datenschutz",
+      "accessibilityStatement": "/barrierefreiheit"
+    },
+    "15-site-notice-privacy-notice": {
+      "description": "English link texts \"Site notice\", \"Privacy notice\" and \"Accessibility\" (a statement page, not a toolbar).",
+      "impressum": "/site-notice",
+      "datenschutz": "/privacy-notice",
+      "accessibilityStatement": "/accessibility"
+    },
+    "16-kontakt-impressum": {
+      "description": "Combined text \"Kontakt / Impressum\"; privacy link text \"Datenschutzinformationen\" after a consent link \"Privatsphäre-Einstellungen\" (href \"#\").",
+      "impressum": "/kontakt-impressum",
+      "datenschutz": "/datenschutzinformationen",
+      "accessibilityStatement": null
+    },
+    "17-impressum-nur-javascript": {
+      "description": "The only Impressum link has a javascript: href (it opens a layer), which does not count, and no href contains the word: impressum null (manual check). The privacy link is normal.",
+      "impressum": null,
+      "datenschutz": "/datenschutz",
+      "accessibilityStatement": null
+    },
+    "18-footer-per-klasse": {
+      "description": "No <footer> element: the footer is a div with class \"site-footer\". Blog teaser links with \"Impressum\" and \"Datenschutz\" in their text come earlier in the main part; the footer links win.",
+      "impressum": "/impressum",
+      "datenschutz": "/datenschutz",
+      "accessibilityStatement": null
+    },
+    "19-absolute-urls-contentinfo": {
+      "description": "Footer as a div with role=\"contentinfo\"; absolute links, the privacy policy on another .example host; a consent link \"Cookie-Einstellungen\" (href \"#\") comes first.",
+      "impressum": "https://www.fabelgruppe.example/impressum/",
+      "datenschutz": "https://datenschutz.fabelgruppe.example/",
+      "accessibilityStatement": null
+    },
+    "20-grossbuchstaben-verschachtelt": {
+      "description": "Link texts in capitals and nested in spans: \"IMPRESSUM\" in capitals in the DOM next to a symbol span, \"Datenschutz\" shown in capitals by CSS text-transform.",
+      "impressum": "/impressum/",
+      "datenschutz": "/datenschutz/",
+      "accessibilityStatement": null
+    },
+    "21-legal-notice-data-protection": {
+      "description": "English footer: consent links \"Privacy settings\" (href \"#\") and \"Cookie settings\" (javascript:) before \"Legal notice\" and \"Data protection\"; the real ones are expected.",
+      "impressum": "/legal-notice",
+      "datenschutz": "/data-protection",
+      "accessibilityStatement": null
+    },
+    "22-href-fallback-beide": {
+      "description": "The footer links have unrelated texts (\"Rechtliches\", \"Hinweise\"); no link text matches, so the href fallback finds /rechtliches/impressum and /rechtliches/datenschutz.",
+      "impressum": "/rechtliches/impressum",
+      "datenschutz": "/rechtliches/datenschutz",
+      "accessibilityStatement": null
+    }
+  }
+}

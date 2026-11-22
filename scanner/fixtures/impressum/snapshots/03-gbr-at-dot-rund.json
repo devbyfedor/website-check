@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/03-gbr-at-dot-rund.html",
+  "sha256": "04cf56703ebad2baf4ed9f504b697602fdf78b02cfda123b9bca7d4d8fa11510",
+  "url": "https://fixtures.example/impressum/pages/03-gbr-at-dot-rund.html",
+  "title": "Impressum – Grünschnitt Fiktiv GbR",
+  "lang": "de",
+  "text": "Grünschnitt Fiktiv\nStart Leistungen Über uns Kontakt\nImpressum\nDiensteanbieter\n\nGrünschnitt Fiktiv GbR\nGesellschafter: Anna Ahorn und Ben Birke\nLindenstraße 27\n65432 Erfundenheim\n\nKontakt\n\nTelefon: 0654 3210987\nE-Mail: post(at)gruenschnitt-fiktiv(dot)example\n\nUmsatzsteuer\n\nAls Kleinunternehmer im Sinne von § 19 Abs. 1 UStG berechnen wir keine Umsatzsteuer. Eine Umsatzsteuer-Identifikationsnummer ist daher nicht vorhanden.\n\nImpressum Datenschutz\n\n© 2026 Grünschnitt Fiktiv",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

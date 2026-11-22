@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/04-ek-registergericht-getrennt.html",
+  "sha256": "7960535f88049de509d8b8de550c69f55a8368e72c7df3d578f8667fbbfbb5ee",
+  "url": "https://fixtures.example/impressum/pages/04-ek-registergericht-getrennt.html",
+  "title": "Impressum – Feinkost Erdacht e.K.",
+  "lang": "de",
+  "text": "Feinkost Erdacht\nStart Leistungen Über uns Kontakt\nImpressum\n\nFeinkost Erdacht e.K.\nInhaber: Emil Erdacht\nMarktplatz 3\n54321 Fiktivstadt-Süd\n\nTelefon: +49 5432 109876\nE-Mail: info@feinkost-erdacht.example\n\nRegistergericht: Amtsgericht Exempelstadt\n\nRegisternummer: HRA 1234\n\nUmsatzsteuer-Identifikationsnummer gemäß § 27 a UStG: DE246813579\n\nImpressum Datenschutz\n\n© 2026 Feinkost Erdacht",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

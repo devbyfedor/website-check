@@ -1,0 +1,55 @@
+{
+  "source": "legal-links/18-footer-per-klasse.html",
+  "sha256": "1d3d0c5121c7818f35b05802c3470b69a7915eafe6a3cb2cf0397c3139fec24c",
+  "url": "https://fixtures.example/legal-links/18-footer-per-klasse.html",
+  "title": "Musikverein Fabelklang – Blasmusik aus Klangfeld",
+  "lang": "de",
+  "text": "Musikverein Fabelklang\nStart Leistungen Über uns Kontakt\nBlasmusik aus Klangfeld\n\nProben jeden Donnerstag.\n\nAus unserem Blog\nWas gehört ins Impressum eines Vereins?\nDatenschutz im Verein: unsere Erfahrungen\nImpressum Datenschutz\n\n© 2026 Musikverein Fabelklang",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Musikverein Fabelklang",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/blog/was-gehoert-ins-impressum",
+      "text": "Was gehört ins Impressum eines Vereins?",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/blog/datenschutz-im-verein",
+      "text": "Datenschutz im Verein: unsere Erfahrungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

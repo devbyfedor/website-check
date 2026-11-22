@@ -1,5 +1,6 @@
 import type { BannerProbeState } from '../consent/probe-script.ts';
-import type { ConsentSignals, PageSnapshot } from './types.ts';
+import { PLATFORM_GLOBALS, PLATFORM_SELECTORS } from '../platform/fingerprints.ts';
+import type { ConsentSignals, PageSnapshot, PlatformHints } from './types.ts';
 import type { ResourceTimingData } from './resource-timing.ts';
 
 /**
@@ -11,32 +12,92 @@ import type { ResourceTimingData } from './resource-timing.ts';
 /** Global set by `RESOURCE_TIMING_INIT_SCRIPT`. */
 export const RESOURCE_TIMING_GLOBAL = '__wcResources';
 
+/** Words of legal links (session A4): links beyond the cap that match are still kept. */
+const LEGAL_WORDS = 'impressum|imprint|anbieterkenn|legal|datenschutz|privacy|data protection|barrierefrei|accessib';
+
 /**
- * Snapshot at the end of a visit: title, language, visible text, links, the banner probe result,
- * the consent signals of known tools, and `performance.timeOrigin` (epoch milliseconds of the
- * navigation start, used to convert probe times on machines with another clock).
+ * Shared part of both snapshots: visible text and links. A link is marked `footer` when it sits in
+ * `<footer>`, `role="contentinfo"`, or an element whose id or class names a footer, as long as that
+ * element holds no header and no main part (a page wrapper with "footer" in a class is not a footer).
+ * When a page has more links than the cap, links beyond it whose text or address names a legal page
+ * are kept as well, so a footer after a huge menu is not lost.
  */
-export const SNAPSHOT_EXPRESSION = `(() => {
+const TEXT_AND_LINKS = `
   const MAX_TEXT = 100000;
   const MAX_LINKS = 1500;
+  const MAX_EXTRA_LINKS = 100;
   const body = document.body;
   const text = body ? (body.innerText || '') : '';
   const anchors = Array.from(document.querySelectorAll('a[href]'));
-  const links = [];
-  for (const a of anchors.slice(0, MAX_LINKS)) {
+  const footerCache = new Map();
+  const isFooterBox = (el) => {
+    if (footerCache.has(el)) return footerCache.get(el);
+    let result = false;
+    const tag = el.tagName ? el.tagName.toLowerCase() : '';
+    if (tag === 'footer' || el.getAttribute('role') === 'contentinfo') result = true;
+    else {
+      const names = ((el.id || '') + ' ' + (typeof el.className === 'string' ? el.className : (el.getAttribute('class') || ''))).toLowerCase();
+      if (names.indexOf('footer') !== -1 && tag !== 'body' && tag !== 'html') {
+        result = !el.querySelector('header, main, [role="main"], [role="banner"]');
+      }
+    }
+    footerCache.set(el, result);
+    return result;
+  };
+  const inFooter = (a) => {
+    for (let el = a.parentElement; el && el !== document.documentElement; el = el.parentElement) {
+      if (isFooterBox(el)) return true;
+    }
+    return false;
+  };
+  const linkOf = (a) => {
     const raw = a.getAttribute('href') || '';
     let href = raw;
     try { href = new URL(raw, document.baseURI).href; } catch (e) { href = raw; }
     const label = (a.innerText || a.getAttribute('aria-label') || a.getAttribute('title') || '').replace(/\\s+/g, ' ').trim().slice(0, 200);
-    links.push({ href, text: label });
-  }
+    return { href, text: label, footer: inFooter(a) };
+  };
+  const links = anchors.slice(0, MAX_LINKS).map(linkOf);
+  if (anchors.length > MAX_LINKS) {
+    const legal = /${LEGAL_WORDS}/i;
+    let extra = 0;
+    for (const a of anchors.slice(MAX_LINKS)) {
+      if (extra >= MAX_EXTRA_LINKS) break;
+      const words = (a.innerText || '') + ' ' + (a.getAttribute('aria-label') || '') + ' ' + (a.getAttribute('title') || '') + ' ' + (a.getAttribute('href') || '');
+      if (legal.test(words)) { links.push(linkOf(a)); extra += 1; }
+    }
+  }`;
+
+/** System hints (session A4): generator meta tags, known globals and known selectors. */
+const PLATFORM_HINTS = `(() => {
+    const generators = Array.from(document.querySelectorAll('meta[name="generator" i]')).slice(0, 5).map((m) => String(m.getAttribute('content') || '').slice(0, 120));
+    const globals = ${JSON.stringify(PLATFORM_GLOBALS)}.filter((path) => {
+      try {
+        let value = window;
+        for (const part of path.split('.')) { if (value === null || value === undefined) return false; value = value[part]; }
+        return value !== undefined && value !== null;
+      } catch (e) { return false; }
+    });
+    const selectors = ${JSON.stringify(PLATFORM_SELECTORS)}.filter((s) => { try { return document.querySelector(s) !== null; } catch (e) { return false; } });
+    return { generators, globals, selectors };
+  })()`;
+
+/**
+ * Snapshot at the end of a visit: title, language, visible text, links, the banner probe result,
+ * the consent signals of known tools, `performance.timeOrigin` (epoch milliseconds of the
+ * navigation start, used to convert probe times on machines with another clock), the security
+ * meta tags and the system hints.
+ */
+export const SNAPSHOT_EXPRESSION = `(() => {${TEXT_AND_LINKS}
   return {
+    url: location.href,
     title: document.title || '',
     lang: document.documentElement.getAttribute('lang'),
     text: text.slice(0, MAX_TEXT),
     textTruncated: text.length > MAX_TEXT,
     links,
     linksTruncated: anchors.length > MAX_LINKS,
+    platform: ${PLATFORM_HINTS},
     probe: window.__wcBannerProbe || null,
     signals: (() => {
       const read = (fn) => { try { return fn(); } catch (e) { return null; } };
@@ -60,6 +121,28 @@ export interface SnapshotResult extends PageSnapshot {
   signals: ConsentSignals | null;
   /** Missing in captures made before session A2. */
   timeOrigin?: number;
+  platform?: PlatformHints;
+}
+
+/** Session A4: the snapshot of the Impressum page: title, language, visible text and links only. */
+export const IMPRESSUM_SNAPSHOT_EXPRESSION = `(() => {${TEXT_AND_LINKS}
+  return {
+    url: location.href,
+    title: document.title || '',
+    lang: document.documentElement.getAttribute('lang'),
+    text: text.slice(0, MAX_TEXT),
+    textTruncated: text.length > MAX_TEXT,
+    links,
+    linksTruncated: anchors.length > MAX_LINKS,
+  };
+})()`;
+
+/** Session A4: cheap progress check while the Impressum loads (state of the document and length of its text). */
+export const TEXT_PROGRESS_EXPRESSION = `(() => ({ readyState: document.readyState, length: document.body ? (document.body.innerText || '').length : 0 }))()`;
+
+export interface TextProgress {
+  readyState: string;
+  length: number;
 }
 
 /**

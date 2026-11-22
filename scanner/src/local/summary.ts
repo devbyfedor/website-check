@@ -1,4 +1,7 @@
 import { analyzeAccessibility, type A11yCheckId } from '../analyzers/accessibility.ts';
+import { analyzeLegal, type ImpressumState } from '../analyzers/legal.ts';
+import { analyzePlatform } from '../analyzers/platform.ts';
+import { IMPRESSUM_FIELDS, type ImpressumFieldId } from '../legal/fields.ts';
 import { analyzeSecurity, SECURITY_HEADERS, type CheckResult, type SecurityHeaderKey } from '../analyzers/security.ts';
 import type { ThirdPartyAnalysis } from '../analyzers/third-party.ts';
 import type { Capture, CaptureFailureReason } from '../capture/types.ts';
@@ -59,6 +62,24 @@ export interface RunSummary {
     headerPresent: Record<SecurityHeaderKey, number>;
     headerStatus: Record<SecurityHeaderKey, Record<string, number>>;
     headersPresentPerSite: { median: number | null; min: number | null; max: number | null };
+  };
+  /** Session A4: legal links, the Impressum tab, the fields, and the detected system. */
+  legal: {
+    /** `found` counts only certain links; `unsure`: an accessibility link that names only the topic (manual check). */
+    links: Record<'impressum' | 'datenschutz' | 'accessibilityStatement', { found: number; unsure: number; footer: number; byHref: number }>;
+    impressumStates: Partial<Record<ImpressumState, number>>;
+    crossSite: number;
+    /** Browser time of the Impressum tab (open to close), over the tabs that were opened. */
+    impressumMs: { opened: number; median: number | null; max: number | null; mean: number | null };
+    impressumStop: Record<string, number>;
+    /** Fields found, over the Impressum texts that were searched. */
+    fieldsFound: Record<ImpressumFieldId, number>;
+    searched: number;
+    courtMissing: number;
+    emailForms: Record<string, number>;
+    systems: Record<string, number>;
+    woocommerce: number;
+    conflicts: number;
   };
 }
 
@@ -160,6 +181,7 @@ export function summarizeRun(results: readonly SiteRunResult[]): RunSummary {
     googleFontsSites,
     accessibility: summarizeAccessibility(ok),
     security: summarizeSecurity(ok),
+    legal: summarizeLegal(ok),
   };
 }
 
@@ -249,6 +271,73 @@ function summarizeSecurity(ok: readonly SiteRunResult[]): RunSummary['security']
   };
 }
 
+function mean(values: number[]): number | null {
+  return values.length === 0 ? null : Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+}
+
+function summarizeLegal(ok: readonly SiteRunResult[]): RunSummary['legal'] {
+  const kinds = ['impressum', 'datenschutz', 'accessibilityStatement'] as const;
+  const links = Object.fromEntries(kinds.map((k) => [k, { found: 0, unsure: 0, footer: 0, byHref: 0 }])) as RunSummary['legal']['links'];
+  const impressumStates: Partial<Record<ImpressumState, number>> = {};
+  const fieldsFound = Object.fromEntries(IMPRESSUM_FIELDS.map((f) => [f, 0])) as Record<ImpressumFieldId, number>;
+  const emailForms: Record<string, number> = {};
+  const systems: Record<string, number> = {};
+  const impressumStop: Record<string, number> = {};
+  const tabMs: number[] = [];
+  let crossSite = 0;
+  let searched = 0;
+  let courtMissing = 0;
+  let woocommerce = 0;
+  let conflicts = 0;
+  for (const result of ok) {
+    const legal = analyzeLegal(result.capture);
+    for (const kind of kinds) {
+      const link = kind === 'accessibilityStatement' ? legal.accessibilityStatement : legal.links[kind];
+      if (link === null) continue;
+      if (!link.certain) {
+        links[kind].unsure += 1;
+        continue;
+      }
+      links[kind].found += 1;
+      if (link.footer) links[kind].footer += 1;
+      if (link.matchedBy === 'href') links[kind].byHref += 1;
+    }
+    impressumStates[legal.impressum.state] = (impressumStates[legal.impressum.state] ?? 0) + 1;
+    if (legal.impressum.crossSite) crossSite += 1;
+    const tab = result.capture.impressum ?? null;
+    if (tab !== null) {
+      tabMs.push(tab.timings.totalMs);
+      increment(impressumStop, tab.timings.stopReason);
+    }
+    if (legal.impressum.state === 'analyzed' || legal.impressum.state === 'same-page') {
+      searched += 1;
+      for (const field of IMPRESSUM_FIELDS) if (legal.fields[field].status === 'found') fieldsFound[field] += 1;
+      const register = legal.fields.handelsregister;
+      if (register.status === 'found' && register.value.court === null) courtMissing += 1;
+      const email = legal.fields.email;
+      if (email.status === 'found') increment(emailForms, email.value.form);
+    }
+    const platform = analyzePlatform(result.capture);
+    increment(systems, platform.system);
+    if (platform.woocommerce) woocommerce += 1;
+    if (platform.conflict) conflicts += 1;
+  }
+  return {
+    links,
+    impressumStates,
+    crossSite,
+    impressumMs: { opened: tabMs.length, median: median(tabMs), max: max(tabMs), mean: mean(tabMs) },
+    impressumStop,
+    fieldsFound,
+    searched,
+    courtMissing,
+    emailForms,
+    systems,
+    woocommerce,
+    conflicts,
+  };
+}
+
 function seconds(ms: number | null): string {
   return ms === null ? 'n/a' : `${(ms / 1000).toFixed(1)} s`;
 }
@@ -308,5 +397,11 @@ export function renderSummaryMarkdown(summary: RunSummary): string {
   lines.push(
     `- Header states: ${SECURITY_HEADERS.map((h) => `${h.key} (${Object.entries(sec.headerStatus[h.key]).map(([k, v]) => `${k} ${v}`).join(', ')})`).join('; ')}.`,
   );
+  const l = summary.legal;
+  const linkLine = (k: keyof typeof l.links): string => `${l.links[k].found} (footer ${l.links[k].footer}, by address only ${l.links[k].byHref})`;
+  lines.push(`- Links on the homepage (of ${summary.captured}): Impressum ${linkLine('impressum')}, Datenschutz ${linkLine('datenschutz')}, Erklärung zur Barrierefreiheit ${linkLine('accessibilityStatement')}, plus ${l.links.accessibilityStatement.unsure} links that name only the topic (manual check) (homepage or Impressum page).`);
+  lines.push(`- Impressum: ${Object.entries(l.impressumStates).map(([k, v]) => `${k} ${v}`).join(', ')}; on another site: ${l.crossSite}. Second tab opened ${l.impressumMs.opened} times, browser time per tab median ${seconds(l.impressumMs.median)}, mean ${seconds(l.impressumMs.mean)}, max ${seconds(l.impressumMs.max)} (stop: ${Object.entries(l.impressumStop).map(([k, v]) => `${k} ${v}`).join(', ') || 'none'}).`);
+  lines.push(`- Impressum fields found (of ${l.searched} texts searched): address ${l.fieldsFound.address}, e-mail ${l.fieldsFound.email} (${Object.entries(l.emailForms).map(([k, v]) => `${k} ${v}`).join(', ') || 'none'}), Handelsregister ${l.fieldsFound.handelsregister} (without court ${l.courtMissing}), USt-IdNr ${l.fieldsFound.ustId}.`);
+  lines.push(`- System: ${Object.entries(l.systems).map(([k, v]) => `${k} ${v}`).join(', ')}; WooCommerce ${l.woocommerce}; strong signals of two systems ${l.conflicts}.`);
   return `${lines.join('\n')}\n`;
 }

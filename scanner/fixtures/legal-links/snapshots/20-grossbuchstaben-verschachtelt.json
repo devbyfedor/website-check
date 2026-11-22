@@ -1,0 +1,45 @@
+{
+  "source": "legal-links/20-grossbuchstaben-verschachtelt.html",
+  "sha256": "9c9367ddbfbaf1f62a23d03d0027c40e760de714f297247f341e65a2486bf164",
+  "url": "https://fixtures.example/legal-links/20-grossbuchstaben-verschachtelt.html",
+  "title": "Dachdeckerei Ziegelfabel – Dächer und Fassaden",
+  "lang": "de",
+  "text": "Dachdeckerei Ziegelfabel\nStart Leistungen Über uns Kontakt\nDächer, die halten\n\nSteildach, Flachdach und Fassade.\n\n§ IMPRESSUM DATENSCHUTZ\n\n© 2026 Dachdeckerei Ziegelfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Dachdeckerei Ziegelfabel",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum/",
+      "text": "§ IMPRESSUM",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz/",
+      "text": "DATENSCHUTZ",
+      "footer": true
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { analyzeCapture } from '../analyzers/capture.ts';
+import { analyzeCapture, type CaptureAnalysis } from '../analyzers/capture.ts';
 import type { ThirdPartyAnalysis } from '../analyzers/third-party.ts';
 import { recheckCapture } from '../capture/failure.ts';
 import type { Capture, CaptureFailureReason } from '../capture/types.ts';
@@ -65,8 +65,10 @@ async function main(): Promise<void> {
       const base = `site-${site.number}`;
       // Decided again, so captures saved before a classification rule (for example check pages) follow it.
       const capture = recheckCapture(JSON.parse(await readFile(resolve(outDir, 'captures', `${base}.json`), 'utf8')) as Capture);
-      const analysis = analyzeCapture(capture, DEFAULT_RULES).thirdParty;
+      const full = analyzeCapture(capture, DEFAULT_RULES);
+      const analysis = full.thirdParty;
       await writeResult(outDir, base, analysis);
+      await writeLegal(outDir, base, full);
       results.push({ label: site.label, kind: site.kind, platform: site.platform, attempts: 1, capture, analysis });
       console.log(`${site.label}: ${capture.ok ? `${analysis?.counts.findings ?? 0} findings, ${analysis?.counts.hints ?? 0} hints` : `FAILED ${capture.failure?.reason}`}`);
     }
@@ -102,8 +104,12 @@ async function main(): Promise<void> {
       await writeFile(resolve(outDir, 'captures', `${base}.json`), `${JSON.stringify(capture, null, 2)}\n`);
       if (html !== null) await writeFile(resolve(outDir, 'captures', `${base}.html`), html);
       if (screenshot !== null) await writeFile(resolve(outDir, 'captures', `${base}.png`), screenshot);
-      const analysis = analyzeCapture(capture, DEFAULT_RULES).thirdParty;
+      if (result.impressumHtml) await writeFile(resolve(outDir, 'captures', `${base}.impressum.html`), result.impressumHtml);
+      if (result.impressumScreenshot) await writeFile(resolve(outDir, 'captures', `${base}.impressum.png`), result.impressumScreenshot);
+      const full = analyzeCapture(capture, DEFAULT_RULES);
+      const analysis = full.thirdParty;
       await writeResult(outDir, base, analysis);
+      await writeLegal(outDir, base, full);
       results.push({ label: site.label, kind: site.kind, platform: site.platform, attempts, capture, analysis });
       if (result.after !== undefined) {
         const chain = result.after as Partial<ReferenceChain> & { error?: string };
@@ -136,7 +142,14 @@ async function main(): Promise<void> {
       const extra = capture.ok
         ? `; axe ${a11y?.status ?? 'none'} ${a11y?.status === 'ok' ? Object.entries(a11y.rules).map(([id, r]) => `${id} ${r.violations}`).join(' ') : (a11y?.error ?? '')} in ${a11y?.timing.totalMs ?? 0} ms; https ${security?.https.result}, redirect ${capture.httpProbe?.outcome ?? 'none'}, headers ${security?.headersPresent}/5`
         : '';
-      console.log(`${site.label}: ${line}${extra}`);
+      const legal = full.legal;
+      const fieldsLine =
+        legal === null
+          ? ''
+          : `; Impressum ${legal.impressum.state}${capture.impressum ? ` ${capture.impressum.timings.totalMs} ms` : ''}, fields ${(['address', 'email', 'handelsregister', 'ustId'] as const)
+              .map((f) => `${f} ${legal.fields[f].status === 'found' ? 'found' : '-'}`)
+              .join(' ')}, system ${full.platform?.system}${full.platform?.woocommerce ? '+woocommerce' : ''}`;
+      console.log(`${site.label}: ${line}${extra}${fieldsLine}`);
     }
   } finally {
     await browser.close();
@@ -160,6 +173,13 @@ async function writeResult(outDir: string, base: string, analysis: ThirdPartyAna
   const path = resolve(outDir, 'results', `${base}.json`);
   if (analysis === null) await rm(path, { force: true });
   else await writeFile(path, `${JSON.stringify(analysis, null, 2)}\n`);
+}
+
+/** Session A4: legal links, Impressum fields and the system of a site; removed for a site without analysis. */
+async function writeLegal(outDir: string, base: string, analysis: CaptureAnalysis): Promise<void> {
+  const path = resolve(outDir, 'results', `${base}.legal.json`);
+  if (analysis.legal === null) await rm(path, { force: true });
+  else await writeFile(path, `${JSON.stringify({ legal: analysis.legal, platform: analysis.platform }, null, 2)}\n`);
 }
 
 async function writeSummary(outDir: string, results: SiteRunResult[]): Promise<void> {

@@ -2,7 +2,7 @@
 
 ## Current state
 
-Stage A, sessions A1, A2 and A3 are merged into `main`. Before the first push the history of all branches was rewritten twice to remove personal details about the owner (21.11.2026 and 22.11.2026, sections "History cleanup before the first push" and "Second history cleanup" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
+Stage A, sessions A1, A2, A3 and A4 are merged into `main`. A4 added the mandatory information (Impressum and Datenschutz links, the Impressum in a second tab, its fields by templates, the Erklärung zur Barrierefreiheit) and system detection, locally; the Cloudflare adapter gets the second tab in A5. Before the first push the history of all branches was rewritten twice to remove personal details about the owner (21.11.2026 and 22.11.2026, sections "History cleanup before the first push" and "Second history cleanup" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
 - Part 1 (done): the Cloudflare capture adapter in `worker/` with both strategies, and a check on three sites of whether consent tools behave the same with the Cloudflare browser as with the local run (banner, third-party requests before consent, browser location, Worker CPU and wall time).
 - Part 2 (done): the capture moves into a Durable Object in the EU jurisdiction; the Worker only checks the token and passes the job on. The scanner recognises blocked pages (a web host's check page such as "Einen Moment bitte") and gives no findings for them. Check on Cloudflare: browser location from the Durable Object, the three sites of part 1 with both strategies, Site 06 recognised as blocked, CPU of the Worker and of the Durable Object.
 - Part 3 (done): banner probe fixes, the measurement on 12 sites, `docs/measurements/a2.md` with the plan recommendation, the merge into `main`, and deleting the lab Worker.
@@ -262,8 +262,44 @@ Normal commits after the rewrite: `docs/decisions.md` records the second rewrite
 
 Result: every check holds; merged into `main` with `git merge --no-ff`.
 
+## A4: mandatory information and system detection (22.11.2026)
+
+Branch `a4-impressum`. Session time: about 1 hour 35 minutes (14:24 to about 16:00). No Cloudflare, no deploy, nothing pushed. Local browser only: one run of the 30 sites (15:01 to 15:07), then only re-analysis of the saved captures.
+
+Fedor's answers before the start (in `docs/decisions.md`): axe on the homepage only; the comparison with axe on an unchanged page is the right method; the design's "Soll nach Gesetz und Richtlinie" stays (checked again with the German texts in stage C, `docs/backlog.md`); the sentence about the native speaker stays; "postal address" stays.
+
+### What was done
+
+- Step 1: the two history backups and the hash maps are deleted from `local/backup/` (two bundles, four commit and ref maps, two lists of the old commits and messages; the folder is gone). `main` equals `origin/main` (cd6687b).
+- Step 2: branch `a4-impressum` from `main`.
+- Step 3, links: the page snapshot marks footer links and keeps legal links beyond the 1,500-link cap; `scanner/src/legal/links.ts` finds the Impressum, Datenschutz and Erklärung zur Barrierefreiheit links by German and English texts (exact text first, then footer, then document order; by address only as a whole path word for a link without text). No address is ever guessed: without a link the state is `no-link`, "nicht gefunden, bitte manuell prüfen".
+- Step 4, second tab: the local adapter opens the Impressum in a second tab of the same browser context after the homepage (`captureImpressumTab`), waits for DOMContentLoaded and then only until the text is stable, reads text and links, closes the tab; no axe. Shared settings and the wait rule are in the core (`scanner/src/legal/impressum-capture.ts`) for the Cloudflare adapter in A5.
+- Step 5, templates (`scanner/src/legal/fields.ts`): postal address, e-mail (plain, mailto, "[at]", "(at)", "{at}", "[ät]", " at ", "[dot]", "(dot)", " dot ", "[punkt]", Cloudflare protection), Handelsregister (HRA/HRB, number, court), USt-IdNr (DE plus 9 digits). Each field is found with its exact quote or "nicht gefunden, bitte manuell prüfen"; third-party blocks are skipped. Analyzer `analyzeLegal` with the states of the Impressum.
+- Step 6, system detection: `scanner/src/platform/fingerprints.ts` and `analyzePlatform`; 80 signals (65 strong, 15 weak) of WordPress, WooCommerce, Shopify, Shopware 5 and 6, Wix and Jimdo, each documented with its source in `docs/cms-fingerprints.md` (research by three helpers, every source opened again by a skeptical reviewer: 95 of 96 claims confirmed, the one not confirmed is not used, three made weak on the reviewers' advice).
+- Step 7, fixtures: 37 synthetic Impressum pages and 22 homepages with invented firms and `.example` domains (`scanner/fixtures/impressum/`, `scanner/fixtures/legal-links/`), written by one helper and confirmed by a second who extracted every field without seeing the expected values (0 differences); Chromium snapshots for `npm test`, compared again in the integration test.
+- Step 8: local run of the 30 sites, manual check on two samples of ten (independent reviewers who saw only the saved data, never the scanner's result, and a judge for every difference), and an independent code review from three angles. Details and numbers: `docs/measurements/a4.md`.
+- Fixes during the session, each with a test on invented text: four from the first local run (a court address and a course venue taken for the operator's address, two operator addresses missed), one from the second sample (an agency's service page "Digitale Barrierefreiheit" taken for an accessibility statement: a link that names only the topic is now "bitte manuell prüfen"), and 16 from the code review (among them mailto links of agencies, social handles as e-mails, chamber blocks, years as house numbers, article titles as Impressum links, one-page sites, exponential backtracking of the town pattern). After every fix the 30 saved captures were analysed again without visits.
+
+### Numbers
+
+- Local run, 30 sites: 30 of 30 captured. Impressum link 30 of 30 (footer 26), Datenschutz 30 of 30; Erklärung zur Barrierefreiheit found 1, plus 2 links that name only the topic (manual check). Second tab opened 30 times.
+- Browser time the Impressum adds (local, tab open to close): median 1.2 s, mean 1.3 s, max 4.3 s; all 30 stopped on stable text. Estimate for the free plan with A3's homepage numbers: about 78 full checks per day instead of 54 (to be measured on Cloudflare in A5).
+- Fields found (of 30 Impressum texts): address 29, e-mail 30, Handelsregister 13, USt-IdNr 25; 97 of 97 quotes are exact parts of the page text or link addresses.
+- System on the 30 sites: WordPress 12 (WooCommerce 4), Shopify 4, Shopware 4, Wix 3, Jimdo 3, unbekannt 4: the mix noted when the sites were chosen.
+- Fields the scanner did not find although they are on the page (for the Claude API question of stage D): 2 of 66 on the 20 checked Impressum pages (3 %), both Handelsregister entries (one without "HRA"/"HRB", one under a heading that names an authority); none was shown only as an image. On the first sample before the fixes: 4 of 33.
+
+### Merge condition of A4
+
+- `npm test` passes completely, with the synthetic Impressum pages: 403 of 403 unit tests (37 Impressum and 22 link fixture pages, the manifest and snapshot checks among them). Also `npm run test:integration` 43 of 43 (the second tab in Chromium, the fixture snapshots) and `npm run typecheck` without errors.
+- On 10 sites every found field checked by hand, 0 wrong: yes. First sample (Site 02, 05, 08, 11, 14, 17, 20, 23, 26, 29, picked by rule before the run): 31 Impressum fields found, 0 wrong (30 the same as the reviewer, 1 the same address in the form of another line of the page, judged right); 20 links found, 0 wrong. The first pass before the fixes had 1 wrong field (a court address) on this sample. Second sample with the final scanner (Site 01 … 28): 33 fields found, 0 wrong; 20 links, 0 wrong.
+- System right on 10 of 10: yes, 10 of 10 on the first sample, also 10 of 10 on the second.
+- No addresses, site names or data of real Impressum pages in git: 0 hits for 171 search strings (the 32 domains and names of `local/sites.txt` and `local/sites-v1.txt`, the 97 found values of the 30 sites and the reviewers' values) in the 256 tracked files, in the added lines of every commit of the branch and in their messages (checked again right before the merge). `git ls-files local` is empty.
+
+Result: every point holds; merged into `main` with `git merge --no-ff`.
+
 ## Next
 
-- A4: mandatory information (Impressum and Datenschutz links, Impressum fields with templates, Erklärung zur Barrierefreiheit) and system detection, with the Impressum opened in a second tab of the same browser; at least 20 synthetic Impressum fixtures. Decide there whether axe also runs on the Impressum (about 1 s of Cloudflare browser time per page).
-- Fedor: push `main` (nothing has been pushed yet). Both bundles stay in `local/backup/` until Fedor has checked `main` on GitHub; the agent deletes them when he says so.
-- Fedor: review the German draft texts in `docs/content-drafts.md` and the note at its end about the Prüfmaße heading of the design.
+- A5: API, storage, cache, limits, quick check, SSRF (brief). The Durable Object job opens the Impressum in a second tab like the local adapter (`docs/backlog.md`); measure its browser seconds on Cloudflare (local: 1.2 s median).
+- Fedor: push `main`.
+- Fedor: questions of the A4 report (the wording for a missing Impressum link; the Claude API for Impressum fields).
+- Fedor: review the German draft texts in `docs/content-drafts.md`.

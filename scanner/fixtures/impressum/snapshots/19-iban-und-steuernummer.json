@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/19-iban-und-steuernummer.html",
+  "sha256": "c5e556a75fb8c7d07dff15a8d64d336efb98ef9259528af9350ada19095a6bb9",
+  "url": "https://fixtures.example/impressum/pages/19-iban-und-steuernummer.html",
+  "title": "Impressum – Hausmeisterservice Besenfabel",
+  "lang": "de",
+  "text": "Hausmeisterservice Besenfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nHausmeisterservice Besenfabel\nInhaber: Bruno Besen\nKehrweg 4\n77889 Fiktivbach\n\nTelefon: +49 7788 990011\nE-Mail: hausmeister@besenfabel.example\n\nSteuernummer: 210/123/45678\n\nBankverbindung: Fabelbank Fiktivbach\nIBAN: DE00 1234 5678 9012 3456 78\n\nImpressum Datenschutz\n\n© 2026 Hausmeisterservice Besenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

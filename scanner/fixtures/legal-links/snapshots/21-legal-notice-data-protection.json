@@ -1,0 +1,55 @@
+{
+  "source": "legal-links/21-legal-notice-data-protection.html",
+  "sha256": "1897687c40fa084f596ffcf403ca084be334ec67300a2dd53fd10fb4c28f5404",
+  "url": "https://fixtures.example/legal-links/21-legal-notice-data-protection.html",
+  "title": "Ambossfabel Metalwork – Steel and aluminium",
+  "lang": "en",
+  "text": "Ambossfabel Metalwork\nHome Services About us Contact\nSteel and aluminium construction\n\nRailings, stairs and gates.\n\nPrivacy settings Cookie settings Legal notice Data protection\n\n© 2026 Ambossfabel Metalwork",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Ambossfabel Metalwork",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Home",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/services",
+      "text": "Services",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/about",
+      "text": "About us",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/contact",
+      "text": "Contact",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/legal-links/21-legal-notice-data-protection.html#",
+      "text": "Privacy settings",
+      "footer": true
+    },
+    {
+      "href": "javascript:void(0)",
+      "text": "Cookie settings",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/legal-notice",
+      "text": "Legal notice",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/data-protection",
+      "text": "Data protection",
+      "footer": true
+    }
+  ]
+}

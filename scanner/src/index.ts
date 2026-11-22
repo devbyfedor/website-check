@@ -39,6 +39,9 @@ export {
   RESOURCE_TIMING_INIT_SCRIPT,
   RESOURCE_TIMING_POLL_EXPRESSION,
   SNAPSHOT_EXPRESSION,
+  IMPRESSUM_SNAPSHOT_EXPRESSION,
+  TEXT_PROGRESS_EXPRESSION,
+  type TextProgress,
   type InPageCollectResult,
   type ResourceTimingPoll,
   type SnapshotResult,
@@ -51,6 +54,12 @@ export {
   type ResourceTimingData,
   type ResourceTimingEntry,
 } from './capture/resource-timing.ts';
+export { analyzeLegal, LEGAL_ANALYSIS_VERSION, type ImpressumState, type LegalAnalysis } from './analyzers/legal.ts';
+export { analyzePlatform, PLATFORM_ANALYSIS_VERSION, type DetectedSystem, type PlatformAnalysis, type PlatformSignal } from './analyzers/platform.ts';
+export * from './legal/fields.ts';
+export * from './legal/links.ts';
+export * from './legal/impressum-capture.ts';
+export * from './platform/fingerprints.ts';
 export { firstPartySites, hostOf, isIpAddress, normalizeHost, siteOfHost, siteOfUrl } from './domain/site.ts';
 export { googleCanonicalHost, parseGoogleDomainsFile, type GoogleDomainsFile } from './domain/google.ts';
 export * from './rules/types.ts';

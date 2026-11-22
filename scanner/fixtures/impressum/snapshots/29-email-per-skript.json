@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/29-email-per-skript.html",
+  "sha256": "27760d4d413ac9bf3ace870f8eb2fbaeb68f0a7785d1f3b9d3089f482fec5e4d",
+  "url": "https://fixtures.example/impressum/pages/29-email-per-skript.html",
+  "title": "Impressum – Glaserei Scheibenfabel",
+  "lang": "de",
+  "text": "Glaserei Scheibenfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nGlaserei Scheibenfabel\nInhaber: Gustav Glas\nFensterweg 21\n59595 Gläserfeld\n\nTelefon: +49 5959 595959\nE-Mail: kontakt@scheibenfabel.example\n\nUSt-IdNr.: DE778899001\n\nImpressum Datenschutz\n\n© 2026 Glaserei Scheibenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

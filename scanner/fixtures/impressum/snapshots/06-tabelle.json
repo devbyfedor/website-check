@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/06-tabelle.html",
+  "sha256": "f414c571807e8c962161c7d325434c3c01a49fa6fe48657fc252f25aa8fb4e4f",
+  "url": "https://fixtures.example/impressum/pages/06-tabelle.html",
+  "title": "Impressum – Elektro Funkenfabel GmbH",
+  "lang": "de",
+  "text": "Elektro Funkenfabel\nStart Leistungen Über uns Kontakt\nImpressum\nFirma\tElektro Funkenfabel GmbH\nAnschrift\tKabelweg 8\n23456 Erdachtingen\nGeschäftsführung\tFrieda Funke\nTelefon\t+49 2345 678901\nE-Mail\tkontakt@funkenfabel.example\nRegistergericht\tAmtsgericht Vorlagenburg\nRegisternummer\tHRB 5678\nUSt-ID\tDE314159265\nImpressum Datenschutz\n\n© 2026 Elektro Funkenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "source": "legal-links/17-impressum-nur-javascript.html",
+  "sha256": "4539a7e878320b24cedeecc725c7f41799d6b4836ff616f6a7d77bb7b4216bce",
+  "url": "https://fixtures.example/legal-links/17-impressum-nur-javascript.html",
+  "title": "Teeladen Blattfabel – Tee aus aller Welt",
+  "lang": "de",
+  "text": "Teeladen Blattfabel\nStart Leistungen Über uns Kontakt\nTee aus aller Welt\n\nGrüner, schwarzer und weißer Tee.\n\nImpressum Datenschutz\n\n© 2026 Teeladen Blattfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Teeladen Blattfabel",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "javascript:void(0)",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

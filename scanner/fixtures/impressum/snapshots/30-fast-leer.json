@@ -1,0 +1,45 @@
+{
+  "source": "impressum/pages/30-fast-leer.html",
+  "sha256": "256d0a91d6e4b7f19ec3ae9c19d73010921c563d33d1b7de43f2d22a9c214fc2",
+  "url": "https://fixtures.example/impressum/pages/30-fast-leer.html",
+  "title": "Impressum – Wolkenfabel Design",
+  "lang": "de",
+  "text": "Wolkenfabel Design\nStart Leistungen Über uns Kontakt\nImpressum\n\nWolkenfabel Design\n\nKontakt über unser Formular.\n\nZum Kontaktformular\n\nImpressum Datenschutz\n\n© 2026 Wolkenfabel Design",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Zum Kontaktformular",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

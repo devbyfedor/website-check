@@ -1,0 +1,35 @@
+{
+  "source": "impressum/pages/21-impressum-und-datenschutz.html",
+  "sha256": "312300958531a62d4b200e350cb1a3b81af56efdd3c81d4a48b17cbd60fbfeb6",
+  "url": "https://fixtures.example/impressum/pages/21-impressum-und-datenschutz.html",
+  "title": "Impressum und Datenschutz – Tanzschule Taktfabel",
+  "lang": "de",
+  "text": "Tanzschule Taktfabel\nStart Leistungen Über uns Kontakt\nImpressum und Datenschutz\nImpressum\n\nTanzschule Taktfabel\nInhaberin: Tina Takt\nWalzerweg 3\n99001 Walzerfeld\n\nTelefon: +49 9900 123456\nE-Mail: tanzen@taktfabel.example\n\nUSt-IdNr.: DE623451789\n\nDatenschutzerklärung\n1. Verantwortliche Stelle\n\nVerantwortlich für die Verarbeitung personenbezogener Daten auf dieser Website ist die oben genannte Tanzschule Taktfabel. Sie erreichen uns unter den oben angegebenen Kontaktdaten.\n\n2. Hosting\n\nDiese Website wird bei der Serverfabel AG, Rechenzentrumsallee 50, 10101 Serverstadt, gehostet. Der Hoster verarbeitet in unserem Auftrag die Daten, die beim Aufruf der Website technisch anfallen. Mit dem Hoster besteht ein Vertrag über die Auftragsverarbeitung nach Art. 28 DSGVO. Fragen zum Hosting beantwortet der Hoster unter support@serverfabel.example.\n\n3. Datenschutzbeauftragter\n\nUnser externer Datenschutzbeauftragter ist die Datenschutzfabel GmbH, Wächterweg 2, 20202 Fabelhofen, E-Mail: dsb@datenschutzfabel.example.\n\n4. Server-Logdateien\n\nBeim Aufruf dieser Website speichert der Server automatisch Informationen, die Ihr Browser übermittelt: Browsertyp und Browserversion, verwendetes Betriebssystem, Referrer-URL, Uhrzeit der Serveranfrage und eine gekürzte IP-Adresse. Eine Zusammenführung dieser Daten mit anderen Datenquellen findet nicht statt. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO; unser berechtigtes Interesse liegt in einem sicheren und fehlerfreien Betrieb der Website. Die Logdateien werden nach sieben Tagen gelöscht.\n\n5. Kontaktaufnahme\n\nWenn Sie uns per E-Mail oder Telefon kontaktieren, verarbeiten wir Ihre Angaben zur Bearbeitung der Anfrage. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO, soweit Ihre Anfrage mit einem Vertrag zusammenhängt, sonst Art. 6 Abs. 1 lit. f DSGVO. Die Daten werden gelöscht, sobald die Anfrage erledigt ist und keine gesetzlichen Aufbewahrungsfristen entgegenstehen.\n\n6. Ihre Rechte\n\nSie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch. Außerdem können Sie sich bei einer Aufsichtsbehörde beschweren, zum Beispiel bei der Landesbeauftragten für den Datenschutz Fabelland, Aufsichtsweg 1, 30303 Aufsichtsstadt, poststelle@datenschutz-fabelland.example.\n\n7. Aktualität\n\nDiese Datenschutzerklärung hat den Stand November 2026.\n\nImpressum und Datenschutz\n\n© 2026 Tanzschule Taktfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum-datenschutz",
+      "text": "Impressum und Datenschutz",
+      "footer": true
+    }
+  ]
+}

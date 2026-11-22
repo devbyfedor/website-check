@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/33-verein-vereinsregister.html",
+  "sha256": "355561c5ada6e516bfc1b1ebfffb212e50b7c7d560bbb3fea1550e2f7db3068b",
+  "url": "https://fixtures.example/impressum/pages/33-verein-vereinsregister.html",
+  "title": "Impressum – Musikverein Fabelklang e.V.",
+  "lang": "de",
+  "text": "Musikverein Fabelklang\nStart Leistungen Über uns Kontakt\nImpressum\n\nMusikverein Fabelklang e.V.\nNotenweg 10\n63636 Klangfeld\n\nVertreten durch den Vorstand: Harald Horn (1. Vorsitzender), Petra Pauke (2. Vorsitzende)\n\nE-Mail: vorstand@fabelklang.example\n\nEingetragen im Vereinsregister beim Amtsgericht Klangfeld unter der Registernummer VR 4567.\n\nSteuernummer: 236/123/45678\n\nImpressum Datenschutz\n\n© 2026 Musikverein Fabelklang",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

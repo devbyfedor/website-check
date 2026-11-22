@@ -1,0 +1,45 @@
+{
+  "source": "impressum/pages/36-hauptsitz-und-filiale.html",
+  "sha256": "bcc693b5cb2b6834bcdf004eea5f1ff6a78d0d7219f1f04efe606c0e3cfde8a1",
+  "url": "https://fixtures.example/impressum/pages/36-hauptsitz-und-filiale.html",
+  "title": "Impressum – Optik Brillenfabel GmbH",
+  "lang": "de",
+  "text": "Optik Brillenfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nOptik Brillenfabel GmbH\n\nHauptsitz: Sehweg 1, 35353 Brillstadt\n\nFiliale: Linsengasse 4, 36363 Fokusfeld\n\nGeschäftsführer: Otto Optik\n\nE-Mail: service@brillenfabel.example\n\nHandelsregister: HRB 9090, Amtsgericht Brillstadt\n\nUSt-IdNr.: DE707808909\n\nInformationen zur Zugänglichkeit dieser Website finden Sie in unserer Barrierefreiheitserklärung.\n\nImpressum Datenschutz\n\n© 2026 Optik Brillenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://www.brillenfabel.example/barrierefreiheitserklaerung",
+      "text": "Barrierefreiheitserklärung",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

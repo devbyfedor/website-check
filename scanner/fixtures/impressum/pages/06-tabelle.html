@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Impressum – Elektro Funkenfabel GmbH</title>
+<!--
+  Synthetic Impressum fixture (session A4), case 06-tabelle.
+  Table layout with label cells "Firma", "Anschrift", "E-Mail", "Registergericht", "Registernummer", "USt-ID"; the address cell has a <br>.
+  Every company, person, street, town, postcode, phone, register and VAT number is invented; every domain ends in .example.
+  Expected values: scanner/fixtures/impressum/expected.json.
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.5; color: #1f1f1f; background: #ffffff; }
+  header, main, footer { padding: 16px 32px; }
+  header { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; justify-content: space-between; border-bottom: 1px solid #dddddd; }
+  .logo { font-weight: bold; font-size: 20px; }
+  header nav a, footer nav a { margin-right: 16px; color: #1f3a5f; }
+  main { max-width: 760px; }
+  footer { border-top: 1px solid #dddddd; font-size: 14px; }
+  table.impressum { border-collapse: collapse; }
+  table.impressum td { padding: 4px 16px 4px 0; vertical-align: top; }
+  table.impressum td.label { font-weight: bold; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Elektro Funkenfabel</div>
+  
+  <nav aria-label="Hauptnavigation">
+    <a href="/">Start</a>
+    <a href="/leistungen">Leistungen</a>
+    <a href="/ueber-uns">Über uns</a>
+    <a href="/kontakt">Kontakt</a>
+  </nav>
+</header>
+<main>
+<h1>Impressum</h1>
+<table class="impressum">
+  <tbody>
+    <tr><td class="label">Firma</td><td>Elektro Funkenfabel GmbH</td></tr>
+    <tr><td class="label">Anschrift</td><td>Kabelweg 8<br>23456 Erdachtingen</td></tr>
+    <tr><td class="label">Geschäftsführung</td><td>Frieda Funke</td></tr>
+    <tr><td class="label">Telefon</td><td>+49 2345 678901</td></tr>
+    <tr><td class="label">E-Mail</td><td>kontakt@funkenfabel.example</td></tr>
+    <tr><td class="label">Registergericht</td><td>Amtsgericht Vorlagenburg</td></tr>
+    <tr><td class="label">Registernummer</td><td>HRB 5678</td></tr>
+    <tr><td class="label">USt-ID</td><td>DE314159265</td></tr>
+  </tbody>
+</table>
+</main>
+<footer>
+  <nav aria-label="Rechtliches">
+    <a href="/impressum">Impressum</a>
+    <a href="/datenschutz">Datenschutz</a>
+  </nav>
+  <p>© 2026 Elektro Funkenfabel</p>
+</footer>
+
+</body>
+</html>

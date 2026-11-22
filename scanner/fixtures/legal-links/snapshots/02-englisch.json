@@ -1,0 +1,50 @@
+{
+  "source": "legal-links/02-englisch.html",
+  "sha256": "09210aa943acb5160f1f291854317abb02c5b5472803febe560e663e77d3b053",
+  "url": "https://fixtures.example/legal-links/02-englisch.html",
+  "title": "Codefabel Software – Software made in Musterstadt",
+  "lang": "en",
+  "text": "Codefabel Software\nHome Services About us Contact\nSoftware that fits\n\nCustom business software for small and medium companies.\n\nImprint Privacy Policy Accessibility Statement\n\n© 2026 Codefabel Software",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Codefabel Software",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Home",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/services",
+      "text": "Services",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/about",
+      "text": "About us",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/contact",
+      "text": "Contact",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/en/imprint",
+      "text": "Imprint",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/en/privacy-policy",
+      "text": "Privacy Policy",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/en/accessibility-statement",
+      "text": "Accessibility Statement",
+      "footer": true
+    }
+  ]
+}

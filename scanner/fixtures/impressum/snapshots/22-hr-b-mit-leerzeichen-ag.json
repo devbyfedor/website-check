@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/22-hr-b-mit-leerzeichen-ag.html",
+  "sha256": "0274df8a7cb996b22f6447cfb3bca2438d22d8b29591498bdce8ac04437e21ad",
+  "url": "https://fixtures.example/impressum/pages/22-hr-b-mit-leerzeichen-ag.html",
+  "title": "Impressum – Dachdeckerei Ziegelfabel GmbH",
+  "lang": "de",
+  "text": "Dachdeckerei Ziegelfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nDachdeckerei Ziegelfabel GmbH\nFirstweg 8\n31313 Musterdorf\n\nGeschäftsführer: Dieter Dach\n\nTel.: +49 3131 456789 · E-Mail: dach@ziegelfabel.example\n\nHandelsregister: HR B 4711 AG Musterdorf\n\nSteuernummer: 145/220/31415\nUSt-IdNr.: DE161803399\n\nImpressum Datenschutz\n\n© 2026 Dachdeckerei Ziegelfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

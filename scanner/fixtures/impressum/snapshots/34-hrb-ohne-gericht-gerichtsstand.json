@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/34-hrb-ohne-gericht-gerichtsstand.html",
+  "sha256": "1f51407bf6252892c1322664a74c6f079f5627b8bb7b7df988ca3e352ce66be7",
+  "url": "https://fixtures.example/impressum/pages/34-hrb-ohne-gericht-gerichtsstand.html",
+  "title": "Impressum – Druckerei Letternfabel GmbH",
+  "lang": "de",
+  "text": "Druckerei Letternfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nDruckerei Letternfabel GmbH\nSetzerweg 5\n64646 Druckhausen\n\nGeschäftsführer: Lothar Letter\n\nE-Mail: auftrag@letternfabel.example\n\nHandelsregister: HRB 24680\n\nGerichtsstand: Beispielburg\n\nUSt-IdNr.: DE101202304\n\nImpressum Datenschutz\n\n© 2026 Druckerei Letternfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

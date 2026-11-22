@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/18-ustid-mit-leerzeichen.html",
+  "sha256": "77e5a0cef972c9ebeda4ac7fc7036b0f3fc3bfb34c253a292fb527454dd0505a",
+  "url": "https://fixtures.example/impressum/pages/18-ustid-mit-leerzeichen.html",
+  "title": "Impressum – Fahrradladen Speichenfabel OHG",
+  "lang": "de",
+  "text": "Fahrradladen Speichenfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nFahrradladen Speichenfabel OHG\nGesellschafter: Kurt Kette, Nina Nabe\nKettenweg 19\n66778 Musterbrück\n\nE-Mail: laden@speichenfabel.example\n\nRegistergericht: Amtsgericht Musterbrück, HRA 2233\n\nUSt-IdNr.: DE 284 619 376\n\nImpressum Datenschutz\n\n© 2026 Fahrradladen Speichenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

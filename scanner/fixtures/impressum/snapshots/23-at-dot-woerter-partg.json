@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/23-at-dot-woerter-partg.html",
+  "sha256": "af1efe891ac23d9fbace9e1840ff09f15a16a7f7ea2f892f87243c63177d2365",
+  "url": "https://fixtures.example/impressum/pages/23-at-dot-woerter-partg.html",
+  "title": "Impressum – Zahlenfabel Steuerberater PartG mbB",
+  "lang": "de",
+  "text": "Zahlenfabel Steuerberater\nStart Leistungen Über uns Kontakt\nImpressum\n\nZahlenfabel Steuerberater PartG mbB\nParagrafenplatz 1\n41414 Vorlagenburg\n\nPartner: Zora Zahl, Steuerberaterin; Viktor Vorsteuer, Steuerberater\n\nTelefon: +49 4141 414141\nE-Mail: buero at zahlenfabel dot example\n\nPartnerschaftsregister: Amtsgericht Vorlagenburg, PR 321\n\nUSt-IdNr.: DE271314159\n\nBerufsrechtliche Angaben\n\nBerufsbezeichnung: Steuerberater/Steuerberaterin (verliehen in der Bundesrepublik Deutschland)\n\nZuständige Kammer: Steuerberaterkammer Fabelland, Kammerweg 5, 42424 Kammerhausen am Fabelsee\n\nBerufshaftpflichtversicherung: Fabel Versicherung AG, Policenweg 9, 43434 Versichertheim; Geltungsbereich: Deutschland\n\nImpressum Datenschutz\n\n© 2026 Zahlenfabel Steuerberater",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

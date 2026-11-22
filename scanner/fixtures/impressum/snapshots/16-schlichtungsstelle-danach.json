@@ -1,0 +1,45 @@
+{
+  "source": "impressum/pages/16-schlichtungsstelle-danach.html",
+  "sha256": "79383496817c7a26178fefda4cad25b73d2548fbb850e2c984dac697d04b6373",
+  "url": "https://fixtures.example/impressum/pages/16-schlichtungsstelle-danach.html",
+  "title": "Impressum – Reisebüro Fernfabel GmbH",
+  "lang": "de",
+  "text": "Reisebüro Fernfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nReisebüro Fernfabel GmbH\nKofferstraße 14\n33445 Exempelstadt\n\nGeschäftsführer: Rainer Reise\nTelefon: +49 3344 556677\nE-Mail: buchung@fernfabel.example\n\nHandelsregister: HRB 5566, Amtsgericht Exempelstadt\nUSt-IdNr.: DE741852963\n\nVerbraucherstreitbeilegung\n\nWir sind bereit, an Streitbeilegungsverfahren vor folgender Verbraucherschlichtungsstelle teilzunehmen:\n\nSchlichtungsstelle Fabelfrieden e.V.\nFriedensallee 1\n44556 Ausgleichsdorf\nwww.schlichtung-fabelfrieden.example\nE-Mail: mail@schlichtung-fabelfrieden.example\n\nImpressum Datenschutz\n\n© 2026 Reisebüro Fernfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://www.schlichtung-fabelfrieden.example/",
+      "text": "www.schlichtung-fabelfrieden.example",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

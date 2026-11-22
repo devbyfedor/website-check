@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/01-gmbh-klassisch.html",
+  "sha256": "e994810af7f8361047fb20e3c1e3c77fcca39c5b1ae7c44a80ff3a2285e7700f",
+  "url": "https://fixtures.example/impressum/pages/01-gmbh-klassisch.html",
+  "title": "Impressum – Zimmerei Fabelholz GmbH",
+  "lang": "de",
+  "text": "Zimmerei Fabelholz\nStart Leistungen Über uns Kontakt\nImpressum\nAngaben gemäß § 5 DDG\n\nZimmerei Fabelholz GmbH\nErlenweg 12 a\n87654 Musterhausen\n\nVertreten durch:\nBernd Beispiel, Geschäftsführer\n\nKontakt\n\nTelefon: +49 8765 4321-0\nE-Mail: info@fabelholz.example\n\nRegistereintrag\n\nHandelsregister: HRB 12345, Amtsgericht Beispielburg\n\nUmsatzsteuer-ID\n\nUmsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz:\nDE123456789\n\nVerantwortlich für den Inhalt nach § 18 Abs. 2 MStV\n\nBernd Beispiel\nAnschrift wie oben\n\nImpressum Datenschutz\n\n© 2026 Zimmerei Fabelholz",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

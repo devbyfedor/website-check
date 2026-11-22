@@ -1,0 +1,50 @@
+{
+  "source": "legal-links/01-footer-deutsch.html",
+  "sha256": "55483b8e466c27ef48504fab3a055c3e2a79863084050c64db69f7924e2d8a1f",
+  "url": "https://fixtures.example/legal-links/01-footer-deutsch.html",
+  "title": "Zimmerei Fabelholz – Holzbau aus Musterhausen",
+  "lang": "de",
+  "text": "Zimmerei Fabelholz\nStart Leistungen Über uns Kontakt\nHolzbau mit Erfahrung\n\nDachstühle, Carports und Holzhäuser aus der Region.\n\nUnsere Leistungen\nDachstühle\nCarports\nHolzrahmenbau\nImpressum Datenschutz AGB\n\n© 2026 Zimmerei Fabelholz",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Zimmerei Fabelholz",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/agb",
+      "text": "AGB",
+      "footer": true
+    }
+  ]
+}
