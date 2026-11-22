@@ -1,0 +1,45 @@
+{
+  "source": "impressum/pages/28-barrierefreiheit-toolbar.html",
+  "sha256": "ebaefdd8fd84f634c1c5729f9dd43e1d69bce95f0f96440f9308fa746c06d442",
+  "url": "https://fixtures.example/impressum/pages/28-barrierefreiheit-toolbar.html",
+  "title": "Impressum – Teeladen Blattfabel",
+  "lang": "de",
+  "text": "Teeladen Blattfabel\nBarrierefreiheit anpassen\nStart Leistungen Über uns Kontakt\nImpressum\n\nTeeladen Blattfabel\nInhaber: Theo Tee\nKannenweg 5\n58585 Blattheim\n\nTelefon: +49 5858 585858\nE-Mail: tee@blattfabel.example\n\nUSt-IdNr.: DE667788991\n\nImpressum Datenschutz\n\n© 2026 Teeladen Blattfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/impressum/pages/28-barrierefreiheit-toolbar.html#",
+      "text": "Barrierefreiheit anpassen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/10-email-umgedreht.html",
+  "sha256": "cef9505770c9ad64f37ad4cf2940ed8f4e8896df54a4d781ac3059687febf7c2",
+  "url": "https://fixtures.example/impressum/pages/10-email-umgedreht.html",
+  "title": "Impressum – Tischlerei Hobelfabel",
+  "lang": "de",
+  "text": "Tischlerei Hobelfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nTischlerei Hobelfabel\nInhaber: Tobias Span\nHobelbankweg 6\n67890 Fabelhausen\n\nTelefon: +49 6789 012345\nE-Mail: elpmaxe.lebafleboh@ttatskrew\n\nUSt-IdNr.: DE111222333\n\nImpressum Datenschutz\n\n© 2026 Tischlerei Hobelfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

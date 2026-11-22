@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/15-agentur-vor-betreiber.html",
+  "sha256": "501137cdc68e473a807aa5c23ed2c6949f5005076448793e18ad4325d58f783a",
+  "url": "https://fixtures.example/impressum/pages/15-agentur-vor-betreiber.html",
+  "title": "Impressum – Gärtnerei Fabelflor GmbH",
+  "lang": "de",
+  "text": "Gärtnerei Fabelflor\nStart Leistungen Über uns Kontakt\nImpressum\nWebdesign und Umsetzung\n\nPixelfabel Webdesign\nRasterweg 21\n11223 Vorlagenburg\nhallo@pixelfabel.example\n\nBildnachweis\n\nFotos: Lena Linse Fotografie, Blendenstraße 3, 11224 Vorlagenburg, foto@linsenfabel.example\n\nAngaben gemäß § 5 DDG\n\nGärtnerei Fabelflor GmbH\nRosenhang 6\n22334 Neudorf am Testbach\n\nVertreten durch: Gerda Gießkanne\n\nTelefon: +49 2233 445566\nE-Mail: garten@fabelflor.example\n\nRegistergericht: Amtsgericht Neudorf am Testbach\nRegisternummer: HRB 4321\n\nUSt-IdNr.: DE852963741\n\nImpressum Datenschutz\n\n© 2026 Gärtnerei Fabelflor",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

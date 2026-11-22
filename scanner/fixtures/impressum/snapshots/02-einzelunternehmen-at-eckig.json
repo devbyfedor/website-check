@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/02-einzelunternehmen-at-eckig.html",
+  "sha256": "e1c44b731d46ac569a07809e812a992ab0153841c9d5736aec9bbe142679a4b4",
+  "url": "https://fixtures.example/impressum/pages/02-einzelunternehmen-at-eckig.html",
+  "title": "Impressum – Malerbetrieb Farbfabel",
+  "lang": "de",
+  "text": "Malerbetrieb Farbfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nAngaben gemäß § 5 DDG:\n\nMalerbetrieb Farbfabel\nInhaberin: Klara Kleister\nBeispielgasse 4\n76543 Beispielfeld\n\nTelefon: 0765 4321098\nE-Mail: kontakt[at]farbfabel.example\n\nUmsatzsteuer-Identifikationsnummer nach § 27a UStG: DE987654321\n\nBerufsbezeichnung: Maler- und Lackierermeisterin (verliehen in Deutschland)\nZuständige Kammer: Handwerkskammer Fabelland\n\nImpressum Datenschutz\n\n© 2026 Malerbetrieb Farbfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

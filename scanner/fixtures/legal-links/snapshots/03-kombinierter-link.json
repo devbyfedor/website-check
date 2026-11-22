@@ -1,0 +1,45 @@
+{
+  "source": "legal-links/03-kombinierter-link.html",
+  "sha256": "5f0a80d3b9547308205b89680ad5c8430732c6c96e984cd9ca2c781048209345",
+  "url": "https://fixtures.example/legal-links/03-kombinierter-link.html",
+  "title": "Tanzschule Taktfabel – Tanzen in Walzerfeld",
+  "lang": "de",
+  "text": "Tanzschule Taktfabel\nStart Leistungen Über uns Kontakt\nTanzen lernen in Walzerfeld\n\nKurse für Paare, Kinder und Jugendliche.\n\nImpressum & Datenschutz Kursplan\n\n© 2026 Tanzschule Taktfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Tanzschule Taktfabel",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/rechtliches",
+      "text": "Impressum & Datenschutz",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/kurse",
+      "text": "Kursplan",
+      "footer": true
+    }
+  ]
+}

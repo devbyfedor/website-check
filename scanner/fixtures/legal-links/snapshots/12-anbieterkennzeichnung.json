@@ -1,0 +1,45 @@
+{
+  "source": "legal-links/12-anbieterkennzeichnung.html",
+  "sha256": "585295cf7e04b56e266587407d7093d6be51afd91634026186d4bf1c6e161d9e",
+  "url": "https://fixtures.example/legal-links/12-anbieterkennzeichnung.html",
+  "title": "Steinmetz Granitfabel – Naturstein",
+  "lang": "de",
+  "text": "Steinmetz Granitfabel\nStart Leistungen Über uns Kontakt\nNaturstein für Haus und Garten\n\nTreppen, Fensterbänke und Grabmale.\n\nAnbieterkennzeichnung Datenschutzhinweise\n\n© 2026 Steinmetz Granitfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Steinmetz Granitfabel",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/anbieterkennzeichnung",
+      "text": "Anbieterkennzeichnung",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutzhinweise",
+      "text": "Datenschutzhinweise",
+      "footer": true
+    }
+  ]
+}

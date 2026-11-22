@@ -1,0 +1,45 @@
+{
+  "source": "impressum/pages/09-cloudflare-email.html",
+  "sha256": "9e44a33e53d6f7584cd791fcfc044bae77c1d41aa0648309468e5105de668b5a",
+  "url": "https://fixtures.example/impressum/pages/09-cloudflare-email.html",
+  "title": "Impressum – Bäckerei Krumenfabel GmbH",
+  "lang": "de",
+  "text": "Bäckerei Krumenfabel\nStart Leistungen Über uns Kontakt\nImpressum\nAngaben gemäß § 5 DDG\n\nBäckerei Krumenfabel GmbH\nOfengasse 11\n56789 Beispielhausen\n\nTelefon: +49 5678 901234\nE-Mail: [email protected]\n\nHandelsregister: HRB 2468\nRegistergericht: Amtsgericht Musterhausen\n\nUSt-IdNr.: DE564738291\n\nImpressum Datenschutz\n\n© 2026 Bäckerei Krumenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/cdn-cgi/l/email-protection#4a23242c250a21383f272f242c2b282f26642f322b273a262f",
+      "text": "[email protected]",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

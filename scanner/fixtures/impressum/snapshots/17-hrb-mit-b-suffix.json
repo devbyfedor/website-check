@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/17-hrb-mit-b-suffix.html",
+  "sha256": "762155d96aa6031cf2e03b7cf473219085e9c757e18c2c7a827787e4f5bdc3af",
+  "url": "https://fixtures.example/impressum/pages/17-hrb-mit-b-suffix.html",
+  "title": "Impressum – Kaffeerösterei Bohnenfabel GmbH",
+  "lang": "de",
+  "text": "Kaffeerösterei Bohnenfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nKaffeerösterei Bohnenfabel GmbH\nRöstweg 2\n13579 Beispielburg\n\nGeschäftsführerin: Berta Bohne\n\nE-Mail: hallo@bohnenfabel.example\n\nAmtsgericht Beispielburg, HRB 123456 B\n\nUmsatzsteuer-Identifikationsnummer: DE918273645\n\nImpressum Datenschutz\n\n© 2026 Kaffeerösterei Bohnenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

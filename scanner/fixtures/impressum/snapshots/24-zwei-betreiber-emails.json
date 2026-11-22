@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/24-zwei-betreiber-emails.html",
+  "sha256": "b719a45320bfb9fe4eae96badbc32dad5f513567c54a3ee42736b7b645ee2f44",
+  "url": "https://fixtures.example/impressum/pages/24-zwei-betreiber-emails.html",
+  "title": "Impressum – Sporthaus Sprintfabel GmbH",
+  "lang": "de",
+  "text": "Sporthaus Sprintfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nSporthaus Sprintfabel GmbH\nLaufbahnstraße 40\n52525 Sprintfeld\n\nGeschäftsführer: Sven Sprint\n\nKontakt: Telefon +49 5252 123456, E-Mail: info@sprintfabel.example\n\nRegistergericht: Amtsgericht Beispielburg, Registernummer: HRB 7788\n\nUSt-IdNr.: DE445566778\n\nDatenschutz\n\nBei Fragen zum Datenschutz schreiben Sie bitte an datenschutz@sprintfabel.example.\n\nImpressum Datenschutz\n\n© 2026 Sporthaus Sprintfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

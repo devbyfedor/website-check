@@ -1,0 +1,55 @@
+{
+  "source": "legal-links/09-header-und-footer.html",
+  "sha256": "cf962274ebde17617d043f1f7ff051602a8684863a77b8632cc6da5cab71cf62",
+  "url": "https://fixtures.example/legal-links/09-header-und-footer.html",
+  "title": "Kfz-Werkstatt Schraubfabel – Meisterbetrieb",
+  "lang": "de",
+  "text": "Kfz-Werkstatt Schraubfabel\nStart Leistungen Über uns Kontakt Impressum Datenschutz\nIhre Werkstatt für alle Marken\n\nInspektion, Reifen und Hauptuntersuchung.\n\nImpressum Datenschutz\n\n© 2026 Kfz-Werkstatt Schraubfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Kfz-Werkstatt Schraubfabel",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum-alt",
+      "text": "Impressum",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/datenschutz-alt",
+      "text": "Datenschutz",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

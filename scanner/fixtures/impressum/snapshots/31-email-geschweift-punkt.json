@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/31-email-geschweift-punkt.html",
+  "sha256": "47fa9fe2ef001247ab478e1a8c66caa002d7dc26e54dbee9ddd6ac926bdb475f",
+  "url": "https://fixtures.example/impressum/pages/31-email-geschweift-punkt.html",
+  "title": "Impressum – Baustoffe Mörtelfabel GmbH",
+  "lang": "de",
+  "text": "Baustoffe Mörtelfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nBaustoffe Mörtelfabel GmbH\nKellenstraße 30\n61616 Kellenfeld\n\nGeschäftsführer: Moritz Mörtel\n\nTelefon: +49 6161 616161\nE-Mail: bestellung{at}moertelfabel[punkt]example\n\nHandelsregister: HRB 9911, Amtsgericht Kellenfeld\n\nUSt-IdNr.: DE889900112\n\nImpressum Datenschutz\n\n© 2026 Baustoffe Mörtelfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

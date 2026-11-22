@@ -149,12 +149,18 @@ export function findLink(kind: LegalLinkKind, links: readonly PageLink[], pageUr
   return chosen === undefined ? null : toMatch(chosen, 'href');
 }
 
-/** The address counts only when the link text does not name something else (an empty or generic text). */
+/**
+ * The address counts only when the link text does not say that the link is something else: not a
+ * consent setting or an accessibility toolbar, and not the text of another legal page.
+ */
 function hrefFallbackText(kind: LegalLinkKind, text: string): boolean {
   if (text === '') return true;
   if (kind === 'datenschutz' && PRIVACY_NOT.test(text)) return false;
   if (kind === 'accessibilityStatement' && A11Y_NOT.test(text)) return false;
-  return /^(?:mehr|mehr erfahren|hier|link|weiter|more|read more|details|info|infos|informationen|rechtliches|rechtliche hinweise|legal|kontakt & rechtliches)$/.test(bare(text));
+  for (const other of Object.keys(RULES) as LegalLinkKind[]) {
+    if (other !== kind && RULES[other].text(text) !== null) return false;
+  }
+  return true;
 }
 
 function toMatch(link: PageLink, matchedBy: 'text' | 'href'): LegalLinkMatch {

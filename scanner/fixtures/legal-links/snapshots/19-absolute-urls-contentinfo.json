@@ -1,0 +1,50 @@
+{
+  "source": "legal-links/19-absolute-urls-contentinfo.html",
+  "sha256": "386cf6533dce3b25218d38a7b9efaf91a09e233ecd6c1b54889db0e3b842a670",
+  "url": "https://fixtures.example/legal-links/19-absolute-urls-contentinfo.html",
+  "title": "Fabelgruppe – Unternehmen der Gruppe",
+  "lang": "de",
+  "text": "Fabelgruppe\nStart Leistungen Über uns Kontakt\nEine Gruppe, viele Betriebe\n\nHandwerk und Handel aus der Region.\n\nCookie-Einstellungen Impressum Datenschutz\n\n© 2026 Fabelgruppe",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Fabelgruppe",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/legal-links/19-absolute-urls-contentinfo.html#",
+      "text": "Cookie-Einstellungen",
+      "footer": true
+    },
+    {
+      "href": "https://www.fabelgruppe.example/impressum/",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://datenschutz.fabelgruppe.example/",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

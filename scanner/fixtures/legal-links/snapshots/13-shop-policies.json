@@ -1,0 +1,60 @@
+{
+  "source": "legal-links/13-shop-policies.html",
+  "sha256": "e25506a7976a0b91e2f6230d98d611902f682e5199e7ed3616998ab2a7f179c6",
+  "url": "https://fixtures.example/legal-links/13-shop-policies.html",
+  "title": "Strickwaren Wollfabel – Online-Shop",
+  "lang": "de",
+  "text": "Strickwaren Wollfabel\nShop Neuheiten Warenkorb\nHandgestrickt aus Maschenfeld\n\nMützen, Schals und Socken aus reiner Wolle.\n\nBeliebte Produkte\nMütze Fabelblau – 29,00 €\nSchal Erdbeerrot – 39,00 €\nImpressum Datenschutzerklärung AGB Widerrufsbelehrung\n\n© 2026 Strickwaren Wollfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Strickwaren Wollfabel",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/collections/all",
+      "text": "Shop",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/collections/neu",
+      "text": "Neuheiten",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/cart",
+      "text": "Warenkorb",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/products/muetze-fabelblau",
+      "text": "Mütze Fabelblau – 29,00 €",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/products/schal-erdbeerrot",
+      "text": "Schal Erdbeerrot – 39,00 €",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/policies/legal-notice",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/policies/privacy-policy",
+      "text": "Datenschutzerklärung",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/policies/terms-of-service",
+      "text": "AGB",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/policies/refund-policy",
+      "text": "Widerrufsbelehrung",
+      "footer": true
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "source": "legal-links/08-onepager-anker.html",
+  "sha256": "9c4eb4687aafa9fae8fabab430693af6c5773f4cf5ad8a523ec443302866332e",
+  "url": "https://fixtures.example/legal-links/08-onepager-anker.html",
+  "title": "Friseursalon Scherenfabel – Ihr Salon in Fönhausen",
+  "lang": "de",
+  "text": "Friseursalon Scherenfabel\nStart Leistungen Kontakt\nIhr Salon in Fönhausen\n\nSchneiden, Färben, Föhnen.\n\nLeistungen\n\nDamen, Herren und Kinder.\n\nKontakt\n\nTermine nach Vereinbarung.\n\nImpressum\n\nDie Angaben nach § 5 DDG stehen hier.\n\nDatenschutz\n\nDie Datenschutzhinweise stehen hier.\n\nImpressum Datenschutz\n\n© 2026 Friseursalon Scherenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Friseursalon Scherenfabel",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/legal-links/08-onepager-anker.html#start",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/legal-links/08-onepager-anker.html#leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/legal-links/08-onepager-anker.html#kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/legal-links/08-onepager-anker.html#impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/legal-links/08-onepager-anker.html#datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

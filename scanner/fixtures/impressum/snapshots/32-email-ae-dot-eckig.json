@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/32-email-ae-dot-eckig.html",
+  "sha256": "19c9d5820941267bc93de6dbf948b499c3df9218e3620f0d882ff0ee6dca6fd1",
+  "url": "https://fixtures.example/impressum/pages/32-email-ae-dot-eckig.html",
+  "title": "Impressum – Blumenladen Blütenfabel",
+  "lang": "de",
+  "text": "Blumenladen Blütenfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nBlumenladen Blütenfabel\nInhaberin: Rosa Stiel\nGartenzeile 2b\n62626 Strauchhausen\n\nMail: laden[ät]bluetenfabel[dot]example\n\nUSt-IdNr.: DE990011223\n\nImpressum Datenschutz\n\n© 2026 Blumenladen Blütenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

@@ -189,7 +189,7 @@ function cleanTown(raw: string): string | null {
 }
 
 const PLZ_TOWN = new RegExp(
-  `(?<![\\p{L}\\p{N}/+.\\-])(?<!\\d${H}?)((?:D|DE)${H}?[-–]${H}?)?(\\d{5})(?!\\p{N})${H}+(${TOWN})`,
+  `(?<![\\p{L}\\p{N}/+.\\-])((?:D|DE)${H}?[-–]${H}?)?(\\d{5})(?!\\p{N})${H}+(${TOWN})`,
   'gu',
 );
 
@@ -198,10 +198,8 @@ const STREET = new RegExp(
   `^(\\p{Lu}[\\p{L}\\p{N}.'’\\-]*(?:${H}+[\\p{L}\\p{N}.'’\\-]+)*?)${H}*(\\d{1,4}(?:${H}?[a-zA-Z](?![\\p{L}]))?(?:${H}?[-–/+]${H}?\\d{1,4}(?:${H}?[a-zA-Z](?![\\p{L}]))?)?)$`,
   'u',
 );
-const ADDRESS_LABEL = new RegExp(
-  `^(?:anschrift|adresse|address|postanschrift|hausanschrift|gesch(?:ä|ae)ftsadresse|firmensitz|firmenanschrift|sitz|standort|stra(?:ß|ss)e|street|b(?:ü|ue)ro|office|besucheradresse|lieferadresse|kontakt)${H}*:${H}*`,
-  'iu',
-);
+/** A label of one to three words with a colon in front of the street ("Anschrift:", "Hauptsitz:", "Straße:"). */
+const ADDRESS_LABEL = new RegExp(`^\\p{L}[\\p{L}.\\-]*(?:${H}\\p{L}[\\p{L}.\\-]*){0,2}${H}*:${H}*`, 'u');
 const NOT_A_STREET =
   /^(?:postfach|postf\.|pf\.?|p\.\s?o\.\s?box|po box|tel|telefon|fax|telefax|mobil|handy|phone|fon|hrb|hra|hr|nr|ust|umsatzsteuer|steuer|steuernummer|amtsgericht|registergericht|handelsregister|registernummer|kundennummer|stammkapital|grundkapital|gegründet|gründung|seit|copyright|version|stand|öffnungszeiten|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|mo|di|mi|do|fr|sa|so)\b/iu;
 const PHONE_BEFORE = /(?:tel|telefon|telephone|phone|fon|fax|telefax|mobil|mobile|handy|hotline|hrb|hra|nr|nummer|postfach|ust|steuer|kto|konto|blz|iban)\.?:?[\s ]*\(?[\d\s /()+-]*$/iu;
@@ -456,6 +454,23 @@ function findRegister(text: string): FieldResult<RegisterValue> {
         const start = block.from + (phrase.index ?? 0);
         const lead = text.slice(Math.max(0, start - 25), start);
         if (/gerichtsstand|jurisdiction|place of/i.test(lead)) continue;
+        const town = cleanCourt(phrase[1] ?? '');
+        if (town === null) continue;
+        const townAt = start + phrase[0].length - (phrase[1] ?? '').length;
+        const phraseEnd = townAt + town.length;
+        const distance = start > at ? start - end : at - phraseEnd;
+        if (best === null || distance < best.distance) best = { town, start, end: phraseEnd, distance };
+      }
+      if (best !== null) court = best;
+    }
+    if (court === null) {
+      // A court named as the register court ("Registergericht: …") may stand in the block next to it.
+      const from = Math.max(0, at - 200);
+      const to = Math.min(text.length, end + 200);
+      let best: { town: string; start: number; end: number; distance: number } | null = null;
+      for (const phrase of text.slice(from, to).matchAll(COURT)) {
+        if (!/^(?:Registergericht|Handelsregistergericht|Regist(?:ry|er)|Court)/u.test(phrase[0])) continue;
+        const start = from + (phrase.index ?? 0);
         const town = cleanCourt(phrase[1] ?? '');
         if (town === null) continue;
         const townAt = start + phrase[0].length - (phrase[1] ?? '').length;

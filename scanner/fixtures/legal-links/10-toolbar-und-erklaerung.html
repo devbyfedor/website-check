@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Optik Brillenfabel – Brillen und Kontaktlinsen</title>
+<!--
+  Synthetic homepage for legal link finding (session A4), case 10-toolbar-und-erklaerung.
+  A header link "Barrierefreiheit" with href "#" opens an accessibility toolbar; the real "Erklärung zur Barrierefreiheit" link is in the footer and is expected.
+  Every company and place is invented; every domain ends in .example.
+  Expected values: scanner/fixtures/legal-links/expected.json.
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.5; color: #1f1f1f; background: #ffffff; }
+  header, main, footer, .site-footer, [role="contentinfo"] { padding: 16px 32px; }
+  .kopf { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; justify-content: space-between; border-bottom: 1px solid #dddddd; }
+  .logo { font-weight: bold; font-size: 20px; color: #1f1f1f; text-decoration: none; }
+  nav a { margin-right: 16px; color: #1f3a5f; }
+  .hero { background: #f3f0ea; padding: 24px; margin: 16px 0; }
+  footer, .site-footer, [role="contentinfo"] { border-top: 1px solid #dddddd; font-size: 14px; }
+  body.gross { font-size: 125%; }
+</style>
+</head>
+<body>
+<header class="kopf">
+  <a class="logo" href="/">Optik Brillenfabel</a>
+  <nav aria-label="Hauptnavigation">
+      <a href="/">Start</a>
+      <a href="/leistungen">Leistungen</a>
+      <a href="/ueber-uns">Über uns</a>
+      <a href="/kontakt">Kontakt</a>
+  </nav>
+  <a class="a11y-toolbar" href="#" onclick="document.body.classList.toggle('gross'); return false;">Barrierefreiheit</a>
+</header>
+<main>
+<section class="hero">
+  <h1>Gut sehen, gut aussehen</h1>
+  <p>Sehtest, Brillen und Kontaktlinsen.</p>
+</section>
+</main>
+<footer>
+  <nav aria-label="Rechtliches">
+      <a href="/impressum">Impressum</a>
+      <a href="/datenschutz">Datenschutz</a>
+      <a href="/erklaerung-barrierefreiheit">Erklärung zur Barrierefreiheit</a>
+  </nav>
+  <p>© 2026 Optik Brillenfabel</p>
+</footer>
+</body>
+</html>

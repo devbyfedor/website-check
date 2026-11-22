@@ -1,0 +1,45 @@
+{
+  "source": "legal-links/05-ohne-impressum-link.html",
+  "sha256": "094048f0cff0e38e3becced28ff1ac7264628521702d19d7e8173643c84c6e0b",
+  "url": "https://fixtures.example/legal-links/05-ohne-impressum-link.html",
+  "title": "Imkerei Honigfabel – Honig aus Erfundenheim",
+  "lang": "de",
+  "text": "Imkerei Honigfabel\nStart Leistungen Über uns Kontakt\nHonig direkt vom Imker\n\nBlütenhonig, Waldhonig und Wachskerzen.\n\nUnser Impressum folgt in Kürze.\n\nKontakt Über uns\n\n© 2026 Imkerei Honigfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Imkerei Honigfabel",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": true
+    }
+  ]
+}

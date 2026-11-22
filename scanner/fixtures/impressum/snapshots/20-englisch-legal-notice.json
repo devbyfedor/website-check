@@ -1,0 +1,45 @@
+{
+  "source": "impressum/pages/20-englisch-legal-notice.html",
+  "sha256": "92a67e2d3b5f7879d845b423cbfaa5ab30a3ead9895a4cfd9450fb06f68db00b",
+  "url": "https://fixtures.example/impressum/pages/20-englisch-legal-notice.html",
+  "title": "Legal notice – Codefabel Software GmbH",
+  "lang": "en",
+  "text": "Codefabel Software\nHome Services About us Contact\nLegal notice\nInformation according to § 5 DDG\n\nCodefabel Software GmbH\nBitstraße 101\n88990 Musterstadt\nGermany\n\nRepresented by the managing director: Clara Compiler\n\nContact\n\nPhone: +49 8899 012345\nEmail: info (at) codefabel.example\n\nRegister entry\n\nCommercial register: Local court Musterstadt, HRB 9876\n\nVAT ID\n\nVAT ID according to § 27 a of the German VAT Act: DE502468013\n\nLegal notice Privacy policy Accessibility statement\n\n© 2026 Codefabel Software",
+  "links": [
+    {
+      "href": "https://fixtures.example/en/",
+      "text": "Home",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/en/services",
+      "text": "Services",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/en/about",
+      "text": "About us",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/en/contact",
+      "text": "Contact",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/en/legal-notice",
+      "text": "Legal notice",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/en/privacy-policy",
+      "text": "Privacy policy",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/en/accessibility-statement",
+      "text": "Accessibility statement",
+      "footer": true
+    }
+  ]
+}

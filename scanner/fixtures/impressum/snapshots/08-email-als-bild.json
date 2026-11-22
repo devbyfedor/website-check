@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/08-email-als-bild.html",
+  "sha256": "42a2ee42ff56fad77e481c9c4a297c5d0ebdce3e87c5f767e01a97c0befa1486",
+  "url": "https://fixtures.example/impressum/pages/08-email-als-bild.html",
+  "title": "Impressum – Fotostudio Blendenfabel",
+  "lang": "de",
+  "text": "Fotostudio Blendenfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nFotostudio Blendenfabel\nInhaber: Felix Fokus\nObjektivweg 2\n45678 Exemplarhausen\n\nTelefon: +49 4567 890123\n\nE-Mail: \n\nUmsatzsteuer-ID: DE192837465\n\nImpressum Datenschutz\n\n© 2026 Fotostudio Blendenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

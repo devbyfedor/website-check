@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/05-eine-zeile-kommas.html",
+  "sha256": "1a7de17c1980e08bffcaa07ce14980ec3814680eac0d71e7752c2cc4fbed7d45",
+  "url": "https://fixtures.example/impressum/pages/05-eine-zeile-kommas.html",
+  "title": "Impressum – Sanitär Tropffabel GmbH",
+  "lang": "de",
+  "text": "Sanitär Tropffabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nSanitär Tropffabel GmbH, Quellweg 3a, 12345 Phantasiefeld, Telefon +49 1234 567890, E-Mail: service@tropffabel.example, Geschäftsführer: Paul Pumpe, Registergericht Amtsgericht Fabelhofen, HRB 6789, USt-IdNr. DE135792468\n\nImpressum Datenschutz\n\n© 2026 Sanitär Tropffabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

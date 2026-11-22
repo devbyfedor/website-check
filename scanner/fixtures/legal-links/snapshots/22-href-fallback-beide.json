@@ -1,0 +1,45 @@
+{
+  "source": "legal-links/22-href-fallback-beide.html",
+  "sha256": "b1f9defd7139985521f741fd2d1eef1830489841ac5a422bf5ef9bc5ff5f3990",
+  "url": "https://fixtures.example/legal-links/22-href-fallback-beide.html",
+  "title": "Druckerei Letternfabel – Druck und Weiterverarbeitung",
+  "lang": "de",
+  "text": "Druckerei Letternfabel\nStart Leistungen Über uns Kontakt\nDruck in Fabelqualität\n\nFlyer, Plakate und Bücher.\n\nRechtliches Hinweise\n\n© 2026 Druckerei Letternfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Druckerei Letternfabel",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/rechtliches/impressum",
+      "text": "Rechtliches",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/rechtliches/datenschutz",
+      "text": "Hinweise",
+      "footer": true
+    }
+  ]
+}

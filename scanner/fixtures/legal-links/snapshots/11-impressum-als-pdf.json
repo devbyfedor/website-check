@@ -1,0 +1,45 @@
+{
+  "source": "legal-links/11-impressum-als-pdf.html",
+  "sha256": "a7fb1a95b1dfbf705da6cf481e18b1898575c28e1592ef46cb43eb2630dc4a2c",
+  "url": "https://fixtures.example/legal-links/11-impressum-als-pdf.html",
+  "title": "Verlag Seitenfabel – Bücher aus Lesehausen",
+  "lang": "de",
+  "text": "Verlag Seitenfabel\nStart Leistungen Über uns Kontakt\nNeue Bücher im Herbst\n\nRomane, Sachbücher und Kinderbücher.\n\nImpressum Datenschutz\n\n© 2026 Verlag Seitenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Verlag Seitenfabel",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/downloads/impressum.pdf",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

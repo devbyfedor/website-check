@@ -1,0 +1,55 @@
+{
+  "source": "legal-links/04-einstellungen-vor-datenschutz.html",
+  "sha256": "c2cca985c432bc351d4649365a7bf227185108bad70bf850b6cbba4f79ce916c",
+  "url": "https://fixtures.example/legal-links/04-einstellungen-vor-datenschutz.html",
+  "title": "Sporthaus Sprintfabel – Laufschuhe und mehr",
+  "lang": "de",
+  "text": "Sporthaus Sprintfabel\nStart Leistungen Über uns Kontakt\nLaufschuhe für jeden Untergrund\n\nBeratung mit Laufbandanalyse.\n\nDatenschutz-Einstellungen Cookie-Einstellungen Impressum Datenschutzerklärung\n\n© 2026 Sporthaus Sprintfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Sporthaus Sprintfabel",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/legal-links/04-einstellungen-vor-datenschutz.html#",
+      "text": "Datenschutz-Einstellungen",
+      "footer": true
+    },
+    {
+      "href": "javascript:void(0)",
+      "text": "Cookie-Einstellungen",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutzerklaerung",
+      "text": "Datenschutzerklärung",
+      "footer": true
+    }
+  ]
+}

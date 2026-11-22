@@ -1,0 +1,50 @@
+{
+  "source": "legal-links/16-kontakt-impressum.html",
+  "sha256": "7cd9e7495cb59d1af19cfbf698d10d9714d9fc25fb25c7980aaddf6315a5931c",
+  "url": "https://fixtures.example/legal-links/16-kontakt-impressum.html",
+  "title": "Blumenladen Blütenfabel – Sträuße und Gestecke",
+  "lang": "de",
+  "text": "Blumenladen Blütenfabel\nStart Leistungen Über uns Kontakt\nBlumen für jeden Anlass\n\nSträuße, Gestecke und Trauerfloristik.\n\nKontakt / Impressum Privatsphäre-Einstellungen Datenschutzinformationen\n\n© 2026 Blumenladen Blütenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Blumenladen Blütenfabel",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt-impressum",
+      "text": "Kontakt / Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/legal-links/16-kontakt-impressum.html#",
+      "text": "Privatsphäre-Einstellungen",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutzinformationen",
+      "text": "Datenschutzinformationen",
+      "footer": true
+    }
+  ]
+}

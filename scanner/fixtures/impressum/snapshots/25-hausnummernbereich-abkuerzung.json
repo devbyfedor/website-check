@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/25-hausnummernbereich-abkuerzung.html",
+  "sha256": "5d93a0e9f8979491728d754225ad1c902b4597f44db6a595d9f550f89954a59a",
+  "url": "https://fixtures.example/impressum/pages/25-hausnummernbereich-abkuerzung.html",
+  "title": "Impressum – Metallbau Ambossfabel GmbH & Co. KG",
+  "lang": "de",
+  "text": "Metallbau Ambossfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nMetallbau Ambossfabel GmbH & Co. KG\nIndustriestr. 12-14\n85858 Musterau a. Inn\n\nPersönlich haftende Gesellschafterin: Ambossfabel Verwaltungs GmbH, vertreten durch den Geschäftsführer Armin Amboss\n\nTelefon: +49 8585 858585\nE-Mail: info@ambossfabel.example\n\nHandelsregister: HRA 3344, Amtsgericht Beispielburg\n\nUSt-IdNr.: DE334455667\n\nImpressum Datenschutz\n\n© 2026 Metallbau Ambossfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

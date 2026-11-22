@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/13-plz-mit-d-praefix.html",
+  "sha256": "59fb1200b6f9b7f86e7a7f21163714535ebaa362969d86c20a0abd60e9346de4",
+  "url": "https://fixtures.example/impressum/pages/13-plz-mit-d-praefix.html",
+  "title": "Impressum – Kfz-Werkstatt Schraubfabel GmbH",
+  "lang": "de",
+  "text": "Kfz-Werkstatt Schraubfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nKfz-Werkstatt Schraubfabel GmbH\nAm Fabelbrunnen 9\nD-72345 Schablonau\nDeutschland\n\nVertretungsberechtigter Geschäftsführer: Rolf Ratsche\n\nTelefon: +49 7234 567890\nE-Mail: werkstatt@schraubfabel.example\n\nHandelsregister: Amtsgericht Schablonau, HRB 8642\n\nUSt-IdNr.: DE482615937\n\nImpressum Datenschutz\n\n© 2026 Kfz-Werkstatt Schraubfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

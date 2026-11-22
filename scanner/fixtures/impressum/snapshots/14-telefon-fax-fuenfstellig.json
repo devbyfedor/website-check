@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/14-telefon-fax-fuenfstellig.html",
+  "sha256": "5577d1626a6665d66d68d7466805e4af39eeae62fc73d6299ac5a28484501908",
+  "url": "https://fixtures.example/impressum/pages/14-telefon-fax-fuenfstellig.html",
+  "title": "Impressum – Steinmetz Granitfabel GmbH",
+  "lang": "de",
+  "text": "Steinmetz Granitfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nSteinmetz Granitfabel GmbH\nTel. 09876 54321\nFax 09876 54322\nKirchplatz 5\n93456 Platzhalterried\n\nE-Mail: info@granitfabel.example\n\nGeschäftsführer: Gregor Granit\nHRB 1357, Amtsgericht Platzhalterried\nUSt-IdNr.: DE753159852\n\nImpressum Datenschutz\n\n© 2026 Steinmetz Granitfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "source": "legal-links/10-toolbar-und-erklaerung.html",
+  "sha256": "8e07ef16bd02f50369709c51f5ef71a243b73806360427bf6a8ce479283dda96",
+  "url": "https://fixtures.example/legal-links/10-toolbar-und-erklaerung.html",
+  "title": "Optik Brillenfabel – Brillen und Kontaktlinsen",
+  "lang": "de",
+  "text": "Optik Brillenfabel\nStart Leistungen Über uns Kontakt\nBarrierefreiheit\nGut sehen, gut aussehen\n\nSehtest, Brillen und Kontaktlinsen.\n\nImpressum Datenschutz Erklärung zur Barrierefreiheit\n\n© 2026 Optik Brillenfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Optik Brillenfabel",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/legal-links/10-toolbar-und-erklaerung.html#",
+      "text": "Barrierefreiheit",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/erklaerung-barrierefreiheit",
+      "text": "Erklärung zur Barrierefreiheit",
+      "footer": true
+    }
+  ]
+}

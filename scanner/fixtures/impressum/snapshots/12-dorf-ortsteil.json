@@ -1,0 +1,40 @@
+{
+  "source": "impressum/pages/12-dorf-ortsteil.html",
+  "sha256": "03e158b3500fc2486a3835d501d436bc09fceacc92fbdd8bbf8dcb58a33b1c95",
+  "url": "https://fixtures.example/impressum/pages/12-dorf-ortsteil.html",
+  "title": "Impressum – Imkerei Honigfabel",
+  "lang": "de",
+  "text": "Imkerei Honigfabel\nStart Leistungen Über uns Kontakt\nImpressum\n\nImkerei Honigfabel\nInhaber: Hans Wabe\nHofmark 7\n84321 Erfundenheim-Nord\n\nTelefon: +49 8432 109876\nE-Mail: imkerei@honigfabel.example\n\nUSt-IdNr.: DE369258148\n\nImpressum Datenschutz\n\n© 2026 Imkerei Honigfabel",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Start",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/leistungen",
+      "text": "Leistungen",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/ueber-uns",
+      "text": "Über uns",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/kontakt",
+      "text": "Kontakt",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/impressum",
+      "text": "Impressum",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/datenschutz",
+      "text": "Datenschutz",
+      "footer": true
+    }
+  ]
+}

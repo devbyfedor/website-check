@@ -1,0 +1,50 @@
+{
+  "source": "legal-links/15-site-notice-privacy-notice.html",
+  "sha256": "03c81c75e62f2a93d8ca6b74efba775030e9374ac032786dc294b0bc16f795c9",
+  "url": "https://fixtures.example/legal-links/15-site-notice-privacy-notice.html",
+  "title": "Fabelwind Energy – Community energy",
+  "lang": "en",
+  "text": "Fabelwind Energy\nHome Services About us Contact\nEnergy from our region\n\nA cooperative for wind and solar power.\n\nSite notice Privacy notice Accessibility\n\n© 2026 Fabelwind Energy",
+  "links": [
+    {
+      "href": "https://fixtures.example/",
+      "text": "Fabelwind Energy",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/",
+      "text": "Home",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/services",
+      "text": "Services",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/about",
+      "text": "About us",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/contact",
+      "text": "Contact",
+      "footer": false
+    },
+    {
+      "href": "https://fixtures.example/site-notice",
+      "text": "Site notice",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/privacy-notice",
+      "text": "Privacy notice",
+      "footer": true
+    },
+    {
+      "href": "https://fixtures.example/accessibility",
+      "text": "Accessibility",
+      "footer": true
+    }
+  ]
+}
