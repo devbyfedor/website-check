@@ -86,7 +86,7 @@ export const FINGERPRINTS: readonly Fingerprint[] = [
   // Shopware 6
   { id: 'sw6-theme-asset-path', system: 'shopware', version: 6, strength: 'strong', match: { kind: 'request-path', path: /\/theme\/[0-9a-f]{32}\/(?:css|js|assets)\//, firstParty: true } },
   { id: 'sw6-storefront-bundle-path', system: 'shopware', version: 6, strength: 'strong', match: { kind: 'request-path', path: /\/bundles\/storefront\//, firstParty: true } },
-  { id: 'sw6-plugin-manager-global', system: 'shopware', version: 6, strength: 'strong', match: { kind: 'global', path: 'PluginManager' } },
+  { id: 'sw6-plugin-manager-global', system: 'shopware', version: 6, strength: 'weak', match: { kind: 'global', path: 'PluginManager' } },
   { id: 'sw6-sales-channel-global', system: 'shopware', version: 6, strength: 'strong', match: { kind: 'global', path: 'salesChannelId' } },
   { id: 'sw6-theme-js-path-global', system: 'shopware', version: 6, strength: 'strong', match: { kind: 'global', path: 'themeJsPublicPath' } },
   { id: 'sw6-theme-assets-path-global', system: 'shopware', version: 6, strength: 'strong', match: { kind: 'global', path: 'themeAssetsPublicPath' } },
@@ -99,7 +99,7 @@ export const FINGERPRINTS: readonly Fingerprint[] = [
   { id: 'sw5-themes-frontend-path', system: 'shopware', version: 5, strength: 'strong', match: { kind: 'request-path', path: /\/themes\/Frontend\/[^/]+\/frontend\/_public\//, firstParty: true } },
   { id: 'sw5-engine-path', system: 'shopware', version: 5, strength: 'strong', match: { kind: 'request-path', path: /\/engine\/Shopware\//, firstParty: true } },
   { id: 'sw5-statistic-path', system: 'shopware', version: 5, strength: 'strong', match: { kind: 'request-path', path: /\/widgets\/index\/refreshStatistic/, firstParty: true } },
-  { id: 'sw5-state-manager-global', system: 'shopware', version: 5, strength: 'strong', match: { kind: 'global', path: 'StateManager' } },
+  { id: 'sw5-state-manager-global', system: 'shopware', version: 5, strength: 'weak', match: { kind: 'global', path: 'StateManager' } },
   { id: 'sw5-csrf-config-global', system: 'shopware', version: 5, strength: 'strong', match: { kind: 'global', path: 'csrfConfig' } },
   { id: 'sw5-route-body-class', system: 'shopware', version: 5, strength: 'strong', match: { kind: 'selector', selector: 'body[class*="is--ctl-"]' } },
   { id: 'sw5-cookie-permission', system: 'shopware', version: 5, strength: 'strong', match: { kind: 'selector', selector: 'div.page-wrap--cookie-permission[data-cookie-permission]' } },

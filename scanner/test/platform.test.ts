@@ -77,7 +77,7 @@ describe('analyzePlatform', () => {
   });
 
   it('takes the system with more strong signals, and gives "unbekannt" on a tie', () => {
-    const mixed = analyzePlatform(capture({ requests: [{ url: `${SITE}wp-content/a.css` }], hints: { generators: ['WordPress 6.9'], globals: ['PluginManager'] } }));
+    const mixed = analyzePlatform(capture({ requests: [{ url: `${SITE}wp-content/a.css` }], hints: { generators: ['WordPress 6.9'], globals: ['salesChannelId'] } }));
     expect(mixed).toMatchObject({ system: 'wordpress', conflict: true });
     const tie = analyzePlatform(capture({ hints: { generators: ['WordPress 6.9', 'Jimdo Creator'] } }));
     expect(tie).toMatchObject({ system: 'unknown', conflict: true });
