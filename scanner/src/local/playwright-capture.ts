@@ -3,7 +3,10 @@ import { AXE_RUN_EXPRESSION, axeBudgetMs, axeCaptureFrom, axeNotRun } from '../a
 import type { AxeCapture } from '../a11y/types.ts';
 import { httpVariantOf, probeHttpRedirect } from '../security/http-probe.ts';
 import type { HttpProbe } from '../security/types.ts';
-import { classifyMainDocument, classifyNavigationError, pageEvidenceOf } from '../capture/failure.ts';
+import { classifyMainDocument, classifyNavigationError, notAllowedCapture, pageEvidenceOf } from '../capture/failure.ts';
+import { installNavigationGuard, navigationBlockMessage, type NavigationGuardState } from '../security/navigation-guard.ts';
+import { describeRejection, type UrlGuard } from '../security/ssrf.ts';
+import { createLocalGuard } from './node-resolver.ts';
 import { IMPRESSUM_SETTINGS, pollText, type TextWatch } from '../legal/impressum-capture.ts';
 import { chooseImpressumTarget } from '../legal/links.ts';
 import {
@@ -60,6 +63,12 @@ export interface LocalCaptureOptions {
   httpProbe?: boolean;
   /** Open the Impressum link of the homepage in a second tab and read its text (default true, session A4). */
   impressum?: boolean;
+  /**
+   * Session A5: the SSRF guard for this capture (the address, every redirect and navigation of the
+   * main document, the redirect check and the Impressum tab). Default: a new guard with the
+   * operating system's resolver. Tests pass one that exempts the fixture site.
+   */
+  guard?: UrlGuard;
   /**
    * Local comparisons only: runs on the same page right after the checks, before the HTML and the
    * screenshot, outside the page's hard limit (at most 90 s), with the checks already made. Its result is `after`.
@@ -162,10 +171,14 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
     timezoneId: LOCAL_CAPTURE_DEFAULTS.timezoneId,
     viewport: { ...LOCAL_CAPTURE_DEFAULTS.viewport },
   };
+  // SSRF protection: the address is checked before the browser opens anything.
+  const guard = options.guard ?? createLocalGuard();
+  const verdict = await guard.check(url);
+  if (!verdict.allowed) return { capture: notAllowedCapture('playwright-local', environment, url, describeRejection(verdict)), html: null, screenshot: null };
   // The redirect check needs no browser: it runs while the page loads.
   const httpUrl = options.httpProbe === false ? null : httpVariantOf(url);
   const probe: Promise<HttpProbe | null> | null =
-    httpUrl === null ? null : probeHttpRedirect(httpUrl, { userAgent: environment.userAgent, acceptLanguage: CAPTURE_SETTINGS.acceptLanguage }).catch(() => null);
+    httpUrl === null ? null : probeHttpRedirect(httpUrl, { userAgent: environment.userAgent, acceptLanguage: CAPTURE_SETTINGS.acceptLanguage, guard }).catch(() => null);
   const contextStarted = performance.now();
   const context = await browser.newContext({
     locale: environment.locale,
@@ -181,14 +194,14 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
     void context.close().catch(() => undefined);
   }, settings.hardLimitMs);
   try {
-    const { result, startedAt } = await runCapture(context, url, settings, environment, () => hardLimitHit, contextStarted, () => clearTimeout(hardTimer));
+    const { result, startedAt } = await runCapture(context, url, settings, environment, () => hardLimitHit, contextStarted, () => clearTimeout(hardTimer), guard);
     // The homepage is done: its hard limit no longer applies, the Impressum tab has its own.
     clearTimeout(hardTimer);
     const capture = result.capture;
     if (options.impressum !== false && capture.ok && capture.page !== null && !hardLimitHit) {
       const target = chooseImpressumTarget(capture.page.links, capture.page.url ?? capture.finalUrl);
       if (target.action === 'open') {
-        const tab = await captureImpressumTab(context, target.url, startedAt, settings.artifacts);
+        const tab = await captureImpressumTab(context, target.url, startedAt, settings.artifacts, guard);
         capture.impressum = tab.impressum;
         result.impressumHtml = tab.html;
         result.impressumScreenshot = tab.screenshot;
@@ -220,8 +233,11 @@ async function runCapture(
   hardLimitHit: () => boolean,
   contextStarted: number,
   disarmHardLimit: () => void,
+  guard: UrlGuard,
 ): Promise<{ result: LocalCaptureResult; startedAt: number }> {
   const page = await context.newPage();
+  // Every document request of the main frame waits for the SSRF guard (redirects and later navigations included).
+  const navigation = await installNavigationGuard(await context.newCDPSession(page), guard);
   await page.addInitScript({ content: buildBannerProbeScript(settings.tools) });
   const mainFrame = page.mainFrame();
 
@@ -381,7 +397,10 @@ async function runCapture(
     snapshot = await withTimeout(page.evaluate(SNAPSHOT_EXPRESSION) as Promise<SnapshotResult>, 4_000).catch(() => null);
   }
   let failure: CaptureFailure | null = null;
-  if (navigationError !== null) {
+  const refused = navigation.blocked[0];
+  if (refused !== undefined) {
+    failure = { reason: 'not-allowed', message: navigationBlockMessage(refused) };
+  } else if (navigationError !== null) {
     failure = { reason: classifyNavigationError(navigationError), message: navigationError };
   } else if (mainResponse === null) {
     failure = { reason: 'other', message: 'no main document response' };
@@ -487,10 +506,17 @@ export async function captureImpressumTab(
   url: string,
   homepageStartedAt: number,
   artifacts: boolean,
+  guard: UrlGuard,
 ): Promise<{ impressum: ImpressumCapture; html: string | null; screenshot: Buffer | null }> {
   const opened = performance.now();
   const since = (): number => Math.max(0, Math.round(performance.now() - opened));
   const page = await context.newPage();
+  let navigation: NavigationGuardState | null = null;
+  try {
+    navigation = await installNavigationGuard(await context.newCDPSession(page), guard);
+  } catch {
+    navigation = null;
+  }
   let requestCount = 0;
   let domContentLoadedMs: number | null = null;
   page.on('request', () => {
@@ -514,6 +540,8 @@ export async function captureImpressumTab(
   let extrasMs = 0;
   try {
     try {
+      // Never navigate without the guard.
+      if (navigation === null) throw new Error('SSRF guard not installed');
       response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: IMPRESSUM_SETTINGS.navigationTimeoutMs });
       if (response === null) navigationError = 'navigation returned no response';
     } catch (error) {
@@ -551,7 +579,10 @@ export async function captureImpressumTab(
   }
   const totalMs = Math.max(0, since() - extrasMs);
   let failure: CaptureFailure | null;
-  if (navigationError !== null) failure = { reason: classifyNavigationError(navigationError), message: navigationError };
+  const refused = navigation?.blocked[0];
+  if (navigation === null) failure = { reason: 'other', message: 'the SSRF guard could not be installed; the Impressum was not opened' };
+  else if (refused !== undefined) failure = { reason: 'not-allowed', message: navigationBlockMessage(refused) };
+  else if (navigationError !== null) failure = { reason: classifyNavigationError(navigationError), message: navigationError };
   else if (response === null) failure = { reason: 'other', message: 'no Impressum response' };
   else if (snapshot === null) failure = { reason: hardLimitHit ? 'timeout' : 'other', message: 'the text of the Impressum could not be read' };
   else failure = classifyMainDocument(response.status(), response.headers(), snapshot.title, pageEvidenceOf(snapshot, requestCount));

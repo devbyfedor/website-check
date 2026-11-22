@@ -7,8 +7,9 @@ import { analyzeAccessibility } from '../../src/analyzers/accessibility.ts';
 import { analyzeSecurity } from '../../src/analyzers/security.ts';
 import { compareAxeRuns, runReferenceAxe, type ReferenceRun } from '../../src/local/axe-reference.ts';
 import { captureWithPlaywright, launchLocalBrowser } from '../../src/local/playwright-capture.ts';
+import { createLocalGuard } from '../../src/local/node-resolver.ts';
 import { probeHttpRedirect } from '../../src/security/http-probe.ts';
-import { startFixtureServer, type FixtureServer } from './fixture-server.ts';
+import { fixtureGuard, ssrfSecretHits, startFixtureServer, type FixtureServer } from './fixture-server.ts';
 
 /**
  * Session A3: the accessibility fixture pages (`scanner/fixtures/a11y/`) through the real local
@@ -46,7 +47,7 @@ describe('accessibility fixture pages', () => {
 
   it.each(Object.keys(manifest.pages))('%s: counts as expected and the same as the standard axe-core run', async (name) => {
     const expected = manifest.pages[name] as Expected;
-    const { capture, after } = await captureWithPlaywright(browser, server.url('www.a11y.test', `/${name}`), {
+    const { capture, after } = await captureWithPlaywright(browser, server.url('www.a11y.test', `/${name}`), { guard: fixtureGuard,
       maxWaitMs: 5_000,
       httpProbe: false,
       afterChecks: (page) => runReferenceAxe(page),
@@ -83,13 +84,13 @@ describe('accessibility fixture pages', () => {
 describe('axe within the page limits', () => {
   it('skips axe when no time is left before the hard limit, and says so', async () => {
     // A page that never gets quiet, with a hard limit just above the wait: no time for axe.
-    const { capture } = await captureWithPlaywright(browser, server.url('www.busy.test'), { maxWaitMs: 2_000, hardLimitMs: 3_500, httpProbe: false });
+    const { capture } = await captureWithPlaywright(browser, server.url('www.busy.test'), { guard: fixtureGuard, maxWaitMs: 2_000, hardLimitMs: 3_500, httpProbe: false });
     expect(capture.axe?.status).toBe('skipped');
     expect(analyzeAccessibility(capture)).toMatchObject({ status: 'not-checked' });
   });
 
   it('does not run axe on a page that failed', async () => {
-    const { capture } = await captureWithPlaywright(browser, server.url('www.broken.test'), { httpProbe: false });
+    const { capture } = await captureWithPlaywright(browser, server.url('www.broken.test'), { guard: fixtureGuard, httpProbe: false });
     expect(capture.ok).toBe(false);
     expect(capture.axe?.status).toBe('skipped');
   });
@@ -97,7 +98,7 @@ describe('axe within the page limits', () => {
 
 describe('security checks', () => {
   it('reads the headers and the meta tag of the main document', async () => {
-    const { capture } = await captureWithPlaywright(browser, server.url('www.headers.test'), { accessibility: false, httpProbe: false });
+    const { capture } = await captureWithPlaywright(browser, server.url('www.headers.test'), { guard: fixtureGuard, accessibility: false, httpProbe: false });
     expect(capture.page?.securityMeta).toEqual({ csp: null, referrer: 'no-referrer' });
     const result = analyzeSecurity(capture);
     expect(result.https.result).toBe('fail'); // the fixture server speaks plain http
@@ -110,7 +111,8 @@ describe('security checks', () => {
     ]);
   });
 
-  const anyPort = { isAllowed: (url: URL) => url.protocol === 'http:' || url.protocol === 'https:' };
+  // The fixture server on 127.0.0.1 is exempt from the SSRF guard here (any port); other local names are not.
+  const anyPort = { guard: createLocalGuard({ exempt: (url: URL) => url.hostname === '127.0.0.1' }) };
 
   it('follows a real redirect chain to https without requesting the https address', async () => {
     const result = await probeHttpRedirect(`http://127.0.0.1:${server.port}/redirect/start`, anyPort);
@@ -123,5 +125,13 @@ describe('security checks', () => {
     expect((await probeHttpRedirect(`http://127.0.0.1:${server.port}/plain`, anyPort)).outcome).toBe('no-redirect');
     expect((await probeHttpRedirect(`http://127.0.0.1:${server.port}/loop`, anyPort)).outcome).toBe('too-many-redirects');
     expect((await probeHttpRedirect('http://127.0.0.1:1/', anyPort)).outcome).toBe('unavailable');
+  });
+
+  it('A5: does not follow a redirect to localhost (SSRF guard on every hop)', async () => {
+    const hits = ssrfSecretHits();
+    const result = await probeHttpRedirect(`http://127.0.0.1:${server.port}/ssrf/probe-to-localhost`, anyPort);
+    expect(result.outcome).toBe('stopped');
+    expect(result.hops.at(-1)?.error).toContain('host-name');
+    expect(ssrfSecretHits()).toBe(hits);
   });
 });

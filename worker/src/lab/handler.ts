@@ -1,4 +1,4 @@
-import type { Capture, CaptureStrategy } from '@website-check/scanner';
+import { precheckUrl, type Capture, type CaptureStrategy } from '@website-check/scanner';
 import type { CaptureStats } from '../capture/common.ts';
 import type { EnvironmentCheck } from '../capture/emulation.ts';
 import { cpuWork, isValidSteps, MAX_CPU_STEPS } from './cpu.ts';
@@ -31,6 +31,12 @@ export interface LabEnv {
    */
   LAB_ALLOW_LOCAL?: string;
   LAB_TRACE_URL?: string;
+  /**
+   * Session A5: exact origins of the local fixture site (comma-separated, for example
+   * http://127.0.0.1:8790) that skip the SSRF host, port and address rules in dev mode. Every
+   * other address, loopback included, is checked as on Cloudflare.
+   */
+  LAB_DEV_ORIGINS?: string;
 }
 
 export interface TraceResult {
@@ -60,8 +66,8 @@ export interface LabDeps<E> {
   open(env: E): Promise<{ sessionId: string; browserVersion: string }>;
   /** `traceUrl` replaces the Cloudflare trace page only in local development. */
   trace(env: E, sessionId: string, traceUrl: string | null): Promise<TraceResult>;
-  /** `devMode`: local wrangler dev against the fixture site (loopback addresses allowed for the redirect check too). */
-  capture(env: E, sessionId: string, url: string, strategy: CaptureStrategy, options: { devMode: boolean }): Promise<{ capture: Capture; stats: CaptureStats }>;
+  /** `devOrigins`: in local wrangler dev, the fixture origins that the SSRF guard lets through (empty on Cloudflare). */
+  capture(env: E, sessionId: string, url: string, strategy: CaptureStrategy, options: { devOrigins: readonly string[] }): Promise<{ capture: Capture; stats: CaptureStats }>;
   close(env: E, sessionId: string): Promise<SessionUsage | null>;
 }
 
@@ -94,19 +100,27 @@ function authorized(request: Request, env: LabEnv): boolean {
   return match !== null && sameToken(match[1] ?? '', token);
 }
 
-/** Host names that must never be opened from the Cloudflare browser (lab-level check by name only; full SSRF protection comes in A5). */
-const LOCAL_HOST = /^(?:localhost|.*\.localhost|.*\.local|.*\.internal|0\.\d+\.\d+\.\d+|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|\[.*\])$/i;
+/** The dev origins, honoured only in dev mode (dev switch and a loopback request address). */
+export function devOriginsOf(env: LabEnv, devMode: boolean): string[] {
+  if (!devMode || env.LAB_DEV_ORIGINS === undefined) return [];
+  return env.LAB_DEV_ORIGINS.split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => /^https?:\/\/[^/]+$/.test(origin));
+}
 
-export function isScannableUrl(value: unknown, allowLocal = false): value is string {
+/** Exempts exactly the given origins (scheme, host and port), nothing else. */
+export function exemptOrigins(origins: readonly string[]): ((url: URL) => boolean) | undefined {
+  return origins.length === 0 ? undefined : (url) => origins.includes(url.origin);
+}
+
+/**
+ * The job's address before it goes to the Durable Object: everything the SSRF guard can decide
+ * without DNS (session A5). The Durable Object checks it again with DNS before the browser opens it.
+ */
+export function isScannableUrl(value: unknown, devOrigins: readonly string[] = []): value is string {
   if (typeof value !== 'string' || value.length > 2000) return false;
-  try {
-    const url = new URL(value);
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
-    if (url.username !== '' || url.password !== '') return false;
-    return allowLocal || !LOCAL_HOST.test(url.hostname.replace(/\.$/, ''));
-  } catch {
-    return false;
-  }
+  const verdict = precheckUrl(value, exemptOrigins(devOrigins));
+  return verdict === null || verdict.allowed;
 }
 
 async function body(request: Request): Promise<Record<string, unknown> | null> {
@@ -183,11 +197,12 @@ export function createLabRoutes<E extends LabEnv>(deps: LabDeps<E>): Handler<E> 
       if (pathname === '/lab/capture') {
         const url = input?.['url'];
         const strategy = input?.['strategy'];
-        if (!isScannableUrl(url, devMode)) return json({ error: 'bad_request', message: 'url must be a public http or https address' }, 400);
+        const devOrigins = devOriginsOf(env, devMode);
+        if (!isScannableUrl(url, devOrigins)) return json({ error: 'bad_request', message: 'url must be a public http or https address' }, 400);
         if (typeof strategy !== 'string' || !STRATEGIES.includes(strategy as CaptureStrategy)) {
           return json({ error: 'bad_request', message: `strategy must be one of ${STRATEGIES.join(', ')}` }, 400);
         }
-        const result = await deps.capture(env, sessionId, url, strategy as CaptureStrategy, { devMode });
+        const result = await deps.capture(env, sessionId, url, strategy as CaptureStrategy, { devOrigins });
         return json({ ...result, doWallMs: Date.now() - started });
       }
       return json({ error: 'not_found' }, 404);

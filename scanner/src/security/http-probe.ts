@@ -1,3 +1,5 @@
+import { createDohResolver } from './doh.ts';
+import { createUrlGuard, describeRejection, SSRF_LIMITS, type UrlGuard } from './ssrf.ts';
 import type { HttpProbe, HttpProbeHop, HttpProbeOutcome } from './types.ts';
 
 /**
@@ -5,10 +7,11 @@ import type { HttpProbe, HttpProbeHop, HttpProbeOutcome } from './types.ts';
  * and no browser. Runs the same in Node (local runner) and in a Durable Object (Cloudflare):
  * the `fetch` is passed in.
  *
- * Every redirect is followed by hand (`redirect: 'manual'`), at most `maxRedirects` times, and
- * only to addresses that `isAllowed` accepts. The chain stops at the first https:// address:
- * that address is not requested, because the browser capture loads the https page anyway.
- * No cookies are sent and no body is read.
+ * Every address, the first one included, passes the SSRF guard before it is requested (session
+ * A5: http or https, ports 80 and 443, public addresses after resolving the name). Every
+ * redirect is followed by hand (`redirect: 'manual'`), at most `maxRedirects` times. The chain
+ * stops at the first https:// address: that address is not requested, because the browser
+ * capture loads the https page anyway. No cookies are sent and no body is read.
  */
 
 export interface HttpProbeOptions {
@@ -19,18 +22,11 @@ export interface HttpProbeOptions {
   /** For the whole chain. */
   timeoutMs?: number;
   maxRedirects?: number;
-  /** Every address before it is requested (the first one included). Default: `isDefaultProbeTarget`. */
-  isAllowed?: (url: URL) => boolean;
+  /** The SSRF guard of the scan. Default: a new guard that resolves names with DNS over HTTPS through `fetch`. */
+  guard?: UrlGuard;
 }
 
-export const HTTP_PROBE_DEFAULTS = { timeoutMs: 10_000, maxRedirects: 5 } as const;
-
-/** http or https on the default ports, without user name or password. */
-export function isDefaultProbeTarget(url: URL): boolean {
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
-  if (url.username !== '' || url.password !== '') return false;
-  return url.port === '' || url.port === '80' || url.port === '443';
-}
+export const HTTP_PROBE_DEFAULTS = { timeoutMs: SSRF_LIMITS.timeoutMs, maxRedirects: SSRF_LIMITS.maxRedirects } as const;
 
 /** The http:// address on the default port for a requested address (`https://www.x.de/` → `http://www.x.de/`). */
 export function httpVariantOf(requestedUrl: string): string | null {
@@ -63,7 +59,7 @@ export async function probeHttpRedirect(httpUrl: string, options: HttpProbeOptio
   const fetchFn = options.fetch ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? HTTP_PROBE_DEFAULTS.timeoutMs;
   const maxRedirects = options.maxRedirects ?? HTTP_PROBE_DEFAULTS.maxRedirects;
-  const isAllowed = options.isAllowed ?? isDefaultProbeTarget;
+  const guard = options.guard ?? createUrlGuard({ resolve: createDohResolver(fetchFn) });
   const startedAt = new Date().toISOString();
   const started = Date.now();
   const hops: HttpProbeHop[] = [];
@@ -75,6 +71,13 @@ export async function probeHttpRedirect(httpUrl: string, options: HttpProbeOptio
     httpsTarget,
     durationMs: Date.now() - started,
   });
+  /** Null when the guard accepts the address, otherwise the refusal (recorded as a hop without a request). */
+  const refused = async (url: URL): Promise<HttpProbe | null> => {
+    const verdict = await guard.check(url);
+    if (verdict.allowed) return null;
+    hops.push({ url: url.href, status: null, location: null, error: describeRejection(verdict) });
+    return done('stopped');
+  };
 
   let current: URL;
   try {
@@ -82,7 +85,9 @@ export async function probeHttpRedirect(httpUrl: string, options: HttpProbeOptio
   } catch {
     return done('stopped');
   }
-  if (current.protocol !== 'http:' || !isAllowed(current)) return done('stopped');
+  if (current.protocol !== 'http:') return done('stopped');
+  const first = await refused(current);
+  if (first !== null) return first;
 
   const headers: Record<string, string> = { accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' };
   if (options.userAgent !== undefined) headers['user-agent'] = options.userAgent;
@@ -112,8 +117,10 @@ export async function probeHttpRedirect(httpUrl: string, options: HttpProbeOptio
       hops.push({ url: current.href, status, location: next?.href ?? null, error: null });
       if (next === null) return done('stopped');
       if (next.protocol === 'https:') return done('redirects-to-https', next.href);
-      if (next.protocol !== 'http:' || !isAllowed(next)) return done('stopped');
+      if (next.protocol !== 'http:') return done('stopped');
       if (redirects + 1 > maxRedirects) return done('too-many-redirects');
+      const blocked = await refused(next);
+      if (blocked !== null) return blocked;
       current = next;
       continue;
     }

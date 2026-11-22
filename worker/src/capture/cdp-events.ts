@@ -6,7 +6,11 @@ import {
   axeNotRun,
   buildBannerProbeScript,
   CAPTURE_SCHEMA_VERSION,
+  describeRejection,
   httpVariantOf,
+  installNavigationGuard,
+  navigationBlockMessage,
+  notAllowedCapture,
   probeHttpRedirect,
   type AxeCapture,
   type HttpProbe,
@@ -132,6 +136,13 @@ export async function runAxeOverCdp(client: CDPSession, axeSource: string, budge
 export async function captureWithCdpEvents(browser: Browser, url: string, options: CloudCaptureOptions = {}): Promise<CloudCaptureResult> {
   const settings = resolveSettings(options);
   const startedWall = Date.now();
+  // SSRF protection: the address is checked before the browser opens anything.
+  const verdict = await settings.guard.check(url);
+  if (!verdict.allowed) {
+    const environment = cloudEnvironment(chromeVersionOf(await browser.version()));
+    const capture = notAllowedCapture('cloudflare-browser-run', environment, url, describeRejection(verdict), 'cdp-events');
+    return { capture, stats: { events: 0, polls: 0, emulationFailed: [], wallMs: Date.now() - startedWall } };
+  }
   // The redirect check needs no browser: it runs with fetch while the page loads.
   const httpUrl = settings.httpProbe ? httpVariantOf(url) : null;
   const probe: Promise<HttpProbe | null> | null =
@@ -140,7 +151,7 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
       : probeHttpRedirect(httpUrl, {
           userAgent: cloudEnvironment(chromeVersionOf(await browser.version())).userAgent,
           acceptLanguage: CAPTURE_SETTINGS.acceptLanguage,
-          ...(settings.isProbeTargetAllowed !== null ? { isAllowed: settings.isProbeTargetAllowed } : {}),
+          guard: settings.guard,
         }).catch(() => null);
   const context = await browser.createBrowserContext();
   let hardLimitHit = false;
@@ -176,6 +187,9 @@ async function runCapture(
   const client = await clientOf(page);
   const emulationFailed = await prepareVisitorPage(page, client, environment.userAgent);
   await page.evaluateOnNewDocument(buildBannerProbeScript(settings.tools));
+  // Every document request of the main frame waits for the SSRF guard (redirects and later
+  // navigations included), on a session of its own so Puppeteer's network handling is untouched.
+  const navigation = await installNavigationGuard(await page.createCDPSession(), settings.guard);
   const mainFrame = page.mainFrame();
 
   let t0 = Date.now();
@@ -336,12 +350,11 @@ async function runCapture(
       .then((response) => response.result.value ?? null)
       .catch(() => null);
   }
-  const failure = failureOf(
-    navigationError,
-    mainResponse === null ? null : { status: mainResponse.status(), headers },
-    snapshot,
-    records.length,
-  );
+  const refused = navigation.blocked[0];
+  const failure =
+    refused !== undefined
+      ? { reason: 'not-allowed' as const, message: navigationBlockMessage(refused) }
+      : failureOf(navigationError, mainResponse === null ? null : { status: mainResponse.status(), headers }, snapshot, records.length);
   // axe only on a page that was captured: an error page, a check page or a timeout costs no browser time.
   let axe: AxeCapture | null = null;
   if (settings.axeSource !== null) {

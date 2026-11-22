@@ -8,13 +8,17 @@
 export const SCANNER_VERSION = '0.1.0';
 
 export * from './capture/types.ts';
-export { checkPageReason, classifyMainDocument, classifyNavigationError, pageEvidenceOf, recheckCapture, type PageEvidence } from './capture/failure.ts';
+export { checkPageReason, classifyMainDocument, classifyNavigationError, notAllowedCapture, pageEvidenceOf, recheckCapture, type PageEvidence } from './capture/failure.ts';
 export { analyzeCapture, type CaptureAnalysis, type CaptureState } from './analyzers/capture.ts';
 export * from './a11y/types.ts';
 export { AXE_REPORTER, AXE_RUN_EXPRESSION, AXE_RUN_OPTIONS, AXE_TIME, axeBudgetMs, axeCaptureFrom, axeNotRun, type AxeRunOutput } from './a11y/axe-script.ts';
 export { analyzeAccessibility, ACCESSIBILITY_ANALYSIS_VERSION, type A11yCheck, type A11yCheckId, type AccessibilityAnalysis } from './analyzers/accessibility.ts';
 export * from './security/types.ts';
-export { HTTP_PROBE_DEFAULTS, httpVariantOf, isDefaultProbeTarget, probeHttpRedirect, type HttpProbeOptions } from './security/http-probe.ts';
+export { HTTP_PROBE_DEFAULTS, httpVariantOf, probeHttpRedirect, type HttpProbeOptions } from './security/http-probe.ts';
+export * from './security/address.ts';
+export * from './security/ssrf.ts';
+export { createDohResolver, DOH_ENDPOINT } from './security/doh.ts';
+export * from './security/navigation-guard.ts';
 export {
   analyzeSecurity,
   checkCsp,

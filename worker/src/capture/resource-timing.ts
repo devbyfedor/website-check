@@ -3,6 +3,11 @@ import {
   buildBannerProbeScript,
   CAPTURE_SCHEMA_VERSION,
   chromeVersionOf,
+  describeRejection,
+  installNavigationGuard,
+  navigationBlockMessage,
+  notAllowedCapture,
+  type NavigationGuardState,
   IN_PAGE_COLLECT_EXPRESSION,
   lowerCaseHeaders,
   requestsFromResourceTiming,
@@ -60,6 +65,12 @@ interface Evaluated<T> {
 export async function captureWithResourceTiming(browser: Browser, url: string, options: CloudCaptureOptions = {}): Promise<CloudCaptureResult> {
   const settings = resolveSettings(options);
   const startedWall = Date.now();
+  // SSRF protection: the address is checked before the browser opens anything.
+  const verdict = await settings.guard.check(url);
+  if (!verdict.allowed) {
+    const capture = notAllowedCapture('cloudflare-browser-run', cloudEnvironment(chromeVersionOf(await browser.version())), url, describeRejection(verdict), 'resource-timing');
+    return { capture, stats: { events: 0, polls: 0, emulationFailed: [], wallMs: Date.now() - startedWall } };
+  }
   const context = await browser.createBrowserContext();
   const browserSession = await browser.target().createCDPSession();
   let targetId: string | null = null;
@@ -73,8 +84,11 @@ export async function captureWithResourceTiming(browser: Browser, url: string, o
     targetId = created.targetId;
     const id = targetId;
     const target: Target = await browser.waitForTarget((t) => (t as unknown as { _targetId?: string })._targetId === id, { timeout: 5_000 });
+    // The SSRF guard pauses main-frame documents at the request stage on a session of its own;
+    // this strategy's session pauses them again at the response stage for their headers.
+    const navigation = await installNavigationGuard(await target.createCDPSession(), settings.guard);
     const session = await target.createCDPSession();
-    const result = await runCapture(browser, session, url, settings, () => hardLimitHit);
+    const result = await runCapture(browser, session, url, settings, () => hardLimitHit, navigation);
     result.stats.wallMs = Date.now() - startedWall;
     await session.detach().catch(() => undefined);
     return result;
@@ -86,7 +100,7 @@ export async function captureWithResourceTiming(browser: Browser, url: string, o
   }
 }
 
-async function runCapture(browser: Browser, session: CDPSession, url: string, settings: CloudSettings, hardLimitHit: () => boolean): Promise<CloudCaptureResult> {
+async function runCapture(browser: Browser, session: CDPSession, url: string, settings: CloudSettings, hardLimitHit: () => boolean, navigation: NavigationGuardState): Promise<CloudCaptureResult> {
   const environment = cloudEnvironment(chromeVersionOf(await browser.version()));
   const send = (method: string, params: Record<string, unknown> = {}): Promise<unknown> => session.send(method as never, params as never);
   let events = 0;
@@ -189,7 +203,8 @@ async function runCapture(browser: Browser, session: CDPSession, url: string, se
   const mainDocument = documents.filter((d) => d.status < 300 || d.status >= 400).at(-1) ?? null;
   const redirectChain: RedirectHop[] = documents.filter((d) => d !== mainDocument).map((d) => ({ url: d.url, status: d.status }));
   const requests = timing === null ? [] : requestsFromResourceTiming(documents, timing);
-  const failure = failureOf(navigationError, mainDocument, snapshot, requests.length);
+  const refused = navigation.blocked[0];
+  const failure = refused !== undefined ? { reason: 'not-allowed' as const, message: navigationBlockMessage(refused) } : failureOf(navigationError, mainDocument, snapshot, requests.length);
   const nav = timing?.navigation ?? null;
   const positive = (n: number | undefined): number | null => (n !== undefined && n > 0 ? n : null);
 

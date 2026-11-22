@@ -35,6 +35,12 @@ export type CaptureFailureReason =
   | 'unreachable'
   /** The main document answered with an HTTP error status. */
   | 'http-error'
+  /**
+   * Session A5, SSRF protection: the address, one of its redirects or a later navigation of the
+   * main document was refused before it was requested (not http or https, a port other than 80
+   * or 443, a host name or address that is not public, more than 5 redirects). Nothing was sent there.
+   */
+  | 'not-allowed'
   | 'other';
 
 export interface CaptureFailure {

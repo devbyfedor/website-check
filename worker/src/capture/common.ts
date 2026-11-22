@@ -12,6 +12,9 @@ import {
   type ConsentTool,
   type PageSnapshot,
   type SnapshotResult,
+  type UrlGuard,
+  createDohResolver,
+  createUrlGuard,
 } from '@website-check/scanner';
 
 /** Options of both Cloudflare strategies; defaults are the shared capture settings. */
@@ -24,8 +27,11 @@ export interface CloudCaptureOptions {
   axeSource?: string | null;
   /** Check the redirect from http:// to https:// with `fetch`, in parallel to the page (no browser time). */
   httpProbe?: boolean;
-  /** Every address of the redirect check before it is requested. Default: http or https on ports 80 and 443. */
-  isProbeTargetAllowed?: (url: URL) => boolean;
+  /**
+   * Session A5: the SSRF guard of this capture (the address, every redirect and navigation of the
+   * main document, the redirect check). Default: a new guard that resolves names with DNS over HTTPS.
+   */
+  guard?: UrlGuard;
 }
 
 export interface CloudSettings {
@@ -35,7 +41,7 @@ export interface CloudSettings {
   tools: readonly ConsentTool[];
   axeSource: string | null;
   httpProbe: boolean;
-  isProbeTargetAllowed: ((url: URL) => boolean) | null;
+  guard: UrlGuard;
 }
 
 /** What the Worker saw while capturing, for the measurement (not part of the capture). */
@@ -65,7 +71,7 @@ export function resolveSettings(options: CloudCaptureOptions): CloudSettings {
     tools: options.consentTools ?? DEFAULT_CONSENT_TOOLS,
     axeSource: options.axeSource ?? null,
     httpProbe: options.httpProbe ?? false,
-    isProbeTargetAllowed: options.isProbeTargetAllowed ?? null,
+    guard: options.guard ?? createUrlGuard({ resolve: createDohResolver() }),
   };
 }
 

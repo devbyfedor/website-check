@@ -4,7 +4,7 @@ import { analyzeThirdParty } from '../../src/analyzers/third-party.ts';
 import type { Capture } from '../../src/capture/types.ts';
 import { compileRules, parseRulesFile } from '../../src/rules/match.ts';
 import { captureWithPlaywright, launchLocalBrowser } from '../../src/local/playwright-capture.ts';
-import { startFixtureServer, type FixtureServer } from './fixture-server.ts';
+import { fixtureGuard, startFixtureServer, type FixtureServer } from './fixture-server.ts';
 
 const HOST_RULES = '--host-resolver-rules=MAP nx.test ~NOTFOUND, MAP *.test 127.0.0.1';
 
@@ -40,7 +40,7 @@ describe('captureWithPlaywright on a fixture shop page', () => {
   let screenshot: Buffer | null;
 
   beforeAll(async () => {
-    ({ capture, html, screenshot } = await captureWithPlaywright(browser, server.url('www.shop.test', '/start'), { artifacts: true }));
+    ({ capture, html, screenshot } = await captureWithPlaywright(browser, server.url('www.shop.test', '/start'), { guard: fixtureGuard, artifacts: true }));
   });
 
   it('captures the page after following the redirect', () => {
@@ -110,7 +110,7 @@ describe('captureWithPlaywright on a fixture shop page', () => {
 });
 
 describe('consent banner probe on fixture pages', () => {
-  const banner = async (path: string) => (await captureWithPlaywright(browser, server.url('www.banner.test', path), { maxWaitMs: 5_000 })).capture.consentBanner;
+  const banner = async (path: string) => (await captureWithPlaywright(browser, server.url('www.banner.test', path), { guard: fixtureGuard, maxWaitMs: 5_000 })).capture.consentBanner;
 
   it('sees a dialog inside the open shadow root of a zero-size element', async () => {
     expect(await banner('/shadow-dialog')).toMatchObject({ detected: true, toolId: 'generic', method: 'heuristic', selector: 'dialog' });
@@ -135,7 +135,7 @@ describe('consent banner probe on fixture pages', () => {
 
 describe('captureWithPlaywright limits and failures', () => {
   it('stops a page that never gets quiet at maxWaitMs', async () => {
-    const { capture } = await captureWithPlaywright(browser, server.url('www.busy.test'), { maxWaitMs: 3_000 });
+    const { capture } = await captureWithPlaywright(browser, server.url('www.busy.test'), { guard: fixtureGuard, maxWaitMs: 3_000 });
     expect(capture.ok).toBe(true);
     expect(capture.timings.stopReason).toBe('max-wait');
     expect(capture.timings.endMs).toBeGreaterThanOrEqual(3_000);
@@ -143,16 +143,16 @@ describe('captureWithPlaywright limits and failures', () => {
   });
 
   it('reports a host that does not exist as an invalid address', async () => {
-    const { capture } = await captureWithPlaywright(browser, 'http://nx.test/');
+    const { capture } = await captureWithPlaywright(browser, 'http://nx.test/', { guard: fixtureGuard });
     expect(capture.ok).toBe(false);
     expect(capture.failure?.reason).toBe('invalid-address');
     expect(capture.finalUrl).toBeNull();
   });
 
   it('reports a challenge page as blocked and a server error as http-error', async () => {
-    const blocked = await captureWithPlaywright(browser, server.url('www.blocked.test'));
+    const blocked = await captureWithPlaywright(browser, server.url('www.blocked.test'), { guard: fixtureGuard });
     expect(blocked.capture.failure).toMatchObject({ reason: 'blocked', status: 403 });
-    const broken = await captureWithPlaywright(browser, server.url('www.broken.test'));
+    const broken = await captureWithPlaywright(browser, server.url('www.broken.test'), { guard: fixtureGuard });
     expect(broken.capture.failure).toMatchObject({ reason: 'http-error', status: 500 });
   });
 });
