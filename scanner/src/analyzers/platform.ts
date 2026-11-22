@@ -80,9 +80,8 @@ function matches(fingerprint: Fingerprint, capture: Capture, firstParty: Readonl
           if (match.host.test(host)) return shorten(request.url);
           continue;
         }
-        if (match.firstParty) {
-          if (!firstParty.has(siteOfHost(host))) continue;
-        }
+        if (match.firstParty && !firstParty.has(siteOfHost(host))) continue;
+        if (match.host !== undefined && !match.host.test(host)) continue;
         const path = pathOf(request.url);
         if (path !== null && match.path.test(path)) return shorten(request.url);
       }
