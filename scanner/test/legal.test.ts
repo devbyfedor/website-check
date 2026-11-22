@@ -132,6 +132,24 @@ describe('Handelsregister and USt-IdNr', () => {
   });
 });
 
+describe('templates on long or strange texts', () => {
+  it('stay fast: no pattern backtracks for long on repeated small words or 100,000 characters', () => {
+    const texts = [
+      `12345 Musterstadt${' i. d.'.repeat(40)}`,
+      `HRB 1 Amtsgericht Muster${' a.d.'.repeat(40)}`,
+      'a'.repeat(100_000),
+      `${' '.repeat(50_000)}12345 Musterstadt${' '.repeat(50_000)}`,
+      '1 '.repeat(50_000),
+      'Musterweg 3\n12345 Musterstadt\n'.repeat(3_000),
+    ];
+    for (const text of texts) {
+      const started = performance.now();
+      extractImpressumFields(text);
+      expect(performance.now() - started, text.slice(0, 30)).toBeLessThan(1_000);
+    }
+  });
+});
+
 describe('legal links', () => {
   const links: PageLink[] = [
     { href: `${SITE}impressum-alt`, text: 'Impressum', footer: false },

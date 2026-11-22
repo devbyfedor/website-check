@@ -181,10 +181,16 @@ function inThirdPartyContext(text: string, lines: readonly Line[], position: num
 // ---------------------------------------------------------------------------------------------
 // Postal address
 
-/** A town: capitalised words, with the usual small words and abbreviations in between ("Neumarkt i.d.OPf.", "Musterau a. Inn"). */
-const TOWN_WORD = `\\p{Lu}[\\p{L}'’.\\-]*`;
-const TOWN_PARTICLE = `(?:a\\.|am|an|auf|bei|b\\.|d\\.|der|dem|den|des|i\\.|im|in|ob|o\\.|v\\.|vor|zum|zur|unterm|überm|i\\.\\s?d\\.\\s?[\\p{L}]+\\.?|a\\.\\s?d\\.\\s?[\\p{L}]+\\.?)`;
-const TOWN = `${TOWN_WORD}(?:${H}(?:${TOWN_PARTICLE}${H}?)*${TOWN_WORD}|${H}${TOWN_PARTICLE})*`;
+/**
+ * A town: the rest of the segment after the postcode, read word by word in `readTown` (capitalised
+ * words, with the usual small words and abbreviations in between: "Neumarkt i.d.OPf.", "Musterau a. Inn").
+ * The pattern itself has no nested repetition, so a strange text cannot make it run for minutes (found
+ * by the code review: the earlier pattern backtracked exponentially on repeated "i. d.").
+ */
+const TOWN = `\\p{Lu}[^\\n,;|·•\\t()]{0,80}`;
+const TOWN_WORD_RE = /^\p{Lu}[\p{L}'’.\-]*$/u;
+const TOWN_PARTICLE_RE = /^(?:a\.|am|an|auf|bei|b\.|d\.|der|dem|den|des|i\.|im|in|ob|o\.|v\.|vor|zum|zur|unterm|überm|(?:i|a)\.d\.\p{L}+\.?)$/u;
+const PLAIN_PARTICLE_RE = /^(?:am|an|auf|bei|der|dem|den|des|im|in|ob|vor|zum|zur|unterm|überm)$/u;
 
 /** Words that end a town: labels that follow on the same line in tables or flat text. */
 const TOWN_STOP = new Set(
@@ -197,24 +203,35 @@ const TOWN_STOP = new Set(
   ],
 );
 
-function cleanTown(raw: string): string | null {
-  const words = raw.split(new RegExp(`${H}+`, 'u'));
-  const kept: string[] = [];
-  for (const word of words) {
+/**
+ * Reads a town from the start of `raw`, word by word: the first word capitalised, then capitalised
+ * words or small words, at most six, until a label, a country or anything else. Returns the town and
+ * how many characters of `raw` it covers (for the exact quote), or null.
+ */
+function readTown(raw: string): { town: string; length: number } | null {
+  const kept: { word: string; end: number }[] = [];
+  for (const token of raw.matchAll(/[^ \t\u00a0\u2009\u202f]+/gu)) {
+    const word = token[0];
     const key = word.toLowerCase().replace(/[:,;]+$/, '');
     if (TOWN_STOP.has(key) || TOWN_STOP.has(`${key}:`)) break;
-    kept.push(word);
+    if (kept.length === 0 ? !TOWN_WORD_RE.test(word) : !(TOWN_WORD_RE.test(word) || TOWN_PARTICLE_RE.test(word))) break;
+    kept.push({ word, end: (token.index ?? 0) + word.length });
     if (kept.length >= 6) break;
   }
-  let town = kept.join(' ');
-  // A trailing sentence dot goes, a dot that belongs to an abbreviation ("i.d.OPf.", "a.") stays.
-  if (/\.$/.test(town)) {
-    const last = kept[kept.length - 1] ?? '';
-    const isAbbreviation = /\..+\.$/.test(last) || /^\p{Ll}{1,2}\.$/u.test(last) || /^\p{L}{1,3}\.$/u.test(last);
-    if (!isAbbreviation) town = town.slice(0, -1);
+  while (kept.length > 1 && PLAIN_PARTICLE_RE.test(kept[kept.length - 1]?.word ?? '')) kept.pop();
+  const last = kept[kept.length - 1];
+  if (last === undefined) return null;
+  let town = kept.map((k) => k.word).join(' ');
+  let length = last.end;
+  // A trailing sentence dot goes, a dot that belongs to an abbreviation ("i.d.OPf.", "a.", "Br.") stays.
+  if (town.endsWith('.')) {
+    const isAbbreviation = /\..+\.$/.test(last.word) || /^\p{Ll}{1,2}\.$/u.test(last.word) || /^\p{L}{1,3}\.$/u.test(last.word);
+    if (!isAbbreviation) {
+      town = town.slice(0, -1);
+      length -= 1;
+    }
   }
-  town = town.replace(/[,;:]+$/, '');
-  return /\p{L}{2,}/u.test(town) ? town : null;
+  return /\p{L}{2,}/u.test(town) ? { town, length } : null;
 }
 
 const PLZ_TOWN = new RegExp(
@@ -271,8 +288,9 @@ function findAddress(text: string): FieldResult<AddressValue> {
     const at = match.index ?? 0;
     const postcode = match[2] ?? '';
     if (postcode.startsWith('00')) continue;
-    const town = cleanTown(match[3] ?? '');
-    if (town === null) continue;
+    const read = readTown(match[3] ?? '');
+    if (read === null) continue;
+    const town = read.town;
     const lineIndex = lineIndexAt(lines, at);
     const line = lines[lineIndex] as Line;
     const before = text.slice(line.start, at);
@@ -304,7 +322,7 @@ function findAddress(text: string): FieldResult<AddressValue> {
     if (inThirdPartyContext(text, lines, street.start, street.lineIndex)) continue;
     if (thirdPartyAbove(lines, blockStart(lines, street.lineIndex))) continue;
     const townStart = at + match[0].length - (match[3] ?? '').length;
-    const end = townStart + town.length;
+    const end = townStart + read.length;
     return { status: 'found', quote: text.slice(street.start, end), source: 'text', value: { street: street.street, postcode, town } };
   }
   return NOT_ON_PAGE;
@@ -438,14 +456,16 @@ const AG_BEFORE = new RegExp(`(?<![\\p{L}])AG${H}+${COURT_TOWN}${H}*[,;]?${H}*$`
 const AG_AFTER = new RegExp(`^${H}*[,;(]?${H}*(?:beim${H}+)?AG${H}+${COURT_TOWN}`, 'u');
 const COURT_STOP = new Set(['hrb', 'hra', 'hr', 'handelsregister', 'registernummer', 'unter', 'nr', 'nr.', 'nummer']);
 
-function cleanCourt(raw: string): string | null {
-  const words = raw.split(new RegExp(`${H}+`, 'u'));
-  const kept: string[] = [];
-  for (const word of words) {
-    if (COURT_STOP.has(word.toLowerCase().replace(/[:,;]+$/, ''))) break;
-    kept.push(word);
+/** The town of a court phrase: read like a town, but it also ends at "HRB", "Nr." and similar words. */
+function readCourt(raw: string): { town: string; length: number } | null {
+  let cut = raw.length;
+  for (const token of raw.matchAll(/[^ \t\u00a0\u2009\u202f]+/gu)) {
+    if (COURT_STOP.has(token[0].toLowerCase().replace(/[:,;]+$/, ''))) {
+      cut = token.index ?? cut;
+      break;
+    }
   }
-  return cleanTown(kept.join(' '));
+  return readTown(raw.slice(0, cut));
 }
 
 /** The block around a position: up to `reach` characters, not across a blank line. */
@@ -476,13 +496,13 @@ function findRegister(text: string): FieldResult<RegisterValue> {
     const before = AG_BEFORE.exec(text.slice(lineStart, at));
     const after = AG_AFTER.exec(text.slice(end, lineEnd));
     if (before !== null) {
-      const town = cleanCourt(before[1] ?? '');
-      if (town !== null) court = { town, start: lineStart + (before.index ?? 0), end: at };
+      const read = readCourt(before[1] ?? '');
+      if (read !== null) court = { town: read.town, start: lineStart + (before.index ?? 0), end: at };
     } else if (after !== null) {
-      const town = cleanCourt(after[1] ?? '');
-      if (town !== null) {
+      const read = readCourt(after[1] ?? '');
+      if (read !== null) {
         const townAt = end + after[0].length - (after[1] ?? '').length;
-        court = { town, start: end, end: townAt + town.length };
+        court = { town: read.town, start: end, end: townAt + read.length };
       }
     }
     if (court === null) {
@@ -492,10 +512,11 @@ function findRegister(text: string): FieldResult<RegisterValue> {
         const start = block.from + (phrase.index ?? 0);
         const lead = text.slice(Math.max(0, start - 25), start);
         if (/gerichtsstand|jurisdiction|place of/i.test(lead)) continue;
-        const town = cleanCourt(phrase[1] ?? '');
-        if (town === null) continue;
+        const read = readCourt(phrase[1] ?? '');
+        if (read === null) continue;
+        const town = read.town;
         const townAt = start + phrase[0].length - (phrase[1] ?? '').length;
-        const phraseEnd = townAt + town.length;
+        const phraseEnd = townAt + read.length;
         const distance = start > at ? start - end : at - phraseEnd;
         if (best === null || distance < best.distance) best = { town, start, end: phraseEnd, distance };
       }
@@ -509,10 +530,11 @@ function findRegister(text: string): FieldResult<RegisterValue> {
       for (const phrase of text.slice(from, to).matchAll(COURT)) {
         if (!/^(?:Registergericht|Handelsregistergericht|Regist(?:ry|er)|Court)/u.test(phrase[0])) continue;
         const start = from + (phrase.index ?? 0);
-        const town = cleanCourt(phrase[1] ?? '');
-        if (town === null) continue;
+        const read = readCourt(phrase[1] ?? '');
+        if (read === null) continue;
+        const town = read.town;
         const townAt = start + phrase[0].length - (phrase[1] ?? '').length;
-        const phraseEnd = townAt + town.length;
+        const phraseEnd = townAt + read.length;
         const distance = start > at ? start - end : at - phraseEnd;
         if (best === null || distance < best.distance) best = { town, start, end: phraseEnd, distance };
       }
