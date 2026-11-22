@@ -42,7 +42,7 @@ describe('postal address', () => {
     // "Fr" and "Mo" are day abbreviations, but "Fröhliche-…" and "Mühlweg" are streets (\b does not know umlauts).
     expect(found(extractImpressumFields('Adresse: Fröhliche-Erfunden Str. 09, 12345 Musterstadt').address)?.street).toBe('Fröhliche-Erfunden Str. 09');
     expect(found(extractImpressumFields('Mühlweg 4\n12345 Musterstadt').address)?.street).toBe('Mühlweg 4');
-    expect(found(extractImpressumFields('Habichtweg 35\n\n \n\n 12345 Musterdorf').address)?.street).toBe('Habichtweg 35');
+    expect(found(extractImpressumFields('Falkenweg 12\n\n \n\n 12345 Musterdorf').address)?.street).toBe('Falkenweg 12');
     expect(extractImpressumFields('Mitglied seit 2010\n12345 Musterstadt').address.status).toBe('not-found');
     expect(extractImpressumFields('Gegründet 1998\n\n12345 Musterstadt').address.status).toBe('not-found');
   });
@@ -59,16 +59,16 @@ describe('postal address', () => {
   });
 
   it('skips the address of a court or authority that stands blocks below its heading, as site builders write it', () => {
-    const builder = 'Aufsichtsbehörde\n\nAmtsgericht Beispielburg - Registernummer: HRA 1047\n\nGerichtsweg 1 - 12345 Beispielburg\n\n';
+    const builder = 'Aufsichtsbehörde\n\nAmtsgericht Beispielburg - Registernummer: HRA 555\n\nGerichtsweg 1 - 12345 Beispielburg\n\n';
     expect(extractImpressumFields(builder).address.status).toBe('not-found');
-    const withOperator = 'Angaben gemäß § 5 DDG:\n\nErika Muster\n\nMusterweg 47\n\n12345 Musterstadt\n\n' + builder;
-    expect(found(extractImpressumFields(withOperator).address)?.street).toBe('Musterweg 47');
+    const withOperator = 'Angaben gemäß § 5 DDG:\n\nErika Muster\n\nMusterweg 8\n\n12345 Musterstadt\n\n' + builder;
+    expect(found(extractImpressumFields(withOperator).address)?.street).toBe('Musterweg 8');
     // The register lines of the operator do not hide the operator's VAT ID below them.
     expect(found(extractImpressumFields('Registergericht: Amtsgericht Musterstadt\nHRB 123\n\nUSt-IdNr.: DE123456789').ustId)).toBe('DE123456789');
   });
 
   it('skips the venue of a course in a sidebar ("Wo:")', () => {
-    const text = 'Kurse in Musterstadt\n\nWann: jeden Mittwoch 18:00-19:00\n\nWo: Gemeindesaal Musterstadt\n\nSaalweg 15a, 12345 Musterstadt\n\nTel.: 01234-567890';
+    const text = 'Kurse in Musterstadt\n\nWann: jeden Donnerstag 17:00-18:30\n\nWo: Gemeindesaal Musterstadt\n\nSaalweg 7, 12345 Musterstadt\n\nTel.: 01234-567890';
     expect(extractImpressumFields(text).address.status).toBe('not-found');
   });
 
