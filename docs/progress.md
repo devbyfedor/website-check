@@ -264,7 +264,7 @@ Result: every check holds; merged into `main` with `git merge --no-ff`.
 
 ## A4: mandatory information and system detection (22.11.2026)
 
-Branch `a4-impressum`. Session time: about 1 hour 35 minutes (14:24 to about 16:00). No Cloudflare, no deploy, nothing pushed. Local browser only: one run of the 30 sites (15:01 to 15:07), then only re-analysis of the saved captures.
+Branch `a4-impressum`. Session time: about 1 hour 30 minutes (14:24 to about 15:55). No Cloudflare, no deploy, nothing pushed. Local browser only: one run of the 30 sites (15:01 to 15:07), then only re-analysis of the saved captures.
 
 Fedor's answers before the start (in `docs/decisions.md`): axe on the homepage only; the comparison with axe on an unchanged page is the right method; the design's "Soll nach Gesetz und Richtlinie" stays (checked again with the German texts in stage C, `docs/backlog.md`); the sentence about the native speaker stays; "postal address" stays.
 
