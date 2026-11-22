@@ -107,6 +107,7 @@ export function pageSnapshotOf(snapshot: SnapshotResult | null): PageSnapshot | 
     links: snapshot.links,
     linksTruncated: snapshot.linksTruncated,
     ...(snapshot.securityMeta ? { securityMeta: snapshot.securityMeta } : {}),
+    ...(snapshot.platform ? { platform: snapshot.platform } : {}),
   };
 }
 

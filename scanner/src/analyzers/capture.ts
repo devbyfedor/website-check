@@ -2,6 +2,8 @@ import { recheckCapture } from '../capture/failure.ts';
 import type { Capture, CaptureFailure } from '../capture/types.ts';
 import type { CompiledRules } from '../rules/match.ts';
 import { analyzeAccessibility, type AccessibilityAnalysis } from './accessibility.ts';
+import { analyzeLegal, type LegalAnalysis } from './legal.ts';
+import { analyzePlatform, type PlatformAnalysis } from './platform.ts';
 import { analyzeSecurity, type SecurityAnalysis } from './security.ts';
 import { analyzeThirdParty, type ThirdPartyAnalysis } from './third-party.ts';
 
@@ -31,13 +33,17 @@ export interface CaptureAnalysis {
   accessibility: AccessibilityAnalysis | null;
   /** Null unless the state is `analyzed`. */
   security: SecurityAnalysis | null;
+  /** Session A4: Impressum and Datenschutz links, Impressum fields, accessibility statement. Null unless `analyzed`. */
+  legal: LegalAnalysis | null;
+  /** Session A4: the system the site runs on. Null unless `analyzed`. */
+  platform: PlatformAnalysis | null;
 }
 
 export function analyzeCapture(capture: Capture, rules: CompiledRules): CaptureAnalysis {
   const checked = recheckCapture(capture);
   if (!checked.ok) {
     const failure = checked.failure ?? { reason: 'other' as const, message: 'capture not ok' };
-    return { state: failure.reason === 'blocked' ? 'blocked' : 'failed', failure, thirdParty: null, accessibility: null, security: null };
+    return { state: failure.reason === 'blocked' ? 'blocked' : 'failed', failure, thirdParty: null, accessibility: null, security: null, legal: null, platform: null };
   }
   return {
     state: 'analyzed',
@@ -45,5 +51,7 @@ export function analyzeCapture(capture: Capture, rules: CompiledRules): CaptureA
     thirdParty: analyzeThirdParty(checked, rules),
     accessibility: analyzeAccessibility(checked),
     security: analyzeSecurity(checked),
+    legal: analyzeLegal(checked),
+    platform: analyzePlatform(checked),
   };
 }

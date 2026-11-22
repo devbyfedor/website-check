@@ -99,8 +99,26 @@ export interface MainDocument {
 export interface PageLink {
   /** Absolute URL as resolved by the browser. */
   href: string;
-  /** Visible link text, trimmed, at most 200 characters. */
+  /** Visible link text, trimmed, at most 200 characters (aria-label or title when the link has no text). */
   text: string;
+  /**
+   * Session A4: true if the link sits in the page footer (`<footer>`, `role="contentinfo"`, or an
+   * element whose id or class names a footer and that holds no header or main part). Missing in older captures.
+   */
+  footer?: boolean;
+}
+
+/**
+ * Session A4: what the page itself shows about the system it runs on, read once at the end of the
+ * visit from fixed lists (`scanner/src/platform/fingerprints.ts`, documented in `docs/cms-fingerprints.md`).
+ */
+export interface PlatformHints {
+  /** Contents of `<meta name="generator">`, at most 5, each at most 120 characters. */
+  generators: string[];
+  /** Known JavaScript globals (dotted paths such as `Shopify.shop`) that exist in the page. */
+  globals: string[];
+  /** Known CSS selectors that match an element of the page. */
+  selectors: string[];
 }
 
 export interface PageSnapshot {
@@ -117,6 +135,38 @@ export interface PageSnapshot {
    * `<meta http-equiv="Content-Security-Policy">` and `<meta name="referrer">`. Missing in older captures.
    */
   securityMeta?: SecurityMeta;
+  /** Session A4: system hints (generator, globals, selectors). Missing in older captures and on the Impressum page. */
+  platform?: PlatformHints;
+}
+
+/**
+ * Session A4: the Impressum page, opened in a second tab of the same browser after the homepage was
+ * captured. Only text and links are read: no accessibility check, no request analysis, no interaction.
+ */
+export interface ImpressumCapture {
+  /** The address the adapter opened: the Impressum link chosen on the homepage (`chooseImpressumTarget`). */
+  url: string;
+  ok: boolean;
+  failure: CaptureFailure | null;
+  finalUrl: string | null;
+  /** HTTP status of the Impressum document; null if there was no response. */
+  status: number | null;
+  page: PageSnapshot | null;
+  /** Requests the second tab started (counted only, not analysed). */
+  requestCount: number;
+  timings: ImpressumTimings;
+}
+
+export interface ImpressumTimings {
+  /** When the second tab was opened, in ms since the start of the homepage capture. */
+  openedAtMs: number;
+  /** From opening the tab: DOMContentLoaded of the Impressum, or null. */
+  domContentLoadedMs: number | null;
+  /** From opening the tab: when the text was read. */
+  snapshotMs: number | null;
+  /** Browser time of the Impressum: from opening the tab until it was closed. */
+  totalMs: number;
+  stopReason: 'text-stable' | 'max-wait' | 'error';
 }
 
 export interface SecurityMeta {
@@ -201,5 +251,11 @@ export interface Capture {
    * page load (no browser time). Missing or null when not checked.
    */
   httpProbe?: HttpProbe | null;
+  /**
+   * Session A4: the Impressum page in a second tab. Missing in older captures and when the adapter was
+   * told not to open it; null when the homepage has no Impressum link that can be opened (none, a PDF,
+   * a `javascript:` link, or an anchor on the homepage itself).
+   */
+  impressum?: ImpressumCapture | null;
   timings: CaptureTimings;
 }

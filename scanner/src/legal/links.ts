@@ -1,0 +1,179 @@
+import type { PageLink } from '../capture/types.ts';
+
+/**
+ * Links to the legal pages on the homepage (session A4): Impressum, Datenschutzerklärung and the
+ * Erklärung zur Barrierefreiheit. Only links that are on the page count; the scanner never guesses an
+ * address such as /impressum (that would be probing paths, which the brief forbids).
+ *
+ * A link counts when its text names the page (German and English texts). The footer comes first, then
+ * the rest of the page in document order. Only when no link text matches, a link whose address names
+ * the page counts (for example an icon link without text). Only http(s) links and anchors on the page
+ * itself count, never `javascript:`, `mailto:` or a bare `#`.
+ */
+
+export type LegalLinkKind = 'impressum' | 'datenschutz' | 'accessibilityStatement';
+
+export interface LegalLinkMatch {
+  /** Absolute address as the browser resolved it. */
+  href: string;
+  text: string;
+  footer: boolean;
+  matchedBy: 'text' | 'href';
+}
+
+export type LegalLinks = Record<LegalLinkKind, LegalLinkMatch | null>;
+
+interface KindRules {
+  /** Tested against the normalized link text. */
+  text: (text: string) => 'exact' | 'contains' | null;
+  /** Tested against the decoded path and fragment of the address. */
+  href: RegExp;
+}
+
+/** Lower case, umlauts kept, every run of whitespace and dash-like characters made a single space. */
+export function normalizeLinkText(text: string): string {
+  return text
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/[​-‍﻿]/g, '')
+    .replace(/[\s ]+/g, ' ')
+    .trim();
+}
+
+/** Text without punctuation, for "is the whole text just this word" checks. */
+function bare(text: string): string {
+  return text.replace(/[^\p{L}\p{N} ]+/gu, ' ').replace(/ +/g, ' ').trim();
+}
+
+const IMPRESSUM_WORDS = /(?:^|[^\p{L}])(?:impressum|imprint|anbieterkennzeichnung|anbieterkennung|legal notice|site notice)(?![\p{L}])/u;
+const IMPRESSUM_EXACT = /^(?:impressum|imprint|anbieterkennzeichnung|anbieterkennung|legal notice|site notice)$/;
+
+const PRIVACY_WORDS = /(?:^|[^\p{L}])(?:datenschutz\p{L}*|privacy(?: policy| notice| statement)?|data protection(?: policy| notice| statement)?|data privacy)(?![\p{L}])/u;
+const PRIVACY_EXACT = /^(?:datenschutz|datenschutzerklärung|datenschutzerklaerung|datenschutzhinweise|datenschutzinformationen|datenschutzbestimmungen|privacy|privacy policy|privacy notice|data protection|data privacy)$/;
+/** Consent settings and similar links are not the privacy policy. */
+const PRIVACY_NOT = /einstellung|settings|präferenz|praeferenz|preferences|verwalten|manage|widerruf|opt.?out|do not sell|anpassen|beauftragte|officer/u;
+
+const A11Y_STATEMENT = /barrierefreiheitserkl|erkl(?:ä|ae)rung (?:zur|der|über die|zu) barrierefreiheit|accessibility statement|statement on accessibility|(?:hinweise|informationen|angaben) zur barrierefreiheit/u;
+const A11Y_PLAIN = /^(?:barrierefreiheit|accessibility|digitale barrierefreiheit|barrierefreiheit bfsg|barrierefreiheit nach bfsg|bfsg barrierefreiheit)$/;
+/** Links of accessibility toolbars and overlays: they open a widget, not a statement. */
+const A11Y_NOT = /anpassen|einstellung|settings|menü|menu|tool|widget|modus|mode|leiste|bar\b|öffnen|open|aktivieren|activate|hilfe|help|leichte sprache|gebärden/u;
+
+const RULES: Record<LegalLinkKind, KindRules> = {
+  impressum: {
+    text: (t) => (IMPRESSUM_EXACT.test(bare(t)) ? 'exact' : IMPRESSUM_WORDS.test(t) ? 'contains' : null),
+    href: /impressum|imprint|legal-notice|legal_notice|legalnotice|anbieterkennzeichnung/,
+  },
+  datenschutz: {
+    text: (t) => (PRIVACY_NOT.test(t) ? null : PRIVACY_EXACT.test(bare(t)) ? 'exact' : PRIVACY_WORDS.test(t) ? 'contains' : null),
+    href: /datenschutz|privacy/,
+  },
+  accessibilityStatement: {
+    text: (t) => {
+      if (A11Y_NOT.test(t)) return null;
+      if (A11Y_PLAIN.test(bare(t))) return 'exact';
+      return A11Y_STATEMENT.test(t) ? 'contains' : null;
+    },
+    href: /barrierefreiheit|accessibility-statement|accessibility_statement|barrierefreiheitserklaerung|erklaerung-zur-barrierefreiheit/,
+  },
+};
+
+const HREF_NOT: Record<LegalLinkKind, RegExp | null> = {
+  impressum: null,
+  datenschutz: /einstellung|settings|preferences|opt-?out/,
+  accessibilityStatement: /widget|toolbar|menu/,
+};
+
+/** Is the address something the scanner may follow: http(s), or an anchor with a name on the page itself? */
+export function usableHref(href: string, pageUrl: string | null): boolean {
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+  // A bare "#" (resolved to the page address plus "#") opens nothing.
+  if (href.endsWith('#') && pageUrl !== null && sameDocument(href, pageUrl)) return false;
+  return true;
+}
+
+/** Same document, ignoring the fragment. */
+export function sameDocument(a: string, b: string): boolean {
+  try {
+    const x = new URL(a);
+    const y = new URL(b);
+    x.hash = '';
+    y.hash = '';
+    return x.href === y.href;
+  } catch {
+    return false;
+  }
+}
+
+function hrefPart(href: string): string {
+  try {
+    const url = new URL(href);
+    return decodeURIComponent(`${url.pathname}${url.hash}`).toLowerCase();
+  } catch {
+    return href.toLowerCase();
+  }
+}
+
+/** Finds one link per kind. `pageUrl` is the final URL of the page the links come from. */
+export function findLegalLinks(links: readonly PageLink[], pageUrl: string | null): LegalLinks {
+  const result = {} as LegalLinks;
+  for (const kind of Object.keys(RULES) as LegalLinkKind[]) result[kind] = findLink(kind, links, pageUrl);
+  return result;
+}
+
+export function findLink(kind: LegalLinkKind, links: readonly PageLink[], pageUrl: string | null): LegalLinkMatch | null {
+  const rules = RULES[kind];
+  const usable = links.filter((link) => usableHref(link.href, pageUrl));
+  // 1. by text: footer first, an exact text before a text that only contains the word, then document order.
+  let best: { link: PageLink; rank: number; index: number } | null = null;
+  usable.forEach((link, index) => {
+    const how = rules.text(normalizeLinkText(link.text));
+    if (how === null) return;
+    const rank = (link.footer === true ? 0 : 2) + (how === 'exact' ? 0 : 1);
+    if (best === null || rank < best.rank) best = { link, rank, index };
+  });
+  const byText = best as { link: PageLink } | null;
+  if (byText !== null) return toMatch(byText.link, 'text');
+  // 2. by address, only links whose text names nothing else: footer first, then document order.
+  const not = HREF_NOT[kind];
+  const byHref = usable.filter((link) => {
+    const part = hrefPart(link.href);
+    return rules.href.test(part) && (not === null || !not.test(part)) && hrefFallbackText(kind, normalizeLinkText(link.text));
+  });
+  const chosen = byHref.find((link) => link.footer === true) ?? byHref[0];
+  return chosen === undefined ? null : toMatch(chosen, 'href');
+}
+
+/** The address counts only when the link text does not name something else (an empty or generic text). */
+function hrefFallbackText(kind: LegalLinkKind, text: string): boolean {
+  if (text === '') return true;
+  if (kind === 'datenschutz' && PRIVACY_NOT.test(text)) return false;
+  if (kind === 'accessibilityStatement' && A11Y_NOT.test(text)) return false;
+  return /^(?:mehr|mehr erfahren|hier|link|weiter|more|read more|details|info|infos|informationen|rechtliches|rechtliche hinweise|legal|kontakt & rechtliches)$/.test(bare(text));
+}
+
+function toMatch(link: PageLink, matchedBy: 'text' | 'href'): LegalLinkMatch {
+  return { href: link.href, text: link.text, footer: link.footer === true, matchedBy };
+}
+
+/** What the adapter does with the Impressum link of the homepage. */
+export type ImpressumTarget =
+  | { action: 'open'; url: string; link: LegalLinkMatch }
+  /** The link is an anchor on the homepage itself (one-page sites): the homepage text is the Impressum. */
+  | { action: 'same-page'; link: LegalLinkMatch }
+  /** The link leads to a PDF: the scan does not read PDF files. */
+  | { action: 'skip'; reason: 'pdf'; link: LegalLinkMatch }
+  | { action: 'none' };
+
+export function chooseImpressumTarget(links: readonly PageLink[], pageUrl: string | null): ImpressumTarget {
+  const link = findLink('impressum', links, pageUrl);
+  if (link === null) return { action: 'none' };
+  if (pageUrl !== null && sameDocument(link.href, pageUrl)) return { action: 'same-page', link };
+  if (/\.pdf$/i.test(new URL(link.href).pathname)) return { action: 'skip', reason: 'pdf', link };
+  return { action: 'open', url: link.href, link };
+}
