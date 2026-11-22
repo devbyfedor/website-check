@@ -19,7 +19,8 @@
     "explain": "node scanner/src/local/explain.ts",
     "lab:cloudflare": "node scanner/src/local/cloudflare-lab.ts",
     "lab:dev": "wrangler dev -c worker/wrangler.lab.jsonc --ip 127.0.0.1 --port 8787 --var LAB_ALLOW_LOCAL:1 --var LAB_TRACE_URL:http://127.0.0.1:8790/cdn-cgi/trace --var LAB_DEV_ORIGINS:http://127.0.0.1:8790",
-    "fixtures:snapshots": "node scanner/src/local/make-fixture-snapshots.ts"
+    "fixtures:snapshots": "node scanner/src/local/make-fixture-snapshots.ts",
+    "report:check": "node scanner/src/local/report-check.ts"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
