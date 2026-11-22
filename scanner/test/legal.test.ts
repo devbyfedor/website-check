@@ -85,7 +85,7 @@ describe('e-mail', () => {
     expect(found(extractImpressumFields('info(at)muster.example').email)).toEqual({ value: 'info@muster.example', form: 'obfuscated' });
     expect(found(extractImpressumFields('E-Mail: info at muster dot example').email)).toEqual({ value: 'info@muster.example', form: 'obfuscated' });
     const links: PageLink[] = [{ href: 'mailto:Kontakt@Muster.example?subject=Hallo', text: 'Schreiben Sie uns' }];
-    expect(found(extractImpressumFields('Kontakt', links).email)).toEqual({ value: 'kontakt@muster.example', form: 'mailto' });
+    expect(found(extractImpressumFields('Kontakt: Schreiben Sie uns', links).email)).toEqual({ value: 'kontakt@muster.example', form: 'mailto' });
   });
 
   it('takes " at " words only with an e-mail label on the line', () => {
@@ -129,6 +129,80 @@ describe('Handelsregister and USt-IdNr', () => {
     expect(extractImpressumFields('IBAN: DE89 3704 0044 0532 0130 00').ustId.status).toBe('not-found');
     expect(extractImpressumFields('DE1234567890').ustId.status).toBe('not-found');
     expect(extractImpressumFields('Steuernummer: 123/456/78901').ustId.status).toBe('not-found');
+  });
+});
+
+describe('cases from the code review of the templates (22.11.2026)', () => {
+  const cfHex = (address: string): string => {
+    const key = 0x4a;
+    return key.toString(16) + [...address].map((c) => (c.charCodeAt(0) ^ key).toString(16).padStart(2, '0')).join('');
+  };
+
+  it('checks the place of a mailto or Cloudflare link: an agency or an external DPO link is not the operator e-mail', () => {
+    const agency = extractImpressumFields('Muster GmbH\nErlenweg 12\n12345 Musterhausen\n\nWebdesign: Pixelwerk', [{ href: 'mailto:hallo@pixelwerk.example', text: 'Pixelwerk' }]);
+    expect(agency.email.status).toBe('not-found');
+    const dpo = extractImpressumFields('Muster GmbH\nE-Mail: über unser Kontaktformular\n\nDatenschutzbeauftragter:\nDr. Daten Extern\nE-Mail schreiben', [
+      { href: 'mailto:dsb@extern-datenschutz.example', text: 'E-Mail schreiben' },
+    ]);
+    expect(dpo.email.status).toBe('not-found');
+    const cf = extractImpressumFields('Datenschutzbeauftragter:\nDr. Daten Extern\n[email protected]', [
+      { href: `https://www.muster.example/cdn-cgi/l/email-protection#${cfHex('dsb@extern.example')}`, text: '[email protected]' },
+    ]);
+    expect(cf.email.status).toBe('not-found');
+    // A link without any text counts only on the site's own domain.
+    const icon = [{ href: 'mailto:info@muster.example', text: '' }];
+    expect(extractImpressumFields('Muster GmbH', icon).email.status).toBe('not-found');
+    expect(extractImpressumFields('Muster GmbH', icon, new Set(['muster.example'])).email.status).toBe('found');
+  });
+
+  it('takes no social handle, fediverse handle or sentence with "at" for an e-mail address', () => {
+    const links = [{ href: `https://www.muster.example/cdn-cgi/l/email-protection#${cfHex('info@muster.example')}`, text: '[email protected]' }];
+    const insta = extractImpressumFields('Muster GmbH\nE-Mail: [email protected]\n\nFolgen Sie uns: Instagram @cafe.muster', links);
+    expect(found(insta.email)).toEqual({ value: 'info@muster.example', form: 'cloudflare' });
+    expect(extractImpressumFields('Kontakt: Mastodon @verein@social.example').email.status).toBe('not-found');
+    expect(extractImpressumFields('Email: use the form at www.muster.example/contact').email.status).toBe('not-found');
+    expect(extractImpressumFields('info@muster.nosuchtld').email.status).toBe('not-found');
+  });
+
+  it('marks chamber and authority blocks as third parties', () => {
+    const text = 'Praxis Dr. med. Erika Muster\nErlenweg 12 / 1. Stock\n12345 Musterhausen\n\nZuständige Ärztekammer:\nLandesärztekammer Musterland\nKammerweg 1\n54321 Kammerstadt';
+    expect(extractImpressumFields(text).address.status).toBe('not-found');
+    expect(extractImpressumFields('Mitglied der IHK Musterstadt\nKammerweg 1\n54321 Kammerstadt').address.status).toBe('not-found');
+  });
+
+  it('takes no year for a house number', () => {
+    for (const text of ['Muster Bau GmbH\nMeisterbetrieb seit 1985\n\n12345 Musterstadt', 'Tradition seit 1902\n12345 Musterstadt', 'Jahrgang 2024\n12345 Musterstadt', 'Erlenweg 1234\n12345 Musterstadt']) {
+      expect(extractImpressumFields(text).address.status, text).toBe('not-found');
+    }
+    expect(found(extractImpressumFields('Erlenweg 12\n12345 Musterstadt').address)?.street).toBe('Erlenweg 12');
+    expect(found(extractImpressumFields('Musterstr.1\n12345 Musterstadt').address)?.street).toBe('Musterstr.1');
+  });
+
+  it('ends the town at a phone label or at the next word of the sentence, keeps two-word towns', () => {
+    expect(found(extractImpressumFields('Erlenweg 12 12345 Musterhausen T. 0123 4567').address)?.town).toBe('Musterhausen');
+    expect(found(extractImpressumFields('Erlenweg 12, 12345 Musterhausen Eingetragen im Handelsregister').address)?.town).toBe('Musterhausen');
+    expect(found(extractImpressumFields('Erlenweg 12, 12345 Bad Musterhausen').address)?.town).toBe('Bad Musterhausen');
+    expect(found(extractImpressumFields('Erlenweg 12, 12345 Musterstadt am Main').address)?.town).toBe('Musterstadt am Main');
+  });
+
+  it('reads the legal form "AG" not as the court, a Gerichtsstand clause not as the register court', () => {
+    expect(found(extractImpressumFields('Muster AG Vorstand Max Muster HRB 123').handelsregister)?.court).toBeNull();
+    const clause = 'Muster GmbH\nHandelsregister: HRB 12345\nGerichtsstand für alle Streitigkeiten ist das Amtsgericht Freising';
+    expect(found(extractImpressumFields(clause).handelsregister)?.court).toBeNull();
+  });
+
+  it('skips the register entry of the general partner and keeps thousands dots', () => {
+    const kg = 'Persönlich haftende Gesellschafterin: Muster Verwaltungs GmbH, Amtsgericht Musterstadt, HRB 5678\nMuster GmbH & Co. KG, Amtsgericht Musterstadt, HRA 1234';
+    expect(found(extractImpressumFields(kg).handelsregister)).toEqual({ register: 'HRA', number: '1234', court: 'Musterstadt' });
+    expect(found(extractImpressumFields('HRB 12.345 Amtsgericht Musterstadt').handelsregister)).toEqual({ register: 'HRB', number: '12345', court: 'Musterstadt' });
+  });
+
+  it('stays fast on one long line with many postcodes or third-party candidates', () => {
+    for (const text of ['12345 Musterstadt, '.repeat(5_000), `Webdesign: ${'a@b.de '.repeat(14_000)}`, `Webdesign: ${'HRB 12345 '.repeat(10_000)}`]) {
+      const started = performance.now();
+      extractImpressumFields(text);
+      expect(performance.now() - started).toBeLessThan(1_000);
+    }
   });
 });
 

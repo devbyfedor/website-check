@@ -114,8 +114,9 @@ export function analyzeLegal(capture: Capture): LegalAnalysis {
       break;
     }
   }
-  const fields = text === null ? fieldsNotChecked() : extractImpressumFields(text.text, text.links);
   const impressumSite = finalUrl === null ? (url === null ? null : siteOfUrl(url)) : siteOfUrl(finalUrl);
+  const ownSites = new Set([...own, ...(impressumSite === null ? [] : [impressumSite])]);
+  const fields = text === null ? fieldsNotChecked() : extractImpressumFields(text.text, text.links, ownSites);
   const crossSite = impressumSite !== null && !own.has(impressumSite);
   let accessibilityStatement: LegalAnalysis['accessibilityStatement'] = links.accessibilityStatement === null ? null : { ...links.accessibilityStatement, page: 'homepage' };
   if ((accessibilityStatement === null || !accessibilityStatement.certain) && state === 'analyzed' && text !== null) {
