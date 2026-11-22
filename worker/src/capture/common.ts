@@ -100,6 +100,7 @@ export function bannerObservation(snapshot: SnapshotResult | null, toCaptureMs: 
 export function pageSnapshotOf(snapshot: SnapshotResult | null): PageSnapshot | null {
   if (snapshot === null) return null;
   return {
+    ...(snapshot.url ? { url: snapshot.url } : {}),
     title: snapshot.title,
     lang: snapshot.lang,
     text: snapshot.text,

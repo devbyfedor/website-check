@@ -83,6 +83,27 @@ describe('analyzePlatform', () => {
     expect(tie).toMatchObject({ system: 'unknown', conflict: true });
   });
 
+  it('does not name a system from uploads, media files or other subdomains of the same domain', () => {
+    // Code review, 22.11.2026: a TYPO3 page with an old WordPress upload, a blog teaser, a shop image.
+    const result = analyzePlatform(
+      capture({
+        requests: [
+          { url: `${SITE}wp-content/uploads/2019/05/alt.jpg` },
+          { url: 'https://blog.example.de/wp-content/themes/x/style.css' },
+          { url: 'https://shop.example.de/cdn/shop/t/3/assets/theme.css' },
+          { url: `${SITE}cdn/shop/files/produkt.jpg` },
+        ],
+        hints: { generators: ['TYPO3 CMS'] },
+      }),
+    );
+    expect(result.system).toBe('unknown');
+    expect(result.signals.every((s) => s.strength === 'weak')).toBe(true);
+  });
+
+  it('reads the Jimdo asset names with the inner ".js"', () => {
+    expect(analyzePlatform(capture({ requests: [{ url: 'https://assets.jimstatic.com/web.js.5ad5c63c0c3d8fc4a3e1.js' }] })).system).toBe('jimdo');
+  });
+
   it('gives "unbekannt" for a site without any signal', () => {
     expect(analyzePlatform(capture({})).system).toBe('unknown');
   });

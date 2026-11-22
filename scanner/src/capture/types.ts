@@ -122,6 +122,11 @@ export interface PlatformHints {
 }
 
 export interface PageSnapshot {
+  /**
+   * Session A4: the document's own address (`location.href`), which link addresses are resolved
+   * against; it can differ from the response URL (history.replaceState, `<base href>`). Missing in older captures.
+   */
+  url?: string;
   title: string;
   /** Value of `<html lang>`, or null if missing. */
   lang: string | null;

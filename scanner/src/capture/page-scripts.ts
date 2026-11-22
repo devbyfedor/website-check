@@ -90,6 +90,7 @@ const PLATFORM_HINTS = `(() => {
  */
 export const SNAPSHOT_EXPRESSION = `(() => {${TEXT_AND_LINKS}
   return {
+    url: location.href,
     title: document.title || '',
     lang: document.documentElement.getAttribute('lang'),
     text: text.slice(0, MAX_TEXT),
@@ -126,6 +127,7 @@ export interface SnapshotResult extends PageSnapshot {
 /** Session A4: the snapshot of the Impressum page: title, language, visible text and links only. */
 export const IMPRESSUM_SNAPSHOT_EXPRESSION = `(() => {${TEXT_AND_LINKS}
   return {
+    url: location.href,
     title: document.title || '',
     lang: document.documentElement.getAttribute('lang'),
     text: text.slice(0, MAX_TEXT),

@@ -20,8 +20,9 @@ export type FingerprintMatcher =
   /** The host of a request of the top-level document. */
   | { kind: 'request-host'; host: RegExp }
   /**
-   * The path of a request of the top-level document: on the site's own hosts (`firstParty`), on a
-   * given `host`, or on any host.
+   * The path of a request of the top-level document: on the page's own host (`firstParty`: the host of
+   * the requested URL, the final URL or a redirect hop, with or without "www."; not other subdomains,
+   * which can be a blog or a shop on another system), on a given `host`, or on any host.
    */
   | { kind: 'request-path'; path: RegExp; firstParty: boolean; host?: RegExp }
   /** The host of the final URL of the page. */
@@ -41,7 +42,8 @@ export interface Fingerprint {
   match: FingerprintMatcher;
 }
 
-const WP_PATH = /^\/(?:[^/]+\/)?wp-(?:content|includes)\//;
+/** Theme, plugin and core files; not uploads, which other sites hotlink and which stay after a move away from WordPress. */
+const WP_PATH = /^\/(?:[^/]+\/)?wp-(?:content\/(?!uploads\/)|includes\/)/;
 
 export const FINGERPRINTS: readonly Fingerprint[] = [
   // WordPress
@@ -53,6 +55,7 @@ export const FINGERPRINTS: readonly Fingerprint[] = [
   { id: 'wp-global-styles', system: 'wordpress', strength: 'strong', match: { kind: 'selector', selector: 'style#global-styles-inline-css' } },
   { id: 'wp-emoji-settings', system: 'wordpress', strength: 'strong', match: { kind: 'global', path: '_wpemojiSettings' } },
   { id: 'wp-emoji-settings-json', system: 'wordpress', strength: 'strong', match: { kind: 'selector', selector: 'script#wp-emoji-settings' } },
+  { id: 'wp-uploads-path', system: 'wordpress', strength: 'weak', match: { kind: 'request-path', path: /^\/(?:[^/]+\/)?wp-content\/uploads\//, firstParty: true } },
   { id: 'wp-json-path', system: 'wordpress', strength: 'weak', match: { kind: 'request-path', path: /^\/(?:[^/]+\/)?wp-json\//, firstParty: true } },
   { id: 'wp-pingback-header', system: 'wordpress', strength: 'weak', match: { kind: 'header', name: 'x-pingback', value: /\/xmlrpc\.php$/ } },
   { id: 'wp-content-path-elsewhere', system: 'wordpress', strength: 'weak', match: { kind: 'request-path', path: /\/wp-(?:content|includes)\//, firstParty: false } },
@@ -75,7 +78,8 @@ export const FINGERPRINTS: readonly Fingerprint[] = [
   { id: 'shopify-shopid-header', system: 'shopify', strength: 'strong', match: { kind: 'header', name: 'x-shopid' } },
   { id: 'shopify-sorting-hat-header', system: 'shopify', strength: 'strong', match: { kind: 'header', name: 'x-sorting-hat-shopid' } },
   { id: 'shopify-stage-header', system: 'shopify', strength: 'strong', match: { kind: 'header', name: 'x-shopify-stage' } },
-  { id: 'shopify-cdn-shop-path', system: 'shopify', strength: 'strong', match: { kind: 'request-path', path: /^\/cdn\/(?:shop|shopifycloud)\//, firstParty: true } },
+  { id: 'shopify-cdn-shop-path', system: 'shopify', strength: 'strong', match: { kind: 'request-path', path: /^\/cdn\/(?:shop\/t\/\d+\/assets|shopifycloud)\//, firstParty: true } },
+  { id: 'shopify-cdn-shop-media-path', system: 'shopify', strength: 'weak', match: { kind: 'request-path', path: /^\/cdn\/shop\/(?:files|products)\//, firstParty: true } },
   { id: 'shopify-routes-global', system: 'shopify', strength: 'strong', match: { kind: 'global', path: 'Shopify.routes.root' } },
   { id: 'shopify-shop-global', system: 'shopify', strength: 'strong', match: { kind: 'global', path: 'Shopify.shop' } },
   { id: 'shopify-analytics-global', system: 'shopify', strength: 'strong', match: { kind: 'global', path: 'ShopifyAnalytics' } },
@@ -124,7 +128,7 @@ export const FINGERPRINTS: readonly Fingerprint[] = [
   { id: 'jimdo-free-final-host', system: 'jimdo', strength: 'strong', match: { kind: 'final-host', host: /\.(?:jimdofree|jimdosite|jimdoweb)\.com$/ } },
   { id: 'jimdo-data-global', system: 'jimdo', strength: 'strong', match: { kind: 'global', path: 'jimdoData' } },
   { id: 'jimdo-dolphin-data-global', system: 'jimdo', strength: 'strong', match: { kind: 'global', path: 'jimdoDolphinData' } },
-  { id: 'jimdo-web-js-path', system: 'jimdo', strength: 'strong', match: { kind: 'request-path', path: /^\/(?:web|cookieControl|ckies)\.[0-9a-f]+\.js$/, firstParty: false, host: /^assets\.jimstatic\.com$/ } },
+  { id: 'jimdo-web-js-path', system: 'jimdo', strength: 'strong', match: { kind: 'request-path', path: /^\/(?:web|cookieControl|ckies)(?:\.js)?\.[0-9a-f]+\.js$/, firstParty: false, host: /^assets\.jimstatic\.com$/ } },
   { id: 'jimdo-layout-path', system: 'jimdo', strength: 'strong', match: { kind: 'request-path', path: /^\/cms\/o\/[^/]+\/layout\//, firstParty: false, host: /^u\.jimcdn\.com$/ } },
   { id: 'jimdo-nav-class', system: 'jimdo', strength: 'weak', match: { kind: 'selector', selector: 'ul.cc-nav-level-0' } },
   { id: 'jimdo-jimstatic-host', system: 'jimdo', strength: 'weak', match: { kind: 'request-host', host: /(?:^|\.)jimstatic\.com$/ } },

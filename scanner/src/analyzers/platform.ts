@@ -1,5 +1,5 @@
 import type { Capture } from '../capture/types.ts';
-import { firstPartySites, hostOf, siteOfHost } from '../domain/site.ts';
+import { hostOf } from '../domain/site.ts';
 import { FINGERPRINTS, PLATFORM_IDS, type Fingerprint, type FingerprintSystem, type PlatformId } from '../platform/fingerprints.ts';
 
 /**
@@ -48,7 +48,7 @@ function pathOf(url: string): string | null {
   }
 }
 
-function matches(fingerprint: Fingerprint, capture: Capture, firstParty: ReadonlySet<string>): string | null {
+function matches(fingerprint: Fingerprint, capture: Capture, ownHosts: ReadonlySet<string>): string | null {
   const match = fingerprint.match;
   const page = capture.page;
   switch (match.kind) {
@@ -80,7 +80,7 @@ function matches(fingerprint: Fingerprint, capture: Capture, firstParty: Readonl
           if (match.host.test(host)) return shorten(request.url);
           continue;
         }
-        if (match.firstParty && !firstParty.has(siteOfHost(host))) continue;
+        if (match.firstParty && !ownHosts.has(host.replace(/^www\./, ''))) continue;
         if (match.host !== undefined && !match.host.test(host)) continue;
         const path = pathOf(request.url);
         if (path !== null && match.path.test(path)) return shorten(request.url);
@@ -90,11 +90,21 @@ function matches(fingerprint: Fingerprint, capture: Capture, firstParty: Readonl
   }
 }
 
+/** Hosts of the page itself, without "www.": the requested URL, the final URL and every redirect hop. */
+function ownHostsOf(capture: Capture): Set<string> {
+  const hosts = new Set<string>();
+  for (const url of [capture.requestedUrl, capture.finalUrl, ...(capture.mainDocument?.redirectChain.map((h) => h.url) ?? [])]) {
+    const host = url === null ? null : hostOf(url);
+    if (host !== null) hosts.add(host.replace(/^www\./, ''));
+  }
+  return hosts;
+}
+
 export function analyzePlatform(capture: Capture): PlatformAnalysis {
-  const firstParty = firstPartySites(capture);
   const signals: PlatformSignal[] = [];
+  const own = ownHostsOf(capture);
   for (const fingerprint of FINGERPRINTS) {
-    const evidence = matches(fingerprint, capture, firstParty);
+    const evidence = matches(fingerprint, capture, own);
     if (evidence !== null) signals.push({ id: fingerprint.id, system: fingerprint.system, strength: fingerprint.strength, evidence });
   }
   const strongCount = (system: PlatformId): number => signals.filter((s) => s.system === system && s.strength === 'strong').length;

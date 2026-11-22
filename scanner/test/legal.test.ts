@@ -150,6 +150,16 @@ describe('legal links', () => {
     expect(found.accessibilityStatement?.href).toBe(`${SITE}barrierefreiheit`);
   });
 
+  it('marks an accessibility link that names only the topic as uncertain, and prefers a statement', () => {
+    const topic: PageLink = { href: `${SITE}digitale-barrierefreiheit/`, text: 'Digitale Barrierefreiheit', footer: true };
+    expect(findLegalLinks([topic], SITE).accessibilityStatement).toMatchObject({ href: topic.href, certain: false });
+    const statement: PageLink = { href: `${SITE}barrierefreiheit`, text: 'Erklärung zur Barrierefreiheit', footer: true };
+    expect(findLegalLinks([topic, statement], SITE).accessibilityStatement).toMatchObject({ href: statement.href, certain: true });
+    const byAddress: PageLink = { href: `${SITE}barrierefreiheitserklaerung`, text: 'Barrierefreiheit', footer: true };
+    expect(findLegalLinks([byAddress], SITE).accessibilityStatement?.certain).toBe(true);
+    expect(findLegalLinks(links, SITE).impressum?.certain).toBe(true);
+  });
+
   it('never guesses an address when there is no link', () => {
     expect(chooseImpressumTarget([{ href: `${SITE}kontakt`, text: 'Kontakt' }], SITE)).toEqual({ action: 'none' });
   });
@@ -192,14 +202,42 @@ describe('analyzeLegal', () => {
     }
   });
 
-  it('searches the homepage itself for an anchor link, and marks an Impressum on another site', () => {
-    const onePager = makeCapture({ requests: [], page: page([{ href: `${SITE}#impressum`, text: 'Impressum' }], 'Impressum\nWeg 1\n12345 Musterhausen') });
+  it('does not search the whole homepage for an anchor link (manual check), and marks an Impressum on another site', () => {
+    // A one-page site: the homepage text also holds client projects, so its first address is not the operator's.
+    const onePager = makeCapture({ requests: [], page: page([{ href: `${SITE}#impressum`, text: 'Impressum' }], 'Referenzen\nSchulweg 5\n12345 Altdorf\n\nImpressum\nWeg 1\n54321 Musterhausen') });
     const legal = analyzeLegal(onePager);
     expect(legal.impressum.state).toBe('same-page');
-    expect(legal.fields.address.status).toBe('found');
+    expect(legal.fields.address).toEqual({ status: 'not-found', reason: 'impressum-not-checked' });
     const other = 'https://www.konzern.example/impressum';
     const cross = analyzeLegal(makeCapture({ requests: [], page: page([{ href: other, text: 'Impressum' }]), impressum: tab(other, 'Konzern AG') }));
     expect(cross.impressum.crossSite).toBe(true);
+  });
+
+  it('ignores placeholder links that open a modal, and an Impressum link that leads back to the homepage', () => {
+    for (const href of [`${SITE}#!`, `${SITE}#0`, `${SITE}#`, SITE]) {
+      expect(analyzeLegal(makeCapture({ requests: [], page: page([{ href, text: 'Impressum', footer: true }]) })).impressum.state, href).toBe('no-link');
+    }
+    const back = tab(`${SITE}impressum`, 'Willkommen\nMuster GmbH\nWeg 1\n12345 Musterhausen');
+    back.finalUrl = SITE;
+    const legal = analyzeLegal(makeCapture({ requests: [], page: page([impressumLink]), impressum: back }));
+    expect(legal.impressum.state).toBe('failed');
+    expect(legal.fields.address).toEqual({ status: 'not-found', reason: 'impressum-not-checked' });
+  });
+
+  it('does not report missing links when the homepage text could not be read', () => {
+    const legal = analyzeLegal(makeCapture({ requests: [], page: null }));
+    expect(legal).toMatchObject({ homepageRead: false, impressum: { state: 'not-captured' } });
+  });
+
+  it('prefers an exact "Impressum" link over a footer article title that contains the word, and needs a whole word in an address', () => {
+    const title: PageLink = { href: `${SITE}blog/was-gehoert-ins-impressum`, text: 'Was gehört ins Impressum? 7 Tipps', footer: true };
+    const header: PageLink = { href: `${SITE}impressum`, text: 'Impressum', footer: false };
+    expect(findLegalLinks([title, header], SITE).impressum?.href).toBe(header.href);
+    expect(findLegalLinks([title], SITE).impressum).toBeNull();
+    const teaser: PageLink = { href: `${SITE}blog/impressumspflicht-auf-instagram`, text: 'Weiterlesen', footer: true };
+    expect(findLegalLinks([teaser], SITE).impressum).toBeNull();
+    const icon: PageLink = { href: `${SITE}rechtliches/impressum.html`, text: '', footer: true };
+    expect(findLegalLinks([icon], SITE).impressum?.matchedBy).toBe('href');
   });
 
   it('takes the accessibility statement link from the Impressum page when the homepage has none', () => {

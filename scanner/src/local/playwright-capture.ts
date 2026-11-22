@@ -186,7 +186,7 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
     clearTimeout(hardTimer);
     const capture = result.capture;
     if (options.impressum !== false && capture.ok && capture.page !== null && !hardLimitHit) {
-      const target = chooseImpressumTarget(capture.page.links, capture.finalUrl);
+      const target = chooseImpressumTarget(capture.page.links, capture.page.url ?? capture.finalUrl);
       if (target.action === 'open') {
         const tab = await captureImpressumTab(context, target.url, startedAt, settings.artifacts);
         capture.impressum = tab.impressum;
@@ -444,6 +444,7 @@ async function runCapture(
     snapshot === null
       ? null
       : {
+          ...(snapshot.url ? { url: snapshot.url } : {}),
           title: snapshot.title,
           lang: snapshot.lang,
           text: snapshot.text,
@@ -563,7 +564,7 @@ export async function captureImpressumTab(
     page:
       snapshot === null
         ? null
-        : { title: snapshot.title, lang: snapshot.lang, text: snapshot.text, textTruncated: snapshot.textTruncated, links: snapshot.links, linksTruncated: snapshot.linksTruncated },
+        : { ...(snapshot.url ? { url: snapshot.url } : {}), title: snapshot.title, lang: snapshot.lang, text: snapshot.text, textTruncated: snapshot.textTruncated, links: snapshot.links, linksTruncated: snapshot.linksTruncated },
     requestCount,
     timings: {
       openedAtMs: Math.max(0, Math.round(opened - homepageStartedAt)),

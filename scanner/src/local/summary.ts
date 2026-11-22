@@ -65,7 +65,8 @@ export interface RunSummary {
   };
   /** Session A4: legal links, the Impressum tab, the fields, and the detected system. */
   legal: {
-    links: Record<'impressum' | 'datenschutz' | 'accessibilityStatement', { found: number; footer: number; byHref: number }>;
+    /** `found` counts only certain links; `unsure`: an accessibility link that names only the topic (manual check). */
+    links: Record<'impressum' | 'datenschutz' | 'accessibilityStatement', { found: number; unsure: number; footer: number; byHref: number }>;
     impressumStates: Partial<Record<ImpressumState, number>>;
     crossSite: number;
     /** Browser time of the Impressum tab (open to close), over the tabs that were opened. */
@@ -276,7 +277,7 @@ function mean(values: number[]): number | null {
 
 function summarizeLegal(ok: readonly SiteRunResult[]): RunSummary['legal'] {
   const kinds = ['impressum', 'datenschutz', 'accessibilityStatement'] as const;
-  const links = Object.fromEntries(kinds.map((k) => [k, { found: 0, footer: 0, byHref: 0 }])) as RunSummary['legal']['links'];
+  const links = Object.fromEntries(kinds.map((k) => [k, { found: 0, unsure: 0, footer: 0, byHref: 0 }])) as RunSummary['legal']['links'];
   const impressumStates: Partial<Record<ImpressumState, number>> = {};
   const fieldsFound = Object.fromEntries(IMPRESSUM_FIELDS.map((f) => [f, 0])) as Record<ImpressumFieldId, number>;
   const emailForms: Record<string, number> = {};
@@ -293,6 +294,10 @@ function summarizeLegal(ok: readonly SiteRunResult[]): RunSummary['legal'] {
     for (const kind of kinds) {
       const link = kind === 'accessibilityStatement' ? legal.accessibilityStatement : legal.links[kind];
       if (link === null) continue;
+      if (!link.certain) {
+        links[kind].unsure += 1;
+        continue;
+      }
       links[kind].found += 1;
       if (link.footer) links[kind].footer += 1;
       if (link.matchedBy === 'href') links[kind].byHref += 1;
@@ -394,7 +399,7 @@ export function renderSummaryMarkdown(summary: RunSummary): string {
   );
   const l = summary.legal;
   const linkLine = (k: keyof typeof l.links): string => `${l.links[k].found} (footer ${l.links[k].footer}, by address only ${l.links[k].byHref})`;
-  lines.push(`- Links on the homepage (of ${summary.captured}): Impressum ${linkLine('impressum')}, Datenschutz ${linkLine('datenschutz')}, Erklärung zur Barrierefreiheit ${linkLine('accessibilityStatement')} (homepage or Impressum page).`);
+  lines.push(`- Links on the homepage (of ${summary.captured}): Impressum ${linkLine('impressum')}, Datenschutz ${linkLine('datenschutz')}, Erklärung zur Barrierefreiheit ${linkLine('accessibilityStatement')}, plus ${l.links.accessibilityStatement.unsure} links that name only the topic (manual check) (homepage or Impressum page).`);
   lines.push(`- Impressum: ${Object.entries(l.impressumStates).map(([k, v]) => `${k} ${v}`).join(', ')}; on another site: ${l.crossSite}. Second tab opened ${l.impressumMs.opened} times, browser time per tab median ${seconds(l.impressumMs.median)}, mean ${seconds(l.impressumMs.mean)}, max ${seconds(l.impressumMs.max)} (stop: ${Object.entries(l.impressumStop).map(([k, v]) => `${k} ${v}`).join(', ') || 'none'}).`);
   lines.push(`- Impressum fields found (of ${l.searched} texts searched): address ${l.fieldsFound.address}, e-mail ${l.fieldsFound.email} (${Object.entries(l.emailForms).map(([k, v]) => `${k} ${v}`).join(', ') || 'none'}), Handelsregister ${l.fieldsFound.handelsregister} (without court ${l.courtMissing}), USt-IdNr ${l.fieldsFound.ustId}.`);
   lines.push(`- System: ${Object.entries(l.systems).map(([k, v]) => `${k} ${v}`).join(', ')}; WooCommerce ${l.woocommerce}; strong signals of two systems ${l.conflicts}.`);

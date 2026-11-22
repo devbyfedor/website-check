@@ -59,12 +59,12 @@ describe('Impressum in a second tab', () => {
     expect(capture.impressum?.timings.totalMs).toBeGreaterThan(1_200);
   });
 
-  it('opens no tab for an anchor on the homepage and searches the homepage text', async () => {
+  it('opens no tab for an anchor on the homepage and leaves the fields to a manual check', async () => {
     const { capture } = await captureWithPlaywright(browser, server.url('www.onepager.test', '/'), { maxWaitMs: 5_000, httpProbe: false, accessibility: false });
     expect(capture.impressum).toBeNull();
     const legal = analyzeLegal(capture);
     expect(legal.impressum.state).toBe('same-page');
-    expect(legal.fields.address.status === 'found' ? legal.fields.address.value.town : null).toBe('Einseitig');
+    expect(legal.fields.address).toEqual({ status: 'not-found', reason: 'impressum-not-checked' });
   });
 
   it('never guesses /impressum when the homepage has no link', async () => {
