@@ -181,7 +181,7 @@ Fedor's changes to the plan of part 3 (21.11.2026, before the start):
 - No secrets in git: the lab token is in no tracked file, in no commit of any branch and in no commit message (checked with the value from `worker/.dev.vars`, not printed).
 - No addresses or names of the test sites in git: none of the 32 domains of `local/sites.txt` and `local/sites-v1.txt`, and none of their names without the ending, in the tracked files, in any commit or in any commit message. `git ls-files local` is empty.
 
-Result: merged into `main` with `git merge --no-ff` (merge commit cc34dbc; before the history cleanup of 21.11.2026 it was 0dca8ef); this record follows in a second merge.
+Result: merged into `main` with `git merge --no-ff` (merge commit 56a9455; it was 0dca8ef before the history cleanup of 21.11.2026 and cc34dbc before the second one of 22.11.2026); this record follows in a second merge.
 
 ### Step 5: lab Worker deleted
 
