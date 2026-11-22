@@ -13,7 +13,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "vitest run --config scanner/vitest.integration.config.ts",
+    "test:integration": "vitest run --config scanner/vitest.integration.config.ts && vitest run --config worker/vitest.integration.config.ts",
     "typecheck": "tsc -p scanner && tsc -p worker",
     "scan:local": "node scanner/src/local/run-sites.ts",
     "explain": "node scanner/src/local/explain.ts",
