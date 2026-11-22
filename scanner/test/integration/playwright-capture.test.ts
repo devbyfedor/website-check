@@ -94,7 +94,7 @@ describe('captureWithPlaywright on a fixture shop page', () => {
   it('collects page text, links, language, HTML and a screenshot', () => {
     expect(capture.page?.lang).toBe('de');
     expect(capture.page?.text).toContain('Willkommen');
-    expect(capture.page?.links).toContainEqual({ href: server.url('www.shop.test', '/impressum'), text: 'Impressum' });
+    expect(capture.page?.links).toContainEqual({ href: server.url('www.shop.test', '/impressum'), text: 'Impressum', footer: false });
     expect(html).toContain('CybotCookiebotDialog');
     expect(screenshot?.subarray(1, 4).toString()).toBe('PNG');
   });

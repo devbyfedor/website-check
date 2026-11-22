@@ -13,8 +13,10 @@ export const IMPRESSUM_SETTINGS = {
   pollMs: 250,
   /** After the load event: the text must keep its length for this long. */
   stableAfterLoadMs: 500,
-  /** Before the load event (a slow image or script): the text must keep its length for this long. */
+  /** Before the load event (a slow image or script), or while the text is shorter than `minTextLength`: the text must keep its length for this long. */
   stableBeforeLoadMs: 1_500,
+  /** A shorter text is probably still a loading placeholder ("Lade …"): no real Impressum is that short with header and footer. */
+  minTextLength: 300,
   /** At most this long after DOMContentLoaded. */
   maxSettleMs: 4_000,
   /** Absolute limit for the whole tab, reading the text included. */
@@ -36,7 +38,7 @@ export function pollText(watch: TextWatch, length: number, complete: boolean, no
   const next = length === watch.length ? watch : { length, changedAtMs: nowMs };
   if (nowMs >= IMPRESSUM_SETTINGS.maxSettleMs) return { watch: next, done: 'max-wait' };
   const stableFor = nowMs - next.changedAtMs;
-  const needed = complete ? IMPRESSUM_SETTINGS.stableAfterLoadMs : IMPRESSUM_SETTINGS.stableBeforeLoadMs;
+  const needed = complete && length >= IMPRESSUM_SETTINGS.minTextLength ? IMPRESSUM_SETTINGS.stableAfterLoadMs : IMPRESSUM_SETTINGS.stableBeforeLoadMs;
   if (length > 0 && watch.length !== -1 && stableFor >= needed) return { watch: next, done: 'text-stable' };
   return { watch: next, done: null };
 }

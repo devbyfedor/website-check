@@ -159,6 +159,34 @@ route('127.0.0.1', '/loop', (_req, res) => {
 route('www.blocked.test', '/', (_req, res) => send(res, 403, 'text/html', html('Just a moment...'), { 'cf-mitigated': 'challenge' }));
 route('www.broken.test', '/', (_req, res) => send(res, 500, 'text/html', html('Internal Server Error')));
 
+// 6. Session A4: legal links and the Impressum in a second tab.
+const IMPRESSUM_PAGES = resolve(import.meta.dirname, '../../fixtures/impressum/pages');
+const legalHome = (footer: string, body = '<h1>Willkommen</h1><p>Schöne Seite.</p>'): string =>
+  html(`<header><nav><a href="/">Start</a> <a href="/kontakt">Kontakt</a></nav></header><main>${body}</main><footer>${footer}</footer>`);
+route('www.legal.test', '/', (_req, res) =>
+  send(res, 200, 'text/html; charset=utf-8', legalHome('<a href="/impressum">Impressum</a> <a href="/datenschutz">Datenschutzerklärung</a>')),
+);
+route('www.legal.test', '/impressum', (_req, res) =>
+  send(res, 200, 'text/html; charset=utf-8', readFileSync(resolve(IMPRESSUM_PAGES, '01-gmbh-klassisch.html'), 'utf8')),
+);
+// The Impressum text is written 1.2 s after the load event: the tab must wait for it.
+route('www.slowlegal.test', '/', (_req, res) => send(res, 200, 'text/html; charset=utf-8', legalHome('<a href="/impressum">Impressum</a>')));
+route('www.slowlegal.test', '/impressum', (_req, res) =>
+  send(
+    res,
+    200,
+    'text/html; charset=utf-8',
+    html(`<main id="m">Lade …</main><script>window.addEventListener('load', function () { setTimeout(function () {
+      document.getElementById('m').innerText = 'Impressum\\nLangsam GmbH\\nTrägeweg 5\\n12345 Wartestadt\\nE-Mail: info@langsam.example';
+    }, 1200); });</script>`),
+  ),
+);
+route('www.onepager.test', '/', (_req, res) =>
+  send(res, 200, 'text/html; charset=utf-8', legalHome('<a href="#impressum">Impressum</a>', '<h1>Willkommen</h1><section id="impressum"><h2>Impressum</h2><p>Eins GmbH<br>Seitenweg 1<br>12345 Einseitig</p></section>')),
+);
+route('www.nolegal.test', '/', (_req, res) => send(res, 200, 'text/html; charset=utf-8', legalHome('<a href="/kontakt">Kontakt</a>')));
+route('www.nolegal.test', '/impressum', (_req, res) => send(res, 200, 'text/html; charset=utf-8', html('Impressum')));
+
 function a11yPage(path: string): Handler | undefined {
   try {
     const body = readFileSync(resolve(A11Y_DIR, path.slice(1)), 'utf8');
