@@ -35,6 +35,11 @@ Decisions made later in the sessions:
 - 21.11.2026 (Fedor, A3 message): for the Cloudflare check of A3 the lab Worker `website-check-lab` is deployed again under the rules of A2 (only the measurement endpoint behind a token, workers.dev, no logs, no storage, the agent sets the token secret from `.dev.vars` without printing it) and deleted at the end of the session.
 - 21.11.2026 (Fedor, before the first push): the history of all branches was rewritten before the first push to remove personal details about the owner; merges, authors, e-mail addresses and dates stayed the same, only the affected lines changed, and the old history is kept only in a local backup outside git. Reason: the repository becomes public and clients will see it, and nothing had been pushed yet, so the rewrite affects no other copy.
 - 22.11.2026 (Fedor, before the first push): the history of all branches was rewritten a second time in the same way, again only the affected lines; the rules stay, only personal reasons and details leave. Reason: a second search still found personal details about the owner, and nothing had been pushed yet.
+- 22.11.2026 (Fedor, A4 message, answer 1): axe runs only on the homepage, not on the Impressum. Reason: the design's Prüfmaße table says "Ist auf Ihrer Startseite", and every browser second counts on the free plan.
+- 22.11.2026 (Fedor, A4 message, answer 2): the comparison with the standard axe-core run on a page that did not change between the runs (ours, standard, ours again) is the right method. Reason: a page that still changes (carousels, late images) otherwise shows a difference that is not one.
+- 22.11.2026 (Fedor, A4 message, answer 3): the table "Soll nach Gesetz und Richtlinie" and the row "Sicherheits-Header 5 von 5" in the design stay as they are; "Richtlinie" refers to recommendations, not to the law. Reason: the design is final; the wording is checked once more with the review of the German texts in stage C (`docs/backlog.md`).
+- 22.11.2026 (Fedor, A4 message, answer 4): the sentence that a native speaker reviews the German texts stays in the brief. Reason: it is a normal quality step.
+- 22.11.2026 (Fedor, A4 message, answer 5): the wording "postal address" in the owner decision about the Impressum of our site stays. Reason: it names what the Impressum needs.
 
 ## Technical decisions
 
