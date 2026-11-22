@@ -2,7 +2,7 @@
 
 ## Current state
 
-Stage A, sessions A1, A2, A3 and A4 are merged into `main`. A4 added the mandatory information (Impressum and Datenschutz links, the Impressum in a second tab, its fields by templates, the Erklärung zur Barrierefreiheit) and system detection, locally; the Cloudflare adapter gets the second tab in A5. Before the first push the history of all branches was rewritten twice to remove personal details about the owner (21.11.2026 and 22.11.2026, sections "History cleanup before the first push" and "Second history cleanup" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
+Stage A, sessions A1, A2, A3 and A4 are merged into `main`. A5 runs in three parts on branch `a5-api` (Fedor, 22.11.2026): part 1, the SSRF protection, is done and not merged; part 2 builds the report schema, D1, the API, the cache and the rate limit; part 3 the queue in the Durable Object, the Impressum tab on Cloudflare, the quick check, the end-to-end check and the merge. A4 added the mandatory information (Impressum and Datenschutz links, the Impressum in a second tab, its fields by templates, the Erklärung zur Barrierefreiheit) and system detection, locally; the Cloudflare adapter gets the second tab in A5. Before the first push the history of all branches was rewritten twice to remove personal details about the owner (21.11.2026 and 22.11.2026, sections "History cleanup before the first push" and "Second history cleanup" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
 - Part 1 (done): the Cloudflare capture adapter in `worker/` with both strategies, and a check on three sites of whether consent tools behave the same with the Cloudflare browser as with the local run (banner, third-party requests before consent, browser location, Worker CPU and wall time).
 - Part 2 (done): the capture moves into a Durable Object in the EU jurisdiction; the Worker only checks the token and passes the job on. The scanner recognises blocked pages (a web host's check page such as "Einen Moment bitte") and gives no findings for them. Check on Cloudflare: browser location from the Durable Object, the three sites of part 1 with both strategies, Site 06 recognised as blocked, CPU of the Worker and of the Durable Object.
 - Part 3 (done): banner probe fixes, the measurement on 12 sites, `docs/measurements/a2.md` with the plan recommendation, the merge into `main`, and deleting the lab Worker.
@@ -297,9 +297,34 @@ Fedor's answers before the start (in `docs/decisions.md`): axe on the homepage o
 
 Result: every point holds; merged into `main` with `git merge --no-ff`.
 
+## A5 part 1: SSRF protection (22.11.2026)
+
+Branch `a5-api` from `main`, not merged (part 3 merges). Session time: about 45 minutes (23:06 to about 23:50). No Cloudflare, no deploy, nothing pushed, no browser minutes. No test site was visited: the only contact with the 30 sites was name resolution.
+
+Fedor's answers to the A4 questions are in `docs/decisions.md` (owner decisions of 22.11.2026), the two texts as drafts in `docs/content-drafts.md` (`legal-impressum-no-link`, `legal-accessibility-statement-uncertain`).
+
+### What was built
+
+- `scanner/src/security/address.ts`: IPv4 in every notation the URL standard accepts (decimal, octal, hex, shortened, trailing dot), IPv6 with `::` and an IPv4 tail, the non-public ranges of the IANA registries for IPv4 and IPv6, every IPv6 form with an IPv4 inside refused, special-use and single-label host names.
+- `scanner/src/security/ssrf.ts`: the URL guard (http or https, ports 80 and 443, no user name or password, the host or every A and AAAA record public, names resolved once per scan) and `safeFetch` (each redirect checked before it is requested, at most 5, one 10 s limit for DNS, hops and body, at most 2 MB, only `Accept`, `Accept-Language` and the user agent sent). Name resolution: the operating system's resolver on the laptop (`scanner/src/local/node-resolver.ts`), DNS over HTTPS in the Worker (`scanner/src/security/doh.ts`).
+- `scanner/src/security/navigation-guard.ts`, shared by both adapters: the browser protocol pauses every document request of the main frame before it is sent and lets it go only after the guard accepted it, so the first address, every HTTP redirect, meta refresh and script navigations are checked inside the browser; the sixth redirect or navigation is refused.
+- Local Playwright adapter: the address is checked before a browser context opens; the guard sits on the homepage and on the Impressum tab; the http redirect check uses the same guard. Cloudflare adapter: the same for strategy (a) and strategy (b). A refused capture has the new failure reason `not-allowed` and no findings.
+- Lab Worker: the old host regex is replaced by the guard. Its dev mode now exempts only exact fixture origins (`LAB_DEV_ORIGINS`), no longer every local address.
+- Decisions with reasons in `docs/decisions.md` (A5 part 1), open points in `docs/backlog.md` (subresources and iframes are not checked, DNS rebinding, states for B2, the Impressum tab of the Cloudflare adapter in part 3).
+
+### Numbers
+
+- `npm test`: 514 of 514 (403 before). The SSRF suite `scanner/test/ssrf.test.ts` has 107 cases: URL rules 10, IPv4 notations 11, IPv4 ranges 22, IPv6 27 (12 of them IPv4 inside IPv6), host names 14, names that resolve to internal addresses 10, `safeFetch` 8 (redirect to 127.0.0.1, redirect to a name with a private address, sixth redirect, body over 2 MB by length and by stream, time limit without an answer, with a stalled body and with slow DNS), DNS over HTTPS 3, navigation guard 2. Plus 2 new cases of the http redirect check in `scanner/test/security.test.ts`.
+- `npm run test:integration`: 53 of 53 in Chromium (Playwright), among them 9 SSRF cases: a normal page loads; control with every address exempt: the redirect does reach the internal page (1 hit); HTTP redirect to 127.0.0.1, decimal notation after an allowed hop, meta refresh, script navigation in hex notation: each refused, 0 hits on the internal page; sixth redirect refused; Impressum link to 127.0.0.1 refused while the homepage stays captured; six internal or non-http addresses refused before any browser context. Plus one case of the http redirect check against the real fixture server (redirect to localhost not followed, 0 hits).
+- Cloudflare adapter on plain `wrangler dev` (local workerd and local Chrome, no account, no browser minutes): 9 of 9 in `worker/test/integration/ssrf-dev.test.ts`, run by `npm run test:integration` too. A normal page loads with both strategies; control: an image from 127.0.0.1 reaches the server (subresources are not checked); HTTP redirect, decimal redirect, meta refresh and script navigation to 127.0.0.1 refused by strategy (a), the HTTP redirect also by strategy (b), the sixth redirect refused, four internal job addresses answered with HTTP 400; 0 hits on the internal page. No workerd or Chrome process was left after the run.
+- `npm run typecheck`: no errors.
+- The guard on the 30 test sites, by name resolution only (no visit): 93 addresses (the requested addresses, and from the saved A4 captures the final addresses, the http redirect hops and the Impressum addresses), 93 allowed, 0 refused. Time of the guard per site with the operating system's resolver: median 109 ms, max 1.6 s (first lookup). In the 30 saved captures no main document came with a redirect.
+- DNS over HTTPS against the real resolver with a neutral name: `example.com` gave two A and two AAAA records (259 ms); a public name that points to 127.0.0.1 was refused after resolving.
+- `git ls-files local` is empty.
+
 ## Next
 
-- A5: API, storage, cache, limits, quick check, SSRF (brief). The Durable Object job opens the Impressum in a second tab like the local adapter (`docs/backlog.md`); measure its browser seconds on Cloudflare (local: 1.2 s median).
-- Fedor: push `main`.
-- Fedor: questions of the A4 report (the wording for a missing Impressum link; the Claude API for Impressum fields).
-- Fedor: review the German draft texts in `docs/content-drafts.md`.
+- A5 part 2: report schema in `scanner/`, D1 with migrations, API (start a scan, cache of 24 hours, status and report), rate limit by hashed IP. The API refuses what `precheckUrl` refuses before a job is queued.
+- A5 part 3: queue in the Durable Object, the Impressum tab of the Cloudflare adapter with the navigation guard, the quick check with `safeFetch`, end to end through Cloudflare, merge.
+- Fedor: push `main` (A4 is merged; `a5-api` is not).
+- Fedor: review the German draft texts in `docs/content-drafts.md`, among them the two new texts of the mandatory information.

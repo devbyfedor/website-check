@@ -320,6 +320,26 @@ Shared note for all header texts: they describe a common protective measure and 
 - Used when: Feature-Policy is set and Permissions-Policy is not. Whether it counts as present in the Prüfmaße is decided in the analyzer; the text works either way.
 - Status: Entwurf
 
+## Mandatory information
+
+Written in session A5 (22.11.2026) after Fedor's answers to the questions of A4 (`docs/decisions.md`). How the report shows them is decided in B3. Like every text in this file, they are drafts.
+
+### `legal-impressum-no-link`
+
+- Title: Impressum-Link nicht gefunden, bitte manuell prüfen (Fedor's wording, 22.11.2026)
+- Fact and risk: Auf der Startseite haben wir keinen Link gefunden, der zum Impressum führt. Er kann in einem Menü stecken, das sich erst nach einem Klick öffnet, und unsere Prüfung klickt nichts an. Fehlt der Link wirklich, finden Besucher die Pflichtangaben zum Anbieter nicht, und das kann abgemahnt werden.
+- Fix: Setzen Sie einen Link mit dem Text „Impressum“ in den Fußbereich jeder Seite, so dass er ohne weiteren Klick sichtbar ist.
+- Used when: `analyzeLegal` gives the Impressum state `no-link` (no link on the homepage whose text or address names the Impressum). This is the only text of the mandatory information with a risk (product rule 3); every field that was not found stays "nicht gefunden, bitte manuell prüfen" without a risk.
+- Status: Entwurf
+
+### `legal-accessibility-statement-uncertain`
+
+- Title: Link gefunden, bitte prüfen, ob es die Erklärung ist (Fedor's wording, 22.11.2026)
+- Fact and risk: Auf Ihrer Seite gibt es einen Link zum Thema Barrierefreiheit. Ob er zu einer Erklärung zur Barrierefreiheit führt oder zum Beispiel zu einer Leistungsseite, können wir automatisch nicht sicher sagen.
+- Fix: Öffnen Sie den Link und prüfen Sie, ob dort die Erklärung zur Barrierefreiheit steht. Wenn nicht und Ihr Angebot unter das BFSG fällt, verlinken Sie die Erklärung an derselben Stelle.
+- Used when: the accessibility statement link has `certain: false` (a link that names only the topic, for example "Barrierefreiheit" or "Digitale Barrierefreiheit"). Never shown as "Erklärung vorhanden". Whether the BFSG applies is the visitor's question (BFSG scheme of the design).
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/
