@@ -73,7 +73,14 @@ export async function probeHttpRedirect(httpUrl: string, options: HttpProbeOptio
   });
   /** Null when the guard accepts the address, otherwise the refusal (recorded as a hop without a request). */
   const refused = async (url: URL): Promise<HttpProbe | null> => {
-    const verdict = await guard.check(url);
+    // The time limit covers name resolution too.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const left = Math.max(0, timeoutMs - (Date.now() - started));
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => resolve('timeout'), left);
+    });
+    const verdict = await Promise.race([guard.check(url), timeout]).finally(() => clearTimeout(timer));
+    if (verdict === 'timeout') return done('timeout');
     if (verdict.allowed) return null;
     hops.push({ url: url.href, status: null, location: null, error: describeRejection(verdict) });
     return done('stopped');

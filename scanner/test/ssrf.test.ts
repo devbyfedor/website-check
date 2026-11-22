@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { formatIPv4, hostNameRejection, parseAddress, parseIPv4, parseIPv6 } from '../src/security/address.ts';
 import { createDohResolver } from '../src/security/doh.ts';
-import { installNavigationGuard, type CdpSessionLike } from '../src/security/navigation-guard.ts';
+import { checkReadDocument, installNavigationGuard, type CdpSessionLike } from '../src/security/navigation-guard.ts';
 import { createUrlGuard, precheckUrl, safeFetch, SSRF_LIMITS, type Resolver, type UrlVerdict } from '../src/security/ssrf.ts';
 
 /**
@@ -441,6 +441,10 @@ describe('navigation guard over the browser protocol', () => {
     const s = fakeSession();
     const state = await installNavigationGuard(s.session, guardOf({ 'intern.example.de': ['10.0.0.1'] }));
     expect(s.sent.find((x) => x.method === 'Fetch.enable')?.params).toEqual({ patterns: [{ urlPattern: '*', resourceType: 'Document', requestStage: 'Request' }] });
+    // Prerendering is switched off before interception starts (A5 review).
+    const methods = s.sent.map((x) => x.method);
+    expect(s.sent.find((x) => x.method === 'Page.setPrerenderingAllowed')?.params).toEqual({ isAllowed: false });
+    expect(methods.indexOf('Page.setPrerenderingAllowed')).toBeLessThan(methods.indexOf('Fetch.enable'));
     await s.pause('1', 'https://www.example.de/');
     await s.pause('2', 'http://127.0.0.1/');
     await s.pause('3', 'http://169.254.169.254/', 'IFRAME');
@@ -470,5 +474,22 @@ describe('navigation guard over the browser protocol', () => {
     await t.pause('x', 'https://www.example.de/');
     expect(t.answerFor('x')?.method).toBe('Fetch.failRequest');
     expect(brokenState.blocked[0]?.rejection).toBe('dns-error');
+  });
+
+  it('the document the data was read from must pass the guard too; a browser without the prerender switch fails the install', async () => {
+    const s = fakeSession();
+    const state = await installNavigationGuard(s.session, guardOf());
+    expect(await checkReadDocument(state, guardOf(), 'https://www.example.de/impressum')).toBe(true);
+    expect(await checkReadDocument(state, guardOf(), 'http://192.168.0.1/')).toBe(false);
+    expect(await checkReadDocument(state, guardOf(), 'chrome-error://chromewebdata/')).toBe(false);
+    expect(state.blocked.map((b) => b.rejection)).toEqual(['address', 'scheme']);
+    const old: CdpSessionLike = {
+      send: async (method) => {
+        if (method === 'Page.setPrerenderingAllowed') throw new Error(`'${method}' wasn't found`);
+        return method === 'Page.getFrameTree' ? { frameTree: { frame: { id: 'MAIN' } } } : {};
+      },
+      on: () => undefined,
+    };
+    await expect(installNavigationGuard(old, guardOf())).rejects.toThrow(/wasn't found/);
   });
 });

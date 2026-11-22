@@ -1,4 +1,4 @@
-import type { Browser } from 'playwright';
+import { chromium, type Browser } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { analyzeCapture } from '../../src/analyzers/capture.ts';
 import type { Capture } from '../../src/capture/types.ts';
@@ -66,6 +66,41 @@ describe('SSRF guard in the local adapter', () => {
     const analysis = analyzeCapture(c, DEFAULT_RULES);
     expect(analysis.state).toBe('failed');
     expect(analysis.thirdParty).toBeNull();
+  });
+
+  it('a prerendered page that is activated and then navigates to 127.0.0.1 reaches nothing', async () => {
+    const hits = ssrfSecretHits();
+    const c = await capture('/prerender');
+    expect(ssrfSecretHits()).toBe(hits);
+    // Either the guard refused the navigation, or the page never left the allowed host.
+    if (!c.ok) expect(c.failure?.reason).toBe('not-allowed');
+    expect(c.page?.url ?? '').not.toContain('127.0.0.1');
+  });
+
+  it('control: with the default launch flags of Playwright (popup blocker off) the popup does reach the internal page', async () => {
+    const hits = ssrfSecretHits();
+    const loose = await chromium.launch({ channel: 'chromium', headless: true, args: [HOST_RULES] });
+    try {
+      await captureWithPlaywright(loose, server.url('www.ssrf.test', '/popup'), { guard: fixtureGuard, maxWaitMs: 4_000, accessibility: false, httpProbe: false });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } finally {
+      await loose.close();
+    }
+    expect(ssrfSecretHits()).toBeGreaterThan(hits);
+  });
+
+  it.each(['/popup', '/popup-noopener', '/popup-link'])('a window that %s opens by script without user action reaches nothing', async (path) => {
+    const hits = ssrfSecretHits();
+    await capture(path);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(ssrfSecretHits()).toBe(hits);
+  });
+
+  it('a same-origin iframe that navigates the top document to 127.0.0.1 is refused', async () => {
+    const hits = ssrfSecretHits();
+    const c = await capture('/iframe-top');
+    expect(c.failure?.reason).toBe('not-allowed');
+    expect(ssrfSecretHits()).toBe(hits);
   });
 
   it('refuses the sixth redirect of the main document', async () => {

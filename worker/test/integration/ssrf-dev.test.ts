@@ -58,6 +58,16 @@ function startFixture(): Promise<void> {
     else if (path === '/redirect-decimal-2') redirect(307, `http://2130706433:${fixturePort}/ssrf/secret`);
     else if (path === '/meta-refresh') html('<h1>Weiter</h1>', `<meta http-equiv="refresh" content="0; url=${internal}/ssrf/secret">`);
     else if (path === '/script-redirect') html(`<h1>Start</h1><script>setTimeout(function () { location.href = 'http://0x7f.0.0.1:${fixturePort}/ssrf/secret'; }, 200);</script>`);
+    else if (path === '/popup') html(`<h1>Start</h1><script>window.open('${internal}/ssrf/secret');</script>`);
+    else if (path === '/popup-noopener') html(`<h1>Start</h1><script>window.open('${internal}/ssrf/secret', '_blank', 'noopener');</script>`);
+    else if (path === '/popup-link') html(`<h1>Start</h1><a id="l" href="${internal}/ssrf/secret" target="_blank">x</a><script>document.getElementById('l').click();</script>`);
+    else if (path === '/iframe-top') html(`<h1>Start</h1><iframe srcdoc="<script>top.location = '${internal}/ssrf/secret';</script>"></iframe>`);
+    else if (path === '/prerender')
+      html(
+        '<h1>Start</h1><script>setTimeout(function () { location.href = "/prerender-next"; }, 1500);</script>',
+        '<script type="speculationrules">{"prerender":[{"source":"list","urls":["/prerender-next"]}]}</script>',
+      );
+    else if (path === '/prerender-next') html(`<h1>Weiter</h1><script>setTimeout(function () { location.href = '${internal}/ssrf/secret'; }, 300);</script>`);
     else if (chain !== null) {
       const n = Number(chain[1]);
       if (n < 7) redirect(302, `/chain/${n + 1}`);
@@ -181,11 +191,39 @@ describe('SSRF guard in the Cloudflare adapter (wrangler dev)', () => {
     expect(hits.secret).toBe(before);
   });
 
-  it('strategy (b) refuses the redirect to 127.0.0.1 too', async () => {
+  it.each(['/redirect-loopback', '/meta-refresh', '/script-redirect', '/iframe-top'])('strategy (b) refuses %s too', async (path) => {
     const before = hits.secret;
-    const c = await capture('/redirect-loopback', 'resource-timing');
+    const c = await capture(path, 'resource-timing');
     expect(c.failure?.reason).toBe('not-allowed');
     expect(c.failure?.message).toContain('loopback');
+    expect(hits.secret).toBe(before);
+  });
+
+  it('A5 review: a same-origin iframe that navigates the top document is refused', async () => {
+    const before = hits.secret;
+    const c = await capture('/iframe-top');
+    expect(c.failure?.reason).toBe('not-allowed');
+    expect(hits.secret).toBe(before);
+  });
+
+  it('A5 review: a prerendered page that navigates to 127.0.0.1 once activated reaches nothing', async () => {
+    const before = hits.secret;
+    const c = await capture('/prerender');
+    expect(hits.secret).toBe(before);
+    expect(c.page?.url ?? '').not.toContain('127.0.0.1');
+  });
+
+  it.each([
+    ['/popup', 'cdp-events'],
+    ['/popup-noopener', 'cdp-events'],
+    ['/popup-link', 'cdp-events'],
+    ['/popup', 'resource-timing'],
+    ['/popup-link', 'resource-timing'],
+  ] as const)('A5 review: the window %s opens by script reaches nothing (%s)', async (path, strategy) => {
+    const before = hits.secret;
+    const c = await capture(path, strategy);
+    expect(c.ok, c.failure?.message ?? '').toBe(true);
+    await new Promise((done) => setTimeout(done, 500));
     expect(hits.secret).toBe(before);
   });
 

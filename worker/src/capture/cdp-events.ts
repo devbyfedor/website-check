@@ -6,9 +6,11 @@ import {
   axeNotRun,
   buildBannerProbeScript,
   CAPTURE_SCHEMA_VERSION,
+  checkReadDocument,
   describeRejection,
   httpVariantOf,
   installNavigationGuard,
+  installPopupGuard,
   navigationBlockMessage,
   notAllowedCapture,
   probeHttpRedirect,
@@ -153,6 +155,10 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
           acceptLanguage: CAPTURE_SETTINGS.acceptLanguage,
           guard: settings.guard,
         }).catch(() => null);
+  // Windows the page opens itself never load (A5 review); the scanner's own page is added below.
+  const browserSession = await browser.target().createCDPSession();
+  const ownTargets = new Set<string>();
+  await installPopupGuard(browserSession, ownTargets);
   const context = await browser.createBrowserContext();
   let hardLimitHit = false;
   const hardTimer = setTimeout(() => {
@@ -160,7 +166,7 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
     void context.close().catch(() => undefined);
   }, settings.hardLimitMs);
   try {
-    const result = await runCapture(browser, context, url, settings, () => hardLimitHit, startedWall);
+    const result = await runCapture(browser, context, url, settings, () => hardLimitHit, startedWall, ownTargets);
     result.stats.wallMs = Date.now() - startedWall;
     if (probe !== null) {
       const waitStarted = Date.now();
@@ -171,6 +177,7 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
   } finally {
     clearTimeout(hardTimer);
     await context.close().catch(() => undefined);
+    await browserSession.detach().catch(() => undefined);
   }
 }
 
@@ -181,10 +188,13 @@ async function runCapture(
   settings: CloudSettings,
   hardLimitHit: () => boolean,
   contextStarted: number,
+  ownTargets: Set<string>,
 ): Promise<CloudCaptureResult> {
   const environment = cloudEnvironment(chromeVersionOf(await browser.version()));
   const page = await context.newPage();
   const client = await clientOf(page);
+  const own = (await client.send('Target.getTargetInfo')) as { targetInfo: { targetId: string } };
+  ownTargets.add(own.targetInfo.targetId);
   const emulationFailed = await prepareVisitorPage(page, client, environment.userAgent);
   await page.evaluateOnNewDocument(buildBannerProbeScript(settings.tools));
   // Every document request of the main frame waits for the SSRF guard (redirects and later
@@ -349,6 +359,8 @@ async function runCapture(
     )
       .then((response) => response.result.value ?? null)
       .catch(() => null);
+    // The data must come from a document the guard allows (second line of defence).
+    if (snapshot !== null && !(await checkReadDocument(navigation, settings.guard, snapshot.url ?? page.url()))) snapshot = null;
   }
   const refused = navigation.blocked[0];
   const failure =

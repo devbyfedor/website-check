@@ -3,8 +3,10 @@ import {
   buildBannerProbeScript,
   CAPTURE_SCHEMA_VERSION,
   chromeVersionOf,
+  checkReadDocument,
   describeRejection,
   installNavigationGuard,
+  installPopupGuard,
   navigationBlockMessage,
   notAllowedCapture,
   type NavigationGuardState,
@@ -82,6 +84,8 @@ export async function captureWithResourceTiming(browser: Browser, url: string, o
   try {
     const created = (await browserSession.send('Target.createTarget', { url: 'about:blank', browserContextId: context.id })) as { targetId: string };
     targetId = created.targetId;
+    // Windows the page opens itself never load (A5 review).
+    await installPopupGuard(browserSession, new Set([targetId]));
     const id = targetId;
     const target: Target = await browser.waitForTarget((t) => (t as unknown as { _targetId?: string })._targetId === id, { timeout: 5_000 });
     // The SSRF guard pauses main-frame documents at the request stage on a session of its own;
@@ -198,7 +202,9 @@ async function runCapture(browser: Browser, session: CDPSession, url: string, se
   }
   const workerEndMs = rel();
   const timing = collected?.timing ?? null;
-  const snapshot = collected?.snapshot ?? null;
+  let snapshot = collected?.snapshot ?? null;
+  // The data must come from a document the guard allows (second line of defence).
+  if (snapshot !== null && !(await checkReadDocument(navigation, settings.guard, snapshot.url ?? ''))) snapshot = null;
 
   const mainDocument = documents.filter((d) => d.status < 300 || d.status >= 400).at(-1) ?? null;
   const redirectChain: RedirectHop[] = documents.filter((d) => d !== mainDocument).map((d) => ({ url: d.url, status: d.status }));

@@ -232,6 +232,36 @@ for (let i = 0; i < 7; i += 1) {
   });
 }
 route('www.ssrf.test', '/chain/7', (_req, res) => send(res, 200, 'text/html; charset=utf-8', html('<h1>Ende</h1>')));
+// Review of A5: navigation paths outside the plain document request of the first tab.
+// A speculation-rules prerender of an allowed page that then navigates to 127.0.0.1 once activated.
+route('www.ssrf.test', '/prerender', (_req, res) =>
+  send(
+    res,
+    200,
+    'text/html; charset=utf-8',
+    html(
+      '<h1>Start</h1><script>setTimeout(function () { location.href = "/prerender-next"; }, 1500);</script>',
+      '<script type="speculationrules">{"prerender":[{"source":"list","urls":["/prerender-next"]}]}</script>',
+    ),
+  ),
+);
+route('www.ssrf.test', '/prerender-next', (_req, res, port) =>
+  send(res, 200, 'text/html; charset=utf-8', html(`<h1>Weiter</h1><script>setTimeout(function () { location.href = 'http://127.0.0.1:${port}/ssrf/secret'; }, 300);</script>`)),
+);
+// A popup opened by script without any user action.
+route('www.ssrf.test', '/popup', (_req, res, port) =>
+  send(res, 200, 'text/html; charset=utf-8', html(`<h1>Start</h1><script>window.open('http://127.0.0.1:${port}/ssrf/secret');</script>`)),
+);
+route('www.ssrf.test', '/popup-noopener', (_req, res, port) =>
+  send(res, 200, 'text/html; charset=utf-8', html(`<h1>Start</h1><script>window.open('http://127.0.0.1:${port}/ssrf/secret', '_blank', 'noopener');</script>`)),
+);
+route('www.ssrf.test', '/popup-link', (_req, res, port) =>
+  send(res, 200, 'text/html; charset=utf-8', html(`<h1>Start</h1><a id="l" href="http://127.0.0.1:${port}/ssrf/secret" target="_blank">x</a><script>document.getElementById('l').click();</script>`)),
+);
+// A same-origin iframe that navigates the top document.
+route('www.ssrf.test', '/iframe-top', (_req, res, port) =>
+  send(res, 200, 'text/html; charset=utf-8', html(`<h1>Start</h1><iframe srcdoc="<script>top.location = 'http://127.0.0.1:${port}/ssrf/secret';</script>"></iframe>`)),
+);
 // For the http redirect check (Node's fetch, exempt host 127.0.0.1): a redirect to localhost.
 route('127.0.0.1', '/ssrf/probe-to-localhost', (_req, res, port) => {
   res.writeHead(301, { location: `http://localhost:${port}/ssrf/secret` });

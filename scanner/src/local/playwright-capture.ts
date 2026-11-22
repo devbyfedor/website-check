@@ -4,7 +4,7 @@ import type { AxeCapture } from '../a11y/types.ts';
 import { httpVariantOf, probeHttpRedirect } from '../security/http-probe.ts';
 import type { HttpProbe } from '../security/types.ts';
 import { classifyMainDocument, classifyNavigationError, notAllowedCapture, pageEvidenceOf } from '../capture/failure.ts';
-import { installNavigationGuard, navigationBlockMessage, type NavigationGuardState } from '../security/navigation-guard.ts';
+import { checkReadDocument, installNavigationGuard, navigationBlockMessage, type NavigationGuardState } from '../security/navigation-guard.ts';
 import { describeRejection, type UrlGuard } from '../security/ssrf.ts';
 import { createLocalGuard } from './node-resolver.ts';
 import { IMPRESSUM_SETTINGS, pollText, type TextWatch } from '../legal/impressum-capture.ts';
@@ -91,7 +91,9 @@ export { desktopChromeUserAgent };
 
 /** Launches the Playwright Chromium in headless mode (full browser, not the headless shell). */
 export async function launchLocalBrowser(extraArgs: readonly string[] = []): Promise<Browser> {
-  return chromium.launch({ channel: 'chromium', headless: true, args: [...extraArgs] });
+  // SSRF (A5 review): Playwright turns Chrome's popup blocker off by default; with it on, a page
+  // cannot open a window without a user action, and the scan never acts.
+  return chromium.launch({ channel: 'chromium', headless: true, args: [...extraArgs], ignoreDefaultArgs: ['--disable-popup-blocking'] });
 }
 
 function errorText(error: unknown): string {
@@ -395,6 +397,8 @@ async function runCapture(
   }
   if (navigationError === null && !hardLimitHit() && !crashed) {
     snapshot = await withTimeout(page.evaluate(SNAPSHOT_EXPRESSION) as Promise<SnapshotResult>, 4_000).catch(() => null);
+    // The data must come from a document the guard allows (second line of defence).
+    if (snapshot !== null && !(await checkReadDocument(navigation, guard, snapshot.url ?? page.url()))) snapshot = null;
   }
   let failure: CaptureFailure | null = null;
   const refused = navigation.blocked[0];
@@ -424,7 +428,7 @@ async function runCapture(
     disarmHardLimit();
     after = await withTimeout(settings.afterChecks(page, { axe }), 90_000).catch((error: unknown) => ({ error: errorText(error) }));
   }
-  if (settings.artifacts && navigationError === null && !hardLimitHit() && !crashed) {
+  if (settings.artifacts && navigationError === null && navigation.blocked.length === 0 && !hardLimitHit() && !crashed) {
     html = await withTimeout(page.content(), 4_000).catch(() => null);
     screenshot = await withTimeout(page.screenshot({ type: 'png', timeout: 4_000 }), 5_000).catch(() => null);
   }
@@ -564,6 +568,7 @@ export async function captureImpressumTab(
       }
       if (!hardLimitHit && !page.isClosed()) {
         snapshot = await withTimeout(page.evaluate(IMPRESSUM_SNAPSHOT_EXPRESSION) as Promise<SnapshotResult>, 4_000).catch(() => null);
+        if (snapshot !== null && navigation !== null && !(await checkReadDocument(navigation, guard, snapshot.url ?? page.url()))) snapshot = null;
         snapshotMs = since();
       }
       if (artifacts && snapshot !== null && !hardLimitHit && !page.isClosed()) {

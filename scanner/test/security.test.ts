@@ -232,6 +232,14 @@ describe('probeHttpRedirect', () => {
     expect(first.calls).toHaveLength(0);
   });
 
+  it('the time limit covers name resolution (A5 review)', async () => {
+    const slow = createUrlGuard({ resolve: () => new Promise<string[]>((resolve) => setTimeout(() => resolve(['93.184.215.14']), 1_500)) });
+    const started = Date.now();
+    const result = await probe('http://www.example.de/', { fetch: fakeFetch({}).fetch, guard: slow, timeoutMs: 150 });
+    expect(result.outcome).toBe('timeout');
+    expect(Date.now() - started).toBeLessThan(1_000);
+  });
+
   it('httpVariantOf', () => {
     expect(httpVariantOf('https://www.example.de/shop?x=1#top')).toBe('http://www.example.de/shop?x=1');
     expect(httpVariantOf('https://www.example.de:8443/')).toBe('http://www.example.de/');
