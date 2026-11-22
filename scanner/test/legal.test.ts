@@ -38,6 +38,15 @@ describe('postal address', () => {
     expect(found(extractImpressumFields('Hofmark 7 · 12345 Erfundenheim i.d.OPf.').address)?.town).toBe('Erfundenheim i.d.OPf.');
   });
 
+  it('reads streets that start with umlauts after short day names, and streets above empty paragraphs', () => {
+    // "Fr" and "Mo" are day abbreviations, but "Fröhliche-…" and "Mühlweg" are streets (\b does not know umlauts).
+    expect(found(extractImpressumFields('Adresse: Fröhliche-Erfunden Str. 09, 12345 Musterstadt').address)?.street).toBe('Fröhliche-Erfunden Str. 09');
+    expect(found(extractImpressumFields('Mühlweg 4\n12345 Musterstadt').address)?.street).toBe('Mühlweg 4');
+    expect(found(extractImpressumFields('Habichtweg 35\n\n \n\n 12345 Musterdorf').address)?.street).toBe('Habichtweg 35');
+    expect(extractImpressumFields('Mitglied seit 2010\n12345 Musterstadt').address.status).toBe('not-found');
+    expect(extractImpressumFields('Gegründet 1998\n\n12345 Musterstadt').address.status).toBe('not-found');
+  });
+
   it('starts the street after a company name on the same segment', () => {
     expect(found(extractImpressumFields('Beispiel GmbH Lindenstraße 4\n12345 Musterhausen').address)?.street).toBe('Lindenstraße 4');
   });
@@ -47,6 +56,20 @@ describe('postal address', () => {
     expect(found(extractImpressumFields(text).address)?.postcode).toBe('22222');
     const board = 'Verbraucherschlichtungsstelle Beispiel e.V., Schlichtweg 8, 33333 Schlichtstadt';
     expect(extractImpressumFields(board).address.status).toBe('not-found');
+  });
+
+  it('skips the address of a court or authority that stands blocks below its heading, as site builders write it', () => {
+    const builder = 'Aufsichtsbehörde\n\nAmtsgericht Beispielburg - Registernummer: HRA 1047\n\nGerichtsweg 1 - 12345 Beispielburg\n\n';
+    expect(extractImpressumFields(builder).address.status).toBe('not-found');
+    const withOperator = 'Angaben gemäß § 5 DDG:\n\nErika Muster\n\nMusterweg 47\n\n12345 Musterstadt\n\n' + builder;
+    expect(found(extractImpressumFields(withOperator).address)?.street).toBe('Musterweg 47');
+    // The register lines of the operator do not hide the operator's VAT ID below them.
+    expect(found(extractImpressumFields('Registergericht: Amtsgericht Musterstadt\nHRB 123\n\nUSt-IdNr.: DE123456789').ustId)).toBe('DE123456789');
+  });
+
+  it('skips the venue of a course in a sidebar ("Wo:")', () => {
+    const text = 'Kurse in Musterstadt\n\nWann: jeden Mittwoch 18:00-19:00\n\nWo: Gemeindesaal Musterstadt\n\nSaalweg 15a, 12345 Musterstadt\n\nTel.: 01234-567890';
+    expect(extractImpressumFields(text).address.status).toBe('not-found');
   });
 
   it('does not take a company named after a credit word for a credit line', () => {

@@ -121,7 +121,36 @@ function lineIndexAt(lines: readonly Line[], position: number): number {
 const THIRD_PARTY_ANYWHERE =
   /schlichtungsstelle|verbraucherschlichtung|streitbeilegung|streitschlichtung|universalschlichtung|aufsichtsbeh(?:ö|oe)rde|zust(?:ä|ae)ndige (?:kammer|beh(?:ö|oe)rde)|datenschutzbeauftragte|data protection officer|berufshaftpflicht|haftpflichtversicher|versicherer|arbitration board|dispute resolution|supervisory authority|webdesign (?:by|von|durch)|website (?:by|von|erstellt|realisiert)|realisiert (?:von|durch)|erstellt (?:von|durch)|umgesetzt (?:von|durch)|gestaltet (?:von|durch)|design(?:ed)? by|made by|powered by|hosted by|gehostet (?:von|bei)/iu;
 const THIRD_PARTY_LINE_START =
-  /^[\s ]*(?:web-?design|web design|design|gestaltung|grafik|layout|konzept(?:ion)?|umsetzung|technische umsetzung|realisierung|programmierung|entwicklung|technik|webentwicklung|hosting|webhosting|hoster|provider|serverstandort|bildnachweise?|bildquellen?|bildrechte|bilder|fotos?|fotografie|fotonachweise?|fotograf(?:in)?|quellen?(?:angaben)?|credits|copyright (?:der )?(?:bilder|fotos)|agentur|seo|betreuung|kammer|berufskammer|handwerkskammer|ihk|aufsicht|versicherung|haftpflicht|schlichtung|datenschutzbeauftragte[rn]?|external dpo)(?:[\s ]*(?::|&|\+|\/|,|–|-[\s ]|\(|und\b|by\b|von\b|durch\b|bei\b)|[\s ]*$)/iu;
+  /^[\s ]*(?:web-?design|web design|design|gestaltung|grafik|layout|konzept(?:ion)?|umsetzung|technische umsetzung|realisierung|programmierung|entwicklung|technik|webentwicklung|hosting|webhosting|hoster|provider|serverstandort|bildnachweise?|bildquellen?|bildrechte|bilder|fotos?|fotografie|fotonachweise?|fotograf(?:in)?|quellen?(?:angaben)?|credits|copyright (?:der )?(?:bilder|fotos)|agentur|seo|betreuung|kammer|berufskammer|handwerkskammer|ihk|aufsicht|versicherung|haftpflicht|schlichtung|datenschutzbeauftragte[rn]?|external dpo|wo|wann|veranstaltungsort|kursort|kursraum|treffpunkt|location|venue)(?:[\s ]*(?::|&|\+|\/|,|–|-[\s ]|\(|und\b|by\b|von\b|durch\b|bei\b)|[\s ]*$)/iu;
+
+/** A line that names a court or a register: an address right below it is the court's, not the operator's. */
+const COURT_LINE = /^[\s ]*(?:amtsgerichts?|registergericht|handelsregister(?:gericht)?|local court|district court|regist(?:ry|er) court)(?![\p{L}])/iu;
+/** Lines that start the operator's own data: the search for a third-party label stops there. */
+const OPERATOR_LINE = /angaben gem(?:ä|ae)(?:ß|ss)|^[\s ]*(?:impressum|kontakt|inhaber(?:in)?|betreiber(?:in)?|anbieter(?:in)?|herausgeber(?:in)?|diensteanbieter|verantwortlich|vertreten durch|gesch(?:ä|ae)ftsf(?:ü|ue)hr|website operator|operator|provider|owner)(?![\p{L}])/iu;
+
+/**
+ * For addresses (site builders put every line in its own paragraph, so a label can sit two blocks
+ * above): up to two non-empty lines above the block, across empty lines, that name a third party or a
+ * court. Stops at a line that starts the operator's data.
+ */
+function thirdPartyAbove(lines: readonly Line[], firstLine: number): boolean {
+  let seen = 0;
+  for (let i = firstLine - 1; i >= 0 && seen < 2; i -= 1) {
+    const line = (lines[i] as Line).text;
+    if (line.trim() === '') continue;
+    if (OPERATOR_LINE.test(line)) return false;
+    if (THIRD_PARTY_ANYWHERE.test(line) || THIRD_PARTY_LINE_START.test(line) || COURT_LINE.test(line)) return true;
+    seen += 1;
+  }
+  return false;
+}
+
+/** The first line of the block that holds `lineIndex` (the block ends at an empty line). */
+function blockStart(lines: readonly Line[], lineIndex: number): number {
+  let i = lineIndex;
+  while (i > 0 && (lines[i - 1] as Line).text.trim() !== '') i -= 1;
+  return i;
+}
 
 /** Is the match at `position` inside a block that the text marks as someone else's? */
 function inThirdPartyContext(text: string, lines: readonly Line[], position: number, firstLineOfMatch?: number): boolean {
@@ -195,13 +224,13 @@ const PLZ_TOWN = new RegExp(
 
 /** Street with house number, the whole segment: "Erlenweg 12 a", "Industriestr. 12-14", "Hofmark 7", "Straße des 17. Juni 5". */
 const STREET = new RegExp(
-  `^(\\p{Lu}[\\p{L}\\p{N}.'’\\-]*(?:${H}+[\\p{L}\\p{N}.'’\\-]+)*?)${H}*(\\d{1,4}(?:${H}?[a-zA-Z](?![\\p{L}]))?(?:${H}?[-–/+]${H}?\\d{1,4}(?:${H}?[a-zA-Z](?![\\p{L}]))?)?)$`,
+  `^(\\p{Lu}[\\p{L}\\p{N}.'’\\-]*(?:${H}+[\\p{L}\\p{N}.'’\\-]+)*?)${H}*(\\d{1,3}(?:${H}?[a-zA-Z](?![\\p{L}]))?(?:${H}?[-–/+]${H}?\\d{1,3}(?:${H}?[a-zA-Z](?![\\p{L}]))?)?)$`,
   'u',
 );
 /** A label of one to three words with a colon in front of the street ("Anschrift:", "Hauptsitz:", "Straße:"). */
 const ADDRESS_LABEL = new RegExp(`^\\p{L}[\\p{L}.\\-]*(?:${H}\\p{L}[\\p{L}.\\-]*){0,2}${H}*:${H}*`, 'u');
 const NOT_A_STREET =
-  /^(?:postfach|postf\.|pf\.?|p\.\s?o\.\s?box|po box|tel|telefon|fax|telefax|mobil|handy|phone|fon|hrb|hra|hr|nr|ust|umsatzsteuer|steuer|steuernummer|amtsgericht|registergericht|handelsregister|registernummer|kundennummer|stammkapital|grundkapital|gegründet|gründung|seit|copyright|version|stand|öffnungszeiten|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|mo|di|mi|do|fr|sa|so)\b/iu;
+  /^(?:postfach|postf\.|pf\.?|p\.\s?o\.\s?box|po box|tel|telefon|fax|telefax|mobil|handy|phone|fon|hrb|hra|hr|nr|ust|umsatzsteuer|steuer|steuernummer|amtsgericht|registergericht|handelsregister|registernummer|kundennummer|stammkapital|grundkapital|gegründet|gründung|seit|copyright|version|stand|öffnungszeiten|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|mo|di|mi|do|fr|sa|so|mitglied|ausgabe|baujahr)(?![\p{L}\p{N}])/iu;
 const PHONE_BEFORE = /(?:tel|telefon|telephone|phone|fon|fax|telefax|mobil|mobile|handy|hotline|hrb|hra|nr|nummer|postfach|ust|steuer|kto|konto|blz|iban)\.?:?[\s ]*\(?[\d\s /()+-]*$/iu;
 
 /** Splits a line part into segments at the separators people use between street and postcode. */
@@ -255,16 +284,25 @@ function findAddress(text: string): FieldResult<AddressValue> {
       const found = streetOf(sameLine.text);
       if (found !== null) street = { street: found.street, start: line.start + sameLine.offset + found.skip, lineIndex };
       else continue; // something else stands right before the postcode on this line
-    } else if (lineIndex > 0) {
-      const above = lines[lineIndex - 1] as Line;
-      const segment = lastSegment(above.text);
-      if (segment !== null) {
+    } else {
+      // The line above; site builders put empty paragraphs between the lines, so up to four lines of
+      // only whitespace may stand in between.
+      let index = lineIndex - 1;
+      let skipped = 0;
+      while (index >= 0 && skipped < 4 && (lines[index] as Line).text.trim() === '') {
+        index -= 1;
+        skipped += 1;
+      }
+      const above = index >= 0 ? (lines[index] as Line) : null;
+      const segment = above === null ? null : lastSegment(above.text);
+      if (above !== null && segment !== null) {
         const found = streetOf(segment.text);
-        if (found !== null) street = { street: found.street, start: above.start + segment.offset + found.skip, lineIndex: lineIndex - 1 };
+        if (found !== null) street = { street: found.street, start: above.start + segment.offset + found.skip, lineIndex: index };
       }
     }
     if (street === null) continue;
     if (inThirdPartyContext(text, lines, street.start, street.lineIndex)) continue;
+    if (thirdPartyAbove(lines, blockStart(lines, street.lineIndex))) continue;
     const townStart = at + match[0].length - (match[3] ?? '').length;
     const end = townStart + town.length;
     return { status: 'found', quote: text.slice(street.start, end), source: 'text', value: { street: street.street, postcode, town } };
