@@ -264,6 +264,58 @@ route('www.ssrf.test', '/popup-link', (_req, res, port) =>
 route('www.ssrf.test', '/iframe-top', (_req, res, port) =>
   send(res, 200, 'text/html; charset=utf-8', html(`<h1>Start</h1><iframe srcdoc="<script>top.location = 'http://127.0.0.1:${port}/ssrf/secret';</script>"></iframe>`)),
 );
+// Session fix-a2, review finding 23: a page that prefetches an internal page with speculation rules and
+// moves there right after the scanner read it (the read of `document.title` is the scanner's snapshot).
+// The navigation to a prefetched address sends no document request, so the guard on requests does not see it.
+export const PRIVATE_MARK = 'INTVAL';
+let privateNavigations = 0;
+/** Requests to the internal page that were a navigation, not a prefetch. */
+export function ssrfPrivateNavigations(): number {
+  return privateNavigations;
+}
+route('127.0.0.1', '/ssrf/private', (req, res) => {
+  if (!/prefetch/.test(String(req.headers['sec-purpose'] ?? ''))) privateNavigations += 1;
+  send(
+    res,
+    200,
+    'text/html; charset=utf-8',
+    `<!doctype html><html><head><meta charset="utf-8"><title>${PRIVATE_MARK}-title</title></head><body><h1>Bereich</h1><p style="color:#bbb;background:#fff">${PRIVATE_MARK}-contrast</p><input type="text" name="${PRIVATE_MARK}-input"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw="><a href="/${PRIVATE_MARK}-href"></a></body></html>`,
+    { 'supports-loading-mode': 'credentialed-prefetch' },
+  );
+});
+route('www.ssrf.test', '/prefetch-swap', (_req, res, port) => {
+  const internal = `http://127.0.0.1:${port}/ssrf/private`;
+  send(
+    res,
+    200,
+    'text/html; charset=utf-8',
+    html(
+      '<h1>Willkommen</h1><p>Normaler Inhalt.</p>',
+      `<script type="speculationrules">{"prefetch":[{"source":"list","urls":["${internal}"],"eagerness":"immediate"}]}</script>
+       <script>Object.defineProperty(document, 'title', { get: function () { if (!window.__moved) { window.__moved = true; setTimeout(function () { location.href = '${internal}'; }, 0); } return 'Startseite'; } });</script>`,
+    ),
+  );
+});
+// Session fix-a2, review finding 24: pages that wait until the scanner's own calls gave them "user
+// activation" and then open a window to the internal page (a script, a form into a new window, the Impressum).
+const openOnActivation = (port: number): string =>
+  `<script>var t = setInterval(function () { if (navigator.userActivation && navigator.userActivation.isActive) { clearInterval(t); window.open('http://127.0.0.1:${port}/ssrf/secret'); } }, 50);</script>`;
+route('www.ssrf.test', '/activation-open', (_req, res, port) => send(res, 200, 'text/html; charset=utf-8', html(`<h1>Start</h1><p>Text der Seite.</p>${openOnActivation(port)}`)));
+route('www.ssrf.test', '/activation-post', (_req, res, port) =>
+  send(
+    res,
+    200,
+    'text/html; charset=utf-8',
+    html(
+      `<h1>Start</h1><form id="f" method="post" target="_blank" action="http://127.0.0.1:${port}/ssrf/secret"><input name="a" value="1"></form>
+       <script>var t = setInterval(function () { if (navigator.userActivation.isActive) { clearInterval(t); document.getElementById('f').submit(); } }, 50);</script>`,
+    ),
+  ),
+);
+route('www.ssrf.test', '/activation-impressum', (_req, res) => send(res, 200, 'text/html; charset=utf-8', html('<h1>Start</h1><footer><a href="/impressum-activation">Impressum</a></footer>')));
+route('www.ssrf.test', '/impressum-activation', (_req, res, port) =>
+  send(res, 200, 'text/html; charset=utf-8', html(`<h1>Impressum</h1><p>Muster GmbH, Beispielweg 1, 12345 Musterstadt</p>${openOnActivation(port)}`)),
+);
 // For the http redirect check (Node's fetch, exempt host 127.0.0.1): a redirect to localhost.
 route('127.0.0.1', '/ssrf/probe-to-localhost', (_req, res, port) => {
   res.writeHead(301, { location: `http://localhost:${port}/ssrf/secret` });

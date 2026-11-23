@@ -120,6 +120,26 @@ export async function startCdpFixture(): Promise<CdpFixture> {
         return page('<script>for (;;) {}</script>');
       case 'www.shop.test/n':
         return out(204, 'text/plain', '');
+      // Session fix-a2, review finding 23: a page that prefetches an internal page and moves there right after
+      // the scanner's snapshot read `document.title`; the internal page marks everything it shows.
+      case 'www.shop.test/prefetch-swap':
+        return out(
+          200,
+          'text/html; charset=utf-8',
+          doc(
+            '<h1>Willkommen</h1><p>Normaler Inhalt.</p>',
+            `<script type="speculationrules">{"prefetch":[{"source":"list","urls":["${u('127.0.0.1', '/private')}"],"eagerness":"immediate"}]}</script>
+             <script>Object.defineProperty(document, 'title', { get: function () { if (!window.__moved) { window.__moved = true; setTimeout(function () { location.href = '${u('127.0.0.1', '/private')}'; }, 0); } return 'Fixture Shop'; } });</script>`,
+          ),
+        );
+      case '127.0.0.1/private':
+        if (!/prefetch/.test(String(req.headers['sec-purpose'] ?? ''))) seen.push('NAVIGATION 127.0.0.1/private');
+        return out(
+          200,
+          'text/html; charset=utf-8',
+          '<!doctype html><html><head><meta charset="utf-8"><title>INTVAL-title</title></head><body><h1>Bereich</h1><p style="color:#bbb;background:#fff">INTVAL-contrast</p><input type="text" name="INTVAL-input"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw="><a href="/INTVAL-href"></a></body></html>',
+          { 'supports-loading-mode': 'credentialed-prefetch' },
+        );
       // The embedded player (a product of the test rules).
       case 'embed.playerco.test/preflight':
         return out(200, 'text/html', doc(`<script>${jsonPost(u('px.trackco.test', '/collect'))}</script>`));
