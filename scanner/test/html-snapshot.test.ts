@@ -202,7 +202,8 @@ describe('visible text (innerText)', () => {
   });
 
   it('puts every option of a select on its own line', () => {
-    expect(textOf('<p>Land: <select><option>Deutschland</option><option label="AT">Österreich</select> Ende</p>')).toBe('Land: \nDeutschland\nAT\n Ende');
+    // Chromium shows the option's text, not its label attribute (checked in the local Chromium).
+    expect(textOf('<p>Land: <select><option>Deutschland</option><option label="AT">Österreich</select> Ende</p>')).toBe('Land: \nDeutschland\nÖsterreich\n Ende');
   });
 
   it('is tolerant: comments, doctype, stray "<", uppercase tags, unquoted attributes, CDATA in HTML', () => {

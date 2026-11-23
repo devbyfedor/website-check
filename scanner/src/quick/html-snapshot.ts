@@ -40,10 +40,23 @@ export const SNAPSHOT_META_LENGTH = 1000;
 
 /** Characters of one link's text that are read at most (the label keeps 200 of them after collapsing white space). */
 const LINK_TEXT_READ = 65536;
+/**
+ * Characters of link text that all links read together; past it a link reads at most `LINK_TEXT_MIN`. Without nested
+ * links all link texts together are at most the page's text (a link of the legal-word test is read twice), so only
+ * nested links on a hostile page reach it: 256 links nested in each other repeat the same text 256 times.
+ */
+const LINK_TEXT_BUDGET = 4_000_000;
+const LINK_TEXT_MIN = 512;
 /** Chromium attaches elements deeper than this to the parent of the current node (`kMaximumHTMLParserDOMTreeDepth`). */
 const MAX_TREE_DEPTH = 512;
 /** Copies of an unclosed link that the parser makes at most (a browser has no limit; a page that needs more is hostile). */
 const MAX_LINK_CLONES = 10000;
+/**
+ * Characters of attributes that the copies of unclosed links carry in all. Every copy shares the attributes
+ * of the link and every later step (style, address, the legal-word test) reads them again, so a link with a
+ * 1 MB `style` reopened 10,000 times would cost minutes; real pages stay far below (10,000 copies of 400 characters).
+ */
+const MAX_CLONED_ATTRIBUTE_CHARS = 4_000_000;
 
 // ---------------------------------------------------------------------------------------------
 // Decoding
@@ -110,20 +123,20 @@ function decodeAs(bytes: Uint8Array, encoding: string): string {
   if (encoding === 'windows-1252') return decodeWindows1252(bytes);
   if (encoding === 'utf-16be') {
     try {
-      return new TextDecoder('utf-16be', { fatal: false }).decode(bytes);
+      return new TextDecoder('utf-16be', { fatal: false, ignoreBOM: false }).decode(bytes);
     } catch {
       const swapped = new Uint8Array(bytes.length - (bytes.length % 2));
       for (let i = 0; i + 1 < bytes.length; i += 2) {
         swapped[i] = bytes[i + 1] as number;
         swapped[i + 1] = bytes[i] as number;
       }
-      return new TextDecoder('utf-16le', { fatal: false }).decode(swapped);
+      return new TextDecoder('utf-16le', { fatal: false, ignoreBOM: false }).decode(swapped);
     }
   }
   try {
-    return new TextDecoder(encoding, { fatal: false }).decode(bytes);
+    return new TextDecoder(encoding, { fatal: false, ignoreBOM: false }).decode(bytes);
   } catch {
-    return SINGLE_BYTE_LABEL.test(encoding) ? decodeWindows1252(bytes) : new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    return SINGLE_BYTE_LABEL.test(encoding) ? decodeWindows1252(bytes) : new TextDecoder('utf-8', { fatal: false, ignoreBOM: false }).decode(bytes);
   }
 }
 
@@ -369,6 +382,18 @@ const NAMED_REFERENCES = new Map<string, string>([
       ['verbar', 0x7c], ['vert', 0x7c], ['VerticalLine', 0x7c], ['rcub', 0x7d], ['rbrace', 0x7d],
     ] as const
   ).map(([name, code]): [string, string] => [name, String.fromCharCode(code)]),
+  // Every name of the standard that starts with a legacy name: without them `&notin;` would become "¬in;" (the legacy
+  // `&not` plus "in;") where a browser shows "∉". Other unknown names stay as written.
+  ...([
+    ['copysr', '℗'], ['divideontimes', '⋇'], ['gtcc', '⪧'], ['gtcir', '⩺'], ['gtdot', '⋗'],
+    ['gtlPar', '⦕'], ['gtquest', '⩼'], ['gtrapprox', '⪆'], ['gtrarr', '⥸'], ['gtrdot', '⋗'],
+    ['gtreqless', '⋛'], ['gtreqqless', '⪌'], ['gtrless', '≷'], ['gtrsim', '≳'], ['ltcc', '⪦'],
+    ['ltcir', '⩹'], ['ltdot', '⋖'], ['lthree', '⋋'], ['ltimes', '⋉'], ['ltlarr', '⥶'],
+    ['ltquest', '⩻'], ['ltrPar', '⦖'], ['ltri', '◃'], ['ltrie', '⊴'], ['ltrif', '◂'], ['notin', '∉'],
+    ['notinE', '⋹̸'], ['notindot', '⋵̸'], ['notinva', '∉'], ['notinvb', '⋷'], ['notinvc', '⋶'],
+    ['notni', '∌'], ['notniva', '∌'], ['notnivb', '⋾'], ['notnivc', '⋽'], ['parallel', '∥'],
+    ['timesb', '⊠'], ['timesbar', '⨱'], ['timesd', '⨰'],
+  ] as const),
 ]);
 
 const isAsciiAlnum = (c: number): boolean => (c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a);
@@ -465,6 +490,9 @@ interface ElementNode {
   /** Memo of the footer test: 0 not computed, 1 no, 2 yes. */
   footerBox: number;
   footerAncestor: number;
+  /** Where the element's textContent starts and ends in `DocumentIndex.text` (-1 in template contents). */
+  textStart: number;
+  textEnd: number;
 }
 
 interface TextNode {
@@ -602,6 +630,11 @@ class TreeBuilder {
   private readonly active: (ElementNode | null)[] = [];
   private templates = 0;
   private clones = 0;
+  private clonedChars = 0;
+  /** Characters of an attribute list (shared by a link and its copies), computed once per list. */
+  private readonly attributeChars = new WeakMap<[string, string][], number>();
+  /** Names of the attributes of `<html>` and `<body>`, which later start tags extend: a set, so many merges stay linear. */
+  private readonly mergedNames = new Map<ElementNode, Set<string>>();
   private beforeBody = true;
 
   constructor() {
@@ -611,7 +644,7 @@ class TreeBuilder {
   }
 
   private create(name: string, ns: number, attrs: [string, string][], parent: ElementNode | null): ElementNode {
-    const el: ElementNode = { t: 1, name, ns, attrs, children: [], parent, inTemplate: this.templates > 0, open: false, index: -1, hasHeaderOrMain: false, footerBox: 0, footerAncestor: 0 };
+    const el: ElementNode = { t: 1, name, ns, attrs, children: [], parent, inTemplate: this.templates > 0, open: false, index: -1, hasHeaderOrMain: false, footerBox: 0, footerAncestor: 0, textStart: -1, textEnd: -1 };
     if (parent !== null) parent.children.push(el);
     return el;
   }
@@ -726,18 +759,35 @@ class TreeBuilder {
   private reconstruct(): void {
     const last = this.active[this.active.length - 1];
     if (last === undefined || last === null || last.open) return;
-    if (this.clones >= MAX_LINK_CLONES) {
+    let chars = this.attributeChars.get(last.attrs);
+    if (chars === undefined) {
+      chars = 0;
+      for (const [key, value] of last.attrs) chars += key.length + value.length + 2;
+      this.attributeChars.set(last.attrs, chars);
+    }
+    if (this.clones >= MAX_LINK_CLONES || this.clonedChars + chars > MAX_CLONED_ATTRIBUTE_CHARS) {
       this.active.pop();
       return;
     }
     this.clones += 1;
+    this.clonedChars += chars;
     const clone = this.insertOpen('a', last.attrs);
     this.active[this.active.length - 1] = clone;
   }
 
+  /** `<html>` or `<body>` again: adds the attributes it does not have yet; ignored inside a `<template>`, as in a browser. */
   private mergeAttributes(el: ElementNode | null, attrs: [string, string][]): void {
-    if (el === null) return;
-    for (const [key, value] of attrs) if (attr(el, key) === null) el.attrs.push([key, value]);
+    if (el === null || this.templates > 0 || attrs.length === 0) return;
+    let names = this.mergedNames.get(el);
+    if (names === undefined) {
+      names = new Set(el.attrs.map(([key]) => key));
+      this.mergedNames.set(el, names);
+    }
+    for (const [key, value] of attrs) {
+      if (names.has(key)) continue;
+      names.add(key);
+      el.attrs.push([key, value]);
+    }
   }
 
   private startBody(attrs: [string, string][]): void {
@@ -1291,6 +1341,59 @@ function rawTextEnd(src: string, name: string, from: number): { textEnd: number;
   }
 }
 
+/** True when `name` starts at `at` (any case) and is followed by white space, `/` or `>` (a tag of that name, not `scripts`). */
+function namedTagAt(src: string, at: number, name: string): boolean {
+  if (!startsWithIgnoringCase(src, at, name)) return false;
+  const c = src.charCodeAt(at + name.length);
+  return isAsciiSpace(c) || c === 0x2f || c === 0x3e;
+}
+
+/**
+ * Where the text of a `<script>` ends, with the escape states of the tokenizer: after `<!--` a `<script>` tag
+ * starts the "double escaped" state, in which `</script>` only leaves that state, and `-->` ends both
+ * (`<script><!-- document.write("<script src=x></script>"); //--></script>` is one script). Linear: both
+ * look-ups are cached and the position only moves forward.
+ */
+function scriptDataEnd(src: string, from: number): { textEnd: number; next: number } {
+  const n = src.length;
+  let state = 0; // 0 script data, 1 escaped, 2 double escaped
+  let i = from;
+  let lt = -2;
+  let dashes = -2;
+  for (;;) {
+    if (lt !== -1 && lt < i) lt = src.indexOf('<', i);
+    if (state !== 0) {
+      if (dashes !== -1 && dashes < i) dashes = src.indexOf('-->', i);
+      if (dashes !== -1 && (lt === -1 || dashes < lt)) {
+        state = 0;
+        i = dashes + 3;
+        continue;
+      }
+    }
+    if (lt === -1) return { textEnd: n, next: n };
+    if (src.charCodeAt(lt + 1) === 0x2f && namedTagAt(src, lt + 2, 'script')) {
+      if (state !== 2) {
+        const tag = readTag(src, lt + 2);
+        return { textEnd: lt, next: tag === null ? n : tag.next };
+      }
+      state = 1;
+      i = lt + 8;
+      continue;
+    }
+    if (state === 0 && src.startsWith('!--', lt + 1)) {
+      state = 1;
+      i = lt + 2; // the dashes of "<!--" also count for "-->" ("<!-->" ends at once)
+      continue;
+    }
+    if (state === 1 && namedTagAt(src, lt + 1, 'script')) {
+      state = 2;
+      i = lt + 7;
+      continue;
+    }
+    i = lt + 1;
+  }
+}
+
 function parseDocument(input: string): TreeBuilder {
   const src = input.indexOf('\r') === -1 && input.indexOf('\0') === -1 ? input : input.replace(/\r\n?/g, '\n').replace(/\0/g, '');
   const tb = new TreeBuilder();
@@ -1318,7 +1421,7 @@ function parseDocument(input: string): TreeBuilder {
           text = src.slice(i);
           i = n;
         } else {
-          const end = rawTextEnd(src, raw.name, i);
+          const end = raw.name === 'script' ? scriptDataEnd(src, i) : rawTextEnd(src, raw.name, i);
           text = src.slice(i, end.textEnd);
           i = end.next;
         }
@@ -1559,12 +1662,16 @@ function matchesCompound(el: ElementNode, compound: Compound, quirks: boolean): 
 interface DocumentIndex {
   all: ElementNode[];
   byName: Map<string, ElementNode[]>;
+  /** The textContent of the document; an element's textContent is `text.slice(textStart, textEnd)`, so nested links cost nothing extra. */
+  text: string;
 }
 
 /** Elements of the document in tree order (template contents excluded, as for `querySelectorAll`). */
 function indexDocument(html: ElementNode): DocumentIndex {
   const all: ElementNode[] = [];
   const byName = new Map<string, ElementNode[]>();
+  const parts: string[] = [];
+  let length = 0;
   const visit = (el: ElementNode): boolean => {
     all.push(el);
     let list = byName.get(el.name);
@@ -1573,17 +1680,24 @@ function indexDocument(html: ElementNode): DocumentIndex {
       byName.set(el.name, list);
     }
     list.push(el);
+    el.textStart = length;
     let contains = false;
     if (!(el.ns === HTML && el.name === 'template')) {
-      for (const child of el.children) if (child.t === 1 && visit(child)) contains = true;
+      for (const child of el.children) {
+        if (child.t === 3) {
+          parts.push(child.text);
+          length += child.text.length;
+        } else if (visit(child)) contains = true;
+      }
     }
+    el.textEnd = length;
     el.hasHeaderOrMain = contains;
     if (contains) return true;
     const role = attr(el, 'role');
     return el.name === 'header' || el.name === 'main' || role === 'main' || role === 'banner';
   };
   visit(html);
-  return { all, byName };
+  return { all, byName, text: parts.join('') };
 }
 
 /** The footer test of the in-page script: `<footer>`, `role="contentinfo"`, or an id or class naming a footer without a header or main part inside. */
@@ -1616,6 +1730,7 @@ interface InlineStyle {
   float?: string;
   position?: string;
   transform?: string;
+  contentVisibility?: string;
 }
 
 function inlineStyleOf(el: ElementNode): InlineStyle | null {
@@ -1649,6 +1764,9 @@ function inlineStyleOf(el: ElementNode): InlineStyle | null {
       case 'text-transform':
         style.transform = value;
         break;
+      case 'content-visibility':
+        style.contentVisibility = value;
+        break;
       default:
     }
   }
@@ -1678,16 +1796,31 @@ const BLOCK_DISPLAYS = new Set(['block', 'flow-root', 'flex', 'grid', 'table', '
 const FLOATS = new Set(['left', 'right', 'inline-start', 'inline-end']);
 const INLINE_BLOCK_DISPLAYS = new Set(['inline-block', 'inline-flex', 'inline-grid', 'inline-table', '-webkit-inline-box', '-webkit-inline-flex', '-ms-inline-flexbox']);
 
+/** `hidden="until-found"`: not `display: none` but `content-visibility: hidden` (Chromium's style sheet for HTML elements). */
+function hiddenUntilFound(el: ElementNode): boolean {
+  const hidden = attr(el, 'hidden');
+  return hidden !== null && asciiLower(hidden) === 'until-found';
+}
+
+function blockified(style: InlineStyle | null, parentFlex: boolean): boolean {
+  return parentFlex || (style !== null && (FLOATS.has(style.float ?? '') || style.position === 'absolute' || style.position === 'fixed'));
+}
+
 function displayOf(el: ElementNode, style: InlineStyle | null, parentFlex: boolean): Display {
-  if (el.ns === SVG) return el.name === 'svg' ? (parentFlex ? 'replaced-block' : 'replaced') : 'none';
+  if (el.ns === SVG) {
+    // The <svg> root is an image; the `hidden` attribute does not apply to it (Chromium checked), its style does.
+    if (el.name !== 'svg' || style?.display === 'none') return 'none';
+    const block = blockified(style, parentFlex) || (style?.display !== undefined && BLOCK_DISPLAYS.has(style.display));
+    return block ? 'replaced-block' : 'replaced';
+  }
   if (el.ns === MATH) return 'inline';
   if (NEVER_RENDERED.has(el.name)) return 'none';
   let display: Display = DEFAULT_DISPLAY.get(el.name) ?? 'inline';
   if (el.name === 'input' && asciiLower(attr(el, 'type') ?? '') === 'hidden') return 'none';
   if (el.name === 'audio' && attr(el, 'controls') === null) display = 'none';
   if (el.name === 'dialog' && attr(el, 'open') === null) display = 'none';
-  // `hidden` and `hidden="until-found"` (its contents are skipped like a closed <details>).
-  if (attr(el, 'hidden') !== null) display = 'none';
+  // `hidden` is `display: none`; `hidden="until-found"` only skips the contents of a block (`skipsContents` in the renderer).
+  if (attr(el, 'hidden') !== null && !hiddenUntilFound(el)) display = 'none';
   const set = style?.display;
   if (set !== undefined) {
     const special = display === 'replaced' || display === 'select' || display === 'br' ? display : null;
@@ -1697,10 +1830,10 @@ function displayOf(el: ElementNode, style: InlineStyle | null, parentFlex: boole
     else if (set === 'contents') display = special === null ? 'contents' : 'none';
     else if (set === 'table-row') display = 'row';
     else if (set === 'table-cell') display = 'cell';
+    else if (set === 'table-row-group' || set === 'table-header-group' || set === 'table-footer-group') display = 'section';
   }
   if (display === 'none' || display === 'br') return display;
-  const blockified = parentFlex || (style !== null && (FLOATS.has(style.float ?? '') || style.position === 'absolute' || style.position === 'fixed'));
-  if (blockified) {
+  if (blockified(style, parentFlex)) {
     if (display === 'inline' || display === 'inline-block') return 'block';
     if (display === 'replaced') return 'replaced-block';
   }
@@ -1755,9 +1888,27 @@ class Renderer {
   readonly items: Item[] = [];
   /** Item ranges of the rendered `<a>` elements, for their innerText. */
   readonly ranges = new Map<ElementNode, [number, number]>();
+  /**
+   * `<a>` elements in contents that a rendered box skips with `content-visibility: hidden` (a closed `<details>`
+   * apart from its summary, `hidden="until-found"`, the style attribute): Chromium's innerText of such a link is
+   * empty, not its textContent (`element_inner_text.cc`: "If this element is locked … innerText should be empty").
+   */
+  readonly locked = new Set<ElementNode>();
+  /** The table box of the rows of a parent (the parent itself, or the table around a row group), and the last row of each table box. */
+  private readonly rowTables = new Map<ElementNode, ElementNode>();
   private readonly lastRows = new Map<ElementNode, ElementNode | null>();
   private atLineStart = true;
   private pending = -1;
+
+  /** Skipped contents: nothing of them is text; their links are locked. Each subtree is walked once, so this stays linear. */
+  private lock(root: ElementNode): void {
+    const stack = [root];
+    for (let node = stack.pop(); node !== undefined; node = stack.pop()) {
+      if (node.ns === HTML && node.name === 'a') this.locked.add(node);
+      if (node.ns === HTML && node.name === 'template') continue;
+      for (const child of node.children) if (child.t === 1) stack.push(child);
+    }
+  }
 
   private boundary(): void {
     if (this.pending >= 0) {
@@ -1811,6 +1962,10 @@ class Renderer {
     const start = this.items.length;
     const flex = style?.display !== undefined && FLEX_DISPLAYS.has(style.display);
     const isP = el.ns === HTML && el.name === 'p';
+    // `content-visibility: hidden` applies to boxes with layout containment, not to inline boxes (Chromium checked).
+    const skipsContents =
+      (style?.contentVisibility === 'hidden' || (el.ns === HTML && hiddenUntilFound(el))) && (display === 'block' || display === 'inline-block' || display === 'cell');
+    const contents = (): void => (skipsContents ? this.lock(el) : this.children(el, own, flex));
     switch (display) {
       case 'br':
         this.boundary();
@@ -1820,7 +1975,9 @@ class Renderer {
         this.atomic();
         break;
       case 'replaced-block':
+        // A block-level image is a line of its own: "a<img style="display:block">b" is "a\nb".
         this.boundary();
+        this.breaks(1);
         break;
       case 'select':
         this.atomic();
@@ -1835,24 +1992,26 @@ class Renderer {
         break;
       case 'block': {
         const count = isP ? 2 : 1;
-        if (el.ns === HTML && el.name === 'table') this.lastRows.set(el, lastRowOf(el));
         this.boundary();
         this.breaks(count);
-        this.children(el, own, flex);
+        contents();
         this.boundary();
         this.breaks(count);
         break;
       }
       case 'inline-block':
+        // A <p> has its two required line breaks whatever its display (Chromium checked for inline-block and inline-flex).
+        if (isP) this.breaks(2);
         this.atomic();
         this.atLineStart = true;
-        this.children(el, own, flex);
+        contents();
         this.boundary();
         this.atomic();
+        if (isP) this.breaks(2);
         break;
       case 'cell':
         this.boundary();
-        this.children(el, own, flex);
+        contents();
         this.boundary();
         // A cell that is not the last box of its row.
         if (hasNextSibling) this.push(ITEM_TAB, '\t', true);
@@ -1892,18 +2051,24 @@ class Renderer {
         continue;
       }
       if (closedDetails) {
-        if (summary || !(child.ns === HTML && child.name === 'summary')) continue;
+        if (summary || !(child.ns === HTML && child.name === 'summary')) {
+          this.lock(child);
+          continue;
+        }
         summary = true;
       }
       this.element(child, context, flex, i < lastRendered);
     }
   }
 
-  /** `<select>`: every option on its own line (Chromium's innerText does this; the select is an atomic inline). */
+  /**
+   * `<select>`: every option on its own line (Chromium's innerText does this; the select is an atomic inline). The line is
+   * the option's text, never its `label` attribute (Chromium checked: `<option label="AT">Österreich` gives "Österreich").
+   */
   private select(el: ElementNode, context: RenderContext): void {
     const option = (o: ElementNode): void => {
       this.breaks(1);
-      const label = attr(o, 'label') ?? stripAndCollapse(textContentOf(o, LINK_TEXT_READ));
+      const label = stripAndCollapse(textContentOf(o, LINK_TEXT_READ));
       if (label !== '') this.push(ITEM_TEXT, label, context.visible);
       this.breaks(1);
     };
@@ -1918,27 +2083,36 @@ class Renderer {
     }
   }
 
+  /**
+   * Is `row` the last row box of its table box? By display, not by tag, so rows made with `display: table-row` in the
+   * style attribute count too (Chromium checked: "Firma\tMuster GmbH\nHRB\t98765"). Cached per parent and per table, so linear.
+   */
   private isLastRow(row: ElementNode): boolean {
     const parent = row.parent;
-    const table = parent === null ? null : parent.name === 'table' ? parent : parent.parent !== null && parent.parent.name === 'table' ? parent.parent : null;
-    if (table === null) return true;
-    const last = this.lastRows.get(table);
-    return last === undefined || last === row;
+    if (parent === null) return true;
+    let table = this.rowTables.get(parent);
+    if (table === undefined) {
+      table = parent.parent !== null && displayOf(parent, inlineStyleOf(parent), false) === 'section' ? parent.parent : parent;
+      this.rowTables.set(parent, table);
+    }
+    let last = this.lastRows.get(table);
+    if (last === undefined) {
+      last = lastRowOf(table);
+      this.lastRows.set(table, last);
+    }
+    return last === null || last === row;
   }
 }
 
-/** The last rendered row of a table (rows of the table and of its row groups, in document order). */
+/** The last rendered row box of a table box (its rows and the rows of its row groups, in document order). */
 function lastRowOf(table: ElementNode): ElementNode | null {
   let last: ElementNode | null = null;
-  const consider = (el: ElementNode): void => {
-    if (el.ns === HTML && el.name === 'tr' && displayOf(el, inlineStyleOf(el), false) !== 'none') last = el;
-  };
+  const isRow = (el: ElementNode): boolean => displayOf(el, inlineStyleOf(el), false) === 'row';
   for (const child of table.children) {
     if (child.t !== 1) continue;
-    if (child.ns === HTML && (child.name === 'thead' || child.name === 'tbody' || child.name === 'tfoot')) {
-      if (displayOf(child, inlineStyleOf(child), false) === 'none') continue;
-      for (const row of child.children) if (row.t === 1) consider(row);
-    } else consider(child);
+    const display = displayOf(child, inlineStyleOf(child), false);
+    if (display === 'row') last = child;
+    else if (display === 'section') for (const row of child.children) if (row.t === 1 && isRow(row)) last = row;
   }
   return last;
 }
@@ -1969,8 +2143,8 @@ function stripAndCollapse(s: string): string {
 
 interface RenderedText {
   text: string;
-  /** innerText of a rendered `<a>` (read up to `LINK_TEXT_READ` characters), or null when it is not rendered. */
-  innerTextOf(el: ElementNode): string | null;
+  /** innerText of a rendered `<a>` (read up to `cap` characters), '' in skipped contents, or null when it is not rendered. */
+  innerTextOf(el: ElementNode, cap: number): string | null;
 }
 
 /** Joins the items as Chromium's innerText result builder does and remembers where each item landed, so every link's innerText is a slice. */
@@ -2008,14 +2182,15 @@ function buildText(renderer: Renderer): RenderedText {
   for (let i = 1; i <= items.length; i += 1) previous[i] = (starts[i - 1] as number) >= 0 ? i - 1 : (previous[i - 1] as number);
   return {
     text,
-    innerTextOf(el: ElementNode): string | null {
+    innerTextOf(el: ElementNode, cap: number): string | null {
+      if (renderer.locked.has(el)) return '';
       const range = renderer.ranges.get(el);
       if (range === undefined) return null;
       const first = next[range[0]] as number;
       const last = previous[range[1]] as number;
       if (first >= range[1] || last < range[0]) return '';
       const from = starts[first] as number;
-      return text.slice(from, Math.min(ends[last] as number, from + LINK_TEXT_READ));
+      return text.slice(from, Math.min(ends[last] as number, from + cap));
     },
   };
 }
@@ -2069,11 +2244,16 @@ export function snapshotFromHtml(html: string, documentUrl: string, options: { p
   const renderer = new Renderer();
   if (bodyRendered) renderer.element(body, contextOf(rootContext, doc.html, inlineStyleOf(doc.html)), false);
   const rendered = buildText(renderer);
-  const text = bodyRendered ? rendered.text : textContentOf(body, Number.POSITIVE_INFINITY);
+  const textContent = (el: ElementNode, cap: number): string => index.text.slice(el.textStart, Math.min(el.textEnd, el.textStart + cap));
+  const text = bodyRendered ? rendered.text : textContent(body, Number.POSITIVE_INFINITY);
 
+  let linkTextLeft = LINK_TEXT_BUDGET;
   const innerText = (a: ElementNode): string | undefined => {
     if (a.ns !== HTML) return undefined; // SVG links have no innerText
-    return rendered.innerTextOf(a) ?? textContentOf(a, LINK_TEXT_READ);
+    const cap = Math.max(LINK_TEXT_MIN, Math.min(LINK_TEXT_READ, linkTextLeft));
+    const read = rendered.innerTextOf(a, cap) ?? textContent(a, cap);
+    linkTextLeft -= read.length;
+    return read;
   };
   const anchors = named('a').filter((a) => attr(a, 'href') !== null);
   const linkOf = (a: ElementNode): PageLink => {
