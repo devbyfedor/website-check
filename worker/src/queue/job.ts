@@ -75,6 +75,7 @@ export async function runScanJob(job: QueueJob, mode: ScanMode, deps: ScanJobDep
       id: job.id,
       now: deps.now(),
       state: built.report.state,
+      mode,
       reportVersion: REPORT_SCHEMA_VERSION,
       reportJson,
       country: built.report.visit.country,

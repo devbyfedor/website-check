@@ -511,12 +511,18 @@ function isShop(analysis: CaptureAnalysis): boolean | null {
   return null;
 }
 
-function legalFindings(legal: LegalAnalysis, shop: boolean | null, almostEmpty: boolean): Finding[] {
+function legalFindings(legal: LegalAnalysis, shop: boolean | null, almostEmpty: boolean, mode: 'full' | 'quick'): Finding[] {
   if (!legal.homepageRead) return [finding({ id: 'legal:not-checked', area: 'mandatory-information', kind: 'not-checked', textId: 'legal-not-checked' })];
   const out: Finding[] = [];
   const impressumTexts: Record<Exclude<LegalAnalysis['impressum']['state'], 'analyzed'>, { kind: FindingKind; textId: string; risk: FindingRisk | null }> = {
     // On a page that shows almost nothing (perhaps a page of bot protection) a missing link says nothing about the site: no risk.
-    'no-link': almostEmpty ? { kind: 'manual', textId: 'legal-impressum-no-link-empty-page', risk: null } : { kind: 'manual', textId: 'legal-impressum-no-link', risk: 'high' },
+    // Session fix-a2: the quick check reads only the HTML source. A link that a script builds in the browser
+    // is not in it, so a link it does not find is a limit of the method: no risk, never in "Drei Dinge".
+    'no-link': almostEmpty
+      ? { kind: 'manual', textId: 'legal-impressum-no-link-empty-page', risk: null }
+      : mode === 'quick'
+        ? { kind: 'manual', textId: 'legal-impressum-no-link-quick', risk: null }
+        : { kind: 'manual', textId: 'legal-impressum-no-link', risk: 'high' },
     'same-page': { kind: 'manual', textId: 'legal-impressum-same-page', risk: null },
     pdf: { kind: 'manual', textId: 'legal-impressum-pdf', risk: null },
     failed: { kind: 'manual', textId: 'legal-impressum-failed', risk: null },
@@ -688,14 +694,16 @@ function rejectionOf(message: string): string | null {
   return match?.[1] ?? null;
 }
 
-function noticeOf(state: ReportState, analysis: CaptureAnalysis): Report['notice'] {
+function noticeOf(state: ReportState, analysis: CaptureAnalysis, mode: 'full' | 'quick'): Report['notice'] {
   switch (state) {
     case 'complete':
       return analysis.almostEmpty === null ? null : { textId: 'report-page-almost-empty', params: {} };
     case 'quick':
       return { textId: 'report-quick-incomplete', params: analysis.almostEmpty === null ? {} : { pageAlmostEmpty: true } };
     case 'blocked':
-      return { textId: 'report-blocked', params: { status: analysis.failure?.status ?? null } };
+      // Session fix-a2: a block met by the quick check says nothing about the full check with the browser,
+      // which is possible again the next day (and such a report is not reused from the 24-hour cache).
+      return { textId: 'report-blocked', params: { status: analysis.failure?.status ?? null, ...(mode === 'quick' ? { quickCheck: true } : {}) } };
     case 'not-allowed':
       return { textId: 'report-not-allowed', params: { rejection: rejectionOf(analysis.failure?.message ?? '') } };
     case 'failed':
@@ -703,7 +711,17 @@ function noticeOf(state: ReportState, analysis: CaptureAnalysis): Report['notice
   }
 }
 
-function sectionsOf(state: ReportState, analysis: CaptureAnalysis): Record<SectionId, SectionStatus> {
+/**
+ * Session fix-a2: the HTML source the quick check read holds no text and no link (the shell of a page that a
+ * script fills in the browser, or a page that only sets a cookie and reloads). Nothing can be said about
+ * links, Impressum or the system from it.
+ */
+function emptySource(capture: Capture): boolean {
+  const page = capture.page;
+  return page !== null && page.text.trim() === '' && page.links.length === 0;
+}
+
+function sectionsOf(state: ReportState, analysis: CaptureAnalysis, capture: Capture): Record<SectionId, SectionStatus> {
   const checked: SectionStatus = { status: 'checked', reason: null };
   if (state === 'blocked' || state === 'not-allowed' || state === 'failed') {
     const off: SectionStatus = { status: 'not-checked', reason: 'page-not-loaded' };
@@ -711,6 +729,8 @@ function sectionsOf(state: ReportState, analysis: CaptureAnalysis): Record<Secti
   }
   const quick: SectionStatus = { status: 'not-checked', reason: 'quick-check' };
   const a11y = analysis.accessibility;
+  const nothingRead = state === 'quick' && emptySource(capture);
+  if (nothingRead) return { thirdParty: quick, accessibility: quick, security: { status: 'checked', reason: null }, legal: quick, platform: quick };
   return {
     thirdParty: state === 'quick' ? quick : checked,
     accessibility: state === 'quick' ? quick : a11y === null || a11y.status === 'not-checked' ? { status: 'not-checked', reason: clip(a11y?.reason ?? 'no accessibility data', 300) } : checked,
@@ -733,16 +753,16 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
   const { capture } = options;
   const analysis = analyzeCapture(capture, options.rules);
   const state = stateOf(analysis, options.mode);
-  const sections = sectionsOf(state, analysis);
+  const sections = sectionsOf(state, analysis, capture);
   const loaded = state === 'complete' || state === 'quick';
   const host = new URL(options.siteUrl).hostname;
-  const shop = loaded ? isShop(analysis) : null;
+  const shop = loaded && sections.platform.status === 'checked' ? isShop(analysis) : null;
 
   const tp = sections.thirdParty.status === 'checked' ? analysis.thirdParty : null;
   const all: Finding[] = [];
   if (tp !== null) all.push(...thirdPartyFindings(tp));
   const almostEmpty = analysis.almostEmpty !== null;
-  if (loaded && sections.legal.status === 'checked' && analysis.legal !== null) all.push(...legalFindings(analysis.legal, shop, almostEmpty));
+  if (loaded && sections.legal.status === 'checked' && analysis.legal !== null) all.push(...legalFindings(analysis.legal, shop, almostEmpty, options.mode));
   if (loaded && analysis.accessibility !== null) {
     if (sections.accessibility.status === 'checked' || sections.accessibility.reason !== 'quick-check') all.push(...accessibilityFindings(analysis.accessibility));
   }
@@ -757,7 +777,7 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
   const impressum = capture.impressum ?? null;
   const durationMs = loaded ? Math.max(capture.timings.endMs, impressum === null ? 0 : impressum.timings.openedAtMs + impressum.timings.totalMs) : null;
   const network = loaded ? networkHosts(capture, tp) : { rows: [], dropped: 0 };
-  const platform = loaded && analysis.platform !== null ? analysis.platform : null;
+  const platform = loaded && sections.platform.status === 'checked' && analysis.platform !== null ? analysis.platform : null;
 
   const report: Report = {
     schemaVersion: REPORT_SCHEMA_VERSION,
@@ -782,7 +802,7 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
       timezone: capture.environment.timezoneId,
       viewport: capture.environment.viewport,
     },
-    notice: noticeOf(state, analysis),
+    notice: noticeOf(state, analysis, options.mode),
     failure: analysis.failure === null ? null : { reason: analysis.failure.reason, status: analysis.failure.status ?? null },
     pages: { homepage: loaded ? 'checked' : 'not-checked', impressum: loaded && analysis.legal?.impressum.state === 'analyzed' ? 'checked' : 'not-checked' },
     revision: { letter: 'A', kind: 'initial' },

@@ -392,6 +392,18 @@ Written in session fix-a1 (23.11.2026) for three results the report gives when t
 - Used when: the Impressum state is `no-link` on a page with the notice `report-page-almost-empty` (or its quick-check variant). Without a risk, unlike `legal-impressum-no-link`.
 - Status: Entwurf
 
+## Quick check (session fix-a2)
+
+Written in session fix-a2 (23.11.2026). Like every text in this file, a draft.
+
+### `legal-impressum-no-link-quick`
+
+- Title: Impressum-Link im HTML-Quelltext nicht gefunden, bitte manuell prüfen
+- Fact: Die Schnellprüfung liest nur den HTML-Quelltext Ihrer Startseite, ohne Browser. Darin steht kein Link zum Impressum. Baut erst ein Skript das Menü oder die Fußzeile im Browser auf, kann die Schnellprüfung den Link nicht sehen. Das sagt deshalb nichts darüber aus, ob der Link auf Ihrer Website vorhanden ist.
+- Fix: Bitte manuell prüfen: Öffnen Sie Ihre Startseite in einem Browser und sehen Sie nach, ob der Link „Impressum“ ohne weiteren Klick sichtbar ist. Die vollständige Prüfung mit Browser ist morgen wieder möglich.
+- Used when: the report is a quick check (`state: quick`) and the HTML source of the homepage holds no link to an Impressum. A manual check without a risk, never in "Drei Dinge", unlike `legal-impressum-no-link` of the full check.
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/
