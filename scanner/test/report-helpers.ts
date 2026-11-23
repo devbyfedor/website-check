@@ -40,6 +40,8 @@ export function axeResult(overrides: Partial<Record<AxeRuleId, AxeRuleResult>> =
       ...overrides,
     },
     ruleErrors: [],
+    // The 12 images that pass in the invented shop all have a text alternative (the design row "12 von 17").
+    images: { described: 12, decorative: 0 },
     scope: { frameset: false, frames: 0, largestFrameShare: 0 },
     lowestContrast: { violation: contrastExample.contrast, pass: null },
     timing: { injectMs: 40, runMs: 180, totalMs: 240 },

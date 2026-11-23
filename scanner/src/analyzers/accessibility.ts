@@ -13,7 +13,7 @@ import type { Capture } from '../capture/types.ts';
  * nothing is claimed: the whole analysis is `not-checked`.
  */
 
-export const ACCESSIBILITY_ANALYSIS_VERSION = 2;
+export const ACCESSIBILITY_ANALYSIS_VERSION = 3;
 
 export type A11yCheckId = 'color-contrast' | 'image-alt' | 'label' | 'link-name' | 'button-name' | 'page-language';
 
@@ -41,8 +41,15 @@ export interface AccessibilityAnalysis {
   checks: A11yCheck[];
   /** `manual`: types with undecided elements and no violation; `withManual`: types with any undecided element. */
   counts: { failed: number; manual: number; withManual: number; notChecked: number; violations: number };
-  /** Images checked by `image-alt`: "Bilder mit Beschreibung {withDescription} von {total}". */
-  images: { total: number; withDescription: number } | null;
+  /**
+   * Images checked by `image-alt`, for "Bilder mit Beschreibung {described} von {total}" (session fix-a2).
+   * `described` have a text alternative; `decorative` are marked as decoration (`alt=""`, a presentation
+   * role) and have none: the scan cannot tell whether the mark is right, so they are neither "mit" nor "ohne
+   * Beschreibung" and are not part of `total`. `total` = described + without + undecided. `described`,
+   * `decorative` and `total` are null when the capture does not say how the passing images split (made
+   * before the fix): then only `passes` is known, and the report shows no count.
+   */
+  images: { total: number | null; described: number | null; decorative: number | null; without: number; undecided: number; passes: number } | null;
   /** "Kleinster Textkontrast": the lowest failing element, otherwise the lowest passing one. */
   lowestContrast: (AxeContrast & { result: 'fail' | 'pass' }) | null;
   /** Value of `<html lang>` when the language is invalid, for the text. */
@@ -105,6 +112,14 @@ function contentInFrames(axe: AxeCapture): boolean {
   return nodes <= FRAME_PAGE_MAX_NODES;
 }
 
+function imagesOf(image: AxeRuleResult, split: { described: number; decorative: number } | null): NonNullable<AccessibilityAnalysis['images']> {
+  const counts = { without: image.violations, undecided: image.incomplete, passes: image.passes };
+  // The split must add up to the passes; a page without any passing image needs none.
+  const known = split !== null && split.described + split.decorative === image.passes ? split : image.passes === 0 ? { described: 0, decorative: 0 } : null;
+  if (known === null) return { total: null, described: null, decorative: null, ...counts };
+  return { total: known.described + image.violations + image.incomplete, described: known.described, decorative: known.decorative, ...counts };
+}
+
 export function analyzeAccessibility(capture: Capture): AccessibilityAnalysis {
   const axe = capture.axe ?? null;
   if (axe === null) return notChecked('no accessibility data in this capture');
@@ -140,7 +155,7 @@ export function analyzeAccessibility(capture: Capture): AccessibilityAnalysis {
       notChecked: checks.filter((c) => c.result === 'not-checked').length,
       violations: checks.reduce((total, c) => total + c.violations, 0),
     },
-    images: image === undefined ? null : { total: image.passes + image.violations + image.incomplete, withDescription: image.passes },
+    images: image === undefined ? null : imagesOf(image, axe.images ?? null),
     lowestContrast: lowest,
     invalidLang: langInvalid ? (capture.page?.lang ?? null) : null,
   };

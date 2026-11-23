@@ -9,7 +9,9 @@ import { compareAxeRuns, runReferenceAxe, type ReferenceRun } from '../../src/lo
 import { captureWithPlaywright, launchLocalBrowser } from '../../src/local/playwright-capture.ts';
 import { createLocalGuard } from '../../src/local/node-resolver.ts';
 import { probeHttpRedirect } from '../../src/security/http-probe.ts';
-import { fixtureGuard, ssrfSecretHits, startFixtureServer, type FixtureServer } from './fixture-server.ts';
+import { DEFAULT_RULES, RULES_FILE } from '../../src/data.ts';
+import { buildReport } from '../../src/report/build.ts';
+import { fixtureGuard, IMAGE_PAGES, ssrfSecretHits, startFixtureServer, type FixtureServer } from './fixture-server.ts';
 
 /**
  * Session A3: the accessibility fixture pages (`scanner/fixtures/a11y/`) through the real local
@@ -73,6 +75,27 @@ describe('accessibility fixture pages', () => {
     expect(analysis.counts.violations).toBe(Object.values(expected.violations).reduce((a, b) => a + b, 0));
   });
 
+  // Session fix-a2, review finding 20: the pages of the review's reproduction through the real adapter and the pinned axe-core.
+  it.each(Object.keys(IMAGE_PAGES))('images %s: only images with a text alternative count as described', async (name) => {
+    const expected = IMAGE_PAGES[name] as (typeof IMAGE_PAGES)[string];
+    const { capture, after } = await captureWithPlaywright(browser, server.url('www.images.test', `/${name}`), { guard: fixtureGuard, maxWaitMs: 5_000, httpProbe: false, impressum: false, afterChecks: (page) => runReferenceAxe(page) });
+    expect(capture.ok).toBe(true);
+    const axe = capture.axe;
+    expect(axe?.status, axe?.error ?? '').toBe('ok');
+    // The counts of the rule itself stay those of a standard axe-core run.
+    const reference = (after as ReferenceRun).rules?.['image-alt'];
+    expect(axe?.rules['image-alt']).toMatchObject({ violations: reference?.violations, incomplete: reference?.incomplete, passes: reference?.passes });
+    expect(axe?.rules['image-alt']).toMatchObject({ violations: expected.without, passes: expected.described + expected.decorative });
+    expect(axe?.images).toEqual({ described: expected.described, decorative: expected.decorative });
+    const { report } = buildReport({ id: 'a'.repeat(26), createdAt: capture.startedAt, siteUrl: 'https://beispiel-erfunden.example/', mode: 'full', capture, rules: DEFAULT_RULES, scannerVersion: '0', rulesUpdated: RULES_FILE.updated });
+    const row = report.measures.find((m) => m.id === 'images-described');
+    expect(row?.actual).toEqual({ type: 'of', count: expected.described, total: expected.described + expected.without });
+    expect(row?.result).toBe(expected.without > 0 ? 'fail' : expected.decorative > 0 ? 'manual' : 'pass');
+    const decorative = report.findings.find((f) => f.id === 'a11y:image-alt:decorative');
+    if (expected.decorative === 0) expect(decorative).toBeUndefined();
+    else expect(decorative).toMatchObject({ kind: 'manual', risk: null, textId: 'a11y-image-alt-decorative', params: { count: expected.decorative } });
+  });
+
   it('every rule has a page with errors and a page without', () => {
     for (const id of AXE_RULES) {
       expect(manifest.pages[`${id}-fail.html`]?.violations[id] ?? 0, `${id}-fail.html`).toBeGreaterThan(0);
@@ -101,7 +124,8 @@ describe('security checks', () => {
     const { capture } = await captureWithPlaywright(browser, server.url('www.headers.test'), { guard: fixtureGuard, accessibility: false, httpProbe: false });
     expect(capture.page?.securityMeta).toEqual({ csp: null, referrer: 'no-referrer' });
     const result = analyzeSecurity(capture);
-    expect(result.https.result).toBe('fail'); // the fixture server speaks plain http
+    // The fixture server speaks only http, and this capture did not ask for https:// (session fix-a2): a manual check.
+    expect(result.https.result).toBe('manual');
     expect(result.headers.map((h) => [h.key, h.status])).toEqual([
       ['hsts', 'invalid'], // ignored over http
       ['csp', 'present'],

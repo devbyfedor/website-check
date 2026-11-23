@@ -433,6 +433,11 @@ function accessibilityFindings(a11y: AccessibilityAnalysis): Finding[] {
       if (check.id === 'page-language') params.value = a11y.invalidLang === null ? null : clip(a11y.invalidLang, 100);
       out.push(finding({ id: `a11y:${name}`, area: 'accessibility', kind: 'finding', risk: 'medium', textId: check.textId ?? `a11y-${name}`, params, evidence: elementEvidence(check.examples) }));
     }
+    // Session fix-a2: images marked as decoration pass the axe rule without a description; whether the mark
+    // is right is a manual check, next to whatever else the check found.
+    if (check.id === 'image-alt' && (a11y.images?.decorative ?? 0) > 0) {
+      out.push(finding({ id: 'a11y:image-alt:decorative', area: 'accessibility', kind: 'manual', textId: 'a11y-image-alt-decorative', params: { check: name, count: a11y.images?.decorative ?? 0 } }));
+    }
     if (check.manual !== null) {
       out.push(
         finding({
@@ -579,6 +584,24 @@ function withoutFindings(findings: Finding[]): Finding[] {
   return findings.filter((f) => f.kind === 'manual' || f.kind === 'not-checked');
 }
 
+/**
+ * "Bilder mit Beschreibung" (session fix-a2): `actual` counts only images with a text alternative, of the
+ * images that have one, lack one or are undecided. Images marked as decoration are in neither number. The
+ * row is "nicht erfüllt" when an image lacks a description, "erfüllt" only when every image the rule checked
+ * is described, and "bitte manuell prüfen" otherwise: an undecided image, an image marked as decoration
+ * (the scan cannot tell whether rightly), or a capture that does not say how the passing images split.
+ */
+function imagesMeasure(a11y: AccessibilityAnalysis | null): Measure {
+  const target: Measure['target'] = { type: 'all' };
+  const check = a11yResult(a11y, 'image-alt');
+  const images = a11y?.images ?? null;
+  if (check === 'not-checked' || images === null) return { id: 'images-described', result: 'not-checked', target, actual: null };
+  const actual: Measure['actual'] = images.described === null || images.total === null ? null : { type: 'of', count: images.described, total: images.total };
+  if (check === 'fail') return { id: 'images-described', result: 'fail', target, actual };
+  const sure = check === 'pass' && images.described !== null && images.decorative === 0;
+  return { id: 'images-described', result: sure ? 'pass' : 'manual', target, actual };
+}
+
 function buildMeasures(analysis: CaptureAnalysis, sections: Record<SectionId, SectionStatus>): Measure[] {
   const tp = sections.thirdParty.status === 'checked' ? analysis.thirdParty : null;
   const a11y = sections.accessibility.status === 'checked' ? analysis.accessibility : null;
@@ -607,8 +630,7 @@ function buildMeasures(analysis: CaptureAnalysis, sections: Record<SectionId, Se
     actual: contrast === 'not-checked' || lowest === null || lowest.ratio === null || lowest.ratio < 1 ? null : { type: 'ratio', ratio: Math.min(21, lowest.ratio), expected: lowest.expected },
   });
 
-  const images = a11yResult(a11y, 'image-alt');
-  measures.push({ id: 'images-described', result: images, target: { type: 'all' }, actual: images === 'not-checked' || a11y?.images == null ? null : { type: 'of', count: a11y.images.withDescription, total: a11y.images.total } });
+  measures.push(imagesMeasure(a11y));
 
   if (legal === null || !legal.homepageRead) {
     measures.push({ id: 'accessibility-statement', result: 'not-checked', target: { type: 'state', state: 'present' }, actual: null });

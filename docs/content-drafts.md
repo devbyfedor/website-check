@@ -27,8 +27,18 @@ Every German text in this file is a DRAFT. The agent wrote these texts in sessio
 - Fact and risk: {count} Bilder haben keinen Alternativtext, also keine kurze Beschreibung im Attribut alt. Wer einen Screenreader nutzt, hört an diesen Stellen nur den Dateinamen oder gar nichts.
 - Singular variant of the first sentence: Ein Bild hat keinen Alternativtext, also keine kurze Beschreibung im Attribut alt.
 - Fix: Geben Sie jedem Bild, das etwas Wichtiges zeigt, einen kurzen Alternativtext, der sagt, was darauf zu sehen ist. Rein dekorative Bilder bekommen ein leeres Attribut alt="", dann überspringt der Screenreader sie.
-- Used when: axe `image-alt` reports at least one violation; images with `alt=""` count as decorative and pass. The word "Beschreibung" follows the design row "Bilder mit Beschreibung".
+- Used when: axe `image-alt` reports at least one violation. Images with `alt=""` or a presentation role pass the axe rule, but since session fix-a2 they are not counted as images with a description: they get the text `a11y-image-alt-decorative` below. The word "Beschreibung" follows the design row "Bilder mit Beschreibung".
 - WCAG: 2.2 SC 1.1.1 Non-text Content, level A.
+- Status: Entwurf
+
+### `a11y-image-alt-decorative`
+
+- Title: {count} Bilder sind als Schmuckbilder markiert, bitte manuell prüfen. Singular: Ein Bild ist als Schmuckbild markiert, bitte manuell prüfen
+- Fact and risk: {count} Bilder haben ein leeres Attribut alt="" oder die Rolle „presentation“. Ein Screenreader überspringt solche Bilder. Das ist richtig, wenn ein Bild nur schmückt. Zeigt es dagegen etwas Wichtiges, etwa ein Produkt oder Ihr Team, fehlt an dieser Stelle die Beschreibung. Das kann die automatische Prüfung nicht unterscheiden, deshalb zählen diese Bilder im Prüfmaß „Bilder mit Beschreibung“ weder als beschrieben noch als unbeschrieben.
+- Singular variant of the first sentence: Ein Bild hat ein leeres Attribut alt="" oder die Rolle „presentation“.
+- Fix: Bitte manuell prüfen: Sehen Sie diese Bilder durch. Wo ein Bild Inhalt trägt, tragen Sie einen kurzen Alternativtext ein. Viele Systeme setzen alt="" von selbst, wenn beim Hochladen kein Text eingegeben wurde. Reine Schmuckbilder bleiben, wie sie sind.
+- Used when: at least one image passes axe `image-alt` only because it is marked as decoration (`alt=""`, `role="presentation"` or `role="none"`). A manual check without a risk, shown next to `a11y-image-alt` when both apply. New in session fix-a2.
+- WCAG: 2.2 SC 1.1.1 Non-text Content, level A (decoration is to be marked so that assistive technology can ignore it; whether an image is decoration is a judgement).
 - Status: Entwurf
 
 ### `a11y-label`

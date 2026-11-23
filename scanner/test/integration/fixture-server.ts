@@ -270,6 +270,27 @@ route('127.0.0.1', '/ssrf/probe-to-localhost', (_req, res, port) => {
   res.end();
 });
 
+// Session fix-a2, review finding 20: images that pass the axe rule `image-alt` with and without a description.
+const IMAGE = (color: string): string => `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='200'%3E%3Crect width='300' height='200' fill='%23${color}'/%3E%3C/svg%3E`;
+const figure = (attributes: string): string => `<figure class="wp-block-image size-large"><img src="${IMAGE('1f3a5f')}" width="300" height="200" ${attributes}></figure>`;
+const times = (n: number, part: string): string => Array.from({ length: n }, () => part).join('');
+const imagePage = (body: string): string =>
+  html(`<main><h1>Beispiel</h1>${'<p>Willkommen bei der Erfundenen Beispiel GmbH in Musterstadt. Wir bieten Beratung und Service rund um das Haus.</p>'.repeat(10)}${body}</main><footer><a href="/impressum">Impressum</a> <a href="/datenschutz">Datenschutz</a></footer>`);
+export const IMAGE_PAGES: Record<string, { body: string; described: number; decorative: number; without: number }> = {
+  // Three content images the way a CMS prints an image whose alternative text was never entered.
+  'empty-alt-only': { body: times(3, figure('alt=""')), described: 0, decorative: 3, without: 0 },
+  // 8 real descriptions, 4 empty alt, 5 without alt at all.
+  'mixed-8-4-5': { body: times(8, figure('alt="Team vor der Werkstatt"')) + times(4, figure('alt=""')) + times(5, figure('')), described: 8, decorative: 4, without: 5 },
+  'roles-only': { body: times(2, figure('role="presentation"')) + figure('role="none"'), described: 0, decorative: 3, without: 0 },
+  // Names from aria-label and title, and an empty alt next to an aria-label (the label wins: axe gives it the role img).
+  'other-names': { body: figure('aria-label="Werkstatt von außen"') + figure('title="Unser Team"') + figure('alt="" aria-label="Logo der Beispiel GmbH"'), described: 3, decorative: 0, without: 0 },
+  'control-described': { body: times(3, figure('alt="Team vor der Werkstatt"')), described: 3, decorative: 0, without: 0 },
+  // Images that axe does not count at all.
+  'hidden-only': { body: `<div style="display:none">${figure('')}</div><div aria-hidden="true">${figure('')}</div>`, described: 0, decorative: 0, without: 0 },
+  'no-images': { body: '', described: 0, decorative: 0, without: 0 },
+};
+for (const [name, page] of Object.entries(IMAGE_PAGES)) route('www.images.test', `/${name}`, (_req, res) => send(res, 200, 'text/html; charset=utf-8', imagePage(page.body)));
+
 /**
  * The SSRF guard of the integration tests: the made-up fixture hosts (`*.test`, mapped to
  * 127.0.0.1 inside Chromium) are exempt, everything else is checked as in production.
