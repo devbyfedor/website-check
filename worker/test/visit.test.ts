@@ -19,7 +19,8 @@ describe('the place of the visit', () => {
     }) as unknown as typeof fetch;
     expect(await traceObjectVisit(failing)).toEqual({ country: null, colo: null, source: 'object-trace' });
     const ok = (async () => new Response('loc=DE\ncolo=FRA\n')) as unknown as typeof fetch;
-    expect(await traceObjectVisit(ok)).toEqual({ country: 'DE', colo: 'FRA', source: 'object-trace' });
+    // The object's own request: only the data center counts, its loc is the egress address's country.
+    expect(await traceObjectVisit(ok)).toEqual({ country: null, colo: 'FRA', source: 'object-trace' });
   });
 });
 

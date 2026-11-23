@@ -51,11 +51,16 @@ export async function traceBrowserVisit(browser: Browser, traceUrl: string = TRA
   return { visit, ms: Date.now() - started };
 }
 
-/** The place of the Durable Object itself, for the quick check (its requests leave from there). Never throws. */
+/**
+ * The place of the Durable Object itself, for the quick check (its requests leave from there). Only the data
+ * center counts: `loc` of a request made by the object names the country of Cloudflare's egress address, not
+ * a place (the end-to-end check of A5 part 3 got `loc=US` from an object in Stockholm, A2 part 2 `DE` from one
+ * in Milan), so the country stays unknown. Never throws.
+ */
 export async function traceObjectVisit(fetchFn: typeof fetch = fetch, traceUrl: string = TRACE_URL): Promise<CaptureVisit> {
   try {
     const response = await fetchFn(traceUrl, { signal: AbortSignal.timeout(5_000) });
-    return visitOf(parseTrace(await response.text()), 'object-trace');
+    return { ...visitOf(parseTrace(await response.text()), 'object-trace'), country: null };
   } catch {
     return { country: null, colo: null, source: 'object-trace' };
   }
