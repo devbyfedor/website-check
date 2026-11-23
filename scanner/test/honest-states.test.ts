@@ -207,6 +207,8 @@ describe('finding 3: a page that looks like bot protection outside the exact rul
       expect(r.measures).toHaveLength(7);
       expect(r.measures.map((m) => m.result)).toEqual(Array.from({ length: 7 }, () => 'manual'));
       expect(r.measures.filter((m) => m.actual !== null)).toEqual([]);
+      // The measured state of HTTPS and of the headers is not in the report either.
+      expect(r.security).toBeNull();
     });
 
     it('the Stückliste lists the services that were seen, none as "Einwilligung fehlt" and none tied to a finding', () => {

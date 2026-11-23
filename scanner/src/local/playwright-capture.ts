@@ -211,14 +211,19 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
   const ownTargets = shared?.ownTargets ?? new Set<string>();
   if (browserSession !== null) await installPopupGuard(browserSession, ownTargets);
   const contextStarted = performance.now();
-  const context = await browser.newContext({
-    locale: environment.locale,
-    timezoneId: environment.timezoneId,
-    viewport: environment.viewport,
-    userAgent: environment.userAgent,
-    serviceWorkers: 'block',
-    acceptDownloads: false,
-  });
+  const context = await browser
+    .newContext({
+      locale: environment.locale,
+      timezoneId: environment.timezoneId,
+      viewport: environment.viewport,
+      userAgent: environment.userAgent,
+      serviceWorkers: 'block',
+      acceptDownloads: false,
+    })
+    .catch(async (error: unknown) => {
+      await browserSession?.detach().catch(() => undefined);
+      throw error;
+    });
   let hardLimitHit = false;
   const hardTimer = setTimeout(() => {
     hardLimitHit = true;
@@ -598,13 +603,14 @@ export async function captureImpressumTab(
   const since = (): number => Math.max(0, Math.round(performance.now() - opened));
   const page = await context.newPage();
   let navigation: NavigationGuardState | null = null;
+  let guardSession: Awaited<ReturnType<BrowserContext['newCDPSession']>> | null = null;
   try {
-    const session = await context.newCDPSession(page);
+    guardSession = await context.newCDPSession(page);
     // The scanner's own tab for the popup guard; without its id the tab is not opened (the guard would close it).
-    const own = await currentDocument(session);
+    const own = await currentDocument(guardSession);
     if (own === null) throw new Error('the browser did not name the new tab');
     ownTargets.add(own.frameId);
-    navigation = await installNavigationGuard(session, guard);
+    navigation = await installNavigationGuard(guardSession, guard);
   } catch {
     navigation = null;
   }
@@ -658,10 +664,14 @@ export async function captureImpressumTab(
         if (snapshot !== null && navigation !== null && !(await checkReadDocument(navigation, guard, snapshot.url ?? page.url()))) snapshot = null;
         snapshotMs = since();
       }
-      if (artifacts && snapshot !== null && !hardLimitHit && !page.isClosed()) {
+      if (artifacts && snapshot !== null && navigation !== null && guardSession !== null && !hardLimitHit && !page.isClosed()) {
         const extrasStart = performance.now();
-        html = await withTimeout(page.content(), 4_000).catch(() => null);
-        screenshot = await withTimeout(page.screenshot({ type: 'png', timeout: 5_000, fullPage: true }), 6_000).catch(() => null);
+        // The local extras come from a document the guard allows too, or not at all (session fix-a2).
+        const extras = await readCheckedDocument(guardSession, navigation, guard, async () => ({
+          html: await withTimeout(page.content(), 4_000).catch(() => null),
+          screenshot: await withTimeout(page.screenshot({ type: 'png', timeout: 5_000, fullPage: true }), 6_000).catch(() => null),
+        }));
+        if (extras.ok) ({ html, screenshot } = extras.value);
         extrasMs = Math.round(performance.now() - extrasStart);
       }
     }

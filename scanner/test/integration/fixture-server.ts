@@ -336,6 +336,9 @@ export const IMAGE_PAGES: Record<string, { body: string; described: number; deco
   'roles-only': { body: times(2, figure('role="presentation"')) + figure('role="none"'), described: 0, decorative: 3, without: 0 },
   // Names from aria-label and title, and an empty alt next to an aria-label (the label wins: axe gives it the role img).
   'other-names': { body: figure('aria-label="Werkstatt von außen"') + figure('title="Unser Team"') + figure('alt="" aria-label="Logo der Beispiel GmbH"'), described: 3, decorative: 0, without: 0 },
+  // An empty alt on an image that axe does not treat as presentation (focusable, a global ARIA attribute): the
+  // rule passes, but there is no description.
+  'empty-alt-not-presentation': { body: figure('alt="" tabindex="0"') + figure('alt="" aria-describedby="t"') + '<p id="t">Text</p>' + figure('alt="Team vor der Werkstatt"'), described: 1, decorative: 2, without: 0 },
   'control-described': { body: times(3, figure('alt="Team vor der Werkstatt"')), described: 3, decorative: 0, without: 0 },
   // Images that axe does not count at all.
   'hidden-only': { body: `<div style="display:none">${figure('')}</div><div aria-hidden="true">${figure('')}</div>`, described: 0, decorative: 0, without: 0 },

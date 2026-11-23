@@ -814,7 +814,8 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
     services,
     timeline: tp === null ? null : buildTimeline(capture, tp),
     legal: loaded && sections.legal.status === 'checked' && analysis.legal !== null ? reportLegal(analysis.legal) : null,
-    security: loaded && analysis.security !== null ? reportSecurity(analysis.security) : null,
+    // An almost empty page shows no measured state of HTTPS and the headers either (session fix-a2).
+    security: loaded && !almostEmpty && analysis.security !== null ? reportSecurity(analysis.security) : null,
     counts: {
       findings: all.filter((f) => f.kind === 'finding').length,
       manual: all.filter((f) => f.kind === 'manual').length,

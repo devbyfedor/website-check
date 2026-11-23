@@ -16,7 +16,8 @@ import { AXE_HTML_MAX, AXE_MAX_EXAMPLES, AXE_RULES, type AxeCapture, type AxeCon
  * Session fix-a2: an image passes `image-alt` with a text alternative, but also with `alt=""` or
  * `role="presentation"`, which say "decoration" and give no description. The reporter counts the two
  * kinds apart (`images`), from axe's own check `presentational-role` (the role axe computed, with an
- * empty alt as the implicit presentation role), so "Bilder mit Beschreibung" counts only described images.
+ * empty alt as the implicit presentation role) and the alt attribute itself, so "Bilder mit Beschreibung"
+ * counts only described images.
  *
  * The page is only read: axe does not change the DOM, and with these rules it loads nothing
  * (`preload` is off and none of the seven rules preloads assets).
@@ -89,12 +90,22 @@ export const AXE_RUN_EXPRESSION = `(async () => {
   // Why an image passes image-alt: 'decorative' when axe's check for a presentation role holds (alt="",
   // role=presentation or none), 'described' when another check gave it a name; null when neither is known.
   // For a passing element axe lists only the checks that hold (without a result field).
+  // axe's check has-alt holds for any alt attribute, an empty one too: such an image is marked as decoration
+  // even where axe does not give it the presentation role (a focusable image, one with a global ARIA
+  // attribute), so the attribute itself is read from the element.
   const imageKindOf = (nodeResult) => {
     const checks = [].concat(nodeResult.any || []);
     const held = (id) => checks.some((c) => c && c.id === id && c.result !== false);
     if (held('presentational-role')) return 'decorative';
-    if (held('has-alt') || held('aria-label') || held('aria-labelledby') || held('non-empty-title')) return 'described';
-    return null;
+    if (held('aria-label') || held('aria-labelledby') || held('non-empty-title')) return 'described';
+    if (!held('has-alt')) return null;
+    let alt = null;
+    try {
+      const element = nodeResult.node && nodeResult.node.element;
+      alt = element && typeof element.getAttribute === 'function' ? element.getAttribute('alt') : null;
+    } catch (e) { alt = null; }
+    if (typeof alt !== 'string') return null;
+    return alt.trim() === '' ? 'decorative' : 'described';
   };
   axe.addReporter('${AXE_REPORTER}', (raw, options, callback) => {
     const grouped = axe.utils.aggregateResult(raw);

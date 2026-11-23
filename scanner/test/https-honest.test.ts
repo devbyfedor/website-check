@@ -75,11 +75,13 @@ describe('finding 18: an address entered with http://', () => {
     expect(analyzeSecurity(capture).https.textId).toBe('security-https-available');
   });
 
-  it('"Seite ohne HTTPS" stays when https:// was asked and gave no connection, or sent the visitor back to http://', async () => {
-    const down = fakeFetch({ 'http://*': pages, 'https://*': new TypeError('fetch failed') });
+  it('"Seite ohne HTTPS" stays when https:// was asked and the connection was refused, or the site sent the visitor back to http://', async () => {
+    // Node's fetch names a refused connection in the cause of its error.
+    const refused = Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('connect ECONNREFUSED 93.184.215.14:443'), { code: 'ECONNREFUSED' }) });
+    const down = fakeFetch({ 'http://*': pages, 'https://*': refused });
     const noHttps = await quickCapture(HTTP_SITE, { guard: guard(), userAgent: UA, fetch: down.fn });
     expect(down.asked['https:']).toBe(1);
-    expect(noHttps.httpsProbe).toMatchObject({ outcome: 'unavailable' });
+    expect(noHttps.httpsProbe).toMatchObject({ outcome: 'refused' });
     expect(securityFindings(reportOf(noHttps, HTTP_SITE))).toContainEqual(['security:https', 'finding', 'high', 'security-https-missing']);
 
     const back = fakeFetch({ 'http://*': pages, 'https://*': { status: 301, headers: { location: HTTP_SITE } } });
@@ -90,7 +92,11 @@ describe('finding 18: an address entered with http://', () => {
 
   it('no clear answer on https:// is "bitte manuell prüfen", never "ohne HTTPS"', async () => {
     const timeout = Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
-    for (const [answer, outcome] of [[{ status: 403 }, 'http-error'], [timeout, 'timeout'], [{ status: 302 }, 'stopped']] as const) {
+    // A certificate the client does not accept, or a connection that is reset: the site may have HTTPS (broken, or
+    // protected against automated requests), so neither is "ohne HTTPS".
+    const certificate = Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('self-signed certificate'), { code: 'DEPTH_ZERO_SELF_SIGNED_CERT' }) });
+    const reset = Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }) });
+    for (const [answer, outcome] of [[{ status: 403 }, 'http-error'], [timeout, 'timeout'], [{ status: 302 }, 'stopped'], [certificate, 'unavailable'], [reset, 'unavailable'], [new TypeError('fetch failed'), 'unavailable']] as const) {
       const f = fakeFetch({ 'http://*': pages, 'https://*': answer });
       const capture = await quickCapture(HTTP_SITE, { guard: guard(), userAgent: UA, fetch: f.fn });
       expect(capture.httpsProbe?.outcome).toBe(outcome);
@@ -122,7 +128,16 @@ describe('finding 18: an address entered with http://', () => {
     expect(r.priorities).not.toContain('security:https');
     const asked: HttpsProbe = { url: 'https://www.roesterei-muster.example/', startedAt: '', outcome: 'answers', status: 200, location: null, error: null, durationMs: 30 };
     expect(reportOf({ ...full, httpsProbe: asked }, swap(base.requestedUrl), 'full').security?.https).toBe('pass');
-    expect(securityFindings(reportOf({ ...full, httpsProbe: { ...asked, outcome: 'unavailable', status: null } }, swap(base.requestedUrl), 'full'))).toContainEqual(['security:https', 'finding', 'high', 'security-https-missing']);
+    expect(securityFindings(reportOf({ ...full, httpsProbe: { ...asked, outcome: 'refused', status: null } }, swap(base.requestedUrl), 'full'))).toContainEqual(['security:https', 'finding', 'high', 'security-https-missing']);
+  });
+
+  it('the request to https:// says nothing about another host the page ended on', () => {
+    const asked: HttpsProbe = { url: 'https://example.de/', startedAt: '', outcome: 'answers', status: 200, location: null, error: null, durationMs: 30 };
+    const moved = makeCapture({ requests: [], requestedUrl: 'http://example.de/', finalUrl: 'http://www.other-host.example/start', httpsProbe: asked });
+    expect(analyzeSecurity(moved).https).toMatchObject({ result: 'manual', textId: 'security-https-manual' });
+    expect(analyzeSecurity({ ...moved, httpsProbe: { ...asked, outcome: 'refused', status: null } }).https.result).toBe('manual');
+    // The same host with and without "www." is the same site.
+    expect(analyzeSecurity({ ...moved, finalUrl: 'http://www.example.de/start' }).https).toMatchObject({ result: 'pass', textId: 'security-https-available' });
   });
 
   it('an address entered with https:// that ends on http:// is "ohne HTTPS": https:// was asked', () => {
@@ -206,12 +221,44 @@ describe('finding 19: an answer 200 on http:// that redirects inside the page', 
       `<html><head><noscript><meta http-equiv="refresh" content="0; url=${HTTPS_SITE}"></noscript></head><body>${HOME}</body></html>`,
       `<html><head><!-- <meta http-equiv="refresh" content="0; url=${HTTPS_SITE}"> --></head><body></body></html>`,
       `<html><head><script type="application/json">{"hint":"<meta http-equiv=refresh content='0;url=${HTTPS_SITE}'>"}</script></head><body></body></html>`,
-      `<html><head><meta http-equiv="refresh" content="0; url=http://${HOST}/start"></head><body></body></html>`,
       '<html><head><meta http-equiv="refresh" content="30"></head><body></body></html>',
       // A script that opens another page on a click, and one that only reads the address.
       "<html><body><button id=b>Shop</button><script>document.getElementById('b').onclick = function () { location.href = '/shop'; };</script><script>var page = 'https://example.de/' + location.pathname;</script></body></html>",
     ];
     for (const body of not) expect((await probe({ status: 200, body })).outcome, body.slice(0, 60)).toBe('no-redirect');
+  });
+
+  it('a refresh to another http:// address is a manual check: what comes there was not looked at', async () => {
+    for (const target of [`http://${HOST}/start`, '/start']) {
+      const p = await probe({ status: 200, body: `<html><head><meta http-equiv="refresh" content="0; url=${target}"></head><body></body></html>` });
+      expect(p.outcome, target).toBe('refresh-to-http');
+      expect(redirectOf(p)).toMatchObject({ result: 'manual', textId: 'security-http-redirect-manual' });
+    }
+  });
+
+  it('reads pages as browsers do: odd letters, empty comments, quoted values, the onload of the body, UTF-16', async () => {
+    const meta = `<meta http-equiv="refresh" content="0; url=${HTTPS_SITE}">`;
+    const inPage = [
+      // U+0130 gets longer in lower case; positions in the page must not shift.
+      `<html><head><title>${'\u0130'.repeat(40)}</title>${meta}</head><body></body></html>`,
+      `<html><head><!-->${meta}</head><body></body></html>`,
+      `<html><head><meta http-equiv="refresh" content="0; url=${HTTPS_SITE}?a>b"></head><body></body></html>`,
+      `<html><head><meta name="description" content="a > b">${meta}</head><body></body></html>`,
+    ];
+    for (const body of inPage) expect((await probe({ status: 200, body })).outcome, body.slice(0, 50)).toBe('redirects-in-page');
+    const scripted = [
+      `<html><head><title>${'\u0130'.repeat(40)}</title><script>location.replace('https://' + location.host)</script></head><body></body></html>`,
+      "<html><head></head><body onload=\"location.href='https://' + location.host + location.pathname\"></body></html>",
+      "<html><head><script>window['location'] = 'https://' + location.host;</script></head><body></body></html>",
+    ];
+    for (const body of scripted) expect((await probe({ status: 200, body })).outcome, body.slice(0, 50)).toBe('script-may-redirect');
+    // A UTF-16 page with a byte order mark.
+    const text = `<html><head>${meta}</head><body></body></html>`;
+    const utf16 = new Uint8Array(2 + text.length * 2);
+    utf16.set([0xff, 0xfe]);
+    for (let i = 0; i < text.length; i += 1) utf16[2 + i * 2] = text.charCodeAt(i);
+    const fetch16 = (async () => new Response(utf16, { status: 200 })) as unknown as typeof fetch;
+    expect((await probeHttpRedirect(HTTP_SITE, { guard: guard(), fetch: fetch16 })).outcome).toBe('redirects-in-page');
   });
 
   it('reads the forms browsers accept', () => {
@@ -229,14 +276,20 @@ describe('finding 19: an answer 200 on http:// that redirects inside the page', 
   });
 
   it('reads at most the start of the page, and a page that does not arrive is no "no redirect"', async () => {
-    // The meta refresh comes after the limit: not seen, and the text of the finding states only what the server answered.
+    // A head longer than the limit: a meta refresh may follow, so "no redirect" is not known.
     const late = `<html><head><style>${'a{}'.repeat(HTTP_PROBE_BODY_LIMIT / 3)}</style><meta http-equiv="refresh" content="0; url=${HTTPS_SITE}"></head></html>`;
-    expect((await probe({ status: 200, body: late })).outcome).toBe('no-redirect');
+    const cut = await probe({ status: 200, body: late });
+    expect(cut.outcome).toBe('page-not-read');
+    expect(analyzeSecurity(shopCapture({ httpProbe: cut })).httpRedirect).toMatchObject({ result: 'manual', textId: 'security-http-redirect-manual' });
+    // A long page whose head was read completely: the finding, with the text that states what the server answered.
+    const long = `<html><head><title>Lang</title></head><body>${'<p>Text der Seite.</p>'.repeat(HTTP_PROBE_BODY_LIMIT / 10)}</body></html>`;
+    expect(long.length).toBeGreaterThan(HTTP_PROBE_BODY_LIMIT);
+    expect((await probe({ status: 200, body: long })).outcome).toBe('no-redirect');
     // A body that stalls after its first bytes.
     const stalled = (async () => new Response(new ReadableStream({ start: (c) => c.enqueue(new TextEncoder().encode('<html><head>')) }), { status: 200 })) as unknown as typeof fetch;
     const started = Date.now();
     const p = await probeHttpRedirect(HTTP_SITE, { guard: guard(), fetch: stalled, timeoutMs: 300 });
-    expect(p.outcome).toBe('timeout');
+    expect(p.outcome).toBe('page-not-read');
     expect(Date.now() - started).toBeLessThan(2_000);
     expect(analyzeSecurity(shopCapture({ httpProbe: p })).httpRedirect.result).toBe('manual');
     // A hostile start of a page is read in linear time.
@@ -244,6 +297,12 @@ describe('finding 19: an answer 200 on http:// that redirects inside the page', 
     const before = Date.now();
     scanPageStart(hostile);
     scriptMayRedirect(`location${' '.repeat(60_000)}`);
+    scriptMayRedirect(`location'${' '.repeat(60_000)}`);
+    scriptMayRedirect(`location [${' '.repeat(60_000)}`);
+    scriptMayRedirect(`location . ${' '.repeat(2_000)}`.repeat(30));
+    scanPageStart(`<meta x="${'a'.repeat(3_990)}`.repeat(16));
+    scanPageStart('<script '.repeat(8_000));
+    scanPageStart('<body onload="'.repeat(4_500));
     expect(Date.now() - before).toBeLessThan(1_000);
   });
 });

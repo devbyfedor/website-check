@@ -291,8 +291,11 @@ function redirectResult(outcome: HttpProbeOutcome | null): { result: CheckResult
     case 'timeout':
     case 'too-many-redirects':
     case 'stopped':
-    // A script that may redirect is decided only in a browser: unsure means manual check.
+    // A script that may redirect is decided only in a browser, and a refresh to another http:// address
+    // leads to a page that was not looked at: unsure means manual check.
     case 'script-may-redirect':
+    case 'refresh-to-http':
+    case 'page-not-read':
       return { result: 'manual', textId: 'security-http-redirect-manual' };
     case null:
       return { result: 'not-checked', textId: null };
@@ -310,12 +313,23 @@ function protocolOf(url: string | null): string | null {
   }
 }
 
+/** The host of an address without a leading "www.", or null. */
+function hostOfUrl(url: string | null): string | null {
+  try {
+    return url === null ? null : new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+}
+
 /**
  * HTTPS of the page. Session fix-a2: a page that ended on http:// is "ohne HTTPS" only when the scan asked
  * for https:// itself: the address was entered with https:// and the site sent the browser to http://, or
- * the address was entered with http:// and one request to its https:// address (`Capture.httpsProbe`) found
- * no connection or a redirect back to http://. When https:// answers, the site has HTTPS and only the
- * missing redirect is a finding. Without that request (an older capture), or without a clear answer:
+ * the address was entered with http:// and one request to its https:// address (`Capture.httpsProbe`) was
+ * refused (nothing listens there) or answered with a redirect back to http://. When https:// answers, the
+ * site has HTTPS and only the missing redirect is a finding. Without that request (an older capture), without
+ * a clear answer (an error page, no answer in time, a reset or a certificate error: the site may have HTTPS
+ * that is broken or protected), or when the page ended on another host than the one that was asked:
  * "bitte manuell prüfen".
  */
 function httpsCheck(capture: Capture, protocol: string | null): SecurityAnalysis['https'] {
@@ -323,10 +337,13 @@ function httpsCheck(capture: Capture, protocol: string | null): SecurityAnalysis
   if (protocol === 'https:') return { result: 'pass', finalUrl, textId: 'security-https-ok' };
   if (protocol !== 'http:') return { result: 'manual', finalUrl, textId: 'security-https-manual' };
   if (protocolOf(capture.requestedUrl) === 'https:') return { result: 'fail', finalUrl, textId: 'security-https-missing' };
-  switch (capture.httpsProbe?.outcome) {
+  const probe = capture.httpsProbe ?? null;
+  // The request went to the host that was entered; it says nothing about another host the page ended on.
+  if (probe === null || hostOfUrl(probe.url) === null || hostOfUrl(probe.url) !== hostOfUrl(finalUrl)) return { result: 'manual', finalUrl, textId: 'security-https-manual' };
+  switch (probe.outcome) {
     case 'answers':
       return { result: 'pass', finalUrl, textId: 'security-https-available' };
-    case 'unavailable':
+    case 'refused':
     case 'redirects-to-http':
       return { result: 'fail', finalUrl, textId: 'security-https-missing' };
     default:

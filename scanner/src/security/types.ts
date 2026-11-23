@@ -25,6 +25,16 @@ export type HttpProbeOutcome =
    */
   | 'redirects-in-page'
   /**
+   * Session fix-a2: the http:// address answers 2xx, but the page stalled or broke off, or its head is longer
+   * than what the check reads: whether it redirects is not known. Manual check.
+   */
+  | 'page-not-read'
+  /**
+   * Session fix-a2: the http:// address answers 2xx with a page whose refresh sends the browser on to
+   * another http:// address. What that address does is not checked: manual check.
+   */
+  | 'refresh-to-http'
+  /**
    * Session fix-a2: the http:// address answers 2xx with a page whose inline script changes the address
    * and names https. Whether it redirects is known only in a browser: manual check.
    */
@@ -59,7 +69,12 @@ export type HttpsProbeOutcome =
   | 'redirects-to-http'
   /** https:// answers 4xx or 5xx (could be bot protection: manual check). */
   | 'http-error'
-  /** No connection on https://: refused, reset, or a certificate the client does not accept. */
+  /** The connection to https:// was refused: nothing listens there. */
+  | 'refused'
+  /**
+   * No answer on https:// for another reason: a reset, or a certificate the client does not accept. The site
+   * may have HTTPS (a broken certificate, protection against automated requests): manual check.
+   */
   | 'unavailable'
   /** No answer within the time limit. */
   | 'timeout'
