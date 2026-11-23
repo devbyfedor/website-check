@@ -48,6 +48,8 @@ async function main(): Promise<void> {
     options: {
       base: { type: 'string' },
       only: { type: 'string' },
+      // Sites of the list that first get the quick check (no browser), before the full checks.
+      quick: { type: 'string' },
       fixture: { type: 'boolean', default: false },
       // Local wrangler dev only: the fixture once more under localhost, a second site for parallel scans.
       'fixture-localhost': { type: 'boolean', default: false },
@@ -86,14 +88,19 @@ async function main(): Promise<void> {
   };
 
   const targets: Target[] = [];
-  if (values.only !== undefined) {
+  const quickTargets: Target[] = [];
+  if (values.only !== undefined || values.quick !== undefined) {
     const { sites, errors } = parseSitesFile(await readFile(resolve(values.sites), 'utf8'));
     if (errors.length > 0) throw new Error(errors.join('\n'));
-    for (const n of values.only.split(',').map((s) => s.trim().padStart(2, '0'))) {
-      const site = sites.find((s) => s.number === n);
-      if (site === undefined) throw new Error(`no site ${n}`);
-      targets.push({ label: site.label, url: site.url });
-    }
+    const pick = (list: string | undefined, into: Target[], suffix: string): void => {
+      for (const n of (list ?? '').split(',').filter((s) => s.trim() !== '').map((s) => s.trim().padStart(2, '0'))) {
+        const site = sites.find((s) => s.number === n);
+        if (site === undefined) throw new Error(`no site ${n}`);
+        into.push({ label: `${site.label}${suffix}`, url: site.url });
+      }
+    };
+    pick(values.only, targets, '');
+    pick(values.quick, quickTargets, ' (quick)');
   }
   if (values.fixture) targets.push({ label: 'Fixture', url: `${base}/` });
   if (values['fixture-localhost'] && baseUrl.hostname === '127.0.0.1') targets.push({ label: 'Fixture localhost', url: `${base.replace('127.0.0.1', 'localhost')}/` });
@@ -135,11 +142,11 @@ async function main(): Promise<void> {
   };
 
   const all: Started[] = [];
-  if (values['quick-fixture']) {
-    const quick = await start({ label: 'Fixture (quick)', url: `${base}/` }, { 'x-lab-force': 'quick' });
-    all.push(quick);
-    await waitFor([quick], 60_000);
-  }
+  const quickStarted: Started[] = [];
+  if (values['quick-fixture']) quickTargets.unshift({ label: 'Fixture (quick)', url: `${base}/` });
+  for (const target of quickTargets) quickStarted.push(await start(target, { 'x-lab-force': 'quick' }));
+  all.push(...quickStarted);
+  if (quickStarted.length > 0) await waitFor(quickStarted, 90_000);
   const full: Started[] = [];
   for (const target of targets) full.push(await start(target));
   all.push(...full);
