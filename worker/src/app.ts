@@ -1,24 +1,25 @@
-import { createDohResolver, createUrlGuard } from '@website-check/scanner/api';
 import { cleanupRateLimit } from './api/rate-limit.ts';
-import { createApi, type DispatchResult } from './api/router.ts';
+import { createApi } from './api/router.ts';
+import type { StartInput } from './api/start.ts';
 import { endStuckScans } from './db/store.ts';
 
 /**
- * The API Worker of Website-Check DE (sessions A5 part 3 and 4): the API with D1, the hand-over of new
+ * The API Worker of Website-Check DE (sessions A5 part 3 to 5): the API with D1, the hand-over of new
  * scans to the queue object, and the hourly cleanup. Not deployed before stage C.
  *
- * The Worker stays small (10 ms CPU per request on the free plan): it parses only the small request body
- * and the small answers of the queue object, never a capture or a report. Since A5 part 4 it imports only
- * `@website-check/scanner/api` (address rules, SSRF guard, normalized address); the queue object with the
- * browser, axe-core and the rules data lives in the scan Worker (`scan-worker.ts`). A unit test checks
- * that nothing else reaches this Worker's import graph (`worker/test/api-bundle.test.ts`).
+ * The Worker stays small (10 ms CPU per request on the free plan). Since A5 part 5 (Fedor's answer (a),
+ * docs/decisions.md) it only accepts a start and passes it on: it parses the small request body,
+ * normalizes the address and hands the start to the queue object, which runs the cache lookup, the DNS
+ * check, the rate limit and the D1 writes; the object's answer goes back unparsed. Status and report are
+ * one D1 read each. Since A5 part 4 it imports only `@website-check/scanner/api` (address rules,
+ * normalized address); the queue object with the browser, axe-core and the rules data lives in the scan
+ * Worker (`scan-worker.ts`). A unit test checks that nothing else reaches this Worker's import graph
+ * (`worker/test/api-bundle.test.ts`). The secret `RATE_LIMIT_SECRET` belongs to the scan Worker.
  */
 
 export interface Env {
   DB: D1Database;
-  /** Key of the visitor hash of the rate limit, set by Fedor as a Worker secret (locally in `.dev.vars`). */
-  RATE_LIMIT_SECRET?: string;
-  /** The queue (`ScanQueueObject` of the scan Worker, binding with `script_name`), reached in the EU jurisdiction. Missing in unit tests: scans then stay queued. */
+  /** The queue (`ScanQueueObject` of the scan Worker, binding with `script_name`), reached in the EU jurisdiction. Missing in unit tests: a start then answers 503. */
   SCAN_QUEUE?: DurableObjectNamespace;
   /** Local `wrangler dev` only: "1" uses the plain namespace (workerd has no jurisdictions) for loopback requests. */
   DEV_MODE?: string;
@@ -46,23 +47,15 @@ export function queueStub(namespace: DurableObjectNamespace, request: Request, d
 }
 
 export interface QueueClient {
-  dispatch(scan: { id: string; url: string; createdAt: number }): Promise<DispatchResult>;
+  /** The whole start in the queue object (`POST /start`); its answer unparsed. */
+  start(input: StartInput): Promise<Response>;
   position(id: string): Promise<number | null>;
 }
 
-export function queueClient(stub: { fetch(input: string, init?: RequestInit): Promise<Response> }, options: { force?: 'quick' } = {}): QueueClient {
+export function queueClient(stub: { fetch(input: string, init?: RequestInit): Promise<Response> }): QueueClient {
   return {
-    async dispatch(scan) {
-      const response = await stub.fetch(`${QUEUE_ORIGIN}/enqueue`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ...scan, ...(options.force !== undefined ? { force: options.force } : {}) }),
-      });
-      if (!response.ok) throw new Error(`queue answered ${response.status}`);
-      const body = (await response.json()) as DispatchResult;
-      if (body.accepted === true && typeof body.position === 'number') return body;
-      if (body.accepted === false && body.reason === 'daily-limit') return body;
-      throw new Error('queue answer not understood');
+    start(input) {
+      return stub.fetch(`${QUEUE_ORIGIN}/start`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) });
     },
     async position(id) {
       const response = await stub.fetch(`${QUEUE_ORIGIN}/position?id=${encodeURIComponent(id)}`);
@@ -80,16 +73,14 @@ export async function handleRequest(request: Request, env: Env, options: { rateP
   if (env.DEV_MODE === '1' && hostname !== '127.0.0.1' && hostname !== 'localhost') {
     return new Response(JSON.stringify({ error: 'misconfigured' }), { status: 503, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
   }
-  // One guard per request: a scan start resolves the visitor's address once (two DNS-over-HTTPS subrequests).
   const exempt = devExempt(env, request);
-  const guard = createUrlGuard({ resolve: createDohResolver(), ...(exempt !== undefined ? { exempt } : {}) });
-  const queue = env.SCAN_QUEUE === undefined ? null : queueClient(queueStub(env.SCAN_QUEUE, request, env.DEV_MODE === '1'), options.force !== undefined ? { force: options.force } : {});
+  const queue = env.SCAN_QUEUE === undefined ? null : queueClient(queueStub(env.SCAN_QUEUE, request, env.DEV_MODE === '1'));
   const api = createApi({
     db: env.DB,
-    check: (url) => guard.check(url),
-    secret: env.RATE_LIMIT_SECRET,
-    ...(queue !== null ? { dispatch: (scan) => queue.dispatch(scan), position: (id) => queue.position(id) } : {}),
+    start: queue !== null ? (input) => queue.start(input) : () => Promise.reject(new Error('no queue binding')),
+    ...(queue !== null ? { position: (id: string) => queue.position(id) } : {}),
     ...(options.ratePerHour !== undefined ? { ratePerHour: options.ratePerHour } : {}),
+    ...(options.force !== undefined ? { force: options.force } : {}),
     ...(exempt !== undefined ? { exempt } : {}),
   });
   return api(request);

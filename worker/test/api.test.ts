@@ -4,9 +4,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createUrlGuard, type Resolver } from '@website-check/scanner';
 import { base32, isScanId, newScanId } from '../src/api/ids.ts';
 import { visitorKeyOf } from '../src/api/rate-limit.ts';
-import { createApi, MAX_BODY_BYTES } from '../src/api/router.ts';
+import { MAX_BODY_BYTES } from '../src/api/router.ts';
 import { purgeBefore, saveResult } from '../src/db/store.ts';
 import worker from '../src/app.ts';
+import { localApi } from './api-local.ts';
 import { localD1, TABLES, WORKER_ROOT, type LocalD1 } from './d1.ts';
 
 /**
@@ -33,7 +34,7 @@ const SECRET = 'test-secret-of-the-unit-tests-only-0123456789';
 
 function api(dispatch?: (scan: { id: string; url: string }) => Promise<void>): (request: Request) => Promise<Response> {
   const guard = createUrlGuard({ resolve: resolver });
-  return createApi({ db: d1.db, check: (url) => guard.check(url), secret: SECRET, now: () => clock, ...(dispatch !== undefined ? { dispatch } : {}) });
+  return localApi({ db: d1.db, check: (url) => guard.check(url), secret: SECRET, now: () => clock, ...(dispatch !== undefined ? { dispatch } : {}) });
 }
 
 function post(url: unknown, ip: string | null = '203.0.113.7', init: { contentType?: string; body?: BodyInit } = {}): Request {
@@ -216,7 +217,7 @@ describe('rate limit: 5 scans per hour per visitor, hashed IP with a daily salt'
   it('without the secret no scan starts (fail closed), and nothing is written', async () => {
     const guard = createUrlGuard({ resolve: resolver });
     for (const secret of [undefined, 'zu-kurz']) {
-      const response = await createApi({ db: d1.db, check: (url) => guard.check(url), secret, now: () => clock })(post('kaffee-beispiel.de'));
+      const response = await localApi({ db: d1.db, check: (url) => guard.check(url), secret, now: () => clock })(post('kaffee-beispiel.de'));
       expect(response.status).toBe(503);
       expect(await response.json()).toEqual({ error: 'not-configured' });
     }

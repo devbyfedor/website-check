@@ -8,7 +8,8 @@
 //   npx wrangler d1 delete website-check-lab-db
 // The database id below is a placeholder: the deploy uses git-ignored copies `*.local.jsonc` with the id of
 // the lab database, so no account resource id is committed.
-// Secrets (LAB_TOKEN, RATE_LIMIT_SECRET) are set from `worker/.dev.vars` and never printed.
+// The secret LAB_TOKEN is set from `worker/.dev.vars` and never printed. Since A5 part 5 the start of a scan runs in
+// the queue object, so RATE_LIMIT_SECRET belongs to the lab scan Worker, not to this one.
 {
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "website-check-lab",
@@ -34,6 +35,7 @@
       "migrations_dir": "migrations"
     }
   ],
-  // More scans per hour than the API's 5, so the CPU measurement of part 4 can start new quick checks in a row.
+  // More scans per hour than the API's 5, so the CPU measurement can start new quick checks in a row (passed to the
+  // queue object with the start, which applies the rate limit since A5 part 5).
   "vars": { "LAB_RATE_PER_HOUR": "40" }
 }

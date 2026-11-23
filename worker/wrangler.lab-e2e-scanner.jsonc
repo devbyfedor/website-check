@@ -2,7 +2,8 @@
 // `src/scan-worker.ts` (only the queue object with the browser), reached by the lab API Worker
 // (`wrangler.lab-e2e.jsonc`) with `script_name`. No public address. Deploy it before the lab API Worker;
 // deleted at the end of the session: npx wrangler delete -c worker/wrangler.lab-e2e-scanner.local.jsonc
-// The database id below is a placeholder (see `wrangler.lab-e2e.jsonc`).
+// The database id below is a placeholder (see `wrangler.lab-e2e.jsonc`). Since A5 part 5 the start of a scan runs in
+// the queue object: the secret RATE_LIMIT_SECRET is set on this Worker from `worker/.dev.vars` and never printed.
 {
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "website-check-lab-scanner",

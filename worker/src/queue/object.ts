@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import puppeteer, { type Browser, type BrowserWorker } from '@cloudflare/puppeteer';
 import { chromeVersionOf, createDohResolver, createUrlGuard, installPopupGuard, quickCapture, type CaptureVisit, type PopupGuardState, type UrlGuard } from '@website-check/scanner';
+import { answerResponse, parseStartInput, startScan } from '../api/start.ts';
 import { markError } from '../db/store.ts';
 import { AXE_SOURCE } from '../capture/axe-source.ts';
 import { captureWithCdpEvents } from '../capture/cdp-events.ts';
@@ -14,9 +15,12 @@ import { runScanJob, type CaptureOutcome } from './job.ts';
  * The scan queue as a Durable Object (session A5 part 3; Fedor's plan after A2: the checks run in a Durable
  * Object in the EU jurisdiction, the Worker only accepts the job and passes it on). One object, reached as
  * `SCAN_QUEUE.jurisdiction('eu').idFromName('queue')`, holds the queue, the day's counters and at most one
- * browser. Its alarm runs the queue (`drain`); see `docs/decisions.md` (A5 part 3) for why.
+ * browser. Its alarm runs the queue (`drain`); see `docs/decisions.md` (A5 part 3) for why. Since A5 part 5
+ * it also runs the whole start of a scan (`worker/src/api/start.ts`: cache, day cap, DNS check, rate limit,
+ * D1 writes); the API Worker only parses, normalizes and passes the start on (Fedor's answer (a)).
  *
- *   POST /enqueue   {id, url, createdAt, force?}   → {accepted, position} or {accepted: false, reason: "daily-limit"}
+ *   POST /start     {url, visitor, ratePerHour?, force?} → the API's answer to the start (status, JSON body,
+ *                                                   Retry-After): 202 new and queued, 200 cached, 400, 429, 503
  *   GET  /position?id=…                           → {position}: 0 running, 1 next, null unknown
  *   GET  /stats                                   → day counters and the last jobs' measurements (the lab reads it; the
  *                                                   production Worker never routes a visitor here)
@@ -29,6 +33,8 @@ import { runScanJob, type CaptureOutcome } from './job.ts';
 export interface QueueEnv {
   DB: D1Database;
   BROWSER: BrowserWorker;
+  /** Key of the visitor hash of the rate limit (the start runs here since A5 part 5), a secret of the scan Worker set by Fedor (locally in `.dev.vars`). */
+  RATE_LIMIT_SECRET?: string;
   /** Lab only: scans at the same time (default 3). */
   QUEUE_MAX_PARALLEL?: string;
   /** Lab only, "1": measure the cost of element positions for "Feld B2" (nothing is stored). */
@@ -111,6 +117,8 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
   /** One popup guard per browser, shared by its parallel scans (one set of the scanner's own pages). */
   #popupGuard: { ownTargets: Set<string>; state: PopupGuardState } | null = null;
   #draining = false;
+  /** Until when the queue refuses new scans (its day cap): further starts are answered without D1 writes. */
+  readonly #dailyGate = { until: 0 };
   readonly #metrics: JobMetric[] = [];
   readonly #browsers: BrowserMetric[] = [];
 
@@ -123,9 +131,15 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
     return this.env.DEV_MODE === '1';
   }
 
-  #guard(): UrlGuard {
+  /** Local `wrangler dev` only: the exact fixture origins that skip the address rules. */
+  #exempt(): ((url: URL) => boolean) | undefined {
     const origins = this.#devMode() ? (this.env.DEV_ORIGINS ?? '').split(',').map((o) => o.trim()).filter((o) => /^https?:\/\/[^/]+$/.test(o)) : [];
-    return createUrlGuard({ resolve: createDohResolver(), ...(origins.length > 0 ? { exempt: (url: URL) => origins.includes(url.origin) } : {}) });
+    return origins.length > 0 ? (url: URL) => origins.includes(url.origin) : undefined;
+  }
+
+  #guard(): UrlGuard {
+    const exempt = this.#exempt();
+    return createUrlGuard({ resolve: createDohResolver(), ...(exempt !== undefined ? { exempt } : {}) });
   }
 
   #traceUrl(): string {
@@ -135,12 +149,26 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
   override async fetch(request: Request): Promise<Response> {
     const { pathname, searchParams } = new URL(request.url);
     try {
-      if (pathname === '/enqueue' && request.method === 'POST') {
-        const body = (await request.json()) as { id?: unknown; url?: unknown; createdAt?: unknown; force?: unknown };
-        if (typeof body.id !== 'string' || typeof body.url !== 'string' || typeof body.createdAt !== 'number') return json({ error: 'bad-request' }, 400);
-        const result = await this.#queue.enqueue({ id: body.id, url: body.url, createdAt: body.createdAt, ...(body.force === 'quick' ? { force: 'quick' as const } : {}) }, Date.now());
-        if (result.accepted) await this.#wake();
-        return json(result);
+      if (pathname === '/start' && request.method === 'POST') {
+        const exempt = this.#exempt();
+        const input = parseStartInput(await request.json().catch(() => null), exempt);
+        // Not the shape the API Worker sends: our own fault, so the API answers 503, never 400 to the visitor.
+        if (input === null) return json({ error: 'bad-request' }, 500);
+        // One guard per start: the address is resolved once (two DNS-over-HTTPS subrequests).
+        const guard = this.#guard();
+        const answer = await startScan(input, {
+          db: this.env.DB,
+          check: (url) => guard.check(url),
+          secret: this.env.RATE_LIMIT_SECRET,
+          dailyGate: this.#dailyGate,
+          ...(exempt !== undefined ? { exempt } : {}),
+          dispatch: async (scan) => {
+            const result = await this.#queue.enqueue({ ...scan, ...(input.force !== undefined ? { force: input.force } : {}) }, Date.now());
+            if (result.accepted) await this.#wake();
+            return result;
+          },
+        });
+        return answerResponse(answer);
       }
       if (pathname === '/position' && request.method === 'GET') {
         const id = searchParams.get('id') ?? '';

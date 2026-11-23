@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createUrlGuard, validateReport, type Resolver } from '@website-check/scanner';
-import { queueClient } from '../src/app.ts';
-import { createApi, type DispatchResult } from '../src/api/router.ts';
+import { handleRequest, queueClient } from '../src/app.ts';
+import { createApi } from '../src/api/router.ts';
+import { parseStartInput, type DispatchResult } from '../src/api/start.ts';
+import { localApi } from './api-local.ts';
 import { endStuckScans, getReportText, getScan, STUCK_MS } from '../src/db/store.ts';
 import type { QueueJob } from '../src/queue/core.ts';
 import { runScanJob } from '../src/queue/job.ts';
@@ -31,7 +33,7 @@ beforeEach(async () => {
 
 function api(options: { dispatch?: (scan: { id: string; url: string; createdAt: number }) => Promise<DispatchResult | void>; position?: (id: string) => Promise<number | null>; ratePerHour?: number; dailyGate?: { until: number } } = {}) {
   const guard = createUrlGuard({ resolve: resolver });
-  return createApi({ db: d1.db, check: (url) => guard.check(url), secret: SECRET, now: () => clock, dailyGate: { until: 0 }, ...options });
+  return localApi({ db: d1.db, check: (url) => guard.check(url), secret: SECRET, now: () => clock, dailyGate: { until: 0 }, ...options });
 }
 
 async function start(handler: (r: Request) => Promise<Response>, url: string, ip = '203.0.113.7'): Promise<{ status: number; body: Record<string, unknown>; headers: Headers }> {
@@ -168,8 +170,8 @@ describe('the API and the queue', () => {
   });
 });
 
-describe('the client of the queue object', () => {
-  function stub(answer: (path: string, init?: RequestInit) => Response) {
+describe('the API Worker only passes the start on (A5 part 5)', () => {
+  function stub(answer: (path: string, init?: RequestInit) => Response | Promise<Response>) {
     const calls: { path: string; body: unknown }[] = [];
     return {
       calls,
@@ -183,21 +185,79 @@ describe('the client of the queue object', () => {
     };
   }
 
-  it('sends the job and reads the answer, with the lab switch for the quick check only when asked', async () => {
-    const s = stub(() => Response.json({ accepted: true, position: 1 }));
-    expect(await queueClient(s.stub).dispatch({ id: 'a', url: 'https://x.example/', createdAt: 1 })).toEqual({ accepted: true, position: 1 });
-    expect(s.calls[0]).toEqual({ path: '/enqueue', body: { id: 'a', url: 'https://x.example/', createdAt: 1 } });
-    await queueClient(s.stub, { force: 'quick' }).dispatch({ id: 'b', url: 'https://x.example/', createdAt: 1 });
-    expect(s.calls[1]?.body).toMatchObject({ force: 'quick' });
+  /** A D1 binding that fails the test on any use: the start must not touch D1 in the API Worker. */
+  const noD1 = new Proxy({} as D1Database, {
+    get: () => {
+      throw new Error('the API Worker used D1 for a start');
+    },
   });
 
-  it('throws on an answer it does not understand, so the API answers 503 instead of a scan that waits forever', async () => {
-    await expect(queueClient(stub(() => Response.json({ accepted: 'ja' })).stub).dispatch({ id: 'a', url: 'https://x.example/', createdAt: 1 })).rejects.toThrow();
-    await expect(queueClient(stub(() => new Response('nope', { status: 500 })).stub).dispatch({ id: 'a', url: 'https://x.example/', createdAt: 1 })).rejects.toThrow();
-    const handler = api({ dispatch: queueClient(stub(() => new Response('nope', { status: 500 })).stub).dispatch });
-    const result = await start(handler, 'beispiel-baeckerei.de');
+  function startRequest(url: string, ip = '203.0.113.7'): Request {
+    return new Request('https://website-check.test/api/scans', { method: 'POST', headers: { 'content-type': 'application/json', 'cf-connecting-ip': ip }, body: JSON.stringify({ url }) });
+  }
+
+  it('sends the normalized address and the visitor key to the queue object, and nothing else', async () => {
+    const s = stub(() => Response.json({ id: 'x', status: 'queued' }, { status: 202 }));
+    const client = queueClient(s.stub);
+    const handler = createApi({ db: noD1, start: (input) => client.start(input) });
+    const response = await handler(startRequest('https://EXAMPLE.com/irgendwo?x=1'));
+    expect(response.status).toBe(202);
+    expect(s.calls).toEqual([{ path: '/start', body: { url: 'https://example.com/', visitor: '4:3405803783' } }]);
+    // The lab's switches only when set.
+    await createApi({ db: noD1, start: (input) => client.start(input), ratePerHour: 40, force: 'quick' })(startRequest('example.com', '2001:db8:aa:bbcc::1'));
+    expect(s.calls[1]?.body).toEqual({ url: 'https://example.com/', visitor: '6:2001:db8:aa:bb00/56', ratePerHour: 40, force: 'quick' });
+  });
+
+  it('refuses an address by the rules without DNS before anything leaves the Worker', async () => {
+    const s = stub(() => Response.json({}, { status: 202 }));
+    const handler = createApi({ db: noD1, start: (input) => queueClient(s.stub).start(input) });
+    for (const url of ['http://127.0.0.1/', 'localhost', 'https://beispiel.de:8080/', 'javascript:alert(1)']) expect((await handler(startRequest(url))).status).toBe(400);
+    expect(s.calls).toEqual([]);
+  });
+
+  it("returns the object's answer unparsed with the API's headers and Retry-After", async () => {
+    const body = '{"error":"rate-limited","retryAfterSeconds":3300}';
+    const handler = createApi({ db: noD1, start: async () => new Response(body, { status: 429, headers: { 'retry-after': '3300' } }) });
+    const response = await handler(startRequest('example.com'));
+    expect(response.status).toBe(429);
+    expect(await response.text()).toBe(body);
+    expect(response.headers.get('retry-after')).toBe('3300');
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow, noarchive');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('answers 503 queue-unavailable when the object fails or cannot be reached', async () => {
+    for (const start of [async () => new Response('{"error":"failed"}', { status: 500 }), async () => Promise.reject(new Error('object reset'))]) {
+      const response = await createApi({ db: noD1, start })(startRequest('example.com'));
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: 'queue-unavailable' });
+      expect(response.headers.get('retry-after')).toBe('60');
+    }
+  });
+
+  it('the object takes only the shape the API Worker sends', () => {
+    expect(parseStartInput({ url: 'https://example.com/', visitor: '4:1' })).toEqual({ url: 'https://example.com/', visitor: '4:1' });
+    expect(parseStartInput({ url: 'https://example.com/', visitor: '4:1', ratePerHour: 40, force: 'quick' })).toEqual({ url: 'https://example.com/', visitor: '4:1', ratePerHour: 40, force: 'quick' });
+    for (const bad of [null, [], 'x', { url: 'https://example.com/' }, { url: 'https://EXAMPLE.com/x', visitor: '4:1' }, { url: 'http://127.0.0.1/', visitor: '4:1' }, { url: 'https://example.com/', visitor: '' }, { url: 'https://example.com/', visitor: '4:1', ratePerHour: 0 }, { url: 'https://example.com/', visitor: '4:1', ratePerHour: 1.5 }, { url: 'https://example.com/', visitor: '4:1', force: 'full' }]) {
+      expect(parseStartInput(bad), JSON.stringify(bad)).toBeNull();
+    }
+  });
+
+  it('a start of the whole Worker entry goes to the queue binding, never to D1', async () => {
+    const s = stub(() => Response.json({ cached: true }, { status: 200 }));
+    const namespace = { jurisdiction: () => namespace, idFromName: (name: string) => name, get: () => s.stub } as unknown as DurableObjectNamespace;
+    const response = await handleRequest(startRequest('example.com'), { DB: noD1, SCAN_QUEUE: namespace });
+    expect(response.status).toBe(200);
+    expect(s.calls.map((c) => c.path)).toEqual(['/start']);
+  });
+
+  it('in the object: a scan the queue cannot take is marked as an error and answered 503', async () => {
+    const result = await start(api({ dispatch: () => Promise.reject(new Error('storage failed')) }), 'beispiel-baeckerei.de');
     expect(result.status).toBe(503);
     expect(result.body.error).toBe('queue-unavailable');
+    expect(result.headers.get('retry-after')).toBe('60');
+    const scans = await d1.db.prepare('SELECT status, error FROM scans').all<{ status: string; error: string }>();
+    expect(scans.results).toEqual([{ status: 'error', error: 'dispatch failed' }]);
   });
 
   it('reads the position, and null when the object does not answer', async () => {
