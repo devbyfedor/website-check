@@ -458,7 +458,7 @@ Both lab Workers deleted (workers.dev 404 with error 1042; the API answers "does
 
 ## fix-a1: the first polishing session after the review of stage A (23.11.2026)
 
-Branch `fix-a1`, **merged into `main`**. Session time: about 35 minutes (22:53 to about 23:30). No Cloudflare, no browser minutes, no site visited: everything ran on the laptop (unit tests, the local Chromium against pages on 127.0.0.1, the saved captures).
+Branch `fix-a1`, **merged into `main`**. Session time: about 30 minutes (22:53 to about 23:25). No Cloudflare, no browser minutes, no site visited: everything ran on the laptop (unit tests, the local Chromium against pages on 127.0.0.1, the saved captures).
 
 Fedor's answer before the start: the polishing by the review comes first, then B1; the review of the German drafts is not awaited (stage C).
 
