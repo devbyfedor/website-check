@@ -158,14 +158,75 @@ describe('finding 3: a page that looks like bot protection outside the exact rul
     expect(captureOf({ name: '', status: 200, title: 'Einen Moment bitte', text: 'Sie werden in Kürze zu unserem neuen Shop weitergeleitet.', requests: 2 }).failure).toBeNull();
   });
 
-  it('what such a page did show stays: a third-party request that got an answer is still a finding', () => {
-    const base = captureOf(UNNAMED[0] as Variant);
-    const capture = { ...base, requests: [...base.requests, { ...(base.requests[1] as Capture['requests'][number]), seq: 9, url: 'https://fonts.googleapis.com/css2?family=Lato', resourceType: 'stylesheet' }] };
-    const r = report(capture);
-    expect(r.notice?.textId).toBe('report-page-almost-empty');
-    expect(r.findings.find((f) => f.id === 'third-party:google-fonts')).toMatchObject({ kind: 'finding', risk: 'high' });
-    expect(r.measures.find((m) => m.id === 'third-party-before-consent')?.result).toBe('fail');
-    expect(r.measures.filter((m) => m.result === 'pass')).toEqual([]);
+  // Session fix-a2 (Fedor's answer to the question of fix-a1): if the page is a page of bot protection, what
+  // was measured on it describes the protection, not the site. So it shows no findings, only the notice and
+  // manual checks.
+  describe('what such a page did show is no finding (session fix-a2)', () => {
+    // A page of bot protection with everything that gave a finding before: a font from Google, a CDN hint,
+    // contrast and image violations, no security header, no HTTPS redirect.
+    const noisy = (v: Variant = UNNAMED[0] as Variant, adapter: Capture['adapter'] = 'playwright-local'): Capture => {
+      const base = captureOf(v, adapter);
+      const extra = (seq: number, url: string, resourceType: string): Capture['requests'][number] => ({ ...(base.requests[0] as Capture['requests'][number]), seq, url, resourceType, isNavigation: false });
+      return {
+        ...base,
+        requests: [...base.requests, extra(9, 'https://fonts.googleapis.com/css2?family=Lato', 'stylesheet'), extra(10, 'https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js', 'script')],
+        mainDocument: { status: v.status, headers: {}, redirectChain: [] },
+        axe: axeResult(),
+        httpProbe: { url: 'http://www.roesterei-muster.example/', startedAt: '2026-11-20T12:00:00.000Z', outcome: 'no-redirect', hops: [], httpsTarget: null, durationMs: 120 },
+      };
+    };
+
+    it('control: the same requests, headers and axe result on an ordinary page are findings', () => {
+      const shop = shopCapture();
+      const page = shop.page as PageSnapshot;
+      const r = report({ ...noisy(), page: { ...page }, impressum: null });
+      expect(r.notice).toBeNull();
+      expect(r.findings.find((f) => f.id === 'third-party:google-fonts')).toMatchObject({ kind: 'finding', risk: 'high' });
+      expect(r.findings.find((f) => f.id === 'security:headers')).toMatchObject({ kind: 'finding', risk: 'low' });
+      expect(r.findings.find((f) => f.id === 'security:http-redirect')).toMatchObject({ kind: 'finding', risk: 'medium' });
+      expect(r.findings.find((f) => f.id === 'a11y:color-contrast')).toMatchObject({ kind: 'finding', risk: 'medium' });
+      expect(r.priorities.length).toBeGreaterThan(0);
+    });
+
+    it('no finding, no hint, no risk and nothing in "Drei Dinge": only the notice and manual checks', () => {
+      const r = report(noisy());
+      expect(r.state).toBe('complete');
+      expect(r.notice).toEqual({ textId: 'report-page-almost-empty', params: {} });
+      expect(r.findings.filter((f) => f.kind === 'finding' || f.kind === 'hint')).toEqual([]);
+      expect(r.findings.filter((f) => f.risk !== null)).toEqual([]);
+      expect(r.findings.length).toBeGreaterThan(0);
+      expect(r.findings.every((f) => f.kind === 'manual')).toBe(true);
+      expect(r.findings.map((f) => f.id)).toContain('legal:impressum');
+      expect(r.priorities).toEqual([]);
+      expect(r.counts).toMatchObject({ findings: 0, hints: 0 });
+      expect(r.counts.manual).toBe(r.findings.length);
+    });
+
+    it('no Prüfmaß is "erfüllt" or "nicht erfüllt", and none shows a measured value', () => {
+      const r = report(noisy());
+      expect(r.measures).toHaveLength(7);
+      expect(r.measures.map((m) => m.result)).toEqual(Array.from({ length: 7 }, () => 'manual'));
+      expect(r.measures.filter((m) => m.actual !== null)).toEqual([]);
+      // The measured state of HTTPS and of the headers is not in the report either.
+      expect(r.security).toBeNull();
+    });
+
+    it('the Stückliste lists the services that were seen, none as "Einwilligung fehlt" and none tied to a finding', () => {
+      const r = report(noisy());
+      const fonts = r.services.find((s) => s.key === 'google-fonts');
+      expect(fonts).toMatchObject({ consent: 'manual', severity: 'hint', findingId: null });
+      expect(r.services.filter((s) => s.consent === 'missing' || s.severity === 'finding' || s.findingId !== null)).toEqual([]);
+    });
+
+    it('the quick check of such a page shows no finding either', () => {
+      const v = UNNAMED[2] as Variant;
+      const r = report({ ...noisy(v, 'quick-fetch'), axe: null, timings: { domContentLoadedMs: null, loadMs: null, networkQuietMs: null, endMs: 300, stopReason: 'fetched' } }, 'quick');
+      expect(r.state).toBe('quick');
+      expect(r.notice).toEqual({ textId: 'report-quick-incomplete', params: { pageAlmostEmpty: true } });
+      expect(r.findings.filter((f) => f.kind === 'finding' || f.kind === 'hint' || f.risk !== null)).toEqual([]);
+      expect(r.measures.filter((m) => m.result === 'pass' || m.result === 'fail' || m.result === 'partial')).toEqual([]);
+      expect(r.priorities).toEqual([]);
+    });
   });
 
   it('the quick check of such a page keeps its own notice and gives no "erfüllt" and no high risk either', () => {

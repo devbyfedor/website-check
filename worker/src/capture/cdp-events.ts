@@ -8,6 +8,7 @@ import {
   CAPTURE_SCHEMA_VERSION,
   checkReadDocument,
   describeRejection,
+  httpsVariantOf,
   httpVariantOf,
   installNavigationGuard,
   interruptedFailure,
@@ -15,8 +16,11 @@ import {
   navigationBlockMessage,
   notAllowedCapture,
   probeHttpRedirect,
+  probeHttps,
+  readCheckedDocument,
   type AxeCapture,
   type HttpProbe,
+  type HttpsProbe,
   CAPTURE_SETTINGS,
   chooseImpressumTarget,
   chromeVersionOf,
@@ -141,6 +145,13 @@ export async function runAxeOverCdp(client: CDPSession, axeSource: string, budge
   }
 }
 
+/** Why an accessibility result was not kept (`readCheckedDocument`). */
+const AXE_DROPPED = {
+  'unknown-document': 'the browser did not name the document in the tab',
+  refused: 'the document in the tab is not allowed',
+  changed: 'another document replaced the page while it was checked',
+} as const;
+
 export async function captureWithCdpEvents(browser: Browser, url: string, options: CloudCaptureOptions = {}): Promise<CloudCaptureResult> {
   const settings = resolveSettings(options);
   const startedWall = Date.now();
@@ -157,6 +168,17 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
     httpUrl === null
       ? null
       : probeHttpRedirect(httpUrl, {
+          userAgent: cloudEnvironment(chromeVersionOf(await browser.version())).userAgent,
+          acceptLanguage: CAPTURE_SETTINGS.acceptLanguage,
+          guard: settings.guard,
+        }).catch(() => null);
+  // Session fix-a2: an address entered with http:// gets one request to its https:// address, so the report
+  // says "ohne HTTPS" only after https:// was asked.
+  const httpsUrl = settings.httpProbe ? httpsVariantOf(url) : null;
+  const httpsProbe: Promise<HttpsProbe | null> | null =
+    httpsUrl === null
+      ? null
+      : probeHttps(httpsUrl, {
           userAgent: cloudEnvironment(chromeVersionOf(await browser.version())).userAgent,
           acceptLanguage: CAPTURE_SETTINGS.acceptLanguage,
           guard: settings.guard,
@@ -206,6 +228,7 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
       result.capture.httpProbe = await probe;
       result.stats.probeWaitMs = Date.now() - waitStarted;
     }
+    if (httpsProbe !== null) result.capture.httpsProbe = await httpsProbe;
     // A browser lost on the way (also during the Impressum tab) makes the whole capture an error, not a report.
     assertConnected(browser);
     return result;
@@ -234,7 +257,8 @@ async function runCapture(
   await page.evaluateOnNewDocument(buildBannerProbeScript(settings.tools));
   // Every document request of the main frame waits for the SSRF guard (redirects and later
   // navigations included), on a session of its own so Puppeteer's network handling is untouched.
-  const navigation = await installNavigationGuard(await page.createCDPSession(), settings.guard);
+  const guardSession = await page.createCDPSession();
+  const navigation = await installNavigationGuard(guardSession, settings.guard);
   const mainFrame = page.mainFrame();
 
   let t0 = Date.now();
@@ -418,7 +442,7 @@ async function runCapture(
   // A page that only could not be read (the snapshot failed on an open tab) is not cut off: its requests are complete.
   const tabGone = hardLimitHit() ? 'hard-limit' : crashed ? 'crashed' : page.isClosed() || stopReason === 'error' ? 'closed' : null;
   const cutOff = navigationError === null && (stopReason === 'error' || snapshot === null) ? tabGone : null;
-  const failure =
+  let failure =
     refused !== undefined
       ? { reason: 'not-allowed' as const, message: navigationBlockMessage(refused) }
       : cutOff !== null
@@ -431,7 +455,20 @@ async function runCapture(
     if (failure !== null || snapshot === null || hardLimitHit() || crashed || page.isClosed())
       axe = axeNotRun('skipped', failure === null ? 'the page did not load' : `the page was not captured (${failure.reason})`);
     else if (budget === 0) axe = axeNotRun('skipped', 'no time left before the hard limit of the page');
-    else axe = await runAxeOverCdp(client, settings.axeSource, budget);
+    else {
+      // Session fix-a2: axe reads only a document the guard allows. The tab may show another document than
+      // the one of the snapshot by now (a navigation to a prefetched address sends no request the guard sees),
+      // so the run is bracketed by the browser's identity of the document and dropped when it changed.
+      const source = settings.axeSource;
+      const checked = await readCheckedDocument(guardSession, navigation, settings.guard, () => runAxeOverCdp(client, source, budget));
+      axe = checked.ok ? checked.value : axeNotRun('error', `the accessibility check was dropped: ${AXE_DROPPED[checked.reason]}`);
+    }
+  }
+  // A document the guard refuses, found in the tab after the snapshot, fails the capture like a refused navigation.
+  const refusedLate = navigation.blocked[0];
+  if (failure === null && refusedLate !== undefined) {
+    failure = { reason: 'not-allowed' as const, message: navigationBlockMessage(refusedLate) };
+    if (axe !== null) axe = axeNotRun('skipped', 'the page was not captured (not-allowed)');
   }
   // Lab only: the cost of reading element positions for "Feld B2" (not part of the capture).
   const fieldPositions = settings.measureFieldPositions && failure === null && snapshot !== null && !hardLimitHit() && !crashed && !page.isClosed() ? await measureFieldPositions(client, axe, settings.hardLimitMs - (Date.now() - contextStarted) - 1_000) : undefined;

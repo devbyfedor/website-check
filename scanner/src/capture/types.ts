@@ -10,7 +10,7 @@
  */
 
 import type { AxeCapture } from '../a11y/types.ts';
-import type { HttpProbe } from '../security/types.ts';
+import type { HttpProbe, HttpsProbe } from '../security/types.ts';
 
 export const CAPTURE_SCHEMA_VERSION = 1;
 
@@ -289,6 +289,11 @@ export interface Capture {
    * page load (no browser time). Missing or null when not checked.
    */
   httpProbe?: HttpProbe | null;
+  /**
+   * Session fix-a2: one plain request to the https:// address, made only when the requested address starts
+   * with http://. Missing in older captures and for addresses entered with https://; null when it could not run.
+   */
+  httpsProbe?: HttpsProbe | null;
   /**
    * Session A4: the Impressum page in a second tab. Missing in older captures and when the adapter was
    * told not to open it; null when the homepage has no Impressum link that can be opened (none, a PDF,

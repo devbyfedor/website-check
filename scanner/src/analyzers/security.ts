@@ -9,7 +9,7 @@ import type { HttpProbeOutcome } from '../security/types.ts';
  * missing header a violation; when the scanner cannot tell, the result is `manual`.
  */
 
-export const SECURITY_ANALYSIS_VERSION = 2;
+export const SECURITY_ANALYSIS_VERSION = 3;
 
 export const SECURITY_HEADERS = [
   { key: 'hsts', header: 'strict-transport-security' },
@@ -281,32 +281,80 @@ function redirectResult(outcome: HttpProbeOutcome | null): { result: CheckResult
       return { result: 'pass', textId: 'security-http-redirect-ok' };
     case 'no-redirect':
       return { result: 'fail', textId: 'security-http-no-redirect' };
+    // Session fix-a2: a page that sends the browser on to https:// (Refresh header, meta refresh) is no
+    // missing redirect; the visitor ends on https. A neutral note that the server itself does not redirect.
+    case 'redirects-in-page':
+      return { result: 'info', textId: 'security-http-redirect-in-page' };
     case 'unavailable':
       return { result: 'info', textId: 'security-http-unavailable' };
     case 'http-error':
     case 'timeout':
     case 'too-many-redirects':
     case 'stopped':
+    // A script that may redirect is decided only in a browser, and a refresh to another http:// address
+    // leads to a page that was not looked at: unsure means manual check.
+    case 'script-may-redirect':
+    case 'refresh-to-http':
+    case 'page-not-read':
       return { result: 'manual', textId: 'security-http-redirect-manual' };
     case null:
       return { result: 'not-checked', textId: null };
+    // An outcome this version does not know (a capture of a later version) is never a finding.
+    default:
+      return { result: 'manual', textId: 'security-http-redirect-manual' };
+  }
+}
+
+function protocolOf(url: string | null): string | null {
+  try {
+    return url === null ? null : new URL(url).protocol;
+  } catch {
+    return null;
+  }
+}
+
+/** The host of an address without a leading "www.", or null. */
+function hostOfUrl(url: string | null): string | null {
+  try {
+    return url === null ? null : new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * HTTPS of the page. Session fix-a2: a page that ended on http:// is "ohne HTTPS" only when the scan asked
+ * for https:// itself: the address was entered with https:// and the site sent the browser to http://, or
+ * the address was entered with http:// and one request to its https:// address (`Capture.httpsProbe`) was
+ * refused (nothing listens there) or answered with a redirect back to http://. When https:// answers, the
+ * site has HTTPS and only the missing redirect is a finding. Without that request (an older capture), without
+ * a clear answer (an error page, no answer in time, a reset or a certificate error: the site may have HTTPS
+ * that is broken or protected), or when the page ended on another host than the one that was asked:
+ * "bitte manuell prüfen".
+ */
+function httpsCheck(capture: Capture, protocol: string | null): SecurityAnalysis['https'] {
+  const finalUrl = capture.finalUrl;
+  if (protocol === 'https:') return { result: 'pass', finalUrl, textId: 'security-https-ok' };
+  if (protocol !== 'http:') return { result: 'manual', finalUrl, textId: 'security-https-manual' };
+  if (protocolOf(capture.requestedUrl) === 'https:') return { result: 'fail', finalUrl, textId: 'security-https-missing' };
+  const probe = capture.httpsProbe ?? null;
+  // The request went to the host that was entered; it says nothing about another host the page ended on.
+  if (probe === null || hostOfUrl(probe.url) === null || hostOfUrl(probe.url) !== hostOfUrl(finalUrl)) return { result: 'manual', finalUrl, textId: 'security-https-manual' };
+  switch (probe.outcome) {
+    case 'answers':
+      return { result: 'pass', finalUrl, textId: 'security-https-available' };
+    case 'refused':
+    case 'redirects-to-http':
+      return { result: 'fail', finalUrl, textId: 'security-https-missing' };
+    default:
+      return { result: 'manual', finalUrl, textId: 'security-https-manual' };
   }
 }
 
 export function analyzeSecurity(capture: Capture): SecurityAnalysis {
-  let protocol: string | null = null;
-  try {
-    protocol = capture.finalUrl === null ? null : new URL(capture.finalUrl).protocol;
-  } catch {
-    protocol = null;
-  }
+  const protocol = protocolOf(capture.finalUrl);
   const isHttps = protocol === 'https:';
-  const https: SecurityAnalysis['https'] =
-    protocol === 'https:'
-      ? { result: 'pass', finalUrl: capture.finalUrl, textId: 'security-https-ok' }
-      : protocol === 'http:'
-        ? { result: 'fail', finalUrl: capture.finalUrl, textId: 'security-https-missing' }
-        : { result: 'manual', finalUrl: capture.finalUrl, textId: 'security-https-manual' };
+  const https = httpsCheck(capture, protocol);
   const probe = capture.httpProbe ?? null;
   const redirect = redirectResult(probe?.outcome ?? null);
   const h = capture.mainDocument?.headers ?? {};

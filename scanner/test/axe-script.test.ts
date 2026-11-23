@@ -112,6 +112,44 @@ describe('AXE_RUN_EXPRESSION in the page', () => {
     expect(result['lowestContrast']).toMatchObject({ violation: { ratio: 2 }, pass: { ratio: 4.6 } });
   });
 
+  // Session fix-a2, review finding 20.
+  it('splits the images that pass image-alt into described ones and ones marked as decoration', async () => {
+    // As axe 4.14.1 hands a passing element to a reporter: only the checks that hold, without a result field.
+    const check = (id: string) => ({ id, data: null, relatedNodes: [], impact: 'critical', message: '' });
+    const image = (held: string[], alt: string | null = null): FakeNode => {
+      const n = node(['img'], '<img>', held.map((id) => check(id)));
+      (n.node as Record<string, unknown>)['element'] = { getAttribute: (name: string) => (name === 'alt' ? alt : null) };
+      return n;
+    };
+    const passes = [
+      image(['has-alt'], 'Team vor der Werkstatt'),
+      image(['aria-label']),
+      image(['aria-labelledby']),
+      image(['non-empty-title']),
+      image(['has-alt', 'presentational-role'], ''), // alt="": axe computes the presentation role
+      image(['presentational-role']), // role="presentation" without alt
+      // alt="" on an image axe does not treat as presentation (focusable, or with a global ARIA attribute):
+      // has-alt holds, but there is no description.
+      image(['has-alt'], ''),
+    ];
+    const { axe } = fakeAxe([{ id: 'image-alt', passes, violations: [node(['img.x'], '<img class="x">', [{ ...check('has-alt'), result: false }])] }]);
+    const result = await runInPage(axe);
+    expect((result['rules'] as Record<string, { passes: number }>)['image-alt']?.passes).toBe(7);
+    expect(result['images']).toEqual({ described: 4, decorative: 3 });
+    expect(axeCaptureFrom(result, { injectMs: 1, totalMs: 2 }).images).toEqual({ described: 4, decorative: 3 });
+    // No image at all.
+    expect((await runInPage(fakeAxe([]).axe))['images']).toEqual({ described: 0, decorative: 0 });
+    // A passing node without usable check results: the split is unknown, not guessed.
+    const unknown = await runInPage(fakeAxe([{ id: 'image-alt', passes: [image(['has-alt'], 'Team'), node(['img.b'])] }]).axe);
+    // has-alt without the element to read the attribute from: unknown too.
+    expect((await runInPage(fakeAxe([{ id: 'image-alt', passes: [node(['img.c'], '<img>', [check('has-alt')])] }]).axe))['images']).toBeNull();
+    expect(unknown['images']).toBeNull();
+    expect(axeCaptureFrom(unknown, { injectMs: 1, totalMs: 2 }).images).toBeNull();
+    // A page that hands back a split which does not add up to the passes is not believed.
+    expect(axeCaptureFrom({ ...result, images: { described: 7, decorative: 3 } }, { injectMs: 1, totalMs: 2 }).images).toBeNull();
+    expect(axeCaptureFrom({ ...result, images: { described: -1, decorative: 8 } }, { injectMs: 1, totalMs: 2 }).images).toBeNull();
+  });
+
   it('flattens shadow DOM selectors and cuts HTML to 200 characters', async () => {
     const long = `<div class="banner">${'x'.repeat(400)}</div>`;
     const { axe } = fakeAxe([{ id: 'button-name', violations: [node([['consent-box', 'button.close']], long)] }]);

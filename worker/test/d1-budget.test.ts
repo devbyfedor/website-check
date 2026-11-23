@@ -55,7 +55,7 @@ async function lifecycle(findings: number, hosts: number, index: number): Promis
   await step('create site and scan', () => createScan(db, { id, url, host: `site${index}.example`, now }));
   await step('mark running', () => markRunning(db, id, now + 1000));
   await step('save report and rows', () =>
-    saveResult(db, { id, now: now + 20_000, state: 'complete', reportVersion: REPORT_SCHEMA_VERSION, reportJson: `{"pad":"${'x'.repeat(REPORT_LIMITS.maxReportChars - 20)}"}`, country: 'IT', colo: 'MXP', ...data }),
+    saveResult(db, { id, now: now + 20_000, state: 'complete', mode: 'full', reportVersion: REPORT_SCHEMA_VERSION, reportJson: `{"pad":"${'x'.repeat(REPORT_LIMITS.maxReportChars - 20)}"}`, country: 'IT', colo: 'MXP', ...data }),
   );
   await step('cache lookup (hit)', () => findCachedScan(db, url, now + 60_000));
   await step('rate limit cleanup', () => takeSlot(db, `other${index}`, now + RATE_LIMIT.windowMs + 1, `m${index}`));

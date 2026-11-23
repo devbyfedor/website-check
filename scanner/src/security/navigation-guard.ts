@@ -116,6 +116,49 @@ export async function checkReadDocument(state: NavigationGuardState, guard: UrlG
   return false;
 }
 
+/** The document a tab shows, as the browser names it (not the page): a new document in the tab has a new loader id. */
+export interface DocumentIdentity {
+  frameId: string;
+  loaderId: string;
+  url: string;
+}
+
+/** The document the main frame of the session's page shows now, or null when the browser does not say. */
+export async function currentDocument(session: CdpSessionLike): Promise<DocumentIdentity | null> {
+  try {
+    const tree = (await session.send('Page.getFrameTree')) as { frameTree?: { frame?: { id?: unknown; loaderId?: unknown; url?: unknown } } };
+    const frame = tree.frameTree?.frame;
+    if (frame === undefined || typeof frame.id !== 'string' || typeof frame.loaderId !== 'string' || typeof frame.url !== 'string') return null;
+    return { frameId: frame.id, loaderId: frame.loaderId, url: frame.url };
+  } catch {
+    return null;
+  }
+}
+
+export type CheckedRead<T> =
+  | { ok: true; value: T }
+  /** `refused`: the document in the tab does not pass the guard. `changed`: another document replaced it while it was read. */
+  | { ok: false; reason: 'unknown-document' | 'refused' | 'changed' };
+
+/**
+ * Session fix-a2 (review of stage A): reads something from the page only out of a document the guard
+ * allows. A navigation to an address the page prefetched with speculation rules sends no document request,
+ * so the guard on requests does not see it, and a check of the address made once says nothing about the
+ * document that is in the tab a moment later. So the read is bracketed by the browser's own identity of the
+ * document: its address must pass the guard before, and it must still be the same document after; otherwise
+ * the result is dropped. A new document that the guard refuses is recorded as a block, like a refused navigation.
+ */
+export async function readCheckedDocument<T>(session: CdpSessionLike, state: NavigationGuardState, guard: UrlGuard, read: () => Promise<T>): Promise<CheckedRead<T>> {
+  const before = await currentDocument(session);
+  if (before === null) return { ok: false, reason: 'unknown-document' };
+  if (!(await checkReadDocument(state, guard, before.url))) return { ok: false, reason: 'refused' };
+  const value = await read();
+  const after = await currentDocument(session);
+  if (after !== null && after.frameId === before.frameId && after.loaderId === before.loaderId) return { ok: true, value };
+  if (after !== null) await checkReadDocument(state, guard, after.url);
+  return { ok: false, reason: 'changed' };
+}
+
 /** The capture failure message for the first refused navigation. */
 export function navigationBlockMessage(block: NavigationBlock): string {
   return block.rejection === 'too-many-redirects' ? `not allowed: too-many-redirects (${block.detail})` : block.detail;

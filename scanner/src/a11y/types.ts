@@ -66,6 +66,11 @@ export interface AxeScope {
   largestFrameShare: number;
 }
 
+export interface AxeImages {
+  described: number;
+  decorative: number;
+}
+
 export type AxeStatus =
   /** axe ran; `rules` holds every rule. */
   | 'ok'
@@ -95,6 +100,13 @@ export interface AxeCapture {
    * Missing in captures made before this field existed.
    */
   scope?: AxeScope | null;
+  /**
+   * Session fix-a2: the images that pass `image-alt`, split by why they pass. `described` have a text
+   * alternative (alt text, aria-label, aria-labelledby, title); `decorative` are marked as decoration
+   * (`alt=""`, `role="presentation"` or `role="none"`) and have none. Both add up to the passes of the rule.
+   * Null or missing when the split is unknown (a capture made before this field existed).
+   */
+  images?: AxeImages | null;
   /** Lowest contrast among the failing elements and among the passing ones. */
   lowestContrast: { violation: AxeContrast | null; pass: AxeContrast | null };
   timing: {

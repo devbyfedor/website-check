@@ -55,7 +55,24 @@ describe('analyzeAccessibility', () => {
     expect(byId['image-alt']).toMatchObject({ result: 'fail', textId: 'a11y-image-alt' });
     expect(byId['label']).toMatchObject({ result: 'manual', textId: 'a11y-manual-check', examples: [example], manual: { count: 2, textId: 'a11y-manual-check' } });
     expect(result.counts).toEqual({ failed: 2, manual: 1, withManual: 2, notChecked: 0, violations: 19 });
-    expect(result.images).toEqual({ total: 17, withDescription: 12 });
+    // A capture that does not say how the passing images split (made before session fix-a2): no count.
+    expect(result.images).toEqual({ total: null, described: null, decorative: null, without: 5, undecided: 0, passes: 12 });
+  });
+
+  // Session fix-a2, review finding 20: an image with alt="" or a presentation role passes the axe rule
+  // without a description, so it is not counted as an image with a description.
+  it('counts only images with a text alternative as described; images marked as decoration are apart', () => {
+    const imagesOf = (rule: Partial<AxeRuleResult>, images?: AxeCapture['images']) => analyzeAccessibility(makeCapture({ requests: [], axe: axe({ 'image-alt': rule }, images === undefined ? {} : { images }) })).images;
+    // The review's page: 8 images with a text, 4 with alt="", 5 without alt.
+    expect(imagesOf({ violations: 5, passes: 12 }, { described: 8, decorative: 4 })).toEqual({ total: 13, described: 8, decorative: 4, without: 5, undecided: 0, passes: 12 });
+    // Three images a CMS printed with alt="": no description at all.
+    expect(imagesOf({ passes: 3 }, { described: 0, decorative: 3 })).toMatchObject({ total: 0, described: 0, decorative: 3 });
+    expect(imagesOf({ passes: 3, incomplete: 1 }, { described: 3, decorative: 0 })).toMatchObject({ total: 4, described: 3, decorative: 0, undecided: 1 });
+    // No image passes: nothing to split, also in an older capture.
+    expect(imagesOf({ passes: 0, violations: 2 })).toMatchObject({ total: 2, described: 0, decorative: 0 });
+    // A split that does not add up to the passes is not believed.
+    expect(imagesOf({ passes: 3 }, { described: 3, decorative: 3 })).toMatchObject({ total: null, described: null, decorative: null, passes: 3 });
+    expect(imagesOf({ passes: 3 }, null)).toMatchObject({ total: null, described: null });
   });
 
   it('undecided contrast gets its own manual-check text', () => {

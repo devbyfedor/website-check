@@ -27,8 +27,18 @@ Every German text in this file is a DRAFT. The agent wrote these texts in sessio
 - Fact and risk: {count} Bilder haben keinen Alternativtext, also keine kurze Beschreibung im Attribut alt. Wer einen Screenreader nutzt, hört an diesen Stellen nur den Dateinamen oder gar nichts.
 - Singular variant of the first sentence: Ein Bild hat keinen Alternativtext, also keine kurze Beschreibung im Attribut alt.
 - Fix: Geben Sie jedem Bild, das etwas Wichtiges zeigt, einen kurzen Alternativtext, der sagt, was darauf zu sehen ist. Rein dekorative Bilder bekommen ein leeres Attribut alt="", dann überspringt der Screenreader sie.
-- Used when: axe `image-alt` reports at least one violation; images with `alt=""` count as decorative and pass. The word "Beschreibung" follows the design row "Bilder mit Beschreibung".
+- Used when: axe `image-alt` reports at least one violation. Images with `alt=""` or a presentation role pass the axe rule, but since session fix-a2 they are not counted as images with a description: they get the text `a11y-image-alt-decorative` below. The word "Beschreibung" follows the design row "Bilder mit Beschreibung".
 - WCAG: 2.2 SC 1.1.1 Non-text Content, level A.
+- Status: Entwurf
+
+### `a11y-image-alt-decorative`
+
+- Title: {count} Bilder sind als Schmuckbilder markiert, bitte manuell prüfen. Singular: Ein Bild ist als Schmuckbild markiert, bitte manuell prüfen
+- Fact and risk: {count} Bilder haben ein leeres Attribut alt="" oder die Rolle „presentation“. Ein Screenreader überspringt solche Bilder. Das ist richtig, wenn ein Bild nur schmückt. Zeigt es dagegen etwas Wichtiges, etwa ein Produkt oder Ihr Team, fehlt an dieser Stelle die Beschreibung. Das kann die automatische Prüfung nicht unterscheiden, deshalb zählen diese Bilder im Prüfmaß „Bilder mit Beschreibung“ weder als beschrieben noch als unbeschrieben.
+- Singular variant of the first sentence: Ein Bild hat ein leeres Attribut alt="" oder die Rolle „presentation“.
+- Fix: Bitte manuell prüfen: Sehen Sie diese Bilder durch. Wo ein Bild Inhalt trägt, tragen Sie einen kurzen Alternativtext ein. Viele Systeme setzen alt="" von selbst, wenn beim Hochladen kein Text eingegeben wurde. Reine Schmuckbilder bleiben, wie sie sind.
+- Used when: at least one image passes axe `image-alt` without a text alternative, because it is marked as decoration (`alt=""`, `role="presentation"` or `role="none"`). A manual check without a risk, shown next to `a11y-image-alt` when both apply. New in session fix-a2.
+- WCAG: 2.2 SC 1.1.1 Non-text Content, level A (decoration is to be marked so that assistive technology can ignore it; whether an image is decoration is a judgement).
 - Status: Entwurf
 
 ### `a11y-label`
@@ -141,7 +151,7 @@ Shared note for all header texts: they describe a common protective measure and 
 - Title: Seite ohne HTTPS
 - Fact and risk: Ihre Seite wird ohne HTTPS ausgeliefert, also unverschlüsselt. Wer sich im selben Netz befindet, etwa in einem öffentlichen WLAN, kann Inhalte und Formulareingaben sehen oder verändern; viele Browser zeigen dazu den Hinweis „Nicht sicher“.
 - Fix: Richten Sie ein SSL/TLS-Zertifikat ein. Viele Hoster bieten kostenlose Zertifikate, etwa von Let’s Encrypt, mit wenigen Klicks an. Leiten Sie danach alle Aufrufe von http:// dauerhaft auf https:// weiter.
-- Used when: the final address of the homepage is http://. No HSTS text is shown on such a page. Note for review: Art. 32(1)(a) GDPR names encryption as an example of a suitable measure; a sentence on this could be added after review, it is deliberately not in the draft.
+- Used when (changed in session fix-a2): the homepage ended on http:// and the scan asked for https:// itself: the address was entered with https:// and the site sent the browser to http://, or the address was entered with http:// and one request to its https:// address was refused (nothing listens there) or answered with a redirect back to http://. Never from the final address alone, and not for a reset connection or a certificate error (then `security-https-manual`). No HSTS text is shown on such a page. Note for review: Art. 32(1)(a) GDPR names encryption as an example of a suitable measure; a sentence on this could be added after review, it is deliberately not in the draft.
 - Status: Entwurf
 
 ### `security-https-manual`
@@ -149,7 +159,15 @@ Shared note for all header texts: they describe a common protective measure and 
 - Title: Verschlüsselung: bitte manuell prüfen
 - Fact and risk: Wir konnten nicht feststellen, ob Ihre Seite über HTTPS ausgeliefert wird. Das ist kein Fund, sondern eine offene Frage.
 - Fix: Bitte manuell prüfen: Rufen Sie Ihre Seite mit https:// auf und achten Sie auf das Schloss in der Adresszeile.
-- Used when: the scanner cannot tell whether the final page of the homepage was delivered over HTTPS. Not a finding. Note for review: current Chrome versions show a settings symbol instead of the lock in the address bar; Firefox and Safari still show a lock.
+- Used when: the scanner cannot tell whether the final page of the homepage was delivered over HTTPS; since session fix-a2 also when the address was entered with http://, the page stayed there, and the request to its https:// address gave no clear answer (an error page, no answer in time, a reset connection, a certificate the scanner does not accept), went to another host than the page ended on, or was never made (a capture saved before the fix). Not a finding. Note for review: current Chrome versions show a settings symbol instead of the lock in the address bar; Firefox and Safari still show a lock.
+- Status: Entwurf
+
+### `security-https-available`
+
+- Title: Verschlüsselt über HTTPS erreichbar
+- Fact and risk: Ihre Seite ist unter https:// verschlüsselt erreichbar. Geprüft haben wir die Adresse mit http://, so wie sie eingegeben wurde; dort antwortet Ihr Server ohne Weiterleitung auf https://.
+- Fix: Kein Handlungsbedarf bei der Verschlüsselung selbst. Zur fehlenden Weiterleitung siehe den Punkt „Keine Weiterleitung von http:// auf https://“.
+- Used when: the address was entered with http://, the homepage stayed on http://, and one request to its https:// address got an answer (Prüfmaße row "Verschlüsselung": erfüllt). The missing redirect is its own finding (`security-http-no-redirect`). New in session fix-a2.
 - Status: Entwurf
 
 ### `security-http-redirect-ok`
@@ -163,9 +181,17 @@ Shared note for all header texts: they describe a common protective measure and 
 ### `security-http-no-redirect`
 
 - Title: Keine Weiterleitung von http:// auf https://
-- Fact and risk: Ihre Seite ist auch unverschlüsselt unter http:// erreichbar und leitet von dort nicht auf https:// weiter. Wer einem alten Link mit http:// folgt, kann je nach Browser auf der unverschlüsselten Fassung landen.
+- Fact and risk: Unter http:// antwortet Ihr Server mit einer Seite statt mit einer Weiterleitung auf https://. Wer einem alten Link mit http:// folgt, kann je nach Browser auf der unverschlüsselten Fassung landen.
 - Fix: Richten Sie für alle Seiten eine dauerhafte Weiterleitung (Statuscode 301) von http:// auf https:// ein. Bei vielen Hostern ist das eine Einstellung im Kundenbereich.
-- Used when: the http:// address answers with a page (status 2xx) instead of a redirect to https://.
+- Used when: the http:// address answers with a page (status 2xx) instead of a redirect to https://, the page was read to its end or at least to the end of its head (64 KB are read), and it holds neither a refresh nor an inline script that switches the address to https. The first sentence was rewritten in session fix-a2 to state only what the server answered: a redirect that an external script makes later is not seen by the check.
+- Status: Entwurf
+
+### `security-http-redirect-in-page`
+
+- Title: Weiterleitung auf https:// erst im Browser
+- Fact and risk: Unter http:// antwortet Ihr Server mit einer Seite, die den Browser erst danach auf https:// weiterleitet (per Meta-Refresh oder Refresh-Kopfzeile). Besucher landen so auf der verschlüsselten Adresse. Der erste Aufruf läuft aber unverschlüsselt, und Programme, die solche Weiterleitungen nicht ausführen, bleiben auf der unverschlüsselten Fassung.
+- Fix: Nötig ist hier nichts. Sauberer ist eine dauerhafte Weiterleitung des Servers (Statuscode 301) von http:// auf https://; bei vielen Hostern ist das eine Einstellung im Kundenbereich.
+- Used when: the http:// address answers with a page (status 2xx) whose `Refresh` header or meta refresh names an https:// address. A neutral note, not a finding; it lowers no count. New in session fix-a2.
 - Status: Entwurf
 
 ### `security-http-redirect-manual`
@@ -173,7 +199,7 @@ Shared note for all header texts: they describe a common protective measure and 
 - Title: Weiterleitung auf https://: bitte manuell prüfen
 - Fact and risk: Wir konnten nicht feststellen, ob Ihre Adresse mit http:// auf https:// weiterleitet (Grund: {reason}). Das ist kein Fund, sondern eine offene Frage.
 - Fix: Bitte manuell prüfen: Sehen Sie in den Einstellungen Ihres Hosters nach oder fragen Sie ihn, ob eine Weiterleitung auf https:// eingerichtet ist. Ein Test im eigenen Browser sagt wenig, weil manche Browser von sich aus auf https:// wechseln.
-- Used when: the http:// check gives no clear answer; `{reason}` is one of "keine Antwort innerhalb von 10 Sekunden", "Fehlerseite mit Status {status}", "mehr als 5 Weiterleitungen", "Weiterleitung auf eine Adresse, die wir aus Sicherheitsgründen nicht aufrufen", "Weiterleitung ohne Zieladresse".
+- Used when: the http:// check gives no clear answer; `{reason}` is one of "keine Antwort innerhalb von 10 Sekunden", "Fehlerseite mit Status {status}", "mehr als 5 Weiterleitungen", "Weiterleitung auf eine Adresse, die wir aus Sicherheitsgründen nicht aufrufen", "Weiterleitung ohne Zieladresse", and since session fix-a2 "die Seite unter http:// enthält ein Skript, das die Adresse auf https:// umstellen kann; ob es das tut, zeigt nur ein Browser" "die Seite unter http:// leitet auf eine weitere Adresse mit http:// weiter, die wir nicht geprüft haben" and "die Seite unter http:// wurde nicht vollständig übertragen oder ihr Kopfbereich ist länger als der geprüfte Anfang".
 - Status: Entwurf
 
 ### `security-http-unavailable`
@@ -346,8 +372,8 @@ Written in session fix-a1 (23.11.2026) for three results the report gives when t
 
 ### `report-page-almost-empty`
 
-- Text: Die Seite hat bei unserem Besuch fast keinen Inhalt gezeigt. Möglicherweise hat ein Schutz vor automatischen Zugriffen unsere Prüfung nicht durchgelassen. Die Angaben unten beschreiben nur, was wir gesehen haben. Bitte prüfen Sie die Seite manuell.
-- Used when: the report is `complete`, but the page showed at most 1 500 characters of text, 3 links and 15 requests and linked to no Impressum and no Datenschutzerklärung. No Prüfmaß is "erfüllt" in such a report.
+- Text: Die Seite hat bei unserem Besuch fast keinen Inhalt gezeigt. Möglicherweise hat ein Schutz vor automatischen Zugriffen unsere Prüfung nicht durchgelassen. Was wir gesehen haben, kann zu diesem Schutz gehören und nicht zu Ihrer Website. Deshalb zeigen wir keine Befunde, sondern nur Punkte, die Sie bitte manuell prüfen.
+- Used when: the report is `complete`, but the page showed at most 1 500 characters of text, 3 links and 15 requests and linked to no Impressum and no Datenschutzerklärung. Such a report has no findings and no hints, and every Prüfmaß that was checked says "bitte manuell prüfen" (session fix-a2; the third and fourth sentence were rewritten then).
 - Status: Entwurf
 
 ### `third-party-frame-unknown`
@@ -364,6 +390,18 @@ Written in session fix-a1 (23.11.2026) for three results the report gives when t
 - Fact: Die Seite hat bei unserem Besuch fast keinen Inhalt gezeigt, auch keinen Link zum Impressum. Das sagt nichts darüber aus, ob der Link auf Ihrer Website vorhanden ist.
 - Fix: Öffnen Sie Ihre Startseite in einem Browser und prüfen Sie, ob der Link „Impressum“ ohne weiteren Klick sichtbar ist.
 - Used when: the Impressum state is `no-link` on a page with the notice `report-page-almost-empty` (or its quick-check variant). Without a risk, unlike `legal-impressum-no-link`.
+- Status: Entwurf
+
+## Quick check (session fix-a2)
+
+Written in session fix-a2 (23.11.2026). Like every text in this file, a draft.
+
+### `legal-impressum-no-link-quick`
+
+- Title: Impressum-Link im HTML-Quelltext nicht gefunden, bitte manuell prüfen
+- Fact: Die Schnellprüfung liest nur den HTML-Quelltext Ihrer Startseite, ohne Browser. Darin steht kein Link zum Impressum. Baut erst ein Skript das Menü oder die Fußzeile im Browser auf, kann die Schnellprüfung den Link nicht sehen. Das sagt deshalb nichts darüber aus, ob der Link auf Ihrer Website vorhanden ist.
+- Fix: Bitte manuell prüfen: Öffnen Sie Ihre Startseite in einem Browser und sehen Sie nach, ob der Link „Impressum“ ohne weiteren Klick sichtbar ist. Die vollständige Prüfung mit Browser ist morgen wieder möglich.
+- Used when: the report is a quick check (`state: quick`) and the HTML source of the homepage holds no link to an Impressum. A manual check without a risk, never in "Drei Dinge", unlike `legal-impressum-no-link` of the full check.
 - Status: Entwurf
 
 ## Sources

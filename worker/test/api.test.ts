@@ -53,8 +53,8 @@ async function count(table: string): Promise<number> {
   return result.results[0]?.n ?? -1;
 }
 
-async function finish(id: string, state: 'complete' | 'quick' | 'blocked' | 'failed', report = '{"schemaVersion":1}'): Promise<void> {
-  await saveResult(d1.db, { id, now: clock, state, reportVersion: 1, reportJson: report, country: 'IT', colo: 'MXP', findings: [], hosts: [] });
+async function finish(id: string, state: 'complete' | 'quick' | 'blocked' | 'failed', report = '{"schemaVersion":1}', mode: 'full' | 'quick' = state === 'quick' ? 'quick' : 'full'): Promise<void> {
+  await saveResult(d1.db, { id, now: clock, state, mode, reportVersion: 1, reportJson: report, country: 'IT', colo: 'MXP', findings: [], hosts: [] });
 }
 
 beforeAll(async () => {
@@ -363,7 +363,7 @@ describe('store edge cases (review of A5 part 2)', () => {
   it('saving the same result twice returns false instead of failing, and adds no rows', async () => {
     const { body } = await start('kaffee-beispiel.de');
     const id = String(body.id);
-    const input = { id, now: clock, state: 'complete' as const, reportVersion: 1, reportJson: '{}', country: null, colo: null, findings: [{ findingId: 'a11y:label', area: 'accessibility', kind: 'finding', risk: 'medium', textId: 'a11y-label', serviceKey: null }], hosts: [{ host: 'kaffee-beispiel.de', party: 'first' as const, serviceKey: null, requestCount: 3, firstStartMs: 0, lastEndMs: 90, beforeBanner: null }] };
+    const input = { id, now: clock, state: 'complete' as const, mode: 'full' as const, reportVersion: 1, reportJson: '{}', country: null, colo: null, findings: [{ findingId: 'a11y:label', area: 'accessibility', kind: 'finding', risk: 'medium', textId: 'a11y-label', serviceKey: null }], hosts: [{ host: 'kaffee-beispiel.de', party: 'first' as const, serviceKey: null, requestCount: 3, firstStartMs: 0, lastEndMs: 90, beforeBanner: null }] };
     expect(await saveResult(d1.db, input)).toBe(true);
     expect(await saveResult(d1.db, input)).toBe(false);
     expect(await count('findings')).toBe(1);
@@ -373,7 +373,7 @@ describe('store edge cases (review of A5 part 2)', () => {
   it('the retention delete counts scans, not the rows of the cascade', async () => {
     for (const name of ['a', 'b']) {
       const { body } = await start(`${name}-beispiel.de`);
-      await saveResult(d1.db, { id: String(body.id), now: clock, state: 'complete', reportVersion: 1, reportJson: '{}', country: null, colo: null, findings: [{ findingId: 'a11y:label', area: 'accessibility', kind: 'finding', risk: 'medium', textId: 'a11y-label', serviceKey: null }], hosts: [] });
+      await saveResult(d1.db, { id: String(body.id), now: clock, state: 'complete', mode: 'full', reportVersion: 1, reportJson: '{}', country: null, colo: null, findings: [{ findingId: 'a11y:label', area: 'accessibility', kind: 'finding', risk: 'medium', textId: 'a11y-label', serviceKey: null }], hosts: [] });
     }
     expect(await purgeBefore(d1.db, clock + 1)).toEqual({ scans: 2, sites: 2 });
     expect(await count('findings')).toBe(0);

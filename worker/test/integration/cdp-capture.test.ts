@@ -3,6 +3,7 @@ import type { Browser } from '@cloudflare/puppeteer';
 import { analyzeThirdParty, buildReport, compileRules, createUrlGuard, parseRulesFile, validateReport, type Capture, type Report } from '@website-check/scanner';
 import { BROWSER_LOST, captureWithCdpEvents } from '../../src/capture/cdp-events.ts';
 import type { CloudCaptureOptions } from '../../src/capture/common.ts';
+import { loadAxeSource } from '../../../scanner/src/local/axe-source.ts';
 import { startCdpFixture, type CdpFixture } from './cdp-fixture.ts';
 
 /**
@@ -158,5 +159,37 @@ describe('finding 2: a capture that is cut off is never a complete report', () =
     await expect(captureWithCdpEvents(own.browser, ticker(), options())).rejects.toThrow(BROWSER_LOST);
     // Noticed at once, not after the 15 s of the longest wait.
     expect(Date.now() - started).toBeLessThan(8_000);
+  });
+});
+
+// Session fix-a2, review finding 23: the review's reproduction as a test of the adapter itself.
+describe('finding 23: axe reads only the document that was checked', () => {
+  it('a page that moves to a prefetched internal page after the snapshot: nothing of that page is in the capture', async () => {
+    // The third check is the one of the snapshot's address; it is slow here (as a name lookup can be), so the
+    // other document is in the tab before axe starts.
+    const inner = guard();
+    let calls = 0;
+    const slow = {
+      check: async (url: string | URL) => {
+        calls += 1;
+        if (calls === 3) await new Promise((resolve) => setTimeout(resolve, 900));
+        return inner.check(url);
+      },
+    };
+    const { capture } = await captureWithCdpEvents(browser, fixture.url('www.shop.test', '/prefetch-swap'), options({ guard: slow, axeSource: await loadAxeSource(), maxWaitMs: 4_000 }));
+    // The internal page was fetched once ahead and never requested as a navigation: the guard on requests saw nothing.
+    expect(fixture.hits('GET 127.0.0.1/private')).toBe(1);
+    expect(fixture.hits('NAVIGATION 127.0.0.1/private')).toBe(0);
+    expect(JSON.stringify(capture)).not.toContain('INTVAL');
+    expect(capture.axe?.status).not.toBe('ok');
+    expect(capture.ok).toBe(false);
+    expect(capture.failure).toMatchObject({ reason: 'not-allowed' });
+    expect(reportOf(capture).state).toBe('not-allowed');
+  });
+
+  it('control: an ordinary page gets its accessibility result', async () => {
+    const { capture } = await captureWithCdpEvents(browser, fixture.url('www.shop.test', '/own'), options({ axeSource: await loadAxeSource(), maxWaitMs: 4_000 }));
+    expect(capture.ok).toBe(true);
+    expect(capture.axe?.status, capture.axe?.error ?? '').toBe('ok');
   });
 });

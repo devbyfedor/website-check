@@ -12,6 +12,8 @@ export const IN_PROGRESS_MS = 10 * 60 * 1000;
 
 export type ScanStatus = 'queued' | 'running' | 'done' | 'error';
 export type ScanState = 'complete' | 'quick' | 'blocked' | 'not-allowed' | 'failed';
+/** How a finished scan was made: with the browser, or the quick check without one (session fix-a2). */
+export type ScanMode = 'full' | 'quick';
 
 export interface ScanRow {
   id: string;
@@ -60,13 +62,15 @@ function toScan(row: RawScan): ScanRow {
 
 /**
  * Which earlier scan a new request for the same address may reuse: a finished complete or blocked scan
- * of the last 24 hours, or one that is still queued or running (and not stuck). A quick check is not
- * reused (the full check is possible again the next day), nor a failed one (it may have been a passing
- * problem). `?1` site url, `?2` oldest finished scan, `?3` oldest scan in progress.
+ * of the last 24 hours that was a full check, or one that is still queued or running (and not stuck). A
+ * quick check is not reused (the full check is possible again the next day), also when the site blocked
+ * it (session fix-a2: `mode`, migration 0002; a block met without a browser says nothing about the full
+ * check), nor a failed one (it may have been a passing problem). `?1` site url, `?2` oldest finished
+ * scan, `?3` oldest scan in progress.
  */
 const CACHE_CONDITION = `s.site_id = (SELECT id FROM sites WHERE url = ?1)
   AND s.created_at >= ?2
-  AND ((s.status = 'done' AND s.state IN ('complete', 'blocked')) OR (s.status IN ('queued', 'running') AND s.created_at >= ?3))`;
+  AND ((s.status = 'done' AND s.state IN ('complete', 'blocked') AND s.mode = 'full') OR (s.status IN ('queued', 'running') AND s.created_at >= ?3))`;
 
 export async function findCachedScan(db: D1Database, url: string, now: number): Promise<ScanRow | null> {
   const result = await db
@@ -140,17 +144,17 @@ export async function markRunning(db: D1Database, id: string, now: number): Prom
  */
 export async function saveResult(
   db: D1Database,
-  input: { id: string; now: number; state: ScanState; reportVersion: number; reportJson: string; country: string | null; colo: string | null; findings: FindingRow[]; hosts: HostRow[] },
+  input: { id: string; now: number; state: ScanState; mode: ScanMode; reportVersion: number; reportJson: string; country: string | null; colo: string | null; findings: FindingRow[]; hosts: HostRow[] },
 ): Promise<boolean> {
   const findings = JSON.stringify(input.findings.map((f) => [f.findingId, f.area, f.kind, f.risk, f.textId, f.serviceKey]));
   const hosts = JSON.stringify(input.hosts.map((h) => [h.host, h.party, h.serviceKey, h.requestCount, h.firstStartMs, h.lastEndMs, h.beforeBanner === null ? null : h.beforeBanner ? 1 : 0]));
   const [update] = await db.batch([
     db
       .prepare(
-        `UPDATE scans SET status = 'done', state = ?2, finished_at = ?3, report_version = ?4, report = ?5, report_bytes = ?6, country = ?7, colo = ?8
+        `UPDATE scans SET status = 'done', state = ?2, finished_at = ?3, report_version = ?4, report = ?5, report_bytes = ?6, country = ?7, colo = ?8, mode = ?9
          WHERE id = ?1 AND status IN ('queued', 'running')`,
       )
-      .bind(input.id, input.state, input.now, input.reportVersion, input.reportJson, new TextEncoder().encode(input.reportJson).byteLength, input.country, input.colo),
+      .bind(input.id, input.state, input.now, input.reportVersion, input.reportJson, new TextEncoder().encode(input.reportJson).byteLength, input.country, input.colo, input.mode),
     db
       .prepare(
         `INSERT INTO findings (scan_id, position, finding_id, area, kind, risk, text_id, service_key)

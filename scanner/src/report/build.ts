@@ -45,6 +45,10 @@ import {
  * Session fix-a1: a service seen only in requests whose document is unknown is a hint to check by hand;
  * a page that shows almost nothing and links to no Impressum or Datenschutzerklärung (it may be a page
  * of bot protection that no rule names) gets a notice, no "erfüllt" row and no risk for the missing link.
+ *
+ * Session fix-a2 (Fedor, 23.11.2026): such an almost empty page shows no findings at all, only the notice
+ * and manual checks. If it is a page of bot protection, what was measured on it describes the protection,
+ * not the site: unsure means manual check.
  */
 
 export interface BuildReportOptions {
@@ -168,8 +172,9 @@ function unplaced(service: DetectedService): boolean {
   return service.frameUnknown && service.severity === 'hint' && SEVERITY_OF_RISK_CLASS[service.riskClass] === 'finding';
 }
 
-function consentOf(service: DetectedService): ReportService['consent'] {
-  if (service.severity === 'finding') return 'missing';
+function consentOf(service: DetectedService, almostEmpty: boolean): ReportService['consent'] {
+  // On an almost empty page nothing is "fehlt": the requests may be those of a page of bot protection.
+  if (service.severity === 'finding') return almostEmpty ? 'manual' : 'missing';
   if (unreached(service) && service.riskClass !== 'not-flagged') return 'not-reached';
   if (unplaced(service)) return 'manual';
   return service.severity === 'hint' ? 'grey-zone' : 'not-needed';
@@ -223,7 +228,7 @@ function thirdPartyFindings(analysis: ThirdPartyAnalysis): Finding[] {
   return out;
 }
 
-function reportServices(analysis: ThirdPartyAnalysis, findingIds: ReadonlySet<string>): ReportService[] {
+function reportServices(analysis: ThirdPartyAnalysis, findingIds: ReadonlySet<string>, almostEmpty: boolean): ReportService[] {
   return analysis.services.slice(0, REPORT_LIMITS.services).map((service, index) => {
     const id = serviceFindingId(service.key);
     return {
@@ -235,8 +240,8 @@ function reportServices(analysis: ThirdPartyAnalysis, findingIds: ReadonlySet<st
       category: service.category,
       riskClass: service.riskClass,
       dataLocation: service.dataLocation,
-      severity: service.severity,
-      consent: consentOf(service),
+      severity: almostEmpty && service.severity === 'finding' ? 'hint' : service.severity,
+      consent: consentOf(service, almostEmpty),
       starts: 'before-consent',
       requestCount: service.requestCount,
       firstStartMs: ms(service.firstStartMs),
@@ -428,6 +433,11 @@ function accessibilityFindings(a11y: AccessibilityAnalysis): Finding[] {
       if (check.id === 'page-language') params.value = a11y.invalidLang === null ? null : clip(a11y.invalidLang, 100);
       out.push(finding({ id: `a11y:${name}`, area: 'accessibility', kind: 'finding', risk: 'medium', textId: check.textId ?? `a11y-${name}`, params, evidence: elementEvidence(check.examples) }));
     }
+    // Session fix-a2: images marked as decoration pass the axe rule without a description; whether the mark
+    // is right is a manual check, next to whatever else the check found.
+    if (check.id === 'image-alt' && (a11y.images?.decorative ?? 0) > 0) {
+      out.push(finding({ id: 'a11y:image-alt:decorative', area: 'accessibility', kind: 'manual', textId: 'a11y-image-alt-decorative', params: { check: name, count: a11y.images?.decorative ?? 0 } }));
+    }
     if (check.manual !== null) {
       out.push(
         finding({
@@ -501,12 +511,18 @@ function isShop(analysis: CaptureAnalysis): boolean | null {
   return null;
 }
 
-function legalFindings(legal: LegalAnalysis, shop: boolean | null, almostEmpty: boolean): Finding[] {
+function legalFindings(legal: LegalAnalysis, shop: boolean | null, almostEmpty: boolean, mode: 'full' | 'quick'): Finding[] {
   if (!legal.homepageRead) return [finding({ id: 'legal:not-checked', area: 'mandatory-information', kind: 'not-checked', textId: 'legal-not-checked' })];
   const out: Finding[] = [];
   const impressumTexts: Record<Exclude<LegalAnalysis['impressum']['state'], 'analyzed'>, { kind: FindingKind; textId: string; risk: FindingRisk | null }> = {
     // On a page that shows almost nothing (perhaps a page of bot protection) a missing link says nothing about the site: no risk.
-    'no-link': almostEmpty ? { kind: 'manual', textId: 'legal-impressum-no-link-empty-page', risk: null } : { kind: 'manual', textId: 'legal-impressum-no-link', risk: 'high' },
+    // Session fix-a2: the quick check reads only the HTML source. A link that a script builds in the browser
+    // is not in it, so a link it does not find is a limit of the method: no risk, never in "Drei Dinge".
+    'no-link': almostEmpty
+      ? { kind: 'manual', textId: 'legal-impressum-no-link-empty-page', risk: null }
+      : mode === 'quick'
+        ? { kind: 'manual', textId: 'legal-impressum-no-link-quick', risk: null }
+        : { kind: 'manual', textId: 'legal-impressum-no-link', risk: 'high' },
     'same-page': { kind: 'manual', textId: 'legal-impressum-same-page', risk: null },
     pdf: { kind: 'manual', textId: 'legal-impressum-pdf', risk: null },
     failed: { kind: 'manual', textId: 'legal-impressum-failed', risk: null },
@@ -561,11 +577,35 @@ function a11yResult(a11y: AccessibilityAnalysis | null, id: A11yCheck['id']): Me
 
 /**
  * Session fix-a1: on a page that shows almost nothing no row is "erfüllt": what such a page lacks (no
- * third-party request, no image without a description, …) may be the emptiness of a check page, so
- * every `pass` becomes "bitte manuell prüfen". What was measured (`fail`, `partial`) stays.
+ * third-party request, no image without a description, …) may be the emptiness of a check page.
+ * Session fix-a2: no row is "nicht erfüllt" either, and no measured value is shown: what the page has may
+ * be the protection, not the site. Every row that was checked becomes "bitte manuell prüfen".
  */
-function withoutPass(measures: Measure[]): Measure[] {
-  return measures.map((m) => (m.result === 'pass' ? { ...m, result: 'manual' } : m));
+function manualOnly(measures: Measure[]): Measure[] {
+  return measures.map((m) => (m.result === 'not-checked' ? m : { ...m, result: 'manual', actual: null }));
+}
+
+/** Session fix-a2: what stays of the findings of an almost empty page: manual checks and checks that did not run. */
+function withoutFindings(findings: Finding[]): Finding[] {
+  return findings.filter((f) => f.kind === 'manual' || f.kind === 'not-checked');
+}
+
+/**
+ * "Bilder mit Beschreibung" (session fix-a2): `actual` counts only images with a text alternative, of the
+ * images that have one, lack one or are undecided. Images marked as decoration are in neither number. The
+ * row is "nicht erfüllt" when an image lacks a description, "erfüllt" only when every image the rule checked
+ * is described, and "bitte manuell prüfen" otherwise: an undecided image, an image marked as decoration
+ * (the scan cannot tell whether rightly), or a capture that does not say how the passing images split.
+ */
+function imagesMeasure(a11y: AccessibilityAnalysis | null): Measure {
+  const target: Measure['target'] = { type: 'all' };
+  const check = a11yResult(a11y, 'image-alt');
+  const images = a11y?.images ?? null;
+  if (check === 'not-checked' || images === null) return { id: 'images-described', result: 'not-checked', target, actual: null };
+  const actual: Measure['actual'] = images.described === null || images.total === null ? null : { type: 'of', count: images.described, total: images.total };
+  if (check === 'fail') return { id: 'images-described', result: 'fail', target, actual };
+  const sure = check === 'pass' && images.described !== null && images.decorative === 0;
+  return { id: 'images-described', result: sure ? 'pass' : 'manual', target, actual };
 }
 
 function buildMeasures(analysis: CaptureAnalysis, sections: Record<SectionId, SectionStatus>): Measure[] {
@@ -596,8 +636,7 @@ function buildMeasures(analysis: CaptureAnalysis, sections: Record<SectionId, Se
     actual: contrast === 'not-checked' || lowest === null || lowest.ratio === null || lowest.ratio < 1 ? null : { type: 'ratio', ratio: Math.min(21, lowest.ratio), expected: lowest.expected },
   });
 
-  const images = a11yResult(a11y, 'image-alt');
-  measures.push({ id: 'images-described', result: images, target: { type: 'all' }, actual: images === 'not-checked' || a11y?.images == null ? null : { type: 'of', count: a11y.images.withDescription, total: a11y.images.total } });
+  measures.push(imagesMeasure(a11y));
 
   if (legal === null || !legal.homepageRead) {
     measures.push({ id: 'accessibility-statement', result: 'not-checked', target: { type: 'state', state: 'present' }, actual: null });
@@ -655,14 +694,16 @@ function rejectionOf(message: string): string | null {
   return match?.[1] ?? null;
 }
 
-function noticeOf(state: ReportState, analysis: CaptureAnalysis): Report['notice'] {
+function noticeOf(state: ReportState, analysis: CaptureAnalysis, mode: 'full' | 'quick'): Report['notice'] {
   switch (state) {
     case 'complete':
       return analysis.almostEmpty === null ? null : { textId: 'report-page-almost-empty', params: {} };
     case 'quick':
       return { textId: 'report-quick-incomplete', params: analysis.almostEmpty === null ? {} : { pageAlmostEmpty: true } };
     case 'blocked':
-      return { textId: 'report-blocked', params: { status: analysis.failure?.status ?? null } };
+      // Session fix-a2: a block met by the quick check says nothing about the full check with the browser,
+      // which is possible again the next day (and such a report is not reused from the 24-hour cache).
+      return { textId: 'report-blocked', params: { status: analysis.failure?.status ?? null, ...(mode === 'quick' ? { quickCheck: true } : {}) } };
     case 'not-allowed':
       return { textId: 'report-not-allowed', params: { rejection: rejectionOf(analysis.failure?.message ?? '') } };
     case 'failed':
@@ -670,7 +711,17 @@ function noticeOf(state: ReportState, analysis: CaptureAnalysis): Report['notice
   }
 }
 
-function sectionsOf(state: ReportState, analysis: CaptureAnalysis): Record<SectionId, SectionStatus> {
+/**
+ * Session fix-a2: the HTML source the quick check read holds no text and no link (the shell of a page that a
+ * script fills in the browser, or a page that only sets a cookie and reloads). Nothing can be said about
+ * links, Impressum or the system from it.
+ */
+function emptySource(capture: Capture): boolean {
+  const page = capture.page;
+  return page !== null && page.text.trim() === '' && page.links.length === 0;
+}
+
+function sectionsOf(state: ReportState, analysis: CaptureAnalysis, capture: Capture): Record<SectionId, SectionStatus> {
   const checked: SectionStatus = { status: 'checked', reason: null };
   if (state === 'blocked' || state === 'not-allowed' || state === 'failed') {
     const off: SectionStatus = { status: 'not-checked', reason: 'page-not-loaded' };
@@ -678,6 +729,8 @@ function sectionsOf(state: ReportState, analysis: CaptureAnalysis): Record<Secti
   }
   const quick: SectionStatus = { status: 'not-checked', reason: 'quick-check' };
   const a11y = analysis.accessibility;
+  const nothingRead = state === 'quick' && emptySource(capture);
+  if (nothingRead) return { thirdParty: quick, accessibility: quick, security: { status: 'checked', reason: null }, legal: quick, platform: quick };
   return {
     thirdParty: state === 'quick' ? quick : checked,
     accessibility: state === 'quick' ? quick : a11y === null || a11y.status === 'not-checked' ? { status: 'not-checked', reason: clip(a11y?.reason ?? 'no accessibility data', 300) } : checked,
@@ -700,29 +753,31 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
   const { capture } = options;
   const analysis = analyzeCapture(capture, options.rules);
   const state = stateOf(analysis, options.mode);
-  const sections = sectionsOf(state, analysis);
+  const sections = sectionsOf(state, analysis, capture);
   const loaded = state === 'complete' || state === 'quick';
   const host = new URL(options.siteUrl).hostname;
-  const shop = loaded ? isShop(analysis) : null;
+  const shop = loaded && sections.platform.status === 'checked' ? isShop(analysis) : null;
 
   const tp = sections.thirdParty.status === 'checked' ? analysis.thirdParty : null;
   const all: Finding[] = [];
   if (tp !== null) all.push(...thirdPartyFindings(tp));
   const almostEmpty = analysis.almostEmpty !== null;
-  if (loaded && sections.legal.status === 'checked' && analysis.legal !== null) all.push(...legalFindings(analysis.legal, shop, almostEmpty));
+  if (loaded && sections.legal.status === 'checked' && analysis.legal !== null) all.push(...legalFindings(analysis.legal, shop, almostEmpty, options.mode));
   if (loaded && analysis.accessibility !== null) {
     if (sections.accessibility.status === 'checked' || sections.accessibility.reason !== 'quick-check') all.push(...accessibilityFindings(analysis.accessibility));
   }
   if (loaded && sections.security.status === 'checked' && analysis.security !== null) all.push(...securityFindings(analysis.security));
+  // An almost empty page shows no finding and no hint: only the notice and manual checks (session fix-a2).
+  if (almostEmpty) all.splice(0, all.length, ...withoutFindings(all));
   const sorted = sortFindings(all);
   const findings = sorted.slice(0, REPORT_LIMITS.findings);
   const findingIds = new Set(findings.map((f) => f.id));
   const priorities = findings.filter((f) => f.risk !== null && (f.kind === 'finding' || f.kind === 'manual')).slice(0, 3).map((f) => f.id);
-  const services = tp === null ? [] : reportServices(tp, findingIds);
+  const services = tp === null ? [] : reportServices(tp, findingIds, almostEmpty);
   const impressum = capture.impressum ?? null;
   const durationMs = loaded ? Math.max(capture.timings.endMs, impressum === null ? 0 : impressum.timings.openedAtMs + impressum.timings.totalMs) : null;
   const network = loaded ? networkHosts(capture, tp) : { rows: [], dropped: 0 };
-  const platform = loaded && analysis.platform !== null ? analysis.platform : null;
+  const platform = loaded && sections.platform.status === 'checked' && analysis.platform !== null ? analysis.platform : null;
 
   const report: Report = {
     schemaVersion: REPORT_SCHEMA_VERSION,
@@ -747,19 +802,20 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
       timezone: capture.environment.timezoneId,
       viewport: capture.environment.viewport,
     },
-    notice: noticeOf(state, analysis),
+    notice: noticeOf(state, analysis, options.mode),
     failure: analysis.failure === null ? null : { reason: analysis.failure.reason, status: analysis.failure.status ?? null },
     pages: { homepage: loaded ? 'checked' : 'not-checked', impressum: loaded && analysis.legal?.impressum.state === 'analyzed' ? 'checked' : 'not-checked' },
     revision: { letter: 'A', kind: 'initial' },
     sections,
     platform: platform === null ? null : { system: platform.system, woocommerce: platform.woocommerce, shopwareVersion: platform.shopwareVersion, shop },
-    measures: !loaded ? [] : almostEmpty ? withoutPass(buildMeasures(analysis, sections)) : buildMeasures(analysis, sections),
+    measures: !loaded ? [] : almostEmpty ? manualOnly(buildMeasures(analysis, sections)) : buildMeasures(analysis, sections),
     findings,
     priorities,
     services,
     timeline: tp === null ? null : buildTimeline(capture, tp),
     legal: loaded && sections.legal.status === 'checked' && analysis.legal !== null ? reportLegal(analysis.legal) : null,
-    security: loaded && analysis.security !== null ? reportSecurity(analysis.security) : null,
+    // An almost empty page shows no measured state of HTTPS and the headers either (session fix-a2).
+    security: loaded && !almostEmpty && analysis.security !== null ? reportSecurity(analysis.security) : null,
     counts: {
       findings: all.filter((f) => f.kind === 'finding').length,
       manual: all.filter((f) => f.kind === 'manual').length,

@@ -2,9 +2,9 @@ import { CAPTURE_SCHEMA_VERSION, type Capture, type CaptureEnvironment, type Cap
 import { classifyMainDocument, notAllowedCapture, pageEvidenceOf } from '../capture/failure.ts';
 import { CAPTURE_SETTINGS } from '../capture/settings.ts';
 import { chooseImpressumTarget } from '../legal/links.ts';
-import { httpVariantOf, probeHttpRedirect } from '../security/http-probe.ts';
+import { httpsVariantOf, httpVariantOf, probeHttpRedirect, probeHttps } from '../security/http-probe.ts';
 import { describeRejection, safeFetch, type SafeFetchResult, type UrlGuard } from '../security/ssrf.ts';
-import type { HttpProbe } from '../security/types.ts';
+import type { HttpProbe, HttpsProbe } from '../security/types.ts';
 import { decodeHtml, snapshotFromHtml } from './html-snapshot.ts';
 
 /**
@@ -122,6 +122,13 @@ export async function quickCapture(url: string, options: QuickCaptureOptions): P
     httpUrl === null
       ? null
       : probeHttpRedirect(httpUrl, { userAgent: options.userAgent, acceptLanguage: CAPTURE_SETTINGS.acceptLanguage, guard: options.guard, ...(options.fetch !== undefined ? { fetch: options.fetch } : {}) }).catch(() => null);
+  // Session fix-a2: an address entered with http:// gets one request to its https:// address, so the report
+  // says "ohne HTTPS" only after https:// was asked.
+  const httpsUrl = options.httpProbe === false ? null : httpsVariantOf(url);
+  const httpsProbe: Promise<HttpsProbe | null> | null =
+    httpsUrl === null
+      ? null
+      : probeHttps(httpsUrl, { userAgent: options.userAgent, acceptLanguage: CAPTURE_SETTINGS.acceptLanguage, guard: options.guard, ...(options.fetch !== undefined ? { fetch: options.fetch } : {}) }).catch(() => null);
   const home = await safeFetch(url, { guard: options.guard, userAgent: options.userAgent, acceptLanguage: CAPTURE_SETTINGS.acceptLanguage, ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}), ...(options.fetch !== undefined ? { fetch: options.fetch } : {}) });
   const endMs = Math.max(0, now() - t0);
   const page = readPage(home, true);
@@ -151,5 +158,6 @@ export async function quickCapture(url: string, options: QuickCaptureOptions): P
     capture.impressum = target.action === 'open' ? await fetchImpressum(target.url, options, t0, now) : null;
   }
   if (probe !== null) capture.httpProbe = await probe;
+  if (httpsProbe !== null) capture.httpsProbe = await httpsProbe;
   return capture;
 }

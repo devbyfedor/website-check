@@ -1,4 +1,4 @@
-import { AXE_HTML_MAX, AXE_MAX_EXAMPLES, AXE_RULES, type AxeCapture, type AxeContrast, type AxeExample, type AxeRuleId, type AxeRuleResult, type AxeScope, type AxeStatus } from './types.ts';
+import { AXE_HTML_MAX, AXE_MAX_EXAMPLES, AXE_RULES, type AxeCapture, type AxeContrast, type AxeExample, type AxeImages, type AxeRuleId, type AxeRuleResult, type AxeScope, type AxeStatus } from './types.ts';
 
 /**
  * JavaScript that capture adapters evaluate in the page after `axe.min.js` of the pinned
@@ -12,6 +12,12 @@ import { AXE_HTML_MAX, AXE_MAX_EXAMPLES, AXE_RULES, type AxeCapture, type AxeCon
  * `axe.utils.aggregateResult` (the same grouping as the standard reporters) and keeps counts plus
  * at most `AXE_MAX_EXAMPLES` examples per rule. So axe never builds selectors for all passing
  * elements, and only a few kilobytes go back over the browser protocol.
+ *
+ * Session fix-a2: an image passes `image-alt` with a text alternative, but also with `alt=""` or
+ * `role="presentation"`, which say "decoration" and give no description. The reporter counts the two
+ * kinds apart (`images`), from axe's own check `presentational-role` (the role axe computed, with an
+ * empty alt as the implicit presentation role) and the alt attribute itself, so "Bilder mit Beschreibung"
+ * counts only described images.
  *
  * The page is only read: axe does not change the DOM, and with these rules it loads nothing
  * (`preload` is off and none of the seven rules preloads assets).
@@ -81,6 +87,26 @@ export const AXE_RUN_EXPRESSION = `(async () => {
     return { target, html: source.length > HTML_MAX ? source.slice(0, HTML_MAX) : source, contrast: withContrast ? contrastOf(nodeResult) : null };
   };
   const lower = (a, b) => (b && typeof b.ratio === 'number' && (!a || b.ratio < a.ratio) ? b : a);
+  // Why an image passes image-alt: 'decorative' when axe's check for a presentation role holds (alt="",
+  // role=presentation or none), 'described' when another check gave it a name; null when neither is known.
+  // For a passing element axe lists only the checks that hold (without a result field).
+  // axe's check has-alt holds for any alt attribute, an empty one too: such an image is marked as decoration
+  // even where axe does not give it the presentation role (a focusable image, one with a global ARIA
+  // attribute), so the attribute itself is read from the element.
+  const imageKindOf = (nodeResult) => {
+    const checks = [].concat(nodeResult.any || []);
+    const held = (id) => checks.some((c) => c && c.id === id && c.result !== false);
+    if (held('presentational-role')) return 'decorative';
+    if (held('aria-label') || held('aria-labelledby') || held('non-empty-title')) return 'described';
+    if (!held('has-alt')) return null;
+    let alt = null;
+    try {
+      const element = nodeResult.node && nodeResult.node.element;
+      alt = element && typeof element.getAttribute === 'function' ? element.getAttribute('alt') : null;
+    } catch (e) { alt = null; }
+    if (typeof alt !== 'string') return null;
+    return alt.trim() === '' ? 'decorative' : 'described';
+  };
   axe.addReporter('${AXE_REPORTER}', (raw, options, callback) => {
     const grouped = axe.utils.aggregateResult(raw);
     const ruleOf = (group, id) => (grouped[group] || []).find((r) => r && r.id === id) || null;
@@ -88,6 +114,7 @@ export const AXE_RUN_EXPRESSION = `(async () => {
     const rules = {};
     let lowViolation = null;
     let lowPass = null;
+    let images = { described: 0, decorative: 0 };
     for (const id of RULES) {
       const violations = nodesOf('violations', id);
       const incomplete = nodesOf('incomplete', id);
@@ -96,6 +123,13 @@ export const AXE_RUN_EXPRESSION = `(async () => {
       if (isContrast) {
         for (const n of violations) lowViolation = lower(lowViolation, contrastOf(n));
         for (const n of passes) lowPass = lower(lowPass, contrastOf(n));
+      }
+      if (id === 'image-alt') {
+        for (const n of passes) {
+          const kind = imageKindOf(n);
+          if (kind === null || images === null) images = null;
+          else images[kind] += 1;
+        }
       }
       const v = ruleOf('violations', id);
       const i = ruleOf('incomplete', id);
@@ -107,7 +141,7 @@ export const AXE_RUN_EXPRESSION = `(async () => {
       };
     }
     const ruleErrors = (Array.isArray(raw) ? raw : []).filter((r) => r && r.error).map((r) => String(r.id));
-    callback({ rules, ruleErrors, lowestContrast: { violation: lowViolation, pass: lowPass } });
+    callback({ rules, ruleErrors, images, lowestContrast: { violation: lowViolation, pass: lowPass } });
   });
   try {
     const result = await axe.run(document, { runOnly: { type: 'rule', values: RULES }, iframes: false, preload: false, reporter: '${AXE_REPORTER}' });
@@ -125,6 +159,7 @@ export interface AxeRunOutput {
   rules: Record<string, unknown>;
   ruleErrors: unknown[];
   lowestContrast: { violation: unknown; pass: unknown };
+  images?: unknown;
   scope?: unknown;
   runMs: number | null;
 }
@@ -174,6 +209,17 @@ function ruleOf(value: unknown): AxeRuleResult | null {
   };
 }
 
+/** The split of the passing images, only when it is two counts that add up to the passes of `image-alt`. */
+function imagesOf(value: unknown, passes: number): AxeImages | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const v = value as Record<string, unknown>;
+  const described = v['described'];
+  const decorative = v['decorative'];
+  if (typeof described !== 'number' || typeof decorative !== 'number') return null;
+  if (!Number.isInteger(described) || !Number.isInteger(decorative) || described < 0 || decorative < 0) return null;
+  return described + decorative === passes ? { described, decorative } : null;
+}
+
 function scopeOf(value: unknown): AxeScope | null {
   if (typeof value !== 'object' || value === null) return null;
   const v = value as Record<string, unknown>;
@@ -219,6 +265,7 @@ export function axeCaptureFrom(output: unknown, timing: { injectMs: number | nul
     axeVersion,
     rules,
     ruleErrors: Array.isArray(o.ruleErrors) ? o.ruleErrors.filter((r): r is string => typeof r === 'string') : [],
+    images: imagesOf(o.images, rules['image-alt']?.passes ?? 0),
     lowestContrast: { violation: contrastOf(lowest.violation), pass: contrastOf(lowest.pass) },
     scope: scopeOf(o.scope),
     timing: { injectMs: timing.injectMs, runMs, totalMs: timing.totalMs },
