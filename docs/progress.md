@@ -2,7 +2,7 @@
 
 ## Current state
 
-Stage A, sessions A1, A2, A3 and A4 are merged into `main`. A5 runs in three parts on branch `a5-api` (Fedor, 22.11.2026): part 1, the SSRF protection, and part 2, the report schema, D1, the API, the cache and the rate limit, are done and not merged; part 3 builds the queue in the Durable Object, the Impressum tab on Cloudflare, the quick check, the end-to-end check and the merge. A4 added the mandatory information (Impressum and Datenschutz links, the Impressum in a second tab, its fields by templates, the Erklärung zur Barrierefreiheit) and system detection, locally; the Cloudflare adapter gets the second tab in A5. Part 3 was not merged (Worker CPU above 8 ms on 3 of 50 API requests); part 4 (23.11.2026) split the API Worker from the scan Worker and measured again: still not merged, the start of a new scan costs up to 19 ms (section "A5 part 4" below). Before the first push the history of all branches was rewritten twice to remove personal details about the owner (21.11.2026 and 22.11.2026, sections "History cleanup before the first push" and "Second history cleanup" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
+Stage A, sessions A1 to A5 are merged into `main` (A5 in five parts, merged after part 5 on 23.11.2026). A5 runs in three parts on branch `a5-api` (Fedor, 22.11.2026): part 1, the SSRF protection, and part 2, the report schema, D1, the API, the cache and the rate limit, are done and not merged; part 3 builds the queue in the Durable Object, the Impressum tab on Cloudflare, the quick check, the end-to-end check and the merge. A4 added the mandatory information (Impressum and Datenschutz links, the Impressum in a second tab, its fields by templates, the Erklärung zur Barrierefreiheit) and system detection, locally; the Cloudflare adapter gets the second tab in A5. Part 3 was not merged (Worker CPU above 8 ms on 3 of 50 API requests); part 4 (23.11.2026) split the API Worker from the scan Worker and measured again: still not merged, the start of a new scan costs up to 19 ms (section "A5 part 4" below); part 5 (23.11.2026) moved the whole start into the queue object (Fedor's answer (a)): every API request at most 5 ms, merged (section "A5 part 5" below). Before the first push the history of all branches was rewritten twice to remove personal details about the owner (21.11.2026 and 22.11.2026, sections "History cleanup before the first push" and "Second history cleanup" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
 - Part 1 (done): the Cloudflare capture adapter in `worker/` with both strategies, and a check on three sites of whether consent tools behave the same with the Cloudflare browser as with the local run (banner, third-party requests before consent, browser location, Worker CPU and wall time).
 - Part 2 (done): the capture moves into a Durable Object in the EU jurisdiction; the Worker only checks the token and passes the job on. The scanner recognises blocked pages (a web host's check page such as "Einen Moment bitte") and gives no findings for them. Check on Cloudflare: browser location from the Durable Object, the three sites of part 1 with both strategies, Site 06 recognised as blocked, CPU of the Worker and of the Durable Object.
 - Part 3 (done): banner probe fixes, the measurement on 12 sites, `docs/measurements/a2.md` with the plan recommendation, the merge into `main`, and deleting the lab Worker.
@@ -419,9 +419,47 @@ Result: not merged into `main`; everything is committed on `a5-api`.
 
 Both lab Workers deleted (workers.dev 404 with error 1042; the API answers "does not exist on your account", code 10007, for both), the lab D1 deleted (`wrangler d1 list`: 0 databases on the account), `LAB_TOKEN` removed from `worker/.dev.vars`, the generated lab configs with the database id deleted. No workerd process left.
 
+## A5 part 5: the start of a scan in the queue object, measurement, merge (23.11.2026)
+
+Branch `a5-api`, **merged into `main`**. Session time: about 40 minutes (20:34 to about 21:15). Browser time on Cloudflare: 8.1 s (one session, Site 14), within the limit of 30 s; browser time of the day about 52 s of 600. Lab Workers and a lab D1 deployed with Fedor's permission and deleted at the end. No new functions.
+
+Fedor's answer before the start (in `docs/decisions.md`): variant (a), the API Worker parses the request, normalizes the address and hands the whole start to the Durable Object (cache, DNS check, rate limit, D1 writes); `RATE_LIMIT_SECRET` belongs to the Worker with the Durable Object.
+
+### What was done
+
+- Step 1, the move (commit 2c38e8e): `worker/src/api/start.ts` holds the start as the queue object runs it (`POST /start`): the cache lookup, the day cap, the SSRF guard with DNS over HTTPS, the salt, the visitor hash with the secret, the rate-limit slot, the new scan in D1 and the hand-over to the object's own queue, in the order of A5 part 2 and 3. The API Worker (`router.ts`, `app.ts`) checks the content type and the body, normalizes the address (the address rules without DNS: a refused address gets 400 in the Worker), takes the visitor key and passes `{url, visitor}` on; the object's answer goes back unparsed with the API's headers; a failure of the object, or a status other than 200, 202, 400, 429 or 503, is 503 `queue-unavailable`. The object accepts only a normalized address, keeps one day gate for all starts, and replaces `/enqueue`. `RATE_LIMIT_SECRET` moved from the API Worker's environment to the scan Worker's. Status and report stay in the API Worker. Shared answers in `worker/src/api/answers.ts`. Tests: the API tests now run the router with the start behind it as the object runs it (`worker/test/api-local.ts`), and new cases check that a start in the API Worker touches no D1 (a binding that fails on any use), sends only the normalized address and the visitor key, refuses internal addresses before anything leaves the Worker, passes the object's answer and `Retry-After` on unchanged, answers 503 when the object fails, and that the object takes only the shape the Worker sends.
+- Checked locally before any deploy (plain `wrangler dev` with both lab Workers, fixture page only): quick and full check of the fixture through the object, both reports valid, 3 windows refused; a second start of the finished full check answered from the cache; `http://127.0.0.1/` refused in the Worker; only 32-character hashes in the rate-limit table. No workerd left.
+- The CPU driver (commit 64d1e08): rounds go to `local/a5/part5/`, and `--cache-site` starts the address of a site whose full check finished before (the cache path: answered from D1, the site not visited).
+- Step 2, the measurement on Cloudflare: five rounds, each right after a deploy of the lab API Worker; new scans were quick checks of example.com.
+- Step 3, one end-to-end check with the browser: Site 14 through both lab Workers.
+- Step 5, the lab deleted and checked (below).
+
+### Numbers (details in `docs/measurements/a5.md`, part 5)
+
+- API requests in the five rounds: 69, all 69 matched with their tail event, all `ok`. CPU median 1 ms, max 5 ms, 0 above 8 ms (part 4: up to 19 ms, 8 of 56 above 8 ms).
+- Starts of new scans: 20 (all HTTP 202): 0 to 5 ms, the two 5 ms as first requests of fresh instances. The cache path (Site 14's finished full check, `cached: true`): 4 ms as the first request of a fresh instance, 1 ms warm. First requests of the 10 fresh instances: 5, 4, 5, 1, 2, 2, 1, 4, 4, 2 ms. Status reads (22) at most 4 ms, reports (15) at most 1 ms, refused address at most 3 ms, unknown id at most 1 ms.
+- End-to-end: Site 14 `complete`, homepage and Impressum checked, country `SE`; valid with our validator and with Ajv. Browser session 8.12 s by Cloudflare's history (`NormalClosure`). Its 8 API requests cost 0 ms each.
+- Queue object: 48 events, 48 `ok`, 0 exceptions; `/start` median 3 ms, max 12 ms; alarm runs at most 30 ms; at most 187 ms (a `/position` request during the browser scan).
+- `npm test`: 1,013 of 1,013 (1,008 before; the three tests of the old `/enqueue` client replaced by eight tests of the hand-over). `npm run typecheck`: no errors.
+
+### Merge condition of A5 (session message of part 5)
+
+- Worker CPU of the API at most 8 ms on every request, including starts, the cache path and the first requests of a fresh instance: yes, at most 5 ms over the 69 requests of the rounds, 0 ms over the 8 API requests of the end-to-end check.
+- The Durable Object never cut off for CPU: yes, 48 of 48 events `ok`.
+- The end-to-end check gave a report that passes the schema: yes (Site 14, both validators).
+- `npm test` passes completely: yes, 1,013 of 1,013.
+- No token, secrets, addresses or names of sites in git: yes. The rate-limit secret, the account's workers.dev subdomain and the hosts and names of `local/sites.txt` and `local/sites-v1.txt` in the tracked files, in the added lines of this session's commits, in the whole history of all branches and in all commit messages: 0 hits, except the workers.dev subdomain in `docs/brief.md`, where Fedor named the future address of the site himself. The lab token and the lab D1 id were deleted before the check, so the added lines of this session's commits were searched for any 64-character hex string and any UUID other than the placeholder: 0. `git ls-files local` is empty.
+
+Result: merged into `main` with `git merge --no-ff`.
+
+### Lab deleted
+
+Both lab Workers deleted (workers.dev 404 with error 1042; the API answers "does not exist on your account", code 10007, for both), the lab D1 deleted (`wrangler d1 list`: 0 databases on the account), the lab token removed from `worker/.dev.vars`, the generated lab configs with the database id deleted. No workerd process left.
+
 ## Next
 
-- Fedor: decide how to bring the start of a new scan under 8 ms of Worker CPU (numbers above, candidates in `docs/backlog.md`): (a) the API Worker hands the whole start to the queue object (cache lookup, DNS check, rate limit and D1 writes run in the object, which has 30 s CPU; the Worker only parses, normalizes and forwards, like a status read at 1 to 5 ms; the scan Worker then needs `RATE_LIMIT_SECRET` too), or (b) fewer D1 round trips in the Worker, which would save part of it but not the DNS check and the noise. Then A5 part 5: build it, measure again with the same driver (`npm run lab:cpu`), merge.
-- Fedor: push `main` (A4 is merged; `a5-api` is not).
+- Fedor: push `main` (A5 is merged).
+- Fedor, before the launch of the site (stage C): create the real D1 database and put its id into both configs, set `RATE_LIMIT_SECRET` on the scan Worker (`npx wrangler secret put RATE_LIMIT_SECRET -c worker/wrangler.scanner.jsonc`); deploy the scan Worker first, then the API Worker.
 - Fedor: review the German draft texts in `docs/content-drafts.md`.
+- Next session: stage B, session B1 (app skeleton and home page), as the brief describes.
 - Polishing session after the review: "Feld B2" and the windows-1252 fallback of the quick check (`docs/backlog.md`).
