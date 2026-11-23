@@ -421,7 +421,7 @@ Both lab Workers deleted (workers.dev 404 with error 1042; the API answers "does
 
 ## A5 part 5: the start of a scan in the queue object, measurement, merge (23.11.2026)
 
-Branch `a5-api`, **merged into `main`**. Session time: about 40 minutes (20:34 to about 21:15). Browser time on Cloudflare: 8.1 s (one session, Site 14), within the limit of 30 s; browser time of the day about 52 s of 600. Lab Workers and a lab D1 deployed with Fedor's permission and deleted at the end. No new functions.
+Branch `a5-api`, **merged into `main`**. Session time: about 25 minutes (20:34 to about 21:00). Browser time on Cloudflare: 8.1 s (one session, Site 14), within the limit of 30 s; browser time of the day about 52 s of 600. Lab Workers and a lab D1 deployed with Fedor's permission and deleted at the end. No new functions.
 
 Fedor's answer before the start (in `docs/decisions.md`): variant (a), the API Worker parses the request, normalizes the address and hands the whole start to the Durable Object (cache, DNS check, rate limit, D1 writes); `RATE_LIMIT_SECRET` belongs to the Worker with the Durable Object.
 
