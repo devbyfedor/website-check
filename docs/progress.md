@@ -364,7 +364,7 @@ Fedor's answers before the start (in `docs/decisions.md`): an accessibility stat
 
 ### Numbers (details in `docs/measurements/a5.md`)
 
-- `npm test`: 1,000 of 1,000 (657 before part 3), among them the SSRF suite (108 cases), cache, rate limit, the queue (18), the scan job and API (12), the quick check (7) and the HTML reader (300). `npm run typecheck`: no errors. `npm run test:integration` on plain `wrangler dev`: 21 of 21 (two new Impressum cases: the text is read; a link to 127.0.0.1 is refused, 0 hits).
+- `npm test`: 1,000 of 1,000 (657 before part 3), among them the SSRF suite (108 cases), cache, rate limit, the queue (18), the scan job and API (12), the quick check (7) and the HTML reader (300). `npm run typecheck`: no errors. `npm run test:integration` after the last fix: 59 of 59 in Chromium (Playwright) and 21 of 21 on plain `wrangler dev` (two new Impressum cases: the text is read; a link to 127.0.0.1 is refused, 0 hits).
 - End to end on Cloudflare: 6 of 6 reports valid (our validator and Ajv): Site 10, Site 14, Site 26 `complete` with the Impressum, the fixture page `complete`, two quick checks `quick`. Place in the queue 1, 1, 2, 3. Browser in Sweden (`SE`, ARN).
 - Popup guard and prerender on the real Browser Run: 0 of 3 windows reached the server, the guard refused 3; the prerender page was fetched ahead once but never rendered (0 requests from it); controls prefetch, image and iframe 1 each.
 - "Feld B2": 6 to 21 ms per page (mean 12.7 ms), about 0.1 % of a full check.
