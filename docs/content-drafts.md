@@ -141,7 +141,7 @@ Shared note for all header texts: they describe a common protective measure and 
 - Title: Seite ohne HTTPS
 - Fact and risk: Ihre Seite wird ohne HTTPS ausgeliefert, also unverschlüsselt. Wer sich im selben Netz befindet, etwa in einem öffentlichen WLAN, kann Inhalte und Formulareingaben sehen oder verändern; viele Browser zeigen dazu den Hinweis „Nicht sicher“.
 - Fix: Richten Sie ein SSL/TLS-Zertifikat ein. Viele Hoster bieten kostenlose Zertifikate, etwa von Let’s Encrypt, mit wenigen Klicks an. Leiten Sie danach alle Aufrufe von http:// dauerhaft auf https:// weiter.
-- Used when: the final address of the homepage is http://. No HSTS text is shown on such a page. Note for review: Art. 32(1)(a) GDPR names encryption as an example of a suitable measure; a sentence on this could be added after review, it is deliberately not in the draft.
+- Used when (changed in session fix-a2): the homepage ended on http:// and the scan asked for https:// itself: the address was entered with https:// and the site sent the browser to http://, or the address was entered with http:// and one request to its https:// address found no connection or a redirect back to http://. Never from the final address alone. No HSTS text is shown on such a page. Note for review: Art. 32(1)(a) GDPR names encryption as an example of a suitable measure; a sentence on this could be added after review, it is deliberately not in the draft.
 - Status: Entwurf
 
 ### `security-https-manual`
@@ -149,7 +149,15 @@ Shared note for all header texts: they describe a common protective measure and 
 - Title: Verschlüsselung: bitte manuell prüfen
 - Fact and risk: Wir konnten nicht feststellen, ob Ihre Seite über HTTPS ausgeliefert wird. Das ist kein Fund, sondern eine offene Frage.
 - Fix: Bitte manuell prüfen: Rufen Sie Ihre Seite mit https:// auf und achten Sie auf das Schloss in der Adresszeile.
-- Used when: the scanner cannot tell whether the final page of the homepage was delivered over HTTPS. Not a finding. Note for review: current Chrome versions show a settings symbol instead of the lock in the address bar; Firefox and Safari still show a lock.
+- Used when: the scanner cannot tell whether the final page of the homepage was delivered over HTTPS; since session fix-a2 also when the address was entered with http://, the page stayed there, and the request to its https:// address gave no clear answer (an error page, no answer in time) or was never made (a capture saved before the fix). Not a finding. Note for review: current Chrome versions show a settings symbol instead of the lock in the address bar; Firefox and Safari still show a lock.
+- Status: Entwurf
+
+### `security-https-available`
+
+- Title: Verschlüsselt über HTTPS erreichbar
+- Fact and risk: Ihre Seite ist unter https:// verschlüsselt erreichbar. Geprüft haben wir die Adresse mit http://, so wie sie eingegeben wurde; dort antwortet Ihr Server ohne Weiterleitung auf https://.
+- Fix: Kein Handlungsbedarf bei der Verschlüsselung selbst. Zur fehlenden Weiterleitung siehe den Punkt „Keine Weiterleitung von http:// auf https://“.
+- Used when: the address was entered with http://, the homepage stayed on http://, and one request to its https:// address got an answer (Prüfmaße row "Verschlüsselung": erfüllt). The missing redirect is its own finding (`security-http-no-redirect`). New in session fix-a2.
 - Status: Entwurf
 
 ### `security-http-redirect-ok`
@@ -163,9 +171,17 @@ Shared note for all header texts: they describe a common protective measure and 
 ### `security-http-no-redirect`
 
 - Title: Keine Weiterleitung von http:// auf https://
-- Fact and risk: Ihre Seite ist auch unverschlüsselt unter http:// erreichbar und leitet von dort nicht auf https:// weiter. Wer einem alten Link mit http:// folgt, kann je nach Browser auf der unverschlüsselten Fassung landen.
+- Fact and risk: Unter http:// antwortet Ihr Server mit einer Seite statt mit einer Weiterleitung auf https://. Wer einem alten Link mit http:// folgt, kann je nach Browser auf der unverschlüsselten Fassung landen.
 - Fix: Richten Sie für alle Seiten eine dauerhafte Weiterleitung (Statuscode 301) von http:// auf https:// ein. Bei vielen Hostern ist das eine Einstellung im Kundenbereich.
-- Used when: the http:// address answers with a page (status 2xx) instead of a redirect to https://.
+- Used when: the http:// address answers with a page (status 2xx) instead of a redirect to https://, and the start of that page (64 KB) holds neither a meta refresh to https:// nor an inline script that switches the address to https. The first sentence was rewritten in session fix-a2 to state only what the server answered: a redirect that an external script makes later is not seen by the check.
+- Status: Entwurf
+
+### `security-http-redirect-in-page`
+
+- Title: Weiterleitung auf https:// erst im Browser
+- Fact and risk: Unter http:// antwortet Ihr Server mit einer Seite, die den Browser erst danach auf https:// weiterleitet (per Meta-Refresh oder Refresh-Kopfzeile). Besucher landen so auf der verschlüsselten Adresse. Der erste Aufruf läuft aber unverschlüsselt, und Programme, die solche Weiterleitungen nicht ausführen, bleiben auf der unverschlüsselten Fassung.
+- Fix: Nötig ist hier nichts. Sauberer ist eine dauerhafte Weiterleitung des Servers (Statuscode 301) von http:// auf https://; bei vielen Hostern ist das eine Einstellung im Kundenbereich.
+- Used when: the http:// address answers with a page (status 2xx) whose `Refresh` header or meta refresh names an https:// address. A neutral note, not a finding; it lowers no count. New in session fix-a2.
 - Status: Entwurf
 
 ### `security-http-redirect-manual`
@@ -173,7 +189,7 @@ Shared note for all header texts: they describe a common protective measure and 
 - Title: Weiterleitung auf https://: bitte manuell prüfen
 - Fact and risk: Wir konnten nicht feststellen, ob Ihre Adresse mit http:// auf https:// weiterleitet (Grund: {reason}). Das ist kein Fund, sondern eine offene Frage.
 - Fix: Bitte manuell prüfen: Sehen Sie in den Einstellungen Ihres Hosters nach oder fragen Sie ihn, ob eine Weiterleitung auf https:// eingerichtet ist. Ein Test im eigenen Browser sagt wenig, weil manche Browser von sich aus auf https:// wechseln.
-- Used when: the http:// check gives no clear answer; `{reason}` is one of "keine Antwort innerhalb von 10 Sekunden", "Fehlerseite mit Status {status}", "mehr als 5 Weiterleitungen", "Weiterleitung auf eine Adresse, die wir aus Sicherheitsgründen nicht aufrufen", "Weiterleitung ohne Zieladresse".
+- Used when: the http:// check gives no clear answer; `{reason}` is one of "keine Antwort innerhalb von 10 Sekunden", "Fehlerseite mit Status {status}", "mehr als 5 Weiterleitungen", "Weiterleitung auf eine Adresse, die wir aus Sicherheitsgründen nicht aufrufen", "Weiterleitung ohne Zieladresse", and since session fix-a2 "die Seite unter http:// enthält ein Skript, das die Adresse auf https:// umstellen kann; ob es das tut, zeigt nur ein Browser" and "die Seite unter http:// wurde nicht vollständig übertragen".
 - Status: Entwurf
 
 ### `security-http-unavailable`

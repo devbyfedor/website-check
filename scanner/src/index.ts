@@ -25,7 +25,7 @@ export * from './a11y/types.ts';
 export { AXE_REPORTER, AXE_RUN_EXPRESSION, AXE_RUN_OPTIONS, AXE_TIME, axeBudgetMs, axeCaptureFrom, axeNotRun, type AxeRunOutput } from './a11y/axe-script.ts';
 export { analyzeAccessibility, ACCESSIBILITY_ANALYSIS_VERSION, type A11yCheck, type A11yCheckId, type AccessibilityAnalysis } from './analyzers/accessibility.ts';
 export * from './security/types.ts';
-export { HTTP_PROBE_DEFAULTS, httpVariantOf, probeHttpRedirect, type HttpProbeOptions } from './security/http-probe.ts';
+export { HTTP_PROBE_BODY_LIMIT, HTTP_PROBE_DEFAULTS, httpsVariantOf, httpVariantOf, probeHttpRedirect, probeHttps, type HttpProbeOptions } from './security/http-probe.ts';
 export * from './security/address.ts';
 export * from './security/ssrf.ts';
 export { createDohResolver, DOH_ENDPOINT } from './security/doh.ts';

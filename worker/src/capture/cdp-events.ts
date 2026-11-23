@@ -8,6 +8,7 @@ import {
   CAPTURE_SCHEMA_VERSION,
   checkReadDocument,
   describeRejection,
+  httpsVariantOf,
   httpVariantOf,
   installNavigationGuard,
   interruptedFailure,
@@ -15,8 +16,10 @@ import {
   navigationBlockMessage,
   notAllowedCapture,
   probeHttpRedirect,
+  probeHttps,
   type AxeCapture,
   type HttpProbe,
+  type HttpsProbe,
   CAPTURE_SETTINGS,
   chooseImpressumTarget,
   chromeVersionOf,
@@ -161,6 +164,17 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
           acceptLanguage: CAPTURE_SETTINGS.acceptLanguage,
           guard: settings.guard,
         }).catch(() => null);
+  // Session fix-a2: an address entered with http:// gets one request to its https:// address, so the report
+  // says "ohne HTTPS" only after https:// was asked.
+  const httpsUrl = settings.httpProbe ? httpsVariantOf(url) : null;
+  const httpsProbe: Promise<HttpsProbe | null> | null =
+    httpsUrl === null
+      ? null
+      : probeHttps(httpsUrl, {
+          userAgent: cloudEnvironment(chromeVersionOf(await browser.version())).userAgent,
+          acceptLanguage: CAPTURE_SETTINGS.acceptLanguage,
+          guard: settings.guard,
+        }).catch(() => null);
   // Windows the page opens itself never load (A5 review); the scanner's own pages are added below. A browser
   // shared by parallel scans has ONE popup guard with one set of own pages (A5 part 3): a guard per scan
   // would fail the main document of the other scan's tab as a foreign window.
@@ -206,6 +220,7 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
       result.capture.httpProbe = await probe;
       result.stats.probeWaitMs = Date.now() - waitStarted;
     }
+    if (httpsProbe !== null) result.capture.httpsProbe = await httpsProbe;
     // A browser lost on the way (also during the Impressum tab) makes the whole capture an error, not a report.
     assertConnected(browser);
     return result;

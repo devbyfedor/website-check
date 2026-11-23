@@ -143,6 +143,8 @@ function fakeFetch(answers: Record<string, { status: number; location?: string }
     const body = new ReadableStream({
       start(controller) {
         controller.enqueue(new TextEncoder().encode('body'));
+        // A page answered with 2xx is read to its end (session fix-a2), so the stream ends as a real one does.
+        if (answer.status >= 200 && answer.status < 300) controller.close();
       },
       cancel() {
         cancelled.push(url);

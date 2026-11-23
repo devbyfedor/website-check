@@ -1,8 +1,8 @@
 import { chromium, type Browser, type BrowserContext, type Frame, type Page, type Request, type Response } from 'playwright';
 import { AXE_RUN_EXPRESSION, axeBudgetMs, axeCaptureFrom, axeNotRun } from '../a11y/axe-script.ts';
 import type { AxeCapture } from '../a11y/types.ts';
-import { httpVariantOf, probeHttpRedirect } from '../security/http-probe.ts';
-import type { HttpProbe } from '../security/types.ts';
+import { httpsVariantOf, httpVariantOf, probeHttpRedirect, probeHttps } from '../security/http-probe.ts';
+import type { HttpProbe, HttpsProbe } from '../security/types.ts';
 import { classifyMainDocument, classifyNavigationError, interruptedFailure, notAllowedCapture, pageEvidenceOf } from '../capture/failure.ts';
 import { checkReadDocument, installNavigationGuard, navigationBlockMessage, type NavigationGuardState } from '../security/navigation-guard.ts';
 import { describeRejection, type UrlGuard } from '../security/ssrf.ts';
@@ -181,6 +181,11 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
   const httpUrl = options.httpProbe === false ? null : httpVariantOf(url);
   const probe: Promise<HttpProbe | null> | null =
     httpUrl === null ? null : probeHttpRedirect(httpUrl, { userAgent: environment.userAgent, acceptLanguage: CAPTURE_SETTINGS.acceptLanguage, guard }).catch(() => null);
+  // Session fix-a2: an address entered with http:// gets one request to its https:// address, so the report
+  // says "ohne HTTPS" only after https:// was asked.
+  const httpsUrl = options.httpProbe === false ? null : httpsVariantOf(url);
+  const httpsProbe: Promise<HttpsProbe | null> | null =
+    httpsUrl === null ? null : probeHttps(httpsUrl, { userAgent: environment.userAgent, acceptLanguage: CAPTURE_SETTINGS.acceptLanguage, guard }).catch(() => null);
   const contextStarted = performance.now();
   const context = await browser.newContext({
     locale: environment.locale,
@@ -212,6 +217,7 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
       }
     }
     if (probe !== null) capture.httpProbe = await probe;
+    if (httpsProbe !== null) capture.httpsProbe = await httpsProbe;
     // Session fix-a1: a browser lost on the way makes the capture an error, never a report.
     assertConnected(browser);
     return result;
