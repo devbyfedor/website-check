@@ -2,25 +2,33 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { validateReport } from '../report/validate.ts';
+import { parseSitesFile } from './sites-file.ts';
 import type { TailRecord } from './tail-filter.ts';
 
 /**
- * CPU of the API Worker per request, session A5 part 4, against the lab API Worker (`worker/src/lab/e2e.ts`)
+ * CPU of the API Worker per request, sessions A5 part 4 and 5, against the lab API Worker (`worker/src/lab/e2e.ts`)
  * and the lab scan Worker behind it. One round right after each deploy of the lab API Worker:
  *
  *   npm run lab:cpu -- --base https://website-check-lab.<sub>.workers.dev --round r1
  *   npm run lab:cpu -- --base ... --round r4 --first status       (the first request is a status read)
  *   npm run lab:cpu -- --summary                                   (joins the rounds with the tail files)
+ *   npm run lab:cpu -- --base ... --round r5 --cache-site 14       (part 5: the cache path first and last)
+ *
+ * `--dir` names the folder under `local/a5/` (default `part5`; part 4 used `part4`). `--cache-site <n>`
+ * (part 5) starts the address of a listed site whose full check finished in the end-to-end check before: the
+ * queue object answers from the 24-hour cache (`cached: true`), so nothing is checked and the site is not
+ * visited; it is the first request of the round and once more the last. A finished quick check is never
+ * reused by the cache (docs/decisions.md, A5 part 2), so the repeated starts of example.com are new scans.
  *
  * New scans are quick checks without a browser (`x-lab-force: quick`) of example.com, the domain reserved for
  * examples; no test site is visited. Every request carries `?label=<round>-<nn>-<kind>`, which
  * `tail-filter.ts` keeps, so each request is matched with its tail event; the lab gate's `x-lab-isolate` and
- * `x-lab-served` headers tell the first requests of a fresh instance. Rounds go to `local/a5/part4/<round>.json`,
- * the tail of the lab API Worker to `local/a5/part4/tail-<round>.jsonl` (git-ignored). The token is read from
+ * `x-lab-served` headers tell the first requests of a fresh instance. Rounds go to `local/a5/<dir>/<round>.json`,
+ * the tail of the lab API Worker to `local/a5/<dir>/tail-<round>.jsonl` (git-ignored). The token is read from
  * `worker/.dev.vars` and never printed.
  */
 
-const OUT = resolve('local', 'a5', 'part4');
+let OUT = resolve('local', 'a5', 'part5');
 // The fourth spelling normalizes to the same address as the first, so starting it at once joins the queued scan (cache path).
 const EXAMPLE_ADDRESSES = ['example.com', 'https://example.com/', 'EXAMPLE.com', 'https://EXAMPLE.com/irgendwo'];
 const CPU_LIMIT_MS = 8;
@@ -45,7 +53,7 @@ async function readToken(path: string): Promise<string> {
 
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
-async function round(base: string, name: string, first: 'start' | 'status', devVars: string): Promise<void> {
+async function round(base: string, name: string, first: 'start' | 'status', devVars: string, cacheUrl: string | null): Promise<void> {
   const token = await readToken(devVars);
   const calls: Call[] = [];
   let seq = 0;
@@ -78,6 +86,13 @@ async function round(base: string, name: string, first: 'start' | 'status', devV
     return record;
   };
 
+  // Part 5: the cache path, a start of an address whose full check finished before (no check, no visit).
+  const cachedStart = async (): Promise<void> => {
+    if (cacheUrl === null) return;
+    const answer = await call('POST', '/api/scans', 'start-cached', { url: cacheUrl });
+    if (answer.body?.['cached'] !== true) console.log(`${answer.label}: not answered from the cache`);
+  };
+  await cachedStart();
   const previous = await readFile(resolve(OUT, 'last-id.txt'), 'utf8').catch(() => '');
   if (first === 'status') {
     if (previous.trim() === '') throw new Error('no scan id of an earlier round for --first status');
@@ -108,10 +123,11 @@ async function round(base: string, name: string, first: 'start' | 'status', devV
   await call('GET', `/api/scans/${firstId}`, 'status');
   await call('POST', '/api/scans', 'refused', { url: 'http://127.0.0.1/' });
   await call('GET', '/api/scans/aaaaaaaaaaaaaaaaaaaaaaaaaa', 'unknown');
+  await cachedStart();
   await mkdir(OUT, { recursive: true });
   await writeFile(resolve(OUT, 'last-id.txt'), `${firstId}\n`);
   await writeFile(resolve(OUT, `${name}.json`), `${JSON.stringify({ round: name, first, at: new Date().toISOString(), calls }, null, 2)}\n`);
-  console.log(`saved local/a5/part4/${name}.json (${calls.length} API requests)`);
+  console.log(`saved ${name}.json (${calls.length} API requests)`);
 }
 
 /** Diagnosis: each operation of a scan start alone (`/lab/cost`), interleaved, after a fresh deploy. */
@@ -190,8 +206,22 @@ const { values } = parseArgs({
     // Diagnosis round `p<n>` of the operations of a start (`/lab/cost`), and its summary with --summary --probe.
     probe: { type: 'boolean', default: false },
     'dev-vars': { type: 'string', default: 'worker/.dev.vars' },
+    dir: { type: 'string', default: 'part5' },
+    'cache-site': { type: 'string' },
+    sites: { type: 'string', default: 'local/sites.txt' },
   },
 });
+if (!/^part\d+$/.test(values.dir)) throw new Error('--dir must be part<n>');
+OUT = resolve('local', 'a5', values.dir);
+let cacheUrl: string | null = null;
+if (values['cache-site'] !== undefined) {
+  const { sites, errors } = parseSitesFile(await readFile(resolve(values.sites), 'utf8'));
+  if (errors.length > 0) throw new Error(errors.join('\n'));
+  const n = values['cache-site'].trim().padStart(2, '0');
+  const site = sites.find((entry) => entry.number === n);
+  if (site === undefined) throw new Error(`no site ${n}`);
+  cacheUrl = site.url;
+}
 if (values.summary) await summary(values.probe ? /^p\d+\.json$/ : /^r\d+\.json$/, values.probe ? 'summary-probe.json' : 'summary.json');
 else {
   const pattern = values.probe ? /^p\d+$/ : /^r\d+$/;
@@ -200,5 +230,5 @@ else {
   const url = new URL(base);
   if (url.protocol !== 'https:' && !['127.0.0.1', 'localhost'].includes(url.hostname)) throw new Error('--base must be https (or local wrangler dev)');
   if (values.probe) await probe(base, values.round, resolve(values['dev-vars']));
-  else await round(base, values.round, values.first === 'status' ? 'status' : 'start', resolve(values['dev-vars']));
+  else await round(base, values.round, values.first === 'status' ? 'status' : 'start', resolve(values['dev-vars']), cacheUrl);
 }
