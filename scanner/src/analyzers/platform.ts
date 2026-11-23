@@ -1,3 +1,4 @@
+import { frameUnknown } from '../capture/frames.ts';
 import type { Capture } from '../capture/types.ts';
 import { hostOf } from '../domain/site.ts';
 import { FINGERPRINTS, PLATFORM_IDS, type Fingerprint, type FingerprintSystem, type PlatformId } from '../platform/fingerprints.ts';
@@ -73,7 +74,8 @@ function matches(fingerprint: Fingerprint, capture: Capture, ownHosts: ReadonlyS
     case 'request-host':
     case 'request-path': {
       for (const request of capture.requests) {
-        if (!request.isMainFrame && request.frameUrls.length > 0) continue;
+        // Only requests of the page itself: not those of an iframe, and not those whose document is unknown.
+        if (!request.isMainFrame && (request.frameUrls.length > 0 || frameUnknown(capture, request))) continue;
         const host = hostOf(request.url);
         if (host === null) continue;
         if (match.kind === 'request-host') {

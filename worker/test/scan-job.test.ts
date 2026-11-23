@@ -87,6 +87,37 @@ describe('a scan from the queue to D1', () => {
     expect((await getReportText(d1.db, job.id))?.report).toBeNull();
   });
 
+  it('a capture that was cut off is no complete report and is not reused for the next visitor (fix-a1, finding 2)', async () => {
+    const url = 'https://www.beispiel-roesterei.de/';
+    // What an adapter returned before the fix when the tab crashed: `ok`, a part of the requests, no page.
+    const full = shopCapture();
+    const cutOff = { ...full, requests: full.requests.slice(0, 3), page: null, axe: null, impressum: undefined, timings: { ...full.timings, loadMs: null, networkQuietMs: null, endMs: 1300, stopReason: 'error' as const } };
+    const first = await queuedJob(url);
+    const result = await runScanJob(first, 'full', { db: d1.db, now: () => clock + 2_000, capture: async () => ({ capture: cutOff, visit: { country: 'DE', colo: 'FRA' } }) });
+    expect(result).toMatchObject({ outcome: 'saved', state: 'failed' });
+    const report = JSON.parse((await getReportText(d1.db, first.id))?.report ?? 'null') as { state: string; measures: unknown[]; services: unknown[] };
+    expect(report).toMatchObject({ state: 'failed', measures: [], services: [] });
+    // The browser lost during a capture: the adapter throws, the scan ends as our error.
+    clock += 60_000;
+    const second = await queuedJob(url);
+    expect(second.id).not.toBe(first.id);
+    const lost = await runScanJob(second, 'full', {
+      db: d1.db,
+      now: () => clock + 2_000,
+      capture: async () => {
+        throw new Error('the connection to the browser was lost during the capture');
+      },
+    });
+    expect(lost).toMatchObject({ outcome: 'error', state: null });
+    expect(await getScan(d1.db, second.id)).toMatchObject({ status: 'error', state: null });
+    // 23 hours later the same address starts a new scan: neither of the two is answered from the cache.
+    clock += 23 * 60 * 60 * 1000;
+    const again = await start(api(), url, '203.0.113.8');
+    expect(again.status).toBe(202);
+    expect(again.body).toMatchObject({ cached: false });
+    expect([first.id, second.id]).not.toContain(again.body.id);
+  });
+
   it('does not run a scan twice', async () => {
     const job = await queuedJob();
     const deps = { db: d1.db, now: () => clock, capture: async () => ({ capture: shopCapture(), visit: { country: null, colo: null } }) };

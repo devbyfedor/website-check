@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { analyzeCapture } from '../analyzers/capture.ts';
 import { recheckCapture } from '../capture/failure.ts';
+import { frameUnknown } from '../capture/frames.ts';
 import type { Capture, CapturedRequest } from '../capture/types.ts';
 import { DEFAULT_RULES } from '../data.ts';
 import { hostOf } from '../domain/site.ts';
@@ -62,7 +63,7 @@ async function main(): Promise<void> {
     const owner = analysis.services.find((s) => s.evidence.some((e) => e.url === shown))?.key ?? '(not in the first 20 evidence entries)';
     console.log(`- #${request.seq} ${request.startMs} ms ${request.resourceType} status=${request.status ?? request.failure} owner=${owner}`);
     console.log(`  ${request.url.slice(0, 200)}`);
-    console.log(`  frame: ${request.frameUrls.length === 0 ? 'top-level document' : request.frameUrls.join(' <- ')}`);
+    console.log(`  frame: ${frameUnknown(capture, request) ? 'unknown (never a finding of the page on its own)' : request.frameUrls.length === 0 ? 'top-level document' : request.frameUrls.join(' <- ')}`);
     for (const step of chain(request, capture.requests)) console.log(`  initiator ${step}`);
   }
   try {

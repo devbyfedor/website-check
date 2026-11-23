@@ -10,6 +10,7 @@ import {
   describeRejection,
   httpVariantOf,
   installNavigationGuard,
+  interruptedFailure,
   installPopupGuard,
   navigationBlockMessage,
   notAllowedCapture,
@@ -44,6 +45,7 @@ import {
 } from './common.ts';
 import { applyEmulation, frameEmulation, sendAll, userAgentMetadataOf, viewportEmulation, VISITOR_PLATFORM } from './emulation.ts';
 import { measureFieldPositions } from './field-positions.ts';
+import { frameChain, resolveFrames, type FrameSource } from './frames.ts';
 import { captureImpressumTabCdp } from './impressum.ts';
 
 /**
@@ -73,15 +75,11 @@ function frameOf(request: HTTPRequest): Frame | null {
   }
 }
 
-function frameUrlsOf(frame: Frame, main: Frame): string[] {
-  const urls: string[] = [];
-  let current: Frame | null = frame;
-  while (current !== null && current !== main) {
-    const url = current.url();
-    if (/^https?:/i.test(url)) urls.push(url);
-    current = current.parentFrame();
-  }
-  return urls;
+/** Session fix-a1: a capture never ends as a report when the browser is gone; the caller records an error instead. */
+export const BROWSER_LOST = 'the connection to the browser was lost during the capture';
+
+function assertConnected(browser: Browser): void {
+  if (!browser.connected) throw new Error(BROWSER_LOST);
 }
 
 /**
@@ -208,6 +206,8 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
       result.capture.httpProbe = await probe;
       result.stats.probeWaitMs = Date.now() - waitStarted;
     }
+    // A browser lost on the way (also during the Impressum tab) makes the whole capture an error, not a report.
+    assertConnected(browser);
     return result;
   } finally {
     clearTimeout(hardTimer);
@@ -240,6 +240,12 @@ async function runCapture(
   let t0 = Date.now();
   const rel = (): number => Math.max(0, Date.now() - t0);
   const records: CapturedRequest[] = [];
+  // Which document made each request is decided at the end (`resolveFrames`): the event does not always know it.
+  const frameSources: FrameSource[] = [];
+  const workerScripts = new Map<CDPSession, string>();
+  page.on('workercreated', (worker) => {
+    workerScripts.set(worker.client, worker.url());
+  });
   const byRequest = new Map<HTTPRequest, CapturedRequest>();
   const inflight = new Set<HTTPRequest>();
   let events = 0;
@@ -262,6 +268,8 @@ async function runCapture(
     events += 1;
     const frame = frameOf(request);
     const chain = request.redirectChain();
+    const cdpInitiator = request.initiator() as (CdpInitiator & { requestId?: string }) | undefined;
+    const frames = frame === null ? { urls: [], complete: false } : frameChain(frame, mainFrame, request.isNavigationRequest());
     const record: CapturedRequest = {
       seq: records.length,
       url: request.url(),
@@ -272,15 +280,20 @@ async function runCapture(
       status: null,
       failure: null,
       isMainFrame: frame === mainFrame,
-      frameUrls: frame === null ? [] : frameUrlsOf(frame, mainFrame),
+      frameUrls: frames.urls,
       isNavigation: request.isNavigationRequest(),
-      initiator: (() => {
-        const initiator = request.initiator() as CdpInitiator | undefined;
-        return initiator === undefined ? null : toInitiator(initiator);
-      })(),
+      initiator: cdpInitiator === undefined ? null : toInitiator(cdpInitiator),
       redirectedFrom: chain.length > 0 ? (chain[chain.length - 1]?.url() ?? null) : null,
     };
     records.push(record);
+    frameSources.push({
+      record,
+      frame,
+      requestId: request.id,
+      preflightOf: frame === null && cdpInitiator?.type === 'preflight' ? (cdpInitiator.requestId ?? null) : null,
+      workerUrl: frame === null ? (workerScripts.get(request.client) ?? null) : null,
+      placed: frames.complete,
+    });
     byRequest.set(request, record);
     if (!LONG_LIVED_RESOURCE_TYPES.has(record.resourceType)) inflight.add(request);
     lastActivity = record.startMs;
@@ -363,7 +376,7 @@ async function runCapture(
     stopReason = 'max-wait';
     let lastCommandMs = rel();
     for (;;) {
-      if (crashed || hardLimitHit() || page.isClosed()) {
+      if (crashed || hardLimitHit() || page.isClosed() || !browser.connected) {
         stopReason = 'error';
         break;
       }
@@ -384,6 +397,7 @@ async function runCapture(
     }
   }
 
+  assertConnected(browser);
   const mainResponse = mainResponses.at(-1) ?? null;
   const headers: Record<string, string> = mainResponse === null ? {} : lowerCase(mainResponse.headers());
   let snapshot: SnapshotResult | null = null;
@@ -397,11 +411,19 @@ async function runCapture(
     // The data must come from a document the guard allows (second line of defence).
     if (snapshot !== null && !(await checkReadDocument(navigation, settings.guard, snapshot.url ?? page.url()))) snapshot = null;
   }
+  assertConnected(browser);
   const refused = navigation.blocked[0];
+  // Session fix-a1: a capture cut off after the main document answered (the hard limit, a crashed or closed
+  // tab) recorded only a part of what the page does. It is a failed capture, never a page without findings.
+  // A page that only could not be read (the snapshot failed on an open tab) is not cut off: its requests are complete.
+  const tabGone = hardLimitHit() ? 'hard-limit' : crashed ? 'crashed' : page.isClosed() || stopReason === 'error' ? 'closed' : null;
+  const cutOff = navigationError === null && (stopReason === 'error' || snapshot === null) ? tabGone : null;
   const failure =
     refused !== undefined
       ? { reason: 'not-allowed' as const, message: navigationBlockMessage(refused) }
-      : failureOf(navigationError, mainResponse === null ? null : { status: mainResponse.status(), headers }, snapshot, records.length);
+      : cutOff !== null
+        ? interruptedFailure(cutOff)
+        : failureOf(navigationError, mainResponse === null ? null : { status: mainResponse.status(), headers }, snapshot, records.length);
   // axe only on a page that was captured: an error page, a check page or a timeout costs no browser time.
   let axe: AxeCapture | null = null;
   if (settings.axeSource !== null) {
@@ -430,6 +452,7 @@ async function runCapture(
   const toCaptureMs = (epochMs: number): number =>
     snapshot?.timeOrigin !== undefined ? epochMs - snapshot.timeOrigin + (firstDocument?.startMs ?? 0) : epochMs - t0;
 
+  const frames = resolveFrames(frameSources, mainFrame);
   const capture: Capture = {
     schemaVersion: CAPTURE_SCHEMA_VERSION,
     adapter: 'cloudflare-browser-run',
@@ -448,7 +471,7 @@ async function runCapture(
     axe,
     timings: { domContentLoadedMs, loadMs, networkQuietMs, endMs, stopReason },
   };
-  return { page, capture, stats: { events, polls: 0, emulationFailed, wallMs: 0, ...(fieldPositions !== undefined ? { fieldPositions } : {}) } };
+  return { page, capture, stats: { events, polls: 0, emulationFailed, wallMs: 0, framesPlacedLate: frames.late, framesUnknown: frames.unknown, ...(fieldPositions !== undefined ? { fieldPositions } : {}) } };
 }
 
 function lowerCase(headers: Record<string, string>): Record<string, string> {

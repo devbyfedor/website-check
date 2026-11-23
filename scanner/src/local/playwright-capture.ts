@@ -3,7 +3,7 @@ import { AXE_RUN_EXPRESSION, axeBudgetMs, axeCaptureFrom, axeNotRun } from '../a
 import type { AxeCapture } from '../a11y/types.ts';
 import { httpVariantOf, probeHttpRedirect } from '../security/http-probe.ts';
 import type { HttpProbe } from '../security/types.ts';
-import { classifyMainDocument, classifyNavigationError, notAllowedCapture, pageEvidenceOf } from '../capture/failure.ts';
+import { classifyMainDocument, classifyNavigationError, interruptedFailure, notAllowedCapture, pageEvidenceOf } from '../capture/failure.ts';
 import { checkReadDocument, installNavigationGuard, navigationBlockMessage, type NavigationGuardState } from '../security/navigation-guard.ts';
 import { describeRejection, type UrlGuard } from '../security/ssrf.ts';
 import { createLocalGuard } from './node-resolver.ts';
@@ -196,7 +196,7 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
     void context.close().catch(() => undefined);
   }, settings.hardLimitMs);
   try {
-    const { result, startedAt } = await runCapture(context, url, settings, environment, () => hardLimitHit, contextStarted, () => clearTimeout(hardTimer), guard);
+    const { result, startedAt } = await runCapture(browser, context, url, settings, environment, () => hardLimitHit, contextStarted, () => clearTimeout(hardTimer), guard);
     // The homepage is done: its hard limit no longer applies, the Impressum tab has its own.
     clearTimeout(hardTimer);
     const capture = result.capture;
@@ -212,6 +212,8 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
       }
     }
     if (probe !== null) capture.httpProbe = await probe;
+    // Session fix-a1: a browser lost on the way makes the capture an error, never a report.
+    assertConnected(browser);
     return result;
   } finally {
     clearTimeout(hardTimer);
@@ -219,7 +221,15 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
   }
 }
 
+/** Session fix-a1: thrown when the browser is gone; a capture never ends as a report then. */
+export const BROWSER_LOST = 'the connection to the browser was lost during the capture';
+
+function assertConnected(browser: Browser): void {
+  if (!browser.isConnected()) throw new Error(BROWSER_LOST);
+}
+
 async function runCapture(
+  browser: Browser,
   context: BrowserContext,
   url: string,
   settings: {
@@ -276,6 +286,8 @@ async function runCapture(
       failure: null,
       isMainFrame: frame === mainFrame,
       frameUrls: frame === null ? [] : frameUrlsOf(frame, mainFrame),
+      // Playwright names the frame of every request it reports, except those of a service worker.
+      frameKnown: frame !== null,
       isNavigation: request.isNavigationRequest(),
       initiator: null,
       redirectedFrom: request.redirectedFrom()?.url() ?? null,
@@ -370,7 +382,7 @@ async function runCapture(
   if (navigationError === null) {
     stopReason = 'max-wait';
     for (;;) {
-      if (crashed || hardLimitHit() || page.isClosed()) {
+      if (crashed || hardLimitHit() || page.isClosed() || !browser.isConnected()) {
         stopReason = 'error';
         break;
       }
@@ -391,6 +403,7 @@ async function runCapture(
   let html: string | null = null;
   let screenshot: Buffer | null = null;
   let headers: Record<string, string> = {};
+  assertConnected(browser);
   const mainResponse = mainResponses.at(-1) ?? null;
   if (mainResponse !== null) {
     headers = await withTimeout(mainResponse.allHeaders(), 2_000).catch(() => mainResponse.headers());
@@ -400,10 +413,17 @@ async function runCapture(
     // The data must come from a document the guard allows (second line of defence).
     if (snapshot !== null && !(await checkReadDocument(navigation, guard, snapshot.url ?? page.url()))) snapshot = null;
   }
+  assertConnected(browser);
   let failure: CaptureFailure | null = null;
   const refused = navigation.blocked[0];
+  // Session fix-a1, as in the Cloudflare adapter: a capture cut off after the main document answered (the hard
+  // limit, a crashed or closed tab) is a failed capture. A page that only could not be read is not cut off.
+  const tabGone = hardLimitHit() ? 'hard-limit' : crashed ? 'crashed' : page.isClosed() || stopReason === 'error' ? 'closed' : null;
+  const cutOff = navigationError === null && (stopReason === 'error' || snapshot === null) ? tabGone : null;
   if (refused !== undefined) {
     failure = { reason: 'not-allowed', message: navigationBlockMessage(refused) };
+  } else if (cutOff !== null) {
+    failure = interruptedFailure(cutOff);
   } else if (navigationError !== null) {
     failure = { reason: classifyNavigationError(navigationError), message: navigationError };
   } else if (mainResponse === null) {

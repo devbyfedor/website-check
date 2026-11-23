@@ -2,7 +2,7 @@
 
 ## Current state
 
-Stage A, sessions A1 to A5 are merged into `main` (A5 in five parts, merged after part 5 on 23.11.2026). A5 runs in three parts on branch `a5-api` (Fedor, 22.11.2026): part 1, the SSRF protection, and part 2, the report schema, D1, the API, the cache and the rate limit, are done and not merged; part 3 builds the queue in the Durable Object, the Impressum tab on Cloudflare, the quick check, the end-to-end check and the merge. A4 added the mandatory information (Impressum and Datenschutz links, the Impressum in a second tab, its fields by templates, the Erklärung zur Barrierefreiheit) and system detection, locally; the Cloudflare adapter gets the second tab in A5. Part 3 was not merged (Worker CPU above 8 ms on 3 of 50 API requests); part 4 (23.11.2026) split the API Worker from the scan Worker and measured again: still not merged, the start of a new scan costs up to 19 ms (section "A5 part 4" below); part 5 (23.11.2026) moved the whole start into the queue object (Fedor's answer (a)): every API request at most 5 ms, merged (section "A5 part 5" below). Before the first push the history of all branches was rewritten twice to remove personal details about the owner (21.11.2026 and 22.11.2026, sections "History cleanup before the first push" and "Second history cleanup" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
+After stage A a review found 102 points (Fedor, 23.11.2026: the polishing by the review comes first, then B1). Session fix-a1 fixed the four most serious ones about the honesty of the report and is merged into `main`; the others follow in later sessions. Stage A, sessions A1 to A5 are merged into `main` (A5 in five parts, merged after part 5 on 23.11.2026). A5 runs in three parts on branch `a5-api` (Fedor, 22.11.2026): part 1, the SSRF protection, and part 2, the report schema, D1, the API, the cache and the rate limit, are done and not merged; part 3 builds the queue in the Durable Object, the Impressum tab on Cloudflare, the quick check, the end-to-end check and the merge. A4 added the mandatory information (Impressum and Datenschutz links, the Impressum in a second tab, its fields by templates, the Erklärung zur Barrierefreiheit) and system detection, locally; the Cloudflare adapter gets the second tab in A5. Part 3 was not merged (Worker CPU above 8 ms on 3 of 50 API requests); part 4 (23.11.2026) split the API Worker from the scan Worker and measured again: still not merged, the start of a new scan costs up to 19 ms (section "A5 part 4" below); part 5 (23.11.2026) moved the whole start into the queue object (Fedor's answer (a)): every API request at most 5 ms, merged (section "A5 part 5" below). Before the first push the history of all branches was rewritten twice to remove personal details about the owner (21.11.2026 and 22.11.2026, sections "History cleanup before the first push" and "Second history cleanup" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
 - Part 1 (done): the Cloudflare capture adapter in `worker/` with both strategies, and a check on three sites of whether consent tools behave the same with the Cloudflare browser as with the local run (banner, third-party requests before consent, browser location, Worker CPU and wall time).
 - Part 2 (done): the capture moves into a Durable Object in the EU jurisdiction; the Worker only checks the token and passes the job on. The scanner recognises blocked pages (a web host's check page such as "Einen Moment bitte") and gives no findings for them. Check on Cloudflare: browser location from the Durable Object, the three sites of part 1 with both strategies, Site 06 recognised as blocked, CPU of the Worker and of the Durable Object.
 - Part 3 (done): banner probe fixes, the measurement on 12 sites, `docs/measurements/a2.md` with the plan recommendation, the merge into `main`, and deleting the lab Worker.
@@ -456,10 +456,53 @@ Result: merged into `main` with `git merge --no-ff`.
 
 Both lab Workers deleted (workers.dev 404 with error 1042; the API answers "does not exist on your account", code 10007, for both), the lab D1 deleted (`wrangler d1 list`: 0 databases on the account), the lab token removed from `worker/.dev.vars`, the generated lab configs with the database id deleted. No workerd process left.
 
+## fix-a1: the first polishing session after the review of stage A (23.11.2026)
+
+Branch `fix-a1`, **merged into `main`**. Session time: about 35 minutes (22:53 to about 23:30). No Cloudflare, no browser minutes, no site visited: everything ran on the laptop (unit tests, the local Chromium against pages on 127.0.0.1, the saved captures).
+
+Fedor's answer before the start: the polishing by the review comes first, then B1; the review of the German drafts is not awaited (stage C).
+
+### What was done (review findings 1, 17, 2 and 3)
+
+- Findings 1 and 17, requests without a known document. Every request of a capture now says whether its document is known (`frameKnown`). The Cloudflare adapter decides it at the end of the capture: an iframe whose address Puppeteer learned after its first requests gets that address, a CORS preflight the document of the request it belongs to, a request of a web worker the document that loaded the worker script; the rest stays unknown. A service is a finding only when a request with a known document reached it; seen only in requests without one it is a hint "bitte manuell prüfen" (`third-party-frame-unknown`, Stückliste tag `manual`, no risk, no fix text). Platform detection ignores such requests. Captures of the Cloudflare adapter saved before the field are read the same way.
+- Finding 2, a capture that was cut off. The hard limit of a page, a crashed or a closed tab after the main document answered is a failed capture in both adapters (`timeout` or `other`), and `recheckCapture` fails any capture that stopped with an error. A browser lost during a capture makes the adapter throw: the scan ends as an error without a report. Neither is reused from the 24-hour cache.
+- Finding 3, a page that looks like bot protection outside the exact rule. A text that says the browser is being checked counts with a redirect sentence too (`blocked`). A page with at most 1 500 characters of text, 3 links and 15 requests and without a link to an Impressum or a Datenschutzerklärung is "almost empty": the report keeps the state `complete`, gets the notice `report-page-almost-empty`, no Prüfmaß is `pass` (each becomes `manual`), and the missing Impressum link carries no risk (`legal-impressum-no-link-empty-page`). No new report state (the D1 schema lists the states).
+- Three German draft texts for the new ids in `docs/content-drafts.md`, the decisions in `docs/decisions.md`, the open points in `docs/backlog.md`, the new values in `docs/report-schema.md`.
+
+### Tests
+
+- Each finding has tests built from the review's reproductions. Run against the code before the fix (sources of `main`, the new tests): 22 unit tests and 7 of the 8 tests of the Cloudflare adapter failed (the eighth is the control); with the fix all pass.
+- Unit tests: `scanner/test/frame-unknown.test.ts` (9, findings 1 and 17 in the analyzers and the report), `scanner/test/honest-states.test.ts` (18, findings 2 and 3), `worker/test/capture-frames.test.ts` (6, where a request belongs), one case in `worker/test/scan-job.test.ts` (a cut-off capture and a lost browser are not reused from the cache).
+- The Cloudflare adapter itself on the local Chromium (`worker/test/integration/cdp-capture.test.ts`, 8 tests, pages on 127.0.0.1): a preflight and a web worker inside a third-party iframe, the same two of the page itself, two iframes that answer at almost the same time with 25 ms between the Worker and the browser (8 captures), a tab that crashes, a page cut by the hard limit, a lost browser. The local adapter got the hard-limit case and a check that every request names its document (2 tests).
+
+### Saved captures analysed again (no site visited)
+
+- All 257 saved captures under `local/` (189 of real sites from A1 to A4, both adapters, 186 of them analysed as loaded pages and 3 blocked; 68 of our own fixture pages), reports built with the code before and after the fix.
+- Reports that changed: 24, all of our own fixture pages (the 12 accessibility fixtures, each captured by both adapters). They are pages of 42 to 346 characters with at most one link and no Impressum link, so they are "almost empty" (finding 3): the notice appears, 2 to 3 Prüfmaße go from `pass` to `manual`, and the missing Impressum link loses its high risk (in 12 of them it leaves "Drei Dinge").
+- Reports of real sites that changed: 0 of 189. No state changed in any of the 257 (no ordinary page became blocked or failed), and no list of services changed.
+- Requests without a known document in the 54 analysed captures of the Cloudflare adapter: 197 of 6,706 (36 preflights), in 16 captures; 7 services were seen only in such requests, none of them with a risk class that gives a finding, so no report changed.
+- `npm run scan:local -- --reanalyze`: the 32 third-party results are the same as before except for the new fields. `npm run report:check`: 30 of 30 reports valid, the summary identical.
+
+### Merge condition of fix-a1 (session message)
+
+- Findings 1, 2, 3 and 17 fixed, each with a test: yes (above).
+- `npm test` and the integration tests pass completely: yes. `npm test` 1,048 of 1,048 (1,013 before); `npm run test:integration` 61 of 61 in Chromium (59 before) and 29 of 29 in the worker project (21 on plain `wrangler dev` as before, 8 new on the local Chromium). `npm run typecheck`: no errors.
+- Every change in the reports of the saved captures is explained: yes, 24 changes, all by finding 3 on our own fixtures.
+- No secrets, addresses or names of sites, no review file and no reproduction scripts in git: yes. 171 search strings (hosts and names of `local/sites.txt` and `local/sites-v1.txt`, the Impressum values found on the 30 sites) and the value in `worker/.dev.vars`: 0 hits in the 323 tracked files, in the added lines of this session's commits and in their messages. No tracked path and no tracked line names the review folder. `git ls-files local` is empty.
+
+Result: merged into `main` with `git merge --no-ff`.
+
+### Not done, on purpose
+
+- The other findings of the review (the session message names four).
+- A web worker started from a `blob:` or `data:` address stays without a document, also when the page itself started it (`docs/backlog.md`).
+- What an almost empty page did show still counts (a third-party finding, the security headers): question for Fedor in the report of this session.
+- The new report states are not designed: the tag `manual` and the notice `report-page-almost-empty` (`docs/report-schema.md`, items 15 and 16).
+
 ## Next
 
-- Fedor: push `main` (A5 is merged).
+- Fedor: push `main` (fix-a1 is merged).
+- Fedor: answer the question of the fix-a1 report (what an almost empty page did show), and look at the three new German drafts in `docs/content-drafts.md` together with the others.
+- Next session: the next polishing session by the review (Fedor names the findings), then stage B, session B1.
 - Fedor, before the launch of the site (stage C): create the real D1 database and put its id into both configs, set `RATE_LIMIT_SECRET` on the scan Worker (`npx wrangler secret put RATE_LIMIT_SECRET -c worker/wrangler.scanner.jsonc`); deploy the scan Worker first, then the API Worker.
-- Fedor: review the German draft texts in `docs/content-drafts.md`.
-- Next session: stage B, session B1 (app skeleton and home page), as the brief describes.
-- Polishing session after the review: "Feld B2" and the windows-1252 fallback of the quick check (`docs/backlog.md`).
+- Polishing after the review, already noted before it: "Feld B2" and the windows-1252 fallback of the quick check (`docs/backlog.md`).

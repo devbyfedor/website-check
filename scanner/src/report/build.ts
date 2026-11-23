@@ -8,7 +8,7 @@ import type { Capture, CapturedRequest } from '../capture/types.ts';
 import { firstPartySites, hostOf, siteOfUrl } from '../domain/site.ts';
 import type { FieldResult } from '../legal/fields.ts';
 import type { CompiledRules } from '../rules/match.ts';
-import type { RiskClass } from '../rules/types.ts';
+import { SEVERITY_OF_RISK_CLASS, type RiskClass } from '../rules/types.ts';
 import { displayHostOf } from './site-address.ts';
 import {
   REPORT_LIMITS,
@@ -41,6 +41,10 @@ import {
  * clicks), so every service in the list "starts before consent"; banner timing is extra information
  * and decides nothing; whatever the scan cannot decide is `manual` ("bitte manuell prüfen"), never a
  * violation; only a missing Impressum link carries a risk among the mandatory information.
+ *
+ * Session fix-a1: a service seen only in requests whose document is unknown is a hint to check by hand;
+ * a page that shows almost nothing and links to no Impressum or Datenschutzerklärung (it may be a page
+ * of bot protection that no rule names) gets a notice, no "erfüllt" row and no risk for the missing link.
  */
 
 export interface BuildReportOptions {
@@ -156,14 +160,24 @@ function unreached(service: DetectedService): boolean {
   return !service.confirmed;
 }
 
+/**
+ * Session fix-a1: a service that would be a finding, seen only in requests whose document the adapter
+ * does not know. It may belong to an embedded third-party page, so it is "bitte manuell prüfen".
+ */
+function unplaced(service: DetectedService): boolean {
+  return service.frameUnknown && service.severity === 'hint' && SEVERITY_OF_RISK_CLASS[service.riskClass] === 'finding';
+}
+
 function consentOf(service: DetectedService): ReportService['consent'] {
   if (service.severity === 'finding') return 'missing';
   if (unreached(service) && service.riskClass !== 'not-flagged') return 'not-reached';
+  if (unplaced(service)) return 'manual';
   return service.severity === 'hint' ? 'grey-zone' : 'not-needed';
 }
 
 function serviceTextId(service: DetectedService): string {
   if (service.severity === 'finding') return `third-party-${service.riskClass}`;
+  if (unplaced(service)) return 'third-party-frame-unknown';
   if (!service.known) return 'third-party-unknown';
   if (service.riskClass === 'grey-zone') return 'third-party-grey-zone';
   return 'third-party-unconfirmed';
@@ -487,11 +501,12 @@ function isShop(analysis: CaptureAnalysis): boolean | null {
   return null;
 }
 
-function legalFindings(legal: LegalAnalysis, shop: boolean | null): Finding[] {
+function legalFindings(legal: LegalAnalysis, shop: boolean | null, almostEmpty: boolean): Finding[] {
   if (!legal.homepageRead) return [finding({ id: 'legal:not-checked', area: 'mandatory-information', kind: 'not-checked', textId: 'legal-not-checked' })];
   const out: Finding[] = [];
   const impressumTexts: Record<Exclude<LegalAnalysis['impressum']['state'], 'analyzed'>, { kind: FindingKind; textId: string; risk: FindingRisk | null }> = {
-    'no-link': { kind: 'manual', textId: 'legal-impressum-no-link', risk: 'high' },
+    // On a page that shows almost nothing (perhaps a page of bot protection) a missing link says nothing about the site: no risk.
+    'no-link': almostEmpty ? { kind: 'manual', textId: 'legal-impressum-no-link-empty-page', risk: null } : { kind: 'manual', textId: 'legal-impressum-no-link', risk: 'high' },
     'same-page': { kind: 'manual', textId: 'legal-impressum-same-page', risk: null },
     pdf: { kind: 'manual', textId: 'legal-impressum-pdf', risk: null },
     failed: { kind: 'manual', textId: 'legal-impressum-failed', risk: null },
@@ -542,6 +557,15 @@ function a11yResult(a11y: AccessibilityAnalysis | null, id: A11yCheck['id']): Me
   const check = a11y.checks.find((c) => c.id === id);
   if (check === undefined || check.result === 'not-checked') return 'not-checked';
   return check.result;
+}
+
+/**
+ * Session fix-a1: on a page that shows almost nothing no row is "erfüllt": what such a page lacks (no
+ * third-party request, no image without a description, …) may be the emptiness of a check page, so
+ * every `pass` becomes "bitte manuell prüfen". What was measured (`fail`, `partial`) stays.
+ */
+function withoutPass(measures: Measure[]): Measure[] {
+  return measures.map((m) => (m.result === 'pass' ? { ...m, result: 'manual' } : m));
 }
 
 function buildMeasures(analysis: CaptureAnalysis, sections: Record<SectionId, SectionStatus>): Measure[] {
@@ -634,9 +658,9 @@ function rejectionOf(message: string): string | null {
 function noticeOf(state: ReportState, analysis: CaptureAnalysis): Report['notice'] {
   switch (state) {
     case 'complete':
-      return null;
+      return analysis.almostEmpty === null ? null : { textId: 'report-page-almost-empty', params: {} };
     case 'quick':
-      return { textId: 'report-quick-incomplete', params: {} };
+      return { textId: 'report-quick-incomplete', params: analysis.almostEmpty === null ? {} : { pageAlmostEmpty: true } };
     case 'blocked':
       return { textId: 'report-blocked', params: { status: analysis.failure?.status ?? null } };
     case 'not-allowed':
@@ -684,7 +708,8 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
   const tp = sections.thirdParty.status === 'checked' ? analysis.thirdParty : null;
   const all: Finding[] = [];
   if (tp !== null) all.push(...thirdPartyFindings(tp));
-  if (loaded && sections.legal.status === 'checked' && analysis.legal !== null) all.push(...legalFindings(analysis.legal, shop));
+  const almostEmpty = analysis.almostEmpty !== null;
+  if (loaded && sections.legal.status === 'checked' && analysis.legal !== null) all.push(...legalFindings(analysis.legal, shop, almostEmpty));
   if (loaded && analysis.accessibility !== null) {
     if (sections.accessibility.status === 'checked' || sections.accessibility.reason !== 'quick-check') all.push(...accessibilityFindings(analysis.accessibility));
   }
@@ -728,7 +753,7 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
     revision: { letter: 'A', kind: 'initial' },
     sections,
     platform: platform === null ? null : { system: platform.system, woocommerce: platform.woocommerce, shopwareVersion: platform.shopwareVersion, shop },
-    measures: loaded ? buildMeasures(analysis, sections) : [],
+    measures: !loaded ? [] : almostEmpty ? withoutPass(buildMeasures(analysis, sections)) : buildMeasures(analysis, sections),
     findings,
     priorities,
     services,

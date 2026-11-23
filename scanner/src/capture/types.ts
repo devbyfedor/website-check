@@ -97,6 +97,14 @@ export interface CapturedRequest {
    * Empty for requests of the top-level document.
    */
   frameUrls: string[];
+  /**
+   * Session fix-a1: false when the adapter could not tell which document made the request (on Cloudflare:
+   * an iframe whose address never became known, a CORS preflight without its request, a web worker whose
+   * script request was not seen). Then `isMainFrame` is false and `frameUrls` is empty, and the request
+   * is never taken for one of the top-level page. Missing in captures made before; `frameUnknown`
+   * (`scanner/src/capture/frames.ts`) decides for both.
+   */
+  frameKnown?: boolean;
   /** True for navigation requests (the main document and iframe documents). */
   isNavigation: boolean;
   /** Best effort: who triggered the request. Null when the adapter cannot tell. */

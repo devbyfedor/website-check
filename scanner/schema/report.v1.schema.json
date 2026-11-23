@@ -278,7 +278,7 @@
         "riskClass": { "enum": ["precedent", "consent-required", "usually-consent", "grey-zone", "not-flagged"] },
         "dataLocation": { "enum": ["eu", "us-possible", "worldwide-cdn", "unknown"] },
         "severity": { "enum": ["finding", "hint", "none"] },
-        "consent": { "enum": ["missing", "grey-zone", "not-needed", "not-reached"] },
+        "consent": { "enum": ["missing", "grey-zone", "not-needed", "not-reached", "manual"] },
         "starts": { "const": "before-consent" },
         "requestCount": { "$ref": "#/$defs/count" },
         "firstStartMs": { "$ref": "#/$defs/ms" },

@@ -1,5 +1,6 @@
 import type { Browser } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { analyzeCapture } from '../../src/analyzers/capture.ts';
 import { analyzeThirdParty } from '../../src/analyzers/third-party.ts';
 import type { Capture } from '../../src/capture/types.ts';
 import { compileRules, parseRulesFile } from '../../src/rules/match.ts';
@@ -140,6 +141,19 @@ describe('captureWithPlaywright limits and failures', () => {
     expect(capture.timings.stopReason).toBe('max-wait');
     expect(capture.timings.endMs).toBeGreaterThanOrEqual(3_000);
     expect(capture.timings.endMs).toBeLessThan(8_000);
+  });
+
+  it('a page cut off by the hard limit is a timeout, never a captured page (fix-a1, finding 2)', async () => {
+    const { capture } = await captureWithPlaywright(browser, server.url('www.busy.test', '/forever'), { guard: fixtureGuard, maxWaitMs: 2_000, hardLimitMs: 3_500, impressum: false, httpProbe: false });
+    expect(capture.ok).toBe(false);
+    expect(capture.failure).toMatchObject({ reason: 'timeout' });
+    expect(analyzeCapture(capture, fixtureRules)).toMatchObject({ state: 'failed', thirdParty: null });
+  });
+
+  it('records for every request that its document is known (fix-a1)', async () => {
+    const { capture } = await captureWithPlaywright(browser, server.url('www.shop.test', '/'), { guard: fixtureGuard, impressum: false, httpProbe: false, accessibility: false });
+    expect(capture.requests.length).toBeGreaterThan(5);
+    expect(capture.requests.filter((r) => r.resourceType !== 'websocket' && r.frameKnown !== true)).toEqual([]);
   });
 
   it('reports a host that does not exist as an invalid address', async () => {

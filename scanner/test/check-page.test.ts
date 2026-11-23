@@ -127,7 +127,7 @@ describe('a blocked capture gives no findings', () => {
   it('a failed capture stays failed and gives no findings', () => {
     const failed = makeCapture({ requests, page: null, ok: false, failure: { reason: 'timeout', message: 'Timeout 15000 ms exceeded' } });
     expect(recheckCapture(failed)).toBe(failed);
-    expect(analyzeCapture(failed, rules)).toEqual({ state: 'failed', failure: { reason: 'timeout', message: 'Timeout 15000 ms exceeded' }, thirdParty: null, accessibility: null, security: null, legal: null, platform: null });
+    expect(analyzeCapture(failed, rules)).toEqual({ state: 'failed', failure: { reason: 'timeout', message: 'Timeout 15000 ms exceeded' }, thirdParty: null, accessibility: null, security: null, legal: null, platform: null, almostEmpty: null });
     const forbidden = makeCapture({ requests, ok: false, failure: { reason: 'blocked', message: 'HTTP 403', status: 403 } });
     expect(analyzeCapture(forbidden, rules).state).toBe('blocked');
   });
