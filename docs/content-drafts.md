@@ -346,8 +346,8 @@ Written in session fix-a1 (23.11.2026) for three results the report gives when t
 
 ### `report-page-almost-empty`
 
-- Text: Die Seite hat bei unserem Besuch fast keinen Inhalt gezeigt. Möglicherweise hat ein Schutz vor automatischen Zugriffen unsere Prüfung nicht durchgelassen. Die Angaben unten beschreiben nur, was wir gesehen haben. Bitte prüfen Sie die Seite manuell.
-- Used when: the report is `complete`, but the page showed at most 1 500 characters of text, 3 links and 15 requests and linked to no Impressum and no Datenschutzerklärung. No Prüfmaß is "erfüllt" in such a report.
+- Text: Die Seite hat bei unserem Besuch fast keinen Inhalt gezeigt. Möglicherweise hat ein Schutz vor automatischen Zugriffen unsere Prüfung nicht durchgelassen. Was wir gesehen haben, kann zu diesem Schutz gehören und nicht zu Ihrer Website. Deshalb zeigen wir keine Befunde, sondern nur Punkte, die Sie bitte manuell prüfen.
+- Used when: the report is `complete`, but the page showed at most 1 500 characters of text, 3 links and 15 requests and linked to no Impressum and no Datenschutzerklärung. Such a report has no findings and no hints, and every Prüfmaß that was checked says "bitte manuell prüfen" (session fix-a2; the third and fourth sentence were rewritten then).
 - Status: Entwurf
 
 ### `third-party-frame-unknown`

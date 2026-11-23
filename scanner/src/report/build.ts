@@ -45,6 +45,10 @@ import {
  * Session fix-a1: a service seen only in requests whose document is unknown is a hint to check by hand;
  * a page that shows almost nothing and links to no Impressum or Datenschutzerklärung (it may be a page
  * of bot protection that no rule names) gets a notice, no "erfüllt" row and no risk for the missing link.
+ *
+ * Session fix-a2 (Fedor, 23.11.2026): such an almost empty page shows no findings at all, only the notice
+ * and manual checks. If it is a page of bot protection, what was measured on it describes the protection,
+ * not the site: unsure means manual check.
  */
 
 export interface BuildReportOptions {
@@ -168,8 +172,9 @@ function unplaced(service: DetectedService): boolean {
   return service.frameUnknown && service.severity === 'hint' && SEVERITY_OF_RISK_CLASS[service.riskClass] === 'finding';
 }
 
-function consentOf(service: DetectedService): ReportService['consent'] {
-  if (service.severity === 'finding') return 'missing';
+function consentOf(service: DetectedService, almostEmpty: boolean): ReportService['consent'] {
+  // On an almost empty page nothing is "fehlt": the requests may be those of a page of bot protection.
+  if (service.severity === 'finding') return almostEmpty ? 'manual' : 'missing';
   if (unreached(service) && service.riskClass !== 'not-flagged') return 'not-reached';
   if (unplaced(service)) return 'manual';
   return service.severity === 'hint' ? 'grey-zone' : 'not-needed';
@@ -223,7 +228,7 @@ function thirdPartyFindings(analysis: ThirdPartyAnalysis): Finding[] {
   return out;
 }
 
-function reportServices(analysis: ThirdPartyAnalysis, findingIds: ReadonlySet<string>): ReportService[] {
+function reportServices(analysis: ThirdPartyAnalysis, findingIds: ReadonlySet<string>, almostEmpty: boolean): ReportService[] {
   return analysis.services.slice(0, REPORT_LIMITS.services).map((service, index) => {
     const id = serviceFindingId(service.key);
     return {
@@ -235,8 +240,8 @@ function reportServices(analysis: ThirdPartyAnalysis, findingIds: ReadonlySet<st
       category: service.category,
       riskClass: service.riskClass,
       dataLocation: service.dataLocation,
-      severity: service.severity,
-      consent: consentOf(service),
+      severity: almostEmpty && service.severity === 'finding' ? 'hint' : service.severity,
+      consent: consentOf(service, almostEmpty),
       starts: 'before-consent',
       requestCount: service.requestCount,
       firstStartMs: ms(service.firstStartMs),
@@ -561,11 +566,17 @@ function a11yResult(a11y: AccessibilityAnalysis | null, id: A11yCheck['id']): Me
 
 /**
  * Session fix-a1: on a page that shows almost nothing no row is "erfüllt": what such a page lacks (no
- * third-party request, no image without a description, …) may be the emptiness of a check page, so
- * every `pass` becomes "bitte manuell prüfen". What was measured (`fail`, `partial`) stays.
+ * third-party request, no image without a description, …) may be the emptiness of a check page.
+ * Session fix-a2: no row is "nicht erfüllt" either, and no measured value is shown: what the page has may
+ * be the protection, not the site. Every row that was checked becomes "bitte manuell prüfen".
  */
-function withoutPass(measures: Measure[]): Measure[] {
-  return measures.map((m) => (m.result === 'pass' ? { ...m, result: 'manual' } : m));
+function manualOnly(measures: Measure[]): Measure[] {
+  return measures.map((m) => (m.result === 'not-checked' ? m : { ...m, result: 'manual', actual: null }));
+}
+
+/** Session fix-a2: what stays of the findings of an almost empty page: manual checks and checks that did not run. */
+function withoutFindings(findings: Finding[]): Finding[] {
+  return findings.filter((f) => f.kind === 'manual' || f.kind === 'not-checked');
 }
 
 function buildMeasures(analysis: CaptureAnalysis, sections: Record<SectionId, SectionStatus>): Measure[] {
@@ -714,11 +725,13 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
     if (sections.accessibility.status === 'checked' || sections.accessibility.reason !== 'quick-check') all.push(...accessibilityFindings(analysis.accessibility));
   }
   if (loaded && sections.security.status === 'checked' && analysis.security !== null) all.push(...securityFindings(analysis.security));
+  // An almost empty page shows no finding and no hint: only the notice and manual checks (session fix-a2).
+  if (almostEmpty) all.splice(0, all.length, ...withoutFindings(all));
   const sorted = sortFindings(all);
   const findings = sorted.slice(0, REPORT_LIMITS.findings);
   const findingIds = new Set(findings.map((f) => f.id));
   const priorities = findings.filter((f) => f.risk !== null && (f.kind === 'finding' || f.kind === 'manual')).slice(0, 3).map((f) => f.id);
-  const services = tp === null ? [] : reportServices(tp, findingIds);
+  const services = tp === null ? [] : reportServices(tp, findingIds, almostEmpty);
   const impressum = capture.impressum ?? null;
   const durationMs = loaded ? Math.max(capture.timings.endMs, impressum === null ? 0 : impressum.timings.openedAtMs + impressum.timings.totalMs) : null;
   const network = loaded ? networkHosts(capture, tp) : { rows: [], dropped: 0 };
@@ -753,7 +766,7 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
     revision: { letter: 'A', kind: 'initial' },
     sections,
     platform: platform === null ? null : { system: platform.system, woocommerce: platform.woocommerce, shopwareVersion: platform.shopwareVersion, shop },
-    measures: !loaded ? [] : almostEmpty ? withoutPass(buildMeasures(analysis, sections)) : buildMeasures(analysis, sections),
+    measures: !loaded ? [] : almostEmpty ? manualOnly(buildMeasures(analysis, sections)) : buildMeasures(analysis, sections),
     findings,
     priorities,
     services,
