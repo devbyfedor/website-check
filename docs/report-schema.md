@@ -95,14 +95,14 @@ States the design does not show (B2 and B3 build them from existing elements and
 12. System "unbekannt": no tab carries "erkannt".
 13. The tag `not-reached` in the Stückliste (a service whose requests never got an answer), and a domain shown in punycode.
 
-Conflict with a product rule:
-14. The design shows the accessibility statement as "fehlt" and "nicht erfüllt". By product rule 3 a statement the scan did not find is "nicht gefunden, bitte manuell prüfen" (it can be linked from another page), so the schema gives `actual.state` not-found with result `manual`. Question to Fedor in the report.
+Conflict with a product rule (decided):
+14. The design shows the accessibility statement as "fehlt" and "nicht erfüllt". By product rule 3 a statement the scan did not find is "nicht gefunden, bitte manuell prüfen" (it can be linked from another page), so the schema gives `actual.state` not-found with result `manual`. Fedor confirmed this on 23.11.2026 (message of A5 part 3): the report shows "nicht gefunden, bitte manuell prüfen", never "fehlt".
 
 Texts that do not exist yet (ids used by the builder; drafts follow in B3 and B4): `report-quick-incomplete`, `report-blocked`, `report-not-allowed`, `report-failed`, `third-party-precedent`, `third-party-consent-required`, `third-party-usually-consent`, `third-party-grey-zone`, `third-party-unconfirmed`, `third-party-unknown`, `security-headers`, `security-http-redirect-not-checked`, `legal-not-checked`, `legal-impressum-same-page`, `legal-impressum-pdf`, `legal-impressum-failed`, `legal-impressum-not-checked`, `legal-field-not-found`, `legal-datenschutz-no-link`, `legal-accessibility-statement-not-found`, and the `fix-<service>` texts.
 
-## Risk and order (draft rule, for Fedor to confirm)
+## Risk and order (confirmed by Fedor on 23.11.2026)
 
-- Privacy: precedent and consent-required services are a finding with high risk, usually-consent with medium risk; grey-zone services, unknown third parties and services whose requests never reached the server are hints without a risk.
+- Privacy: precedent and consent-required services are a finding with high risk. Services of the class usually-consent (maps, video embeds, external chat widgets, review widgets) are a finding with medium risk, never high (Fedor's correction of 23.11.2026; test in `scanner/test/report.test.ts`). Grey-zone services, unknown third parties and services whose requests never reached the server are hints without a risk.
 - Mandatory information: a missing Impressum link is a manual check with high risk (Fedor, 22.11.2026); every other missing link or field is a manual check without a risk. The accessibility statement is listed as a manual check when the link is unsure, or when it was not found on a shop (WooCommerce, Shopify, Shopware).
 - Accessibility: each of the six error types with violations is one finding with medium risk (the design shows contrast as "mittleres Risiko"); undecided elements are manual checks.
 - Security: no HTTPS is a finding with high risk, no redirect from http to https medium, missing headers one finding with low risk.

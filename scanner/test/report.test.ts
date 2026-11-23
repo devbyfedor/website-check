@@ -113,6 +113,21 @@ describe('buildReport: a complete scan', () => {
     expect(fonts?.evidence[0]).toMatchObject({ type: 'request', url: 'https://fonts.googleapis.com/css2?family=Lato:wght@400;700', reachedServer: true, beforeBanner: true });
   });
 
+  it('gives services of the class usually-consent (maps, video, chat, reviews) a medium risk, never a high one (Fedor, 23.11.2026)', () => {
+    const base = shopCapture();
+    const capture = shopCapture({
+      requests: [
+        ...base.requests.map(({ seq: _seq, ...r }) => r),
+        { url: 'https://maps.googleapis.com/maps/api/js?key=TEST', resourceType: 'script', startMs: 900, endMs: 1100 },
+      ],
+    });
+    const maps = build({ capture }).report.findings.find((f) => f.id === 'third-party:google-maps');
+    expect(maps).toMatchObject({ area: 'privacy', kind: 'finding', risk: 'medium', textId: 'third-party-usually-consent', beforeConsent: true });
+    // Precedent and consent-required stay high.
+    const fonts = build({ capture }).report.findings.find((f) => f.id === 'third-party:google-fonts');
+    expect(fonts?.risk).toBe('high');
+  });
+
   it('lists hints and manual checks without a risk, and never a third-party service of the site itself', () => {
     const kinds = new Map(report.findings.map((f) => [f.id, [f.kind, f.risk]]));
     expect(kinds.get('third-party:jsdelivr')).toEqual(['hint', null]);
