@@ -6,7 +6,7 @@ import { analyzeLegal } from '../../src/analyzers/legal.ts';
 import { IMPRESSUM_SETTINGS } from '../../src/legal/impressum-capture.ts';
 import { FIXTURE_SETS, FIXTURES_ROOT, takeFixtureSnapshots } from '../../src/local/fixture-snapshots.ts';
 import { captureWithPlaywright, launchLocalBrowser } from '../../src/local/playwright-capture.ts';
-import { startFixtureServer, type FixtureServer } from './fixture-server.ts';
+import { fixtureGuard, startFixtureServer, type FixtureServer } from './fixture-server.ts';
 
 /**
  * Session A4 in Chromium: the Impressum link of the homepage opened in a second tab of the same
@@ -30,7 +30,7 @@ afterAll(async () => {
 
 describe('Impressum in a second tab', () => {
   it('opens the footer link, reads the text and finds the fields', async () => {
-    const { capture, impressumHtml } = await captureWithPlaywright(browser, server.url('www.legal.test', '/'), { maxWaitMs: 5_000, httpProbe: false, accessibility: false, artifacts: true });
+    const { capture, impressumHtml } = await captureWithPlaywright(browser, server.url('www.legal.test', '/'), { guard: fixtureGuard, maxWaitMs: 5_000, httpProbe: false, accessibility: false, artifacts: true });
     expect(capture.ok).toBe(true);
     const tab = capture.impressum;
     expect(tab?.url).toBe(server.url('www.legal.test', '/impressum'));
@@ -52,7 +52,7 @@ describe('Impressum in a second tab', () => {
   });
 
   it('waits for a text that a script writes after the load event', async () => {
-    const { capture } = await captureWithPlaywright(browser, server.url('www.slowlegal.test', '/'), { maxWaitMs: 5_000, httpProbe: false, accessibility: false });
+    const { capture } = await captureWithPlaywright(browser, server.url('www.slowlegal.test', '/'), { guard: fixtureGuard, maxWaitMs: 5_000, httpProbe: false, accessibility: false });
     const legal = analyzeLegal(capture);
     expect(capture.impressum?.page?.text).toContain('Trägeweg 5');
     expect(legal.fields.address.status === 'found' ? legal.fields.address.value : null).toEqual({ street: 'Trägeweg 5', postcode: '12345', town: 'Wartestadt' });
@@ -60,7 +60,7 @@ describe('Impressum in a second tab', () => {
   });
 
   it('opens no tab for an anchor on the homepage and leaves the fields to a manual check', async () => {
-    const { capture } = await captureWithPlaywright(browser, server.url('www.onepager.test', '/'), { maxWaitMs: 5_000, httpProbe: false, accessibility: false });
+    const { capture } = await captureWithPlaywright(browser, server.url('www.onepager.test', '/'), { guard: fixtureGuard, maxWaitMs: 5_000, httpProbe: false, accessibility: false });
     expect(capture.impressum).toBeNull();
     const legal = analyzeLegal(capture);
     expect(legal.impressum.state).toBe('same-page');
@@ -68,7 +68,7 @@ describe('Impressum in a second tab', () => {
   });
 
   it('never guesses /impressum when the homepage has no link', async () => {
-    const { capture } = await captureWithPlaywright(browser, server.url('www.nolegal.test', '/'), { maxWaitMs: 5_000, httpProbe: false, accessibility: false });
+    const { capture } = await captureWithPlaywright(browser, server.url('www.nolegal.test', '/'), { guard: fixtureGuard, maxWaitMs: 5_000, httpProbe: false, accessibility: false });
     expect(capture.impressum).toBeNull();
     const legal = analyzeLegal(capture);
     expect(legal.impressum.state).toBe('no-link');

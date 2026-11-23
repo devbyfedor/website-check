@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { resolve } from 'node:path';
+import { createLocalGuard } from '../../src/local/node-resolver.ts';
 
 /** Accessibility fixture pages of session A3, served as `www.a11y.test/<file>`. */
 const A11Y_DIR = resolve(import.meta.dirname, '../../fixtures/a11y');
@@ -186,6 +187,92 @@ route('www.onepager.test', '/', (_req, res) =>
 );
 route('www.nolegal.test', '/', (_req, res) => send(res, 200, 'text/html; charset=utf-8', legalHome('<a href="/kontakt">Kontakt</a>')));
 route('www.nolegal.test', '/impressum', (_req, res) => send(res, 200, 'text/html; charset=utf-8', html('Impressum')));
+
+// 7. Session A5, SSRF protection. Fixture hosts (*.test) are exempt from the guard in these tests,
+//    the internal targets (127.0.0.1 in several notations) are not. `/ssrf/secret` on 127.0.0.1 or
+//    localhost counts every request that reaches it: with the guard in place it must stay 0.
+let secretHits = 0;
+export function ssrfSecretHits(): number {
+  return secretHits;
+}
+const secret: Handler = (_req, res) => {
+  secretHits += 1;
+  send(res, 200, 'text/html; charset=utf-8', html('<h1>Interner Bereich</h1>'));
+};
+route('127.0.0.1', '/ssrf/secret', secret);
+route('localhost', '/ssrf/secret', secret);
+route('www.ssrf.test', '/ok', (_req, res) => send(res, 200, 'text/html; charset=utf-8', html('<h1>Öffentliche Seite</h1>')));
+route('www.ssrf.test', '/redirect-loopback', (_req, res, port) => {
+  res.writeHead(302, { location: `http://127.0.0.1:${port}/ssrf/secret` });
+  res.end();
+});
+// Decimal notation of 127.0.0.1, after one harmless hop on the exempt host.
+route('www.ssrf.test', '/redirect-decimal', (_req, res) => {
+  res.writeHead(301, { location: '/redirect-decimal-2' });
+  res.end();
+});
+route('www.ssrf.test', '/redirect-decimal-2', (_req, res, port) => {
+  res.writeHead(307, { location: `http://2130706433:${port}/ssrf/secret` });
+  res.end();
+});
+route('www.ssrf.test', '/meta-refresh', (_req, res, port) =>
+  send(res, 200, 'text/html; charset=utf-8', html('<h1>Gleich geht es weiter</h1>', `<meta http-equiv="refresh" content="0; url=http://127.0.0.1:${port}/ssrf/secret">`)),
+);
+route('www.ssrf.test', '/script-redirect', (_req, res, port) =>
+  send(res, 200, 'text/html; charset=utf-8', html(`<h1>Start</h1><script>setTimeout(function () { location.href = 'http://0x7f.0.0.1:${port}/ssrf/secret'; }, 200);</script>`)),
+);
+route('www.ssrf.test', '/impressum-internal', (_req, res, port) =>
+  send(res, 200, 'text/html; charset=utf-8', html(`<h1>Willkommen</h1><footer><a href="http://127.0.0.1:${port}/ssrf/secret">Impressum</a></footer>`)),
+);
+// Seven redirects on the exempt host: the sixth is refused.
+for (let i = 0; i < 7; i += 1) {
+  route('www.ssrf.test', `/chain/${i}`, (_req, res) => {
+    res.writeHead(302, { location: `/chain/${i + 1}` });
+    res.end();
+  });
+}
+route('www.ssrf.test', '/chain/7', (_req, res) => send(res, 200, 'text/html; charset=utf-8', html('<h1>Ende</h1>')));
+// Review of A5: navigation paths outside the plain document request of the first tab.
+// A speculation-rules prerender of an allowed page that then navigates to 127.0.0.1 once activated.
+route('www.ssrf.test', '/prerender', (_req, res) =>
+  send(
+    res,
+    200,
+    'text/html; charset=utf-8',
+    html(
+      '<h1>Start</h1><script>setTimeout(function () { location.href = "/prerender-next"; }, 1500);</script>',
+      '<script type="speculationrules">{"prerender":[{"source":"list","urls":["/prerender-next"]}]}</script>',
+    ),
+  ),
+);
+route('www.ssrf.test', '/prerender-next', (_req, res, port) =>
+  send(res, 200, 'text/html; charset=utf-8', html(`<h1>Weiter</h1><script>setTimeout(function () { location.href = 'http://127.0.0.1:${port}/ssrf/secret'; }, 300);</script>`)),
+);
+// A popup opened by script without any user action.
+route('www.ssrf.test', '/popup', (_req, res, port) =>
+  send(res, 200, 'text/html; charset=utf-8', html(`<h1>Start</h1><script>window.open('http://127.0.0.1:${port}/ssrf/secret');</script>`)),
+);
+route('www.ssrf.test', '/popup-noopener', (_req, res, port) =>
+  send(res, 200, 'text/html; charset=utf-8', html(`<h1>Start</h1><script>window.open('http://127.0.0.1:${port}/ssrf/secret', '_blank', 'noopener');</script>`)),
+);
+route('www.ssrf.test', '/popup-link', (_req, res, port) =>
+  send(res, 200, 'text/html; charset=utf-8', html(`<h1>Start</h1><a id="l" href="http://127.0.0.1:${port}/ssrf/secret" target="_blank">x</a><script>document.getElementById('l').click();</script>`)),
+);
+// A same-origin iframe that navigates the top document.
+route('www.ssrf.test', '/iframe-top', (_req, res, port) =>
+  send(res, 200, 'text/html; charset=utf-8', html(`<h1>Start</h1><iframe srcdoc="<script>top.location = 'http://127.0.0.1:${port}/ssrf/secret';</script>"></iframe>`)),
+);
+// For the http redirect check (Node's fetch, exempt host 127.0.0.1): a redirect to localhost.
+route('127.0.0.1', '/ssrf/probe-to-localhost', (_req, res, port) => {
+  res.writeHead(301, { location: `http://localhost:${port}/ssrf/secret` });
+  res.end();
+});
+
+/**
+ * The SSRF guard of the integration tests: the made-up fixture hosts (`*.test`, mapped to
+ * 127.0.0.1 inside Chromium) are exempt, everything else is checked as in production.
+ */
+export const fixtureGuard = createLocalGuard({ exempt: (url) => url.hostname.endsWith('.test') });
 
 function a11yPage(path: string): Handler | undefined {
   try {

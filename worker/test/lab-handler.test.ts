@@ -176,11 +176,16 @@ describe('lab helpers', () => {
     expect(isScannableUrl(42)).toBe(false);
   });
 
-  it('rejects local and private hosts unless the dev flag allows them', () => {
+  it('rejects local and private hosts unless the exact dev origin is exempt', () => {
     for (const url of ['http://localhost:8080/', 'http://127.0.0.1/', 'http://10.1.2.3/', 'http://192.168.0.1/', 'http://172.20.0.1/', 'http://169.254.169.254/', 'http://[::1]/', 'http://printer.local/']) {
       expect(isScannableUrl(url), url).toBe(false);
     }
-    expect(isScannableUrl('http://127.0.0.1:4000/start', true)).toBe(true);
+    expect(isScannableUrl('http://127.0.0.1:4000/start', ['http://127.0.0.1:4000'])).toBe(true);
+    // A5: the exemption is the exact origin, not every local address.
+    expect(isScannableUrl('http://127.0.0.1:4001/start', ['http://127.0.0.1:4000'])).toBe(false);
+    expect(isScannableUrl('http://localhost:4000/start', ['http://127.0.0.1:4000'])).toBe(false);
+    expect(isScannableUrl('http://www.example.de:8080/', [])).toBe(false);
+    expect(isScannableUrl('http://2130706433/', [])).toBe(false);
     expect(isScannableUrl('http://172.32.0.1/')).toBe(true);
     for (const url of ['http://localhost./', 'http://printer.local./', 'http://metadata.google.internal./', 'http://0.0.0.1/', 'http://100.64.0.1/', 'http://100.127.255.1/']) {
       expect(isScannableUrl(url), url).toBe(false);
@@ -191,13 +196,16 @@ describe('lab helpers', () => {
   it('honours the dev switches only for requests to a loopback address', async () => {
     const d = deps();
     const handler = createLabHandler(d);
-    const devEnv: LabEnv = { LAB_TOKEN: TOKEN, LAB_ALLOW_LOCAL: '1', LAB_TRACE_URL: 'http://127.0.0.1:8790/cdn-cgi/trace' };
+    const devEnv: LabEnv = { LAB_TOKEN: TOKEN, LAB_ALLOW_LOCAL: '1', LAB_TRACE_URL: 'http://127.0.0.1:8790/cdn-cgi/trace', LAB_DEV_ORIGINS: 'http://127.0.0.1:8790' };
     const body = { sessionId: 'session-0001', url: 'http://127.0.0.1:8790/start', strategy: 'cdp-events' };
     const remote = (path: string, b: unknown) => post(path, b);
     const local = (path: string, b: unknown) =>
       new Request(`http://127.0.0.1:8787${path}`, { method: 'POST', headers: { authorization: `Bearer ${TOKEN}` }, body: JSON.stringify(b) });
     expect((await handler(remote('/lab/capture', body), devEnv)).status).toBe(400);
     expect((await handler(local('/lab/capture', body), devEnv)).status).toBe(200);
+    expect(vi.mocked(d.capture).mock.calls.map((call) => call[4])).toEqual([{ devOrigins: ['http://127.0.0.1:8790'] }]);
+    // Another local address is refused even in dev mode.
+    expect((await handler(local('/lab/capture', { ...body, url: 'http://127.0.0.1:8791/' }), devEnv)).status).toBe(400);
     await handler(remote('/lab/trace', { sessionId: 'session-0001' }), devEnv);
     await handler(local('/lab/trace', { sessionId: 'session-0001' }), devEnv);
     expect(vi.mocked(d.trace).mock.calls.map((call) => call[2])).toEqual([null, 'http://127.0.0.1:8790/cdn-cgi/trace']);

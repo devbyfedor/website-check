@@ -2,7 +2,7 @@
 
 ## Current state
 
-Stage A, sessions A1, A2, A3 and A4 are merged into `main`. A4 added the mandatory information (Impressum and Datenschutz links, the Impressum in a second tab, its fields by templates, the Erklärung zur Barrierefreiheit) and system detection, locally; the Cloudflare adapter gets the second tab in A5. Before the first push the history of all branches was rewritten twice to remove personal details about the owner (21.11.2026 and 22.11.2026, sections "History cleanup before the first push" and "Second history cleanup" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
+Stage A, sessions A1 to A5 are merged into `main` (A5 in five parts, merged after part 5 on 23.11.2026). A5 runs in three parts on branch `a5-api` (Fedor, 22.11.2026): part 1, the SSRF protection, and part 2, the report schema, D1, the API, the cache and the rate limit, are done and not merged; part 3 builds the queue in the Durable Object, the Impressum tab on Cloudflare, the quick check, the end-to-end check and the merge. A4 added the mandatory information (Impressum and Datenschutz links, the Impressum in a second tab, its fields by templates, the Erklärung zur Barrierefreiheit) and system detection, locally; the Cloudflare adapter gets the second tab in A5. Part 3 was not merged (Worker CPU above 8 ms on 3 of 50 API requests); part 4 (23.11.2026) split the API Worker from the scan Worker and measured again: still not merged, the start of a new scan costs up to 19 ms (section "A5 part 4" below); part 5 (23.11.2026) moved the whole start into the queue object (Fedor's answer (a)): every API request at most 5 ms, merged (section "A5 part 5" below). Before the first push the history of all branches was rewritten twice to remove personal details about the owner (21.11.2026 and 22.11.2026, sections "History cleanup before the first push" and "Second history cleanup" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
 - Part 1 (done): the Cloudflare capture adapter in `worker/` with both strategies, and a check on three sites of whether consent tools behave the same with the Cloudflare browser as with the local run (banner, third-party requests before consent, browser location, Worker CPU and wall time).
 - Part 2 (done): the capture moves into a Durable Object in the EU jurisdiction; the Worker only checks the token and passes the job on. The scanner recognises blocked pages (a web host's check page such as "Einen Moment bitte") and gives no findings for them. Check on Cloudflare: browser location from the Durable Object, the three sites of part 1 with both strategies, Site 06 recognised as blocked, CPU of the Worker and of the Durable Object.
 - Part 3 (done): banner probe fixes, the measurement on 12 sites, `docs/measurements/a2.md` with the plan recommendation, the merge into `main`, and deleting the lab Worker.
@@ -297,9 +297,169 @@ Fedor's answers before the start (in `docs/decisions.md`): axe on the homepage o
 
 Result: every point holds; merged into `main` with `git merge --no-ff`.
 
+## A5 part 1: SSRF protection (22.11.2026)
+
+Branch `a5-api` from `main`, not merged (part 3 merges). Session time: about 1 hour (23:06 to about 00:05). No Cloudflare, no deploy, nothing pushed, no browser minutes. No test site was visited: the only contact with the 30 sites was name resolution.
+
+Fedor's answers to the A4 questions are in `docs/decisions.md` (owner decisions of 22.11.2026), the two texts as drafts in `docs/content-drafts.md` (`legal-impressum-no-link`, `legal-accessibility-statement-uncertain`).
+
+### What was built
+
+- `scanner/src/security/address.ts`: IPv4 in every notation the URL standard accepts (decimal, octal, hex, shortened, trailing dot), IPv6 with `::` and an IPv4 tail, the non-public ranges of the IANA registries for IPv4 and IPv6, every IPv6 form with an IPv4 inside refused, special-use and single-label host names.
+- `scanner/src/security/ssrf.ts`: the URL guard (http or https, ports 80 and 443, no user name or password, the host or every A and AAAA record public, names resolved once per scan) and `safeFetch` (each redirect checked before it is requested, at most 5, one 10 s limit for DNS, hops and body, at most 2 MB, only `Accept`, `Accept-Language` and the user agent sent). Name resolution: the operating system's resolver on the laptop (`scanner/src/local/node-resolver.ts`), DNS over HTTPS in the Worker (`scanner/src/security/doh.ts`).
+- `scanner/src/security/navigation-guard.ts`, shared by both adapters: the browser protocol pauses every document request of the main frame before it is sent and lets it go only after the guard accepted it, so the first address, every HTTP redirect, meta refresh and script navigations are checked inside the browser; the sixth redirect or navigation is refused.
+- Local Playwright adapter: the address is checked before a browser context opens; the guard sits on the homepage and on the Impressum tab; the http redirect check uses the same guard. Cloudflare adapter: the same for strategy (a) and strategy (b). A refused capture has the new failure reason `not-allowed` and no findings.
+- After an independent review (no bypass found in the address rules, `safeFetch` or the dev exemption; two navigation paths outside the page's own requests): windows opened by the page itself are refused (locally by Chrome's popup blocker, which Playwright switches off by default; in the Cloudflare adapter by a guard on the browser target that fails the top-level document of any page the scanner did not create); speculation-rules prerendering is switched off; the address of the document the data was read from must pass the guard too; the time limit of the http redirect check covers name resolution. Before the fix a popup reached 127.0.0.1 in both adapters (tests failed with 1 hit); afterwards 0.
+- Lab Worker: the old host regex is replaced by the guard. Its dev mode now exempts only exact fixture origins (`LAB_DEV_ORIGINS`), no longer every local address.
+- Decisions with reasons in `docs/decisions.md` (A5 part 1), open points in `docs/backlog.md` (subresources and iframes are not checked, DNS rebinding, states for B2, the Impressum tab of the Cloudflare adapter in part 3).
+
+### Numbers
+
+- `npm test`: 516 of 516 (403 before). The SSRF suite `scanner/test/ssrf.test.ts` has 108 cases: URL rules 10, IPv4 notations 11, IPv4 ranges 22, IPv6 27 (12 of them IPv4 inside IPv6), host names 14, names that resolve to internal addresses 10, `safeFetch` 8 (redirect to 127.0.0.1, redirect to a name with a private address, sixth redirect, body over 2 MB by length and by stream, time limit without an answer, with a stalled body and with slow DNS), DNS over HTTPS 3, navigation guard 3 (prerendering off before interception, the read document checked). Plus 3 new cases of the http redirect check in `scanner/test/security.test.ts` (among them the time limit with a slow resolver).
+- `npm run test:integration`: 59 of 59 in Chromium (Playwright), among them 15 SSRF cases: a normal page loads; control with every address exempt: the redirect does reach the internal page (1 hit); HTTP redirect to 127.0.0.1, decimal notation after an allowed hop, meta refresh, script navigation in hex notation: each refused, 0 hits on the internal page; sixth redirect refused; Impressum link to 127.0.0.1 refused while the homepage stays captured; six internal or non-http addresses refused before any browser context; a prerendered page that navigates to 127.0.0.1 once activated, three kinds of windows opened by script (`window.open`, with `noopener`, a script click on a `target=_blank` link) and a same-origin iframe that navigates the top document: 0 hits; control with Playwright's default launch flags: the popup does reach the internal page. Plus one case of the http redirect check against the real fixture server (redirect to localhost not followed, 0 hits).
+- Cloudflare adapter on plain `wrangler dev` (local workerd and local Chrome, no account, no browser minutes): 19 of 19 in `worker/test/integration/ssrf-dev.test.ts`, run by `npm run test:integration` too. A normal page loads with both strategies; control: an image from 127.0.0.1 reaches the server (subresources are not checked); HTTP redirect, decimal redirect, meta refresh and script navigation to 127.0.0.1 refused by strategy (a), by strategy (b) the HTTP redirect, the meta refresh, the script navigation and the top navigation from an iframe; the same iframe case, the prerender case and five popup cases (three kinds in strategy a, two in strategy b) with 0 hits; the sixth redirect refused; four internal job addresses answered with HTTP 400; 0 hits on the internal page in every case. No workerd or Chrome process was left after the run.
+- `npm run typecheck`: no errors.
+- The guard on the 30 test sites, by name resolution only (no visit): 93 addresses (the requested addresses, and from the saved A4 captures the final addresses, the http redirect hops and the Impressum addresses), 93 allowed, 0 refused. Time of the guard per site with the operating system's resolver: median 109 ms, max 1.6 s (first lookup). In the 30 saved captures no main document came with a redirect.
+- DNS over HTTPS against the real resolver with a neutral name: `example.com` gave two A and two AAAA records (259 ms); a public name that points to 127.0.0.1 was refused after resolving.
+- `git ls-files local` is empty.
+
+## A5 part 2: report schema, D1, API, cache, rate limit (23.11.2026)
+
+Branch `a5-api`, not merged (part 3 merges). Session time: about 1 hour (00:07 to about 01:05). No Cloudflare account, no deploy, nothing pushed, no browser minutes, no site visited. Local D1 only (wrangler's local runtime). The only network use was DNS over HTTPS for `example.com` in one local `wrangler dev` check.
+
+Fedor's answer before the start (in `docs/decisions.md`): in version 1 subresources and frames inside the page are not checked by the SSRF guard; the main document and each of its navigations are; looked at again after the measurement in part 3.
+
+### What was built
+
+- Step 1, report schema v1: `scanner/schema/report.v1.schema.json` (JSON Schema 2020-12), types in `scanner/src/report/types.ts`, the builder `buildReport` (capture in, report and D1 host rows out), a validator for exactly the keywords the file uses (`validate.ts`, checked against Ajv in the tests), `normalizeSiteAddress` and punycode for the display host. States `complete`, `quick` (with the notice "Die vollständige Prüfung ist morgen wieder möglich."), `blocked`, `not-allowed`, `failed`; the country and data center of the visit. `docs/report-schema.md` maps every element of `design/reference/bericht.html` to a field and lists what is missing. `npm run report:check` builds and validates reports from saved captures without visiting any site.
+- Step 2, D1: `worker/migrations/0001_initial.sql` with `sites`, `scans` (creation date for the retention rule, the report as text), `findings`, `network_requests` (one row per host), `leads` (table only), `rate_salts`, `rate_events`; `worker/wrangler.jsonc` with the D1 binding (placeholder id, logs off); `worker/src/db/store.ts`. Rows written measured on the local D1, budget in `docs/d1.md`.
+- Step 3, API (`worker/src/api/`): `POST /api/scans` (normalized address, 400 for every address the SSRF rules refuse, also after DNS; the scan of the same address from the last 24 hours; 5 new scans per hour per visitor; a queued scan with a random 128-bit id), `GET /api/scans/{id}`, `GET /api/scans/{id}/report` (the stored text, never parsed; 409 until done). Every answer: `X-Robots-Tag: noindex, nofollow, noarchive`, `Cache-Control: no-store`. The queue itself (`dispatch`) comes in part 3; until then a scan stays queued.
+- Step 4, tests on the local D1 (`getPlatformProxy`, in memory, fake name resolver).
+
+### Numbers
+
+- `npm test`: 657 of 657 (516 before). New: report schema and builder 42, address and punycode 45, SSRF host names 6, API 42, D1 budget 2, Worker entry 1 (the old 501 test replaced), and the purity check of the 4 new core files. Among them: the cache (other spellings of the same address, 24 hours, reuse only of complete and blocked scans, a queued scan joined for 10 minutes, two visitors at the same moment get one scan); the rate limit (sixth scan 429 with `Retry-After` 3,300 s after five scans in five minutes, allowed again after the hour, IPv6 counted by /56, IPv4-mapped IPv6 as IPv4, a cached answer and a refused address take no slot, two starts at the same moment take one slot, no raw IP and no secret in any of the 7 tables, a new salt the next day and the old one deleted, no scan without the secret, the hourly cleanup without traffic); 17 refused addresses with HTTP 400 and 0 rows written (among them 127.0.0.1, `0x7f000001`, 169.254.169.254, `[::1]`, port 8080, `javascript:`, a name that resolves to 127.0.0.1, a name with one private address); a resolver failure 503; a 2 KB body limit also for a body without a length header (read stopped after fewer than 10 chunks); the report returned byte for byte (300,000 umlauts, odd spacing); 2,000 ids without a repeat; 17 reports (3 valid, 14 changed on purpose) on which our validator and Ajv agree.
+- `npm run typecheck`: no errors. `npm run test:integration` after the review fixes (the URL guard changed): 59 of 59 in Chromium and 19 of 19 on plain `wrangler dev`, fixture pages only.
+- Migration with the real tool: `wrangler d1 migrations apply website-check --local` ran 9 commands, all tables and indexes present.
+- Local `wrangler dev` with the local D1 (workerd, no account): `http://127.0.0.1/` and `localhost:3000` 400; `example.com` 202 with a new id; `https://EXAMPLE.com/irgendwo` 200 with the same id (`cached: true`); status 200 (`queued`); report 409; afterwards 1 scan, 1 site, 1 rate event with a 32-character hash, 1 salt, 0 raw addresses; no workerd left. After the review fixes again with the secret from `worker/.dev.vars`: `http://10.0.0.1/` 400, `example.com` 202, `EXAMPLE.com/x` 200 cached, the cron handler (`--test-scheduled`) 200, no workerd left.
+- Independent review (3 reviewers with different lenses, each finding checked by a skeptic who tried to refute it): 14 findings, 13 confirmed, 1 rejected as already recorded behaviour (the count starts again at 00:00 UTC). All 13 fixed, each with a test: service keys of very long domains broke the schema; services whose requests never got an answer were marked "data sent before consent" and "Graubereich"; the mandatory information counted as checked on a page whose text was not read; `beispiel.de..` got its own cache key and skipped the host-name rules; look-alike punycode domains were shown decoded; the rate-limit hash could be reversed from the database alone (event time matches the scan, salt in the same database), now keyed with a Worker secret; IPv6 by /64 gave a delegated /56 256 limits; salts and events outlived their time without traffic (hourly cron); `saveResult` threw on a retry; `createScan` could answer 500 in a race; the loser of a race paid a slot; the retention count included the cascade.
+- Reports from the 30 saved captures of A4 (`npm run report:check`, no visit): 30 of 30 validate against the schema, all `complete`. Size median 13.7 KB, mean 14.6 KB, max 41 KB. Finding rows per scan median 7.5, max 23; host rows median 5, max 28; services median 3, max 17.
+- D1 rows written per scan (measured, `docs/d1.md`): at the caps of the report (60 findings, 100 hosts) 334 rows including the later deletion by the retention rule; with 8 findings and 5 hosts 40 rows; the largest real capture 116. At 80 scans per day with 20 rows per scan kept free for part 3: 28,322 rows at the caps, 4,802 at the median, against Fedor's limit of 33,333 (a third of 100,000).
+- `git ls-files local` is empty.
+
+## A5 part 3: queue, Impressum tab, quick check, end to end on Cloudflare (23.11.2026)
+
+Branch `a5-api`, **not merged**: one point of the merge condition failed (Worker CPU above 8 ms on 3 of 50 API requests). Session time: about 1 hour 40 minutes (18:14 to about 19:55). Browser time on Cloudflare: 36.1 s (0.6 browser minutes), one session; browser time of the day 36.1 s of 600. Lab Worker and lab D1 deployed with Fedor's permission and deleted at the end.
+
+Fedor's answers before the start (in `docs/decisions.md`): an accessibility statement that was not found is "nicht gefunden, bitte manuell prüfen", never "fehlt"; the cost of element positions for "Feld B2" is measured, the field is not added; risk rule accepted with `usually-consent` services at medium risk (a test pins it); lab Worker and a separate lab D1 allowed for the end-to-end check, both deleted at the end, the real database is Fedor's.
+
+### What was built
+
+- Step 1, queue (`worker/src/queue/`): one Durable Object `ScanQueueObject` in the EU jurisdiction keeps the jobs and the day's counters; the Worker creates the scan in D1, hands it over and asks for the place in the queue while it waits (`queuePosition` in the status answer). Scans run in the object's alarm: at most 3 started per alarm run, up to 3 at the same time as tabs of one browser, one new browser at most every 20 s, the browser closed as soon as nothing needs it. Day caps per UTC day: 150 scans (then HTTP 503 `daily-limit` until 00:00 UTC), 80 full checks, and a full check only while the day's browser time plus 45 s stays within 540 s, with Cloudflare's own count checked before every launch; otherwise the quick check. Stuck jobs are retried once; the hourly cron ends scans stuck in D1 for 30 minutes. Reasons in `docs/decisions.md`.
+- Step 2, Impressum tab of the Cloudflare adapter (`worker/src/capture/impressum.ts`): the same context, visitor settings, navigation guard, check of the read document, wait and snapshot as the local adapter; the homepage tab is closed first.
+- Step 3, country of the visit: one trace tab per browser session (`Capture.visit`, report `visit.country` and `visit.colo`): 0.22 s of browser time per session on Cloudflare, once for all scans of the session.
+- Step 4, quick check (`scanner/src/quick/`): homepage and Impressum fetched with `safeFetch` under the SSRF rules, read by a static HTML snapshot that follows the in-page snapshot; report `quick` with "Die vollständige Prüfung ist morgen wieder möglich."; third-party services and accessibility not checked. The HTML reader was written by a helper and then attacked by a second helper against the real Chromium on synthetic pages (no network): 12 defects found and fixed (9 differences, 3 CPU traps of up to 183 s on hostile 2 MB pages, now at most 0.3 s), 300 tests; on the 59 fixture pages of A4 the links match the browser on 57, the Impressum fields on 58 (the rest is script- or CSS-made and listed).
+- The end-to-end lab Worker `worker/src/lab/e2e.ts` (real API and queue behind a token, an invented fixture page for windows, prerender and the Impressum) and the driver `npm run lab:e2e`.
+- An independent review before the Cloudflare run (three lenses, every finding checked by a skeptic): 11 findings, 11 confirmed. Fixed before the run: a scan that started while the browser was opening ran with its own popup guard and the two guards closed each other's tabs; day counters lost updates with parallel scans (a test showed `full: 1` instead of 3); after the day cap every start still wrote D1 rows and got its slot back (now the isolate answers 503 without writes and the slot is kept); the dev switch on a real host (the Worker now refuses with 503); public hit routes of the lab counted forever (now only since the run); `alert()` froze a page until the hard limit (dialogs dismissed, as Playwright does); the "Feld B2" measurement could run into the hard limit; request records changed after the capture. Not fixed: the 50 subrequests per alarm run can be exceeded by a crafted site (backlog).
+
+### Numbers (details in `docs/measurements/a5.md`)
+
+- `npm test`: 1,000 of 1,000 (657 before part 3), among them the SSRF suite (108 cases), cache, rate limit, the queue (18), the scan job and API (12), the quick check (7) and the HTML reader (300). `npm run typecheck`: no errors. `npm run test:integration` after the last fix: 59 of 59 in Chromium (Playwright) and 21 of 21 on plain `wrangler dev` (two new Impressum cases: the text is read; a link to 127.0.0.1 is refused, 0 hits).
+- End to end on Cloudflare: 6 of 6 reports valid (our validator and Ajv): Site 10, Site 14, Site 26 `complete` with the Impressum, the fixture page `complete`, two quick checks `quick`. Place in the queue 1, 1, 2, 3. Browser in Sweden (`SE`, ARN).
+- Popup guard and prerender on the real Browser Run: 0 of 3 windows reached the server, the guard refused 3; the prerender page was fetched ahead once but never rendered (0 requests from it); controls prefetch, image and iframe 1 each.
+- "Feld B2": 6 to 21 ms per page (mean 12.7 ms), about 0.1 % of a full check.
+- Browser seconds per full check with the Impressum: 6.80, 6.00, 18.08 s (mean 10.29 s, median 6.80 s; Site 26 ran to the 15 s limit); the Impressum adds 1.23 to 2.03 s; about 1 s per browser session for launch and trace. Free plan: about 52 full checks per day within the queue's 540 s at the mean (58 on the full 600 s), 79 at the median, 29 in the worst case.
+- Worker CPU: 50 API events, median 1 ms, 3 above 8 ms (14 and 11 ms on starts of new scans, 9 ms on a start answered from the cache); all 62 Worker events `ok`. Durable Object: 27 of 27 events `ok`, at most 125 ms.
+
+### Merge condition of A5
+
+- `npm test` passes completely with SSRF, cache, rate limit and quick check tests: yes, 1,000 of 1,000.
+- Three reports of the end-to-end check pass the schema: yes, 3 of 3.
+- Worker CPU at most 8 ms on every request and the Durable Object never cut off: **no** for the CPU (3 of 50 API events: 14, 11, 9 ms); yes for the object (27 of 27 `ok`).
+- At most 3 browser minutes in the session: yes, 36.1 s.
+- No token, secrets, addresses or names of sites in git: yes (0 hits for 2 secrets and 64 site strings in 304 tracked files and the whole history; `git ls-files local` empty).
+
+Result: not merged into `main`; everything is committed on `a5-api`.
+
+### Lab deleted
+
+Lab Worker deleted (workers.dev 404 with error 1042, API code 10007), lab D1 deleted (0 databases on the account), `LAB_TOKEN` removed from `worker/.dev.vars`.
+
+## A5 part 4: the API Worker apart from the scan Worker, CPU per API request (23.11.2026)
+
+Branch `a5-api`, **not merged**: the Worker CPU of the API is above 8 ms on 8 of 56 measured requests, all starts of new scans, 4 of them in warm instances. Session time: about 35 minutes (19:57 to about 20:32). Browser time on Cloudflare: 8.0 s (one session, Site 14), within the limit of 30 s; browser time of the day 44.1 s of 600. Lab Workers and lab D1 deployed with Fedor's permission and deleted at the end.
+
+Fedor's answers before the start (in `docs/decisions.md`): the API Worker carries no Puppeteer, no axe-core and no rules data, the checks run in a separate Worker with the Durable Object; "Feld B2" stays and is built in the polishing session after the review; the quick check gets the windows-1252 fallback in the same session (both in `docs/backlog.md`).
+
+### What was done
+
+- Step 1, the split (commit 8784132): `scanner/src/api.ts` is a narrow entry `@website-check/scanner/api` (address rules, SSRF guard, DNS over HTTPS, normalized address) that the API imports instead of the whole scan core. The API Worker (`worker/wrangler.jsonc`, entry `worker/src/index.ts`) has the API, D1 and the cron, no browser binding, no axe text module, no `nodejs_compat`; the scan Worker (`worker/wrangler.scanner.jsonc`, entry `worker/src/scan-worker.ts`) has only the queue object with the browser, without a public address; the API reaches the object through a Durable Object binding with `script_name`. Bundle: 30.6 KiB instead of 2,011 KiB (dry run). The lab follows the same split (lab API Worker without Puppeteer, lab scan Worker with the production entry), the Browser Run limits are read by the queue object, the lab gate names the isolate and the request number in every answer, and `npm run lab:e2e:dev` starts both lab Workers in one local wrangler process. New test `worker/test/api-bundle.test.ts` (7 cases): the import graph of the API Worker and of the lab API Worker reaches no Puppeteer, axe-core, rules data, analyzers, public suffix list or Node built-in (with the old import it fails, checked), a control that the scan Worker does reach them, and the wrangler configs of both pairs agree. Checked locally before any deploy: on plain `wrangler dev` with both lab Workers the quick and the full check of the fixture page gave valid reports, the Impressum opened, the popup guard refused 3 windows.
+- Step 2, the CPU measurement on Cloudflare (driver `npm run lab:cpu`, commit 9e985d4): four deploys of the lab API Worker, each followed by a round of 15 or 16 API requests that starts on a fresh instance; new scans were quick checks of example.com. Then a diagnosis round (`/lab/cost`, commit f83099c) with each operation of a start alone.
+- Step 3, one end-to-end check with the browser: Site 14 through both lab Workers.
+- Step 5, the lab deleted and checked (below).
+
+### Numbers (details in `docs/measurements/a5.md`, part 4)
+
+- API requests in the four rounds: 61, 56 matched with their tail event, all `ok`. Starts of new scans (16): 2 to 19 ms, median 9 ms, 8 above 8 ms. Every other API request (40): at most 5 ms. First requests of the 7 fresh instances: 15, 11, 7, 18, 12, 5 and 6 ms. Above 8 ms in warm instances: 19, 11, 10 and 10 ms (requests 2, 4, 5 and 8 of their instance).
+- Diagnosis: an empty first request of a fresh instance 0 ms; six D1 reads in a row 2 to 4 ms; the DNS check of example.com 1 to 2 ms; a request to the queue object 0 ms; the visitor hash 0 ms. So the split removed the bundle (66 times smaller, startup 8 to 15 ms instead of 92 ms) but not the cost: a start makes about nine round trips (six to D1, two DNS-over-HTTPS queries, one to the queue object), and the measured CPU of the same code varies from 2 to 19 ms.
+- End-to-end: Site 14 `complete`, homepage and Impressum checked, country `SE`; valid with our validator and with Ajv. Browser session 8.01 s by Cloudflare's history (`NormalClosure`). The start of this check cost 16 ms of Worker CPU.
+- Queue object: 43 events, 42 `ok`, 1 `canceled` (0 ms CPU, no path; noted in the backlog), at most 414 ms CPU.
+- `npm test`: 1,008 of 1,008 (1,000 before; 7 bundle and config cases, 1 purity case for the new entry). `npm run typecheck`: no errors. `npm run test:integration`: 59 of 59 in Chromium and 21 of 21 on plain `wrangler dev` (fixture pages only).
+
+### Merge condition of A5 (session message of part 4)
+
+- Worker CPU of the API at most 8 ms on every request, including the first requests of a fresh instance: **no**, 8 of 56 measured requests above 8 ms (10 to 19 ms), and not only first requests: 4 of them came in warm instances (19, 11, 10, 10 ms). With the end-to-end check 9 of 63. By the session message this is worse than "only the first requests of a fresh instance and at most 15 ms", so no merge.
+- The end-to-end check gave a report that passes the schema: yes.
+- `npm test` passes completely: yes, 1,008 of 1,008.
+- No token, secrets, addresses or names of sites in git: yes. 67 search strings (the rate-limit secret, the lab D1 id, the account's workers.dev subdomain, the 60 hosts and names of `local/sites.txt` and `local/sites-v1.txt`) in the 313 tracked files, in the added lines of the commits of this session, in the whole history of all branches and in all commit messages: 0 hits, except the workers.dev subdomain in `docs/brief.md`, where Fedor named the future address of the site himself. The lab token of this session was deleted from `worker/.dev.vars` before the check, so it was searched as any 64-character hex string in the added lines of this session's commits: 0. `git ls-files local` is empty.
+
+Result: not merged into `main`; everything is committed on `a5-api`.
+
+### Lab deleted
+
+Both lab Workers deleted (workers.dev 404 with error 1042; the API answers "does not exist on your account", code 10007, for both), the lab D1 deleted (`wrangler d1 list`: 0 databases on the account), `LAB_TOKEN` removed from `worker/.dev.vars`, the generated lab configs with the database id deleted. No workerd process left.
+
+## A5 part 5: the start of a scan in the queue object, measurement, merge (23.11.2026)
+
+Branch `a5-api`, **merged into `main`**. Session time: about 40 minutes (20:34 to about 21:15). Browser time on Cloudflare: 8.1 s (one session, Site 14), within the limit of 30 s; browser time of the day about 52 s of 600. Lab Workers and a lab D1 deployed with Fedor's permission and deleted at the end. No new functions.
+
+Fedor's answer before the start (in `docs/decisions.md`): variant (a), the API Worker parses the request, normalizes the address and hands the whole start to the Durable Object (cache, DNS check, rate limit, D1 writes); `RATE_LIMIT_SECRET` belongs to the Worker with the Durable Object.
+
+### What was done
+
+- Step 1, the move (commit 2c38e8e): `worker/src/api/start.ts` holds the start as the queue object runs it (`POST /start`): the cache lookup, the day cap, the SSRF guard with DNS over HTTPS, the salt, the visitor hash with the secret, the rate-limit slot, the new scan in D1 and the hand-over to the object's own queue, in the order of A5 part 2 and 3. The API Worker (`router.ts`, `app.ts`) checks the content type and the body, normalizes the address (the address rules without DNS: a refused address gets 400 in the Worker), takes the visitor key and passes `{url, visitor}` on; the object's answer goes back unparsed with the API's headers; a failure of the object, or a status other than 200, 202, 400, 429 or 503, is 503 `queue-unavailable`. The object accepts only a normalized address, keeps one day gate for all starts, and replaces `/enqueue`. `RATE_LIMIT_SECRET` moved from the API Worker's environment to the scan Worker's. Status and report stay in the API Worker. Shared answers in `worker/src/api/answers.ts`. Tests: the API tests now run the router with the start behind it as the object runs it (`worker/test/api-local.ts`), and new cases check that a start in the API Worker touches no D1 (a binding that fails on any use), sends only the normalized address and the visitor key, refuses internal addresses before anything leaves the Worker, passes the object's answer and `Retry-After` on unchanged, answers 503 when the object fails, and that the object takes only the shape the Worker sends.
+- Checked locally before any deploy (plain `wrangler dev` with both lab Workers, fixture page only): quick and full check of the fixture through the object, both reports valid, 3 windows refused; a second start of the finished full check answered from the cache; `http://127.0.0.1/` refused in the Worker; only 32-character hashes in the rate-limit table. No workerd left.
+- The CPU driver (commit 64d1e08): rounds go to `local/a5/part5/`, and `--cache-site` starts the address of a site whose full check finished before (the cache path: answered from D1, the site not visited).
+- Step 2, the measurement on Cloudflare: five rounds, each right after a deploy of the lab API Worker; new scans were quick checks of example.com.
+- Step 3, one end-to-end check with the browser: Site 14 through both lab Workers.
+- Step 5, the lab deleted and checked (below).
+
+### Numbers (details in `docs/measurements/a5.md`, part 5)
+
+- API requests in the five rounds: 69, all 69 matched with their tail event, all `ok`. CPU median 1 ms, max 5 ms, 0 above 8 ms (part 4: up to 19 ms, 8 of 56 above 8 ms).
+- Starts of new scans: 20 (all HTTP 202): 0 to 5 ms, the two 5 ms as first requests of fresh instances. The cache path (Site 14's finished full check, `cached: true`): 4 ms as the first request of a fresh instance, 1 ms warm. First requests of the 10 fresh instances: 5, 4, 5, 1, 2, 2, 1, 4, 4, 2 ms. Status reads (22) at most 4 ms, reports (15) at most 1 ms, refused address at most 3 ms, unknown id at most 1 ms.
+- End-to-end: Site 14 `complete`, homepage and Impressum checked, country `SE`; valid with our validator and with Ajv. Browser session 8.12 s by Cloudflare's history (`NormalClosure`). Its 8 API requests cost 0 ms each.
+- Queue object: 48 events, 48 `ok`, 0 exceptions; `/start` median 3 ms, max 12 ms; alarm runs at most 30 ms; at most 187 ms (a `/position` request during the browser scan).
+- `npm test`: 1,013 of 1,013 (1,008 before; the three tests of the old `/enqueue` client replaced by eight tests of the hand-over). `npm run typecheck`: no errors.
+
+### Merge condition of A5 (session message of part 5)
+
+- Worker CPU of the API at most 8 ms on every request, including starts, the cache path and the first requests of a fresh instance: yes, at most 5 ms over the 69 requests of the rounds, 0 ms over the 8 API requests of the end-to-end check.
+- The Durable Object never cut off for CPU: yes, 48 of 48 events `ok`.
+- The end-to-end check gave a report that passes the schema: yes (Site 14, both validators).
+- `npm test` passes completely: yes, 1,013 of 1,013.
+- No token, secrets, addresses or names of sites in git: yes. The rate-limit secret, the account's workers.dev subdomain and the hosts and names of `local/sites.txt` and `local/sites-v1.txt` in the tracked files, in the added lines of this session's commits, in the whole history of all branches and in all commit messages: 0 hits, except the workers.dev subdomain in `docs/brief.md`, where Fedor named the future address of the site himself. The lab token and the lab D1 id were deleted before the check, so the added lines of this session's commits were searched for any 64-character hex string and any UUID other than the placeholder: 0. `git ls-files local` is empty.
+
+Result: merged into `main` with `git merge --no-ff`.
+
+### Lab deleted
+
+Both lab Workers deleted (workers.dev 404 with error 1042; the API answers "does not exist on your account", code 10007, for both), the lab D1 deleted (`wrangler d1 list`: 0 databases on the account), the lab token removed from `worker/.dev.vars`, the generated lab configs with the database id deleted. No workerd process left.
+
 ## Next
 
-- A5: API, storage, cache, limits, quick check, SSRF (brief). The Durable Object job opens the Impressum in a second tab like the local adapter (`docs/backlog.md`); measure its browser seconds on Cloudflare (local: 1.2 s median).
-- Fedor: push `main`.
-- Fedor: questions of the A4 report (the wording for a missing Impressum link; the Claude API for Impressum fields).
+- Fedor: push `main` (A5 is merged).
+- Fedor, before the launch of the site (stage C): create the real D1 database and put its id into both configs, set `RATE_LIMIT_SECRET` on the scan Worker (`npx wrangler secret put RATE_LIMIT_SECRET -c worker/wrangler.scanner.jsonc`); deploy the scan Worker first, then the API Worker.
 - Fedor: review the German draft texts in `docs/content-drafts.md`.
+- Next session: stage B, session B1 (app skeleton and home page), as the brief describes.
+- Polishing session after the review: "Feld B2" and the windows-1252 fallback of the quick check (`docs/backlog.md`).

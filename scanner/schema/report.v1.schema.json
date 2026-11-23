@@ -1,0 +1,419 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:website-check:report:v1",
+  "title": "Website-Check DE report, version 1",
+  "description": "The report JSON of one scan (session A5). TypeScript types: scanner/src/report/types.ts. Mapping to design/reference/bericht.html: docs/report-schema.md. Only the keywords that scanner/src/report/validate.ts supports may be used.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "createdAt", "state", "site", "scan", "visit", "notice", "failure", "pages", "revision", "sections", "platform", "measures", "findings", "priorities", "services", "timeline", "legal", "security", "counts"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "#/$defs/scanId" },
+    "createdAt": { "$ref": "#/$defs/dateTime" },
+    "state": { "enum": ["complete", "quick", "blocked", "not-allowed", "failed"] },
+    "site": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "host", "displayHost", "finalUrl"],
+      "properties": {
+        "url": { "$ref": "#/$defs/url" },
+        "host": { "type": "string", "minLength": 1, "maxLength": 253 },
+        "displayHost": { "type": "string", "minLength": 1, "maxLength": 253 },
+        "finalUrl": { "anyOf": [{ "$ref": "#/$defs/url" }, { "type": "null" }] }
+      }
+    },
+    "scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "scannedAt", "durationMs", "scannerVersion", "rulesUpdated", "axeVersion"],
+      "properties": {
+        "mode": { "enum": ["full", "quick"] },
+        "scannedAt": { "anyOf": [{ "$ref": "#/$defs/dateTime" }, { "type": "null" }] },
+        "durationMs": { "anyOf": [{ "$ref": "#/$defs/ms" }, { "type": "null" }] },
+        "scannerVersion": { "type": "string", "maxLength": 40 },
+        "rulesUpdated": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "axeVersion": { "type": ["string", "null"], "maxLength": 40 }
+      }
+    },
+    "visit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["country", "colo", "adapter", "browser", "locale", "timezone", "viewport"],
+      "properties": {
+        "country": { "anyOf": [{ "type": "string", "pattern": "^[A-Z]{2}$" }, { "type": "null" }] },
+        "colo": { "anyOf": [{ "type": "string", "pattern": "^[A-Z]{3}$" }, { "type": "null" }] },
+        "adapter": { "type": "string", "maxLength": 40 },
+        "browser": { "type": ["string", "null"], "maxLength": 80 },
+        "locale": { "type": "string", "maxLength": 20 },
+        "timezone": { "type": "string", "maxLength": 60 },
+        "viewport": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height"],
+          "properties": { "width": { "type": "integer", "minimum": 1 }, "height": { "type": "integer", "minimum": 1 } }
+        }
+      }
+    },
+    "notice": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["textId", "params"],
+          "properties": { "textId": { "$ref": "#/$defs/textId" }, "params": { "$ref": "#/$defs/params" } }
+        },
+        { "type": "null" }
+      ]
+    },
+    "failure": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reason", "status"],
+          "properties": {
+            "reason": { "enum": ["timeout", "blocked", "invalid-address", "unreachable", "http-error", "not-allowed", "other"] },
+            "status": { "type": ["integer", "null"], "minimum": 100, "maximum": 999 }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "pages": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["homepage", "impressum"],
+      "properties": { "homepage": { "enum": ["checked", "not-checked"] }, "impressum": { "enum": ["checked", "not-checked"] } }
+    },
+    "revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["letter", "kind"],
+      "properties": { "letter": { "const": "A" }, "kind": { "const": "initial" } }
+    },
+    "sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thirdParty", "accessibility", "security", "legal", "platform"],
+      "properties": {
+        "thirdParty": { "$ref": "#/$defs/section" },
+        "accessibility": { "$ref": "#/$defs/section" },
+        "security": { "$ref": "#/$defs/section" },
+        "legal": { "$ref": "#/$defs/section" },
+        "platform": { "$ref": "#/$defs/section" }
+      }
+    },
+    "platform": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["system", "woocommerce", "shopwareVersion", "shop"],
+          "properties": {
+            "system": { "enum": ["wordpress", "shopify", "shopware", "wix", "jimdo", "unknown"] },
+            "woocommerce": { "type": "boolean" },
+            "shopwareVersion": { "enum": [5, 6, null] },
+            "shop": { "type": ["boolean", "null"] }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "measures": { "type": "array", "maxItems": 7, "items": { "$ref": "#/$defs/measure" } },
+    "findings": { "type": "array", "maxItems": 60, "items": { "$ref": "#/$defs/finding" } },
+    "priorities": { "type": "array", "maxItems": 3, "items": { "$ref": "#/$defs/findingId" } },
+    "services": { "type": "array", "maxItems": 80, "items": { "$ref": "#/$defs/service" } },
+    "timeline": { "anyOf": [{ "$ref": "#/$defs/timeline" }, { "type": "null" }] },
+    "legal": { "anyOf": [{ "$ref": "#/$defs/legal" }, { "type": "null" }] },
+    "security": { "anyOf": [{ "$ref": "#/$defs/security" }, { "type": "null" }] },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findings", "manual", "hints", "notChecked", "services"],
+      "properties": {
+        "findings": { "$ref": "#/$defs/count" },
+        "manual": { "$ref": "#/$defs/count" },
+        "hints": { "$ref": "#/$defs/count" },
+        "notChecked": { "$ref": "#/$defs/count" },
+        "services": { "$ref": "#/$defs/count" }
+      }
+    }
+  },
+  "$defs": {
+    "scanId": { "type": "string", "pattern": "^[a-z2-7]{26}$" },
+    "dateTime": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,3})?Z$" },
+    "url": { "type": "string", "pattern": "^https?://", "maxLength": 300 },
+    "ms": { "type": "number", "minimum": 0, "maximum": 600000 },
+    "count": { "type": "integer", "minimum": 0, "maximum": 100000 },
+    "textId": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 80 },
+    "findingId": { "type": "string", "pattern": "^[a-z0-9-]+(:[a-z0-9.-]+)*$", "maxLength": 120 },
+    "params": {
+      "type": "object",
+      "maxProperties": 12,
+      "additionalProperties": { "anyOf": [{ "type": "string", "maxLength": 300 }, { "type": "number" }, { "type": "boolean" }, { "type": "null" }] }
+    },
+    "section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason"],
+      "properties": { "status": { "enum": ["checked", "not-checked"] }, "reason": { "type": ["string", "null"], "maxLength": 300 } }
+    },
+    "measureValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "count"],
+          "properties": { "type": { "const": "count" }, "count": { "$ref": "#/$defs/count" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "count", "total"],
+          "properties": { "type": { "const": "of" }, "count": { "$ref": "#/$defs/count" }, "total": { "$ref": "#/$defs/count" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "ratio", "expected"],
+          "properties": { "type": { "const": "ratio" }, "ratio": { "type": "number", "minimum": 1, "maximum": 21 }, "expected": { "type": ["string", "null"], "maxLength": 20 } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": { "type": { "const": "all" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "state"],
+          "properties": { "type": { "const": "state" }, "state": { "enum": ["present", "found", "uncertain", "not-found", "https", "http", "unknown"] } }
+        }
+      ]
+    },
+    "measure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "result", "target", "actual"],
+      "properties": {
+        "id": { "enum": ["third-party-before-consent", "impressum-fields", "lowest-contrast", "images-described", "accessibility-statement", "https", "security-headers"] },
+        "result": { "enum": ["pass", "fail", "partial", "manual", "not-checked"] },
+        "target": { "$ref": "#/$defs/measureValue" },
+        "actual": { "anyOf": [{ "$ref": "#/$defs/measureValue" }, { "type": "null" }] }
+      }
+    },
+    "evidence": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "url", "startMs", "status", "reachedServer", "beforeBanner", "via"],
+          "properties": {
+            "type": { "const": "request" },
+            "url": { "type": "string", "maxLength": 300 },
+            "startMs": { "$ref": "#/$defs/ms" },
+            "status": { "type": ["integer", "null"], "minimum": 0, "maximum": 999 },
+            "reachedServer": { "type": "boolean" },
+            "beforeBanner": { "type": ["boolean", "null"] },
+            "via": { "type": ["string", "null"], "maxLength": 300 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "target", "html", "ratio", "expected"],
+          "properties": {
+            "type": { "const": "element" },
+            "target": { "type": "array", "maxItems": 10, "items": { "type": "string", "maxLength": 300 } },
+            "html": { "type": "string", "maxLength": 200 },
+            "ratio": { "type": ["number", "null"], "minimum": 1, "maximum": 21 },
+            "expected": { "type": ["string", "null"], "maxLength": 20 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "name", "status", "value"],
+          "properties": {
+            "type": { "const": "header" },
+            "name": { "type": "string", "maxLength": 60 },
+            "status": { "type": "string", "maxLength": 20 },
+            "value": { "type": ["string", "null"], "maxLength": 300 }
+          }
+        }
+      ]
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "area", "kind", "risk", "textId", "params", "field", "serviceKey", "beforeConsent", "evidence", "fixTextId"],
+      "properties": {
+        "id": { "$ref": "#/$defs/findingId" },
+        "area": { "enum": ["privacy", "mandatory-information", "accessibility", "security"] },
+        "kind": { "enum": ["finding", "manual", "hint", "not-checked"] },
+        "risk": { "enum": ["high", "medium", "low", null] },
+        "textId": { "$ref": "#/$defs/textId" },
+        "params": { "$ref": "#/$defs/params" },
+        "field": { "anyOf": [{ "type": "string", "pattern": "^[A-D][1-3]$" }, { "type": "null" }] },
+        "serviceKey": { "type": ["string", "null"], "maxLength": 120 },
+        "beforeConsent": { "type": "boolean" },
+        "evidence": { "type": "array", "maxItems": 5, "items": { "$ref": "#/$defs/evidence" } },
+        "fixTextId": { "anyOf": [{ "$ref": "#/$defs/textId" }, { "type": "null" }] }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position", "key", "known", "name", "provider", "category", "riskClass", "dataLocation", "severity", "consent", "starts", "requestCount", "firstStartMs", "startsBeforeBanner", "hosts", "sources", "findingId"],
+      "properties": {
+        "position": { "type": "integer", "minimum": 1, "maximum": 80 },
+        "key": { "type": "string", "maxLength": 120 },
+        "known": { "type": "boolean" },
+        "name": { "type": "string", "maxLength": 120 },
+        "provider": { "type": ["string", "null"], "maxLength": 120 },
+        "category": {
+          "enum": ["fonts", "analytics", "tag-manager", "advertising", "social-pixel", "session-recording", "marketing-automation", "maps", "video", "chat", "reviews", "social-embed", "booking", "widget-platform", "cdn", "consent", "platform", "payment", "captcha", "accessibility-overlay", "translation", "other", "unknown"]
+        },
+        "riskClass": { "enum": ["precedent", "consent-required", "usually-consent", "grey-zone", "not-flagged"] },
+        "dataLocation": { "enum": ["eu", "us-possible", "worldwide-cdn", "unknown"] },
+        "severity": { "enum": ["finding", "hint", "none"] },
+        "consent": { "enum": ["missing", "grey-zone", "not-needed", "not-reached"] },
+        "starts": { "const": "before-consent" },
+        "requestCount": { "$ref": "#/$defs/count" },
+        "firstStartMs": { "$ref": "#/$defs/ms" },
+        "startsBeforeBanner": { "type": ["boolean", "null"] },
+        "hosts": { "type": "array", "maxItems": 10, "items": { "type": "string", "maxLength": 253 } },
+        "sources": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 120 } },
+        "findingId": { "anyOf": [{ "$ref": "#/$defs/findingId" }, { "type": "null" }] }
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["windowMs", "bannerVisibleAtMs", "bannerToolId", "rows", "rowsTruncated"],
+      "properties": {
+        "windowMs": { "type": "integer", "minimum": 1000, "maximum": 20000 },
+        "bannerVisibleAtMs": { "anyOf": [{ "$ref": "#/$defs/ms" }, { "type": "null" }] },
+        "bannerToolId": { "type": ["string", "null"], "maxLength": 60 },
+        "rows": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "party", "kind", "serviceKey", "provider", "startMs", "endMs", "requestCount", "beforeBanner"],
+            "properties": {
+              "label": { "type": "string", "maxLength": 300 },
+              "party": { "enum": ["own", "third"] },
+              "kind": { "enum": ["document", "files", "consent-tool", "service"] },
+              "serviceKey": { "type": ["string", "null"], "maxLength": 120 },
+              "provider": { "type": ["string", "null"], "maxLength": 120 },
+              "startMs": { "$ref": "#/$defs/ms" },
+              "endMs": { "anyOf": [{ "$ref": "#/$defs/ms" }, { "type": "null" }] },
+              "requestCount": { "$ref": "#/$defs/count" },
+              "beforeBanner": { "type": ["boolean", "null"] }
+            }
+          }
+        },
+        "rowsTruncated": { "type": "boolean" }
+      }
+    },
+    "link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["href", "text"],
+      "properties": { "href": { "type": "string", "maxLength": 300 }, "text": { "type": "string", "maxLength": 300 } }
+    },
+    "fieldState": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "quote"],
+          "properties": { "status": { "const": "found" }, "quote": { "type": "string", "maxLength": 300 } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "reason"],
+          "properties": { "status": { "const": "not-found" }, "reason": { "enum": ["not-on-page", "impressum-not-checked"] } }
+        }
+      ]
+    },
+    "legal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["impressumLink", "datenschutzLink", "accessibilityStatement", "impressum", "fields"],
+      "properties": {
+        "impressumLink": { "anyOf": [{ "$ref": "#/$defs/link" }, { "type": "null" }] },
+        "datenschutzLink": { "anyOf": [{ "$ref": "#/$defs/link" }, { "type": "null" }] },
+        "accessibilityStatement": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["href", "text", "certain", "page"],
+              "properties": {
+                "href": { "type": "string", "maxLength": 300 },
+                "text": { "type": "string", "maxLength": 300 },
+                "certain": { "type": "boolean" },
+                "page": { "enum": ["homepage", "impressum"] }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "impressum": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "url", "crossSite"],
+          "properties": {
+            "state": { "enum": ["analyzed", "same-page", "no-link", "pdf", "failed", "not-captured"] },
+            "url": { "type": ["string", "null"], "maxLength": 300 },
+            "crossSite": { "type": "boolean" }
+          }
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["address", "email", "handelsregister", "ustId"],
+          "properties": {
+            "address": { "$ref": "#/$defs/fieldState" },
+            "email": { "$ref": "#/$defs/fieldState" },
+            "handelsregister": { "$ref": "#/$defs/fieldState" },
+            "ustId": { "$ref": "#/$defs/fieldState" }
+          }
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["https", "httpRedirect", "headers", "headersPresent", "headersTotal"],
+      "properties": {
+        "https": { "enum": ["pass", "fail", "manual"] },
+        "httpRedirect": { "enum": ["pass", "fail", "manual", "info", "not-checked"] },
+        "headers": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "header", "status", "counts", "value", "textId"],
+            "properties": {
+              "key": { "type": "string", "maxLength": 40 },
+              "header": { "type": "string", "maxLength": 60 },
+              "status": { "enum": ["present", "missing", "invalid", "meta", "report-only", "legacy", "manual"] },
+              "counts": { "type": "boolean" },
+              "value": { "type": ["string", "null"], "maxLength": 300 },
+              "textId": { "anyOf": [{ "$ref": "#/$defs/textId" }, { "type": "null" }] }
+            }
+          }
+        },
+        "headersPresent": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "headersTotal": { "type": "integer", "minimum": 0, "maximum": 5 }
+      }
+    }
+  }
+}

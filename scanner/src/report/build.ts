@@ -1,0 +1,749 @@
+import { analyzeCapture, type CaptureAnalysis } from '../analyzers/capture.ts';
+import type { AccessibilityAnalysis, A11yCheck } from '../analyzers/accessibility.ts';
+import type { LegalAnalysis } from '../analyzers/legal.ts';
+import type { SecurityAnalysis } from '../analyzers/security.ts';
+import type { DetectedService, ThirdPartyAnalysis } from '../analyzers/third-party.ts';
+import type { AxeExample } from '../a11y/types.ts';
+import type { Capture, CapturedRequest } from '../capture/types.ts';
+import { firstPartySites, hostOf, siteOfUrl } from '../domain/site.ts';
+import type { FieldResult } from '../legal/fields.ts';
+import type { CompiledRules } from '../rules/match.ts';
+import type { RiskClass } from '../rules/types.ts';
+import { displayHostOf } from './site-address.ts';
+import {
+  REPORT_LIMITS,
+  REPORT_SCHEMA_VERSION,
+  type Evidence,
+  type FieldState,
+  type Finding,
+  type FindingArea,
+  type FindingKind,
+  type FindingRisk,
+  type Measure,
+  type Report,
+  type ReportLegal,
+  type ReportSecurity,
+  type ReportService,
+  type ReportState,
+  type SectionId,
+  type SectionStatus,
+  type TextParam,
+  type Timeline,
+  type TimelineRow,
+} from './types.ts';
+
+/**
+ * Builds the report JSON of one scan from its capture (session A5). Pure: the same capture and
+ * options give the same report. The Durable Object calls it after the scan (part 3); the local
+ * tool `npm run report:check` calls it on saved captures.
+ *
+ * Product rules applied here: every third-party request happened without consent (the scan never
+ * clicks), so every service in the list "starts before consent"; banner timing is extra information
+ * and decides nothing; whatever the scan cannot decide is `manual` ("bitte manuell prüfen"), never a
+ * violation; only a missing Impressum link carries a risk among the mandatory information.
+ */
+
+export interface BuildReportOptions {
+  id: string;
+  /** ISO time when the visitor started the scan. */
+  createdAt: string;
+  /** Normalized address (`normalizeSiteAddress`). */
+  siteUrl: string;
+  /** `quick`: the quick check without a browser (part 3); sections that need the browser are not checked. */
+  mode: 'full' | 'quick';
+  capture: Capture;
+  rules: CompiledRules;
+  scannerVersion: string;
+  rulesUpdated: string;
+  /** Where the browser ran (Cloudflare `loc` and `colo`); null when unknown. Default: `capture.visit`. */
+  visit?: { country: string | null; colo: string | null };
+}
+
+/** One row of the D1 table `network_requests`: the requests of one host, aggregated. */
+export interface NetworkHostRow {
+  host: string;
+  party: 'first' | 'third';
+  serviceKey: string | null;
+  requestCount: number;
+  firstStartMs: number;
+  lastEndMs: number | null;
+  beforeBanner: boolean | null;
+}
+
+export interface BuiltReport {
+  report: Report;
+  networkHosts: NetworkHostRow[];
+  /** Hosts beyond `REPORT_LIMITS.networkHosts` that got no row. */
+  networkHostsDropped: number;
+  analysis: CaptureAnalysis;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Small helpers
+
+function clip(text: string, max: number = REPORT_LIMITS.textLength): string {
+  const chars = [...text];
+  return chars.length <= max ? text : `${chars.slice(0, max - 1).join('')}…`;
+}
+
+function clipUrl(url: string): string {
+  return clip(url, REPORT_LIMITS.urlLength);
+}
+
+/** Finding ids allow lower-case letters, digits, dots and hyphens between colons. */
+function idPart(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9.-]+/g, '-').replace(/^-+|-+$/g, '') || 'x';
+}
+
+/** FNV-1a, 32 bits: a short, stable suffix that keeps shortened keys apart. */
+function fnv1a(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+const MAX_KEY = 100;
+
+/**
+ * The service key as the report and D1 store it: unchanged up to 100 characters; a longer one (an
+ * unknown third party on a very long registrable domain, which the page controls) keeps its start and
+ * gets a hash of the whole key, so it stays unique and within the schema's 120 characters.
+ */
+export function reportServiceKey(key: string): string {
+  return key.length <= MAX_KEY ? key : `${key.slice(0, MAX_KEY - 9)}-${fnv1a(key)}`;
+}
+
+/** `third-party:google-fonts`, `third-party:unknown:beispiel.example`; at most 112 characters. */
+function serviceFindingId(key: string): string {
+  return `third-party:${reportServiceKey(key).split(':').map(idPart).join(':')}`;
+}
+
+function ms(value: number): number {
+  return Math.max(0, Math.min(600_000, Math.round(value)));
+}
+
+const RISK_OF_CLASS: Record<RiskClass, FindingRisk | null> = {
+  precedent: 'high',
+  'consent-required': 'high',
+  'usually-consent': 'medium',
+  'grey-zone': null,
+  'not-flagged': null,
+};
+
+function finding(
+  base: Pick<Finding, 'id' | 'area' | 'kind' | 'textId'> & Partial<Omit<Finding, 'id' | 'area' | 'kind' | 'textId'>>,
+): Finding {
+  return {
+    risk: null,
+    params: {},
+    field: null,
+    serviceKey: null,
+    beforeConsent: false,
+    evidence: [],
+    fixTextId: null,
+    ...base,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Third-party services
+
+/** No request of the service got an answer: nothing is known to have reached it. */
+function unreached(service: DetectedService): boolean {
+  return !service.confirmed;
+}
+
+function consentOf(service: DetectedService): ReportService['consent'] {
+  if (service.severity === 'finding') return 'missing';
+  if (unreached(service) && service.riskClass !== 'not-flagged') return 'not-reached';
+  return service.severity === 'hint' ? 'grey-zone' : 'not-needed';
+}
+
+function serviceTextId(service: DetectedService): string {
+  if (service.severity === 'finding') return `third-party-${service.riskClass}`;
+  if (!service.known) return 'third-party-unknown';
+  if (service.riskClass === 'grey-zone') return 'third-party-grey-zone';
+  return 'third-party-unconfirmed';
+}
+
+function thirdPartyFindings(analysis: ThirdPartyAnalysis): Finding[] {
+  const out: Finding[] = [];
+  for (const service of analysis.services) {
+    if (service.severity === 'none') continue;
+    const kind: FindingKind = service.severity === 'finding' ? 'finding' : 'hint';
+    const evidence: Evidence[] = service.evidence.slice(0, REPORT_LIMITS.evidencePerFinding).map((e) => ({
+      type: 'request',
+      url: clipUrl(e.url),
+      startMs: ms(e.startMs),
+      status: e.status,
+      reachedServer: e.reachedServer,
+      beforeBanner: analysis.bannerVisibleAtMs === null ? null : e.startMs < analysis.bannerVisibleAtMs,
+      via: e.via === null ? (e.initiatorUrl === null ? null : clipUrl(e.initiatorUrl)) : clipUrl(e.via.url),
+    }));
+    out.push(
+      finding({
+        id: serviceFindingId(service.key),
+        area: 'privacy',
+        kind,
+        risk: kind === 'finding' ? RISK_OF_CLASS[service.riskClass] : null,
+        textId: serviceTextId(service),
+        params: {
+          service: clip(service.name, 120),
+          provider: service.provider === null ? null : clip(service.provider, 120),
+          category: service.category,
+          count: service.requestCount,
+          firstStartMs: ms(service.firstStartMs),
+          beforeBanner: service.startsBeforeBanner,
+        },
+        serviceKey: reportServiceKey(service.key),
+        // Only a request that got an answer certainly sent data to the third party (review of A5 part 2).
+        beforeConsent: service.confirmed,
+        evidence,
+        fixTextId: service.known && kind === 'finding' && service.serviceId !== null ? `fix-${idPart(service.serviceId)}` : null,
+      }),
+    );
+  }
+  return out;
+}
+
+function reportServices(analysis: ThirdPartyAnalysis, findingIds: ReadonlySet<string>): ReportService[] {
+  return analysis.services.slice(0, REPORT_LIMITS.services).map((service, index) => {
+    const id = serviceFindingId(service.key);
+    return {
+      position: index + 1,
+      key: reportServiceKey(service.key),
+      known: service.known,
+      name: clip(service.name, 120),
+      provider: service.provider === null ? null : clip(service.provider, 120),
+      category: service.category,
+      riskClass: service.riskClass,
+      dataLocation: service.dataLocation,
+      severity: service.severity,
+      consent: consentOf(service),
+      starts: 'before-consent',
+      requestCount: service.requestCount,
+      firstStartMs: ms(service.firstStartMs),
+      startsBeforeBanner: service.startsBeforeBanner,
+      hosts: service.hosts.slice(0, REPORT_LIMITS.hostsPerService).map((h) => clip(h, 253)),
+      sources: service.sources.slice(0, 20).map((s) => clip(s, 120)),
+      findingId: findingIds.has(id) ? id : null,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Timeline ("Zeitschnitt A–A") and the network rows
+
+const TIMELINE_WINDOW_MS = 3000;
+
+interface HostGroup {
+  host: string;
+  party: 'first' | 'third';
+  requests: CapturedRequest[];
+}
+
+function groupByHost(capture: Capture): HostGroup[] {
+  const own = firstPartySites(capture);
+  const groups = new Map<string, HostGroup>();
+  for (const request of [...capture.requests].sort((a, b) => a.startMs - b.startMs || a.seq - b.seq)) {
+    const host = hostOf(request.url);
+    if (host === null) continue;
+    const site = siteOfUrl(request.url);
+    const party = site !== null && own.has(site) ? 'first' : 'third';
+    const group = groups.get(host) ?? { host, party, requests: [] };
+    group.requests.push(request);
+    groups.set(host, group);
+  }
+  return [...groups.values()];
+}
+
+/** The first listed service (findings first) that names the host: a host can serve several services. */
+function serviceByHost(analysis: ThirdPartyAnalysis | null): Map<string, DetectedService> {
+  const map = new Map<string, DetectedService>();
+  for (const service of analysis?.services ?? []) for (const host of service.hosts) if (!map.has(host)) map.set(host, service);
+  return map;
+}
+
+function lastEnd(requests: readonly CapturedRequest[]): number | null {
+  let end = 0;
+  for (const r of requests) {
+    if (r.endMs === null) return null;
+    end = Math.max(end, r.endMs);
+  }
+  return ms(end);
+}
+
+/** The common first path part of the site's own files ("wp-content"), when most of them share it. */
+function commonFirstSegment(requests: readonly CapturedRequest[]): string | null {
+  const counts = new Map<string, number>();
+  for (const r of requests) {
+    try {
+      const segment = new URL(r.url).pathname.split('/')[1] ?? '';
+      if (segment !== '' && !segment.includes('.')) counts.set(segment, (counts.get(segment) ?? 0) + 1);
+    } catch {
+      // not a URL: skipped
+    }
+  }
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return top !== undefined && top[1] * 2 >= requests.length ? top[0] : null;
+}
+
+function buildTimeline(capture: Capture, analysis: ThirdPartyAnalysis): Timeline {
+  const bannerAt = capture.consentBanner.detected ? capture.consentBanner.visibleAtMs : null;
+  const inWindow = (r: CapturedRequest): boolean => r.startMs < TIMELINE_WINDOW_MS;
+  const before = (startMs: number): boolean | null => (bannerAt === null ? null : startMs < bannerAt);
+  const byHost = serviceByHost(analysis);
+  const mainHost = capture.finalUrl === null ? null : hostOf(capture.finalUrl);
+  const rows: { row: TimelineRow; rank: number }[] = [];
+
+  const ownRequests = groupByHost(capture)
+    .filter((g) => g.party === 'first')
+    .flatMap((g) => g.requests)
+    .filter(inWindow);
+  const documents = ownRequests.filter((r) => r.isMainFrame && r.isNavigation && r.resourceType === 'document');
+  const files = ownRequests.filter((r) => !documents.includes(r));
+  if (documents.length > 0) {
+    const first = documents[0] as CapturedRequest;
+    rows.push({
+      rank: 0,
+      row: { label: clip(hostOf(first.url) ?? mainHost ?? '', 300), party: 'own', kind: 'document', serviceKey: null, provider: null, startMs: ms(first.startMs), endMs: lastEnd(documents), requestCount: documents.length, beforeBanner: before(first.startMs) },
+    });
+  }
+  if (files.length > 0) {
+    const host = mainHost ?? hostOf((files[0] as CapturedRequest).url) ?? '';
+    const segment = commonFirstSegment(files);
+    const start = Math.min(...files.map((r) => r.startMs));
+    rows.push({
+      rank: 1,
+      row: { label: clip(segment === null ? host : `${host}/${segment}`, 300), party: 'own', kind: 'files', serviceKey: null, provider: null, startMs: ms(start), endMs: lastEnd(files), requestCount: files.length, beforeBanner: before(start) },
+    });
+  }
+  for (const group of groupByHost(capture)) {
+    if (group.party !== 'third') continue;
+    const requests = group.requests.filter(inWindow);
+    if (requests.length === 0) continue;
+    const service = byHost.get(group.host) ?? null;
+    const start = (requests[0] as CapturedRequest).startMs;
+    rows.push({
+      rank: service?.severity === 'finding' ? 2 : service?.severity === 'hint' ? 3 : 4,
+      row: {
+        label: clip(group.host, 300),
+        party: 'third',
+        kind: service?.category === 'consent' ? 'consent-tool' : 'service',
+        serviceKey: service === null ? null : reportServiceKey(service.key),
+        provider: service?.provider === null || service === null ? null : clip(service.provider, 120),
+        startMs: ms(start),
+        endMs: lastEnd(requests),
+        requestCount: requests.length,
+        beforeBanner: before(start),
+      },
+    });
+  }
+  const chosen = [...rows].sort((a, b) => a.rank - b.rank || a.row.startMs - b.row.startMs).slice(0, REPORT_LIMITS.timelineRows);
+  chosen.sort((a, b) => (a.rank === 0 ? -1 : b.rank === 0 ? 1 : a.row.startMs - b.row.startMs || a.rank - b.rank));
+  return {
+    windowMs: TIMELINE_WINDOW_MS,
+    bannerVisibleAtMs: bannerAt === null ? null : ms(bannerAt),
+    bannerToolId: capture.consentBanner.detected ? capture.consentBanner.toolId : null,
+    rows: chosen.map((c) => c.row),
+    rowsTruncated: rows.length > chosen.length,
+  };
+}
+
+function networkHosts(capture: Capture, analysis: ThirdPartyAnalysis | null): { rows: NetworkHostRow[]; dropped: number } {
+  const bannerAt = capture.consentBanner.detected ? capture.consentBanner.visibleAtMs : null;
+  const byHost = serviceByHost(analysis);
+  const all = groupByHost(capture).map((group): NetworkHostRow => {
+    const first = (group.requests[0] as CapturedRequest).startMs;
+    const service = group.party === 'third' ? (byHost.get(group.host) ?? null) : null;
+    return {
+      host: clip(group.host, 253),
+      party: group.party,
+      serviceKey: service === null ? null : reportServiceKey(service.key),
+      requestCount: group.requests.length,
+      firstStartMs: ms(first),
+      lastEndMs: lastEnd(group.requests),
+      beforeBanner: bannerAt === null ? null : first < bannerAt,
+    };
+  });
+  return { rows: all.slice(0, REPORT_LIMITS.networkHosts), dropped: Math.max(0, all.length - REPORT_LIMITS.networkHosts) };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Accessibility
+
+const A11Y_CHECK_NAMES: Record<A11yCheck['id'], string> = {
+  'color-contrast': 'color-contrast',
+  'image-alt': 'image-alt',
+  label: 'label',
+  'link-name': 'link-name',
+  'button-name': 'button-name',
+  'page-language': 'page-language',
+};
+
+function elementEvidence(examples: readonly AxeExample[]): Evidence[] {
+  return examples.slice(0, REPORT_LIMITS.evidencePerFinding).map((e) => ({
+    type: 'element',
+    target: e.target.slice(0, 10).map((t) => clip(t, 300)),
+    html: clip(e.html, REPORT_LIMITS.htmlLength),
+    ratio: e.contrast?.ratio != null && e.contrast.ratio >= 1 ? Math.min(21, e.contrast.ratio) : null,
+    expected: e.contrast?.expected == null ? null : clip(e.contrast.expected, 20),
+  }));
+}
+
+function accessibilityFindings(a11y: AccessibilityAnalysis): Finding[] {
+  if (a11y.status === 'not-checked') {
+    return [finding({ id: 'a11y:not-checked', area: 'accessibility', kind: 'not-checked', textId: 'a11y-not-checked', params: { reason: clip(a11y.reason ?? 'unknown', 300) } })];
+  }
+  const out: Finding[] = [];
+  for (const check of a11y.checks) {
+    const name = A11Y_CHECK_NAMES[check.id];
+    if (check.result === 'not-checked') {
+      out.push(finding({ id: `a11y:${name}`, area: 'accessibility', kind: 'not-checked', textId: 'a11y-check-not-checked', params: { check: name } }));
+      continue;
+    }
+    if (check.result === 'fail') {
+      const params: Record<string, TextParam> = { count: check.violations };
+      if (check.id === 'color-contrast' && a11y.lowestContrast?.result === 'fail') {
+        params.ratio = a11y.lowestContrast.ratio;
+        params.expected = a11y.lowestContrast.expected;
+      }
+      if (check.id === 'page-language') params.value = a11y.invalidLang === null ? null : clip(a11y.invalidLang, 100);
+      out.push(finding({ id: `a11y:${name}`, area: 'accessibility', kind: 'finding', risk: 'medium', textId: check.textId ?? `a11y-${name}`, params, evidence: elementEvidence(check.examples) }));
+    }
+    if (check.manual !== null) {
+      out.push(
+        finding({
+          id: check.result === 'fail' ? `a11y:${name}:manual` : `a11y:${name}`,
+          area: 'accessibility',
+          kind: 'manual',
+          textId: check.manual.textId,
+          params: { check: name, count: check.manual.count },
+          evidence: elementEvidence(check.manual.examples),
+        }),
+      );
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Security
+
+function securityFindings(security: SecurityAnalysis): Finding[] {
+  const out: Finding[] = [];
+  if (security.https.result === 'fail') out.push(finding({ id: 'security:https', area: 'security', kind: 'finding', risk: 'high', textId: security.https.textId }));
+  if (security.https.result === 'manual') out.push(finding({ id: 'security:https', area: 'security', kind: 'manual', textId: security.https.textId }));
+  const redirect = security.httpRedirect;
+  if (redirect.result === 'fail') out.push(finding({ id: 'security:http-redirect', area: 'security', kind: 'finding', risk: 'medium', textId: redirect.textId ?? 'security-http-no-redirect' }));
+  else if (redirect.result === 'manual') out.push(finding({ id: 'security:http-redirect', area: 'security', kind: 'manual', textId: redirect.textId ?? 'security-http-redirect-manual' }));
+  else if (redirect.result === 'info') out.push(finding({ id: 'security:http-redirect', area: 'security', kind: 'hint', textId: redirect.textId ?? 'security-http-unavailable' }));
+  else if (redirect.result === 'not-checked') out.push(finding({ id: 'security:http-redirect', area: 'security', kind: 'not-checked', textId: 'security-http-redirect-not-checked' }));
+  if (security.headersPresent < security.headersTotal) {
+    const open = security.headers.filter((h) => !h.counts);
+    const onlyManual = open.every((h) => h.status === 'manual');
+    out.push(
+      finding({
+        id: 'security:headers',
+        area: 'security',
+        kind: onlyManual ? 'manual' : 'finding',
+        risk: onlyManual ? null : 'low',
+        textId: 'security-headers',
+        params: { present: security.headersPresent, total: security.headersTotal },
+        evidence: open.slice(0, REPORT_LIMITS.evidencePerFinding).map((h) => ({ type: 'header', name: h.header, status: h.status, value: h.value === null ? null : clip(h.value, 300) })),
+      }),
+    );
+  }
+  return out;
+}
+
+function reportSecurity(security: SecurityAnalysis): ReportSecurity {
+  return {
+    https: security.https.result,
+    httpRedirect: security.httpRedirect.result,
+    headers: security.headers.map((h) => ({ key: h.key, header: h.header, status: h.status, counts: h.counts, value: h.value === null ? null : clip(h.value, 300), textId: h.textId })),
+    headersPresent: security.headersPresent,
+    headersTotal: security.headersTotal,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Mandatory information
+
+const FIELD_IDS = ['address', 'email', 'handelsregister', 'ustId'] as const;
+
+function fieldState(field: FieldResult<unknown>): FieldState {
+  return field.status === 'found' ? { status: 'found', quote: clip(field.quote, 300) } : { status: 'not-found', reason: field.reason };
+}
+
+function isShop(analysis: CaptureAnalysis): boolean | null {
+  const platform = analysis.platform;
+  if (platform === null) return null;
+  if (platform.system === 'shopify' || platform.system === 'shopware') return true;
+  if (platform.system === 'wordpress' && platform.woocommerce) return true;
+  return null;
+}
+
+function legalFindings(legal: LegalAnalysis, shop: boolean | null): Finding[] {
+  if (!legal.homepageRead) return [finding({ id: 'legal:not-checked', area: 'mandatory-information', kind: 'not-checked', textId: 'legal-not-checked' })];
+  const out: Finding[] = [];
+  const impressumTexts: Record<Exclude<LegalAnalysis['impressum']['state'], 'analyzed'>, { kind: FindingKind; textId: string; risk: FindingRisk | null }> = {
+    'no-link': { kind: 'manual', textId: 'legal-impressum-no-link', risk: 'high' },
+    'same-page': { kind: 'manual', textId: 'legal-impressum-same-page', risk: null },
+    pdf: { kind: 'manual', textId: 'legal-impressum-pdf', risk: null },
+    failed: { kind: 'manual', textId: 'legal-impressum-failed', risk: null },
+    'not-captured': { kind: 'not-checked', textId: 'legal-impressum-not-checked', risk: null },
+  };
+  const state = legal.impressum.state;
+  if (state !== 'analyzed') {
+    const t = impressumTexts[state];
+    out.push(finding({ id: 'legal:impressum', area: 'mandatory-information', kind: t.kind, risk: t.risk, textId: t.textId }));
+  } else {
+    for (const id of FIELD_IDS) {
+      const field = legal.fields[id];
+      if (field.status === 'not-found') out.push(finding({ id: `legal:field:${id.toLowerCase()}`, area: 'mandatory-information', kind: 'manual', textId: 'legal-field-not-found', params: { field: id } }));
+    }
+  }
+  if (legal.links.datenschutz === null) out.push(finding({ id: 'legal:datenschutz', area: 'mandatory-information', kind: 'manual', textId: 'legal-datenschutz-no-link' }));
+  const statement = legal.accessibilityStatement;
+  if (statement !== null && !statement.certain) {
+    out.push(finding({ id: 'legal:accessibility-statement', area: 'mandatory-information', kind: 'manual', textId: 'legal-accessibility-statement-uncertain', params: { page: statement.page } }));
+  } else if (statement === null && shop === true) {
+    out.push(finding({ id: 'legal:accessibility-statement', area: 'mandatory-information', kind: 'manual', textId: 'legal-accessibility-statement-not-found' }));
+  }
+  return out;
+}
+
+function reportLegal(legal: LegalAnalysis): ReportLegal {
+  const link = (l: { href: string; text: string } | null): { href: string; text: string } | null => (l === null ? null : { href: clipUrl(l.href), text: clip(l.text, 300) });
+  const statement = legal.accessibilityStatement;
+  return {
+    impressumLink: link(legal.links.impressum),
+    datenschutzLink: link(legal.links.datenschutz),
+    accessibilityStatement: statement === null ? null : { href: clipUrl(statement.href), text: clip(statement.text, 300), certain: statement.certain, page: statement.page },
+    impressum: { state: legal.impressum.state, url: legal.impressum.url === null ? null : clipUrl(legal.impressum.url), crossSite: legal.impressum.crossSite },
+    fields: {
+      address: fieldState(legal.fields.address),
+      email: fieldState(legal.fields.email),
+      handelsregister: fieldState(legal.fields.handelsregister),
+      ustId: fieldState(legal.fields.ustId),
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Measures ("Prüfmaße")
+
+function a11yResult(a11y: AccessibilityAnalysis | null, id: A11yCheck['id']): Measure['result'] {
+  if (a11y === null || a11y.status === 'not-checked') return 'not-checked';
+  const check = a11y.checks.find((c) => c.id === id);
+  if (check === undefined || check.result === 'not-checked') return 'not-checked';
+  return check.result;
+}
+
+function buildMeasures(analysis: CaptureAnalysis, sections: Record<SectionId, SectionStatus>): Measure[] {
+  const tp = sections.thirdParty.status === 'checked' ? analysis.thirdParty : null;
+  const a11y = sections.accessibility.status === 'checked' ? analysis.accessibility : null;
+  const legal = sections.legal.status === 'checked' ? analysis.legal : null;
+  const security = sections.security.status === 'checked' ? analysis.security : null;
+  const measures: Measure[] = [];
+
+  const findings = tp === null ? null : tp.services.filter((s) => s.severity === 'finding').length;
+  measures.push({ id: 'third-party-before-consent', result: findings === null ? 'not-checked' : findings > 0 ? 'fail' : 'pass', target: { type: 'count', count: 0 }, actual: findings === null ? null : { type: 'count', count: findings } });
+
+  if (legal === null || !legal.homepageRead || legal.impressum.state === 'not-captured') {
+    measures.push({ id: 'impressum-fields', result: 'not-checked', target: { type: 'of', count: 4, total: 4 }, actual: null });
+  } else if (legal.impressum.state !== 'analyzed') {
+    measures.push({ id: 'impressum-fields', result: 'manual', target: { type: 'of', count: 4, total: 4 }, actual: null });
+  } else {
+    const found = FIELD_IDS.filter((id) => legal.fields[id].status === 'found').length;
+    measures.push({ id: 'impressum-fields', result: found === 4 ? 'pass' : 'manual', target: { type: 'of', count: 4, total: 4 }, actual: { type: 'of', count: found, total: 4 } });
+  }
+
+  const contrast = a11yResult(a11y, 'color-contrast');
+  const lowest = a11y?.lowestContrast ?? null;
+  measures.push({
+    id: 'lowest-contrast',
+    result: contrast,
+    target: { type: 'ratio', ratio: 4.5, expected: '4.5:1' },
+    actual: contrast === 'not-checked' || lowest === null || lowest.ratio === null || lowest.ratio < 1 ? null : { type: 'ratio', ratio: Math.min(21, lowest.ratio), expected: lowest.expected },
+  });
+
+  const images = a11yResult(a11y, 'image-alt');
+  measures.push({ id: 'images-described', result: images, target: { type: 'all' }, actual: images === 'not-checked' || a11y?.images == null ? null : { type: 'of', count: a11y.images.withDescription, total: a11y.images.total } });
+
+  if (legal === null || !legal.homepageRead) {
+    measures.push({ id: 'accessibility-statement', result: 'not-checked', target: { type: 'state', state: 'present' }, actual: null });
+  } else {
+    const statement = legal.accessibilityStatement;
+    const state = statement === null ? 'not-found' : statement.certain ? 'found' : 'uncertain';
+    // Unsure means manual check: a statement the scan did not find is never "fehlt" (product rule 3).
+    measures.push({ id: 'accessibility-statement', result: state === 'found' ? 'pass' : 'manual', target: { type: 'state', state: 'present' }, actual: { type: 'state', state } });
+  }
+
+  if (security === null) {
+    measures.push({ id: 'https', result: 'not-checked', target: { type: 'state', state: 'https' }, actual: null });
+    measures.push({ id: 'security-headers', result: 'not-checked', target: { type: 'of', count: 5, total: 5 }, actual: null });
+  } else {
+    const https = security.https.result;
+    measures.push({ id: 'https', result: https, target: { type: 'state', state: 'https' }, actual: { type: 'state', state: https === 'pass' ? 'https' : https === 'fail' ? 'http' : 'unknown' } });
+    const present = security.headersPresent;
+    const total = security.headersTotal;
+    measures.push({ id: 'security-headers', result: present === total ? 'pass' : present === 0 ? 'fail' : 'partial', target: { type: 'of', count: total, total }, actual: { type: 'of', count: present, total } });
+  }
+  return measures;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Ordering
+
+const KIND_RANK: Record<FindingKind, number> = { finding: 0, manual: 1, hint: 2, 'not-checked': 3 };
+const RISK_RANK: Record<FindingRisk, number> = { high: 0, medium: 1, low: 2 };
+const AREA_RANK: Record<FindingArea, number> = { privacy: 0, 'mandatory-information': 1, accessibility: 2, security: 3 };
+
+function sortFindings(findings: Finding[]): Finding[] {
+  return findings
+    .map((f, index) => ({ f, index }))
+    .sort(
+      (a, b) =>
+        KIND_RANK[a.f.kind] - KIND_RANK[b.f.kind] ||
+        (a.f.risk === null ? 3 : RISK_RANK[a.f.risk]) - (b.f.risk === null ? 3 : RISK_RANK[b.f.risk]) ||
+        AREA_RANK[a.f.area] - AREA_RANK[b.f.area] ||
+        a.index - b.index,
+    )
+    .map((x) => x.f);
+}
+
+// ---------------------------------------------------------------------------------------------
+// The report
+
+function stateOf(analysis: CaptureAnalysis, mode: 'full' | 'quick'): ReportState {
+  if (analysis.state === 'blocked') return 'blocked';
+  if (analysis.state === 'failed') return analysis.failure?.reason === 'not-allowed' ? 'not-allowed' : 'failed';
+  return mode === 'quick' ? 'quick' : 'complete';
+}
+
+function rejectionOf(message: string): string | null {
+  const match = /^not allowed: ([a-z-]+)/.exec(message);
+  return match?.[1] ?? null;
+}
+
+function noticeOf(state: ReportState, analysis: CaptureAnalysis): Report['notice'] {
+  switch (state) {
+    case 'complete':
+      return null;
+    case 'quick':
+      return { textId: 'report-quick-incomplete', params: {} };
+    case 'blocked':
+      return { textId: 'report-blocked', params: { status: analysis.failure?.status ?? null } };
+    case 'not-allowed':
+      return { textId: 'report-not-allowed', params: { rejection: rejectionOf(analysis.failure?.message ?? '') } };
+    case 'failed':
+      return { textId: 'report-failed', params: { reason: analysis.failure?.reason ?? 'other', status: analysis.failure?.status ?? null } };
+  }
+}
+
+function sectionsOf(state: ReportState, analysis: CaptureAnalysis): Record<SectionId, SectionStatus> {
+  const checked: SectionStatus = { status: 'checked', reason: null };
+  if (state === 'blocked' || state === 'not-allowed' || state === 'failed') {
+    const off: SectionStatus = { status: 'not-checked', reason: 'page-not-loaded' };
+    return { thirdParty: off, accessibility: off, security: off, legal: off, platform: off };
+  }
+  const quick: SectionStatus = { status: 'not-checked', reason: 'quick-check' };
+  const a11y = analysis.accessibility;
+  return {
+    thirdParty: state === 'quick' ? quick : checked,
+    accessibility: state === 'quick' ? quick : a11y === null || a11y.status === 'not-checked' ? { status: 'not-checked', reason: clip(a11y?.reason ?? 'no accessibility data', 300) } : checked,
+    security: checked,
+    // A loaded page whose text and links could not be read: no link counts as missing (review of A5 part 2).
+    legal: analysis.legal !== null && !analysis.legal.homepageRead ? { status: 'not-checked', reason: 'page-not-read' } : checked,
+    platform: checked,
+  };
+}
+
+function countryOf(value: string | null | undefined): string | null {
+  return value !== null && value !== undefined && /^[A-Z]{2}$/.test(value) ? value : null;
+}
+
+function coloOf(value: string | null | undefined): string | null {
+  return value !== null && value !== undefined && /^[A-Z]{3}$/.test(value) ? value : null;
+}
+
+export function buildReport(options: BuildReportOptions): BuiltReport {
+  const { capture } = options;
+  const analysis = analyzeCapture(capture, options.rules);
+  const state = stateOf(analysis, options.mode);
+  const sections = sectionsOf(state, analysis);
+  const loaded = state === 'complete' || state === 'quick';
+  const host = new URL(options.siteUrl).hostname;
+  const shop = loaded ? isShop(analysis) : null;
+
+  const tp = sections.thirdParty.status === 'checked' ? analysis.thirdParty : null;
+  const all: Finding[] = [];
+  if (tp !== null) all.push(...thirdPartyFindings(tp));
+  if (loaded && sections.legal.status === 'checked' && analysis.legal !== null) all.push(...legalFindings(analysis.legal, shop));
+  if (loaded && analysis.accessibility !== null) {
+    if (sections.accessibility.status === 'checked' || sections.accessibility.reason !== 'quick-check') all.push(...accessibilityFindings(analysis.accessibility));
+  }
+  if (loaded && sections.security.status === 'checked' && analysis.security !== null) all.push(...securityFindings(analysis.security));
+  const sorted = sortFindings(all);
+  const findings = sorted.slice(0, REPORT_LIMITS.findings);
+  const findingIds = new Set(findings.map((f) => f.id));
+  const priorities = findings.filter((f) => f.risk !== null && (f.kind === 'finding' || f.kind === 'manual')).slice(0, 3).map((f) => f.id);
+  const services = tp === null ? [] : reportServices(tp, findingIds);
+  const impressum = capture.impressum ?? null;
+  const durationMs = loaded ? Math.max(capture.timings.endMs, impressum === null ? 0 : impressum.timings.openedAtMs + impressum.timings.totalMs) : null;
+  const network = loaded ? networkHosts(capture, tp) : { rows: [], dropped: 0 };
+  const platform = loaded && analysis.platform !== null ? analysis.platform : null;
+
+  const report: Report = {
+    schemaVersion: REPORT_SCHEMA_VERSION,
+    id: options.id,
+    createdAt: options.createdAt,
+    state,
+    site: { url: options.siteUrl, host, displayHost: displayHostOf(host), finalUrl: loaded && capture.finalUrl !== null ? clipUrl(capture.finalUrl) : null },
+    scan: {
+      mode: options.mode,
+      scannedAt: capture.startedAt,
+      durationMs: durationMs === null ? null : ms(durationMs),
+      scannerVersion: options.scannerVersion,
+      rulesUpdated: options.rulesUpdated,
+      axeVersion: capture.axe?.axeVersion ?? null,
+    },
+    visit: {
+      country: countryOf((options.visit ?? capture.visit)?.country),
+      colo: coloOf((options.visit ?? capture.visit)?.colo),
+      adapter: capture.adapter,
+      browser: options.mode === 'quick' ? null : clip(capture.environment.browser, 80),
+      locale: capture.environment.locale,
+      timezone: capture.environment.timezoneId,
+      viewport: capture.environment.viewport,
+    },
+    notice: noticeOf(state, analysis),
+    failure: analysis.failure === null ? null : { reason: analysis.failure.reason, status: analysis.failure.status ?? null },
+    pages: { homepage: loaded ? 'checked' : 'not-checked', impressum: loaded && analysis.legal?.impressum.state === 'analyzed' ? 'checked' : 'not-checked' },
+    revision: { letter: 'A', kind: 'initial' },
+    sections,
+    platform: platform === null ? null : { system: platform.system, woocommerce: platform.woocommerce, shopwareVersion: platform.shopwareVersion, shop },
+    measures: loaded ? buildMeasures(analysis, sections) : [],
+    findings,
+    priorities,
+    services,
+    timeline: tp === null ? null : buildTimeline(capture, tp),
+    legal: loaded && sections.legal.status === 'checked' && analysis.legal !== null ? reportLegal(analysis.legal) : null,
+    security: loaded && analysis.security !== null ? reportSecurity(analysis.security) : null,
+    counts: {
+      findings: all.filter((f) => f.kind === 'finding').length,
+      manual: all.filter((f) => f.kind === 'manual').length,
+      hints: all.filter((f) => f.kind === 'hint').length,
+      notChecked: all.filter((f) => f.kind === 'not-checked').length,
+      services: tp === null ? 0 : tp.services.length,
+    },
+  };
+  const size = JSON.stringify(report).length;
+  if (size > REPORT_LIMITS.maxReportChars) throw new Error(`report of ${size} characters exceeds the limit of ${REPORT_LIMITS.maxReportChars}`);
+  return { report, networkHosts: network.rows, networkHostsDropped: network.dropped, analysis };
+}

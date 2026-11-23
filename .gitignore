@@ -9,6 +9,8 @@ dist/
 .wrangler/
 .dev.vars
 .dev.vars.*
+# Lab configs with the ids of lab resources (session A5 part 3)
+/worker/*.local.jsonc
 
 # Environment files and secrets
 .env*

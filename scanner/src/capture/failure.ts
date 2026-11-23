@@ -1,4 +1,4 @@
-import type { Capture, CaptureFailure, CaptureFailureReason } from './types.ts';
+import { CAPTURE_SCHEMA_VERSION, type Capture, type CaptureFailure, type CaptureFailureReason } from './types.ts';
 
 /**
  * Classification of capture failures, shared by all capture adapters.
@@ -129,4 +129,28 @@ export function recheckCapture(capture: Capture): Capture {
   const { status, headers } = capture.mainDocument;
   const failure = classifyMainDocument(status, headers, capture.page?.title ?? '', pageEvidenceOf(capture.page, capture.requests.length));
   return failure === null ? capture : { ...capture, ok: false, failure };
+}
+
+/**
+ * Session A5: the capture of an address the SSRF guard refused before the browser opened it. No
+ * page was loaded and no request was sent; the message says which rule refused it.
+ */
+export function notAllowedCapture(adapter: Capture['adapter'], environment: Capture['environment'], requestedUrl: string, message: string, strategy?: Capture['strategy']): Capture {
+  return {
+    schemaVersion: CAPTURE_SCHEMA_VERSION,
+    adapter,
+    ...(strategy !== undefined ? { strategy } : {}),
+    environment,
+    requestedUrl,
+    startedAt: new Date().toISOString(),
+    ok: false,
+    failure: { reason: 'not-allowed', message },
+    finalUrl: null,
+    mainDocument: null,
+    requests: [],
+    page: null,
+    consentBanner: { detected: false, toolId: null, method: null, selector: null, visibleAtMs: null, toolsInDom: [] },
+    axe: null,
+    timings: { domContentLoadedMs: null, loadMs: null, networkQuietMs: null, endMs: 0, stopReason: 'error' },
+  };
 }

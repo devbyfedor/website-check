@@ -6,11 +6,18 @@ import {
   axeNotRun,
   buildBannerProbeScript,
   CAPTURE_SCHEMA_VERSION,
+  checkReadDocument,
+  describeRejection,
   httpVariantOf,
+  installNavigationGuard,
+  installPopupGuard,
+  navigationBlockMessage,
+  notAllowedCapture,
   probeHttpRedirect,
   type AxeCapture,
   type HttpProbe,
   CAPTURE_SETTINGS,
+  chooseImpressumTarget,
   chromeVersionOf,
   LONG_LIVED_RESOURCE_TYPES,
   SNAPSHOT_EXPRESSION,
@@ -36,6 +43,8 @@ import {
   type CloudSettings,
 } from './common.ts';
 import { applyEmulation, frameEmulation, sendAll, userAgentMetadataOf, viewportEmulation, VISITOR_PLATFORM } from './emulation.ts';
+import { measureFieldPositions } from './field-positions.ts';
+import { captureImpressumTabCdp } from './impressum.ts';
 
 /**
  * Strategy (a): request events through the browser protocol.
@@ -84,6 +93,11 @@ function frameUrlsOf(frame: Frame, main: Frame): string[] {
  */
 export async function prepareVisitorPage(page: Page, client: CDPSession, userAgent: string): Promise<string[]> {
   const failed: string[] = [];
+  // alert(), confirm() and prompt() are dismissed at once, as Playwright does by default in the local adapter;
+  // an open dialog would freeze the page until the hard limit (review of A5 part 3). Dismissing is no consent.
+  page.on('dialog', (dialog) => {
+    void dialog.dismiss().catch(() => undefined);
+  });
   const childCommands = frameEmulation(userAgent);
   const emulateChild = (session: CDPSession): void => {
     session.on(CDPSessionEvent.SessionAttached, emulateChild);
@@ -132,6 +146,13 @@ export async function runAxeOverCdp(client: CDPSession, axeSource: string, budge
 export async function captureWithCdpEvents(browser: Browser, url: string, options: CloudCaptureOptions = {}): Promise<CloudCaptureResult> {
   const settings = resolveSettings(options);
   const startedWall = Date.now();
+  // SSRF protection: the address is checked before the browser opens anything.
+  const verdict = await settings.guard.check(url);
+  if (!verdict.allowed) {
+    const environment = cloudEnvironment(chromeVersionOf(await browser.version()));
+    const capture = notAllowedCapture('cloudflare-browser-run', environment, url, describeRejection(verdict), 'cdp-events');
+    return { capture, stats: { events: 0, polls: 0, emulationFailed: [], wallMs: Date.now() - startedWall } };
+  }
   // The redirect check needs no browser: it runs with fetch while the page loads.
   const httpUrl = settings.httpProbe ? httpVariantOf(url) : null;
   const probe: Promise<HttpProbe | null> | null =
@@ -140,8 +161,16 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
       : probeHttpRedirect(httpUrl, {
           userAgent: cloudEnvironment(chromeVersionOf(await browser.version())).userAgent,
           acceptLanguage: CAPTURE_SETTINGS.acceptLanguage,
-          ...(settings.isProbeTargetAllowed !== null ? { isAllowed: settings.isProbeTargetAllowed } : {}),
+          guard: settings.guard,
         }).catch(() => null);
+  // Windows the page opens itself never load (A5 review); the scanner's own pages are added below. A browser
+  // shared by parallel scans has ONE popup guard with one set of own pages (A5 part 3): a guard per scan
+  // would fail the main document of the other scan's tab as a foreign window.
+  const shared = options.popupGuard ?? null;
+  const browserSession = shared === null ? await browser.target().createCDPSession() : null;
+  const ownTargets = shared?.ownTargets ?? new Set<string>();
+  const popups = shared?.state ?? (await installPopupGuard(browserSession as NonNullable<typeof browserSession>, ownTargets));
+  const popupsBefore = popups.blocked.length;
   const context = await browser.createBrowserContext();
   let hardLimitHit = false;
   const hardTimer = setTimeout(() => {
@@ -149,8 +178,31 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
     void context.close().catch(() => undefined);
   }, settings.hardLimitMs);
   try {
-    const result = await runCapture(browser, context, url, settings, () => hardLimitHit, startedWall);
+    const { page, ...result } = await runCapture(browser, context, url, settings, () => hardLimitHit, startedWall, ownTargets);
+    // The homepage is done: its hard limit no longer applies (the Impressum tab has its own), and its tab is
+    // closed before the Impressum opens, so its late requests cost no more events (session A5 part 3).
+    clearTimeout(hardTimer);
+    await page.close().catch(() => undefined);
+    result.stats.homepageMs = Date.now() - startedWall;
+    const capture = result.capture;
+    if (settings.impressum && !hardLimitHit && capture.ok && capture.page !== null) {
+      const target = chooseImpressumTarget(capture.page.links, capture.page.url ?? capture.finalUrl);
+      if (target.action === 'open') {
+        capture.impressum = await captureImpressumTabCdp(context, target.url, {
+          guard: settings.guard,
+          ownTargets,
+          userAgent: capture.environment.userAgent,
+          homepageStartedAt: Date.parse(capture.startedAt),
+        });
+        result.stats.impressumMs = capture.impressum.timings.totalMs;
+      } else {
+        capture.impressum = null;
+      }
+    }
+    if (settings.visit !== null) capture.visit = settings.visit;
     result.stats.wallMs = Date.now() - startedWall;
+    // With parallel scans in one browser this counts the windows refused during this scan, of any tab.
+    result.stats.popupsBlocked = popups.blocked.length - popupsBefore;
     if (probe !== null) {
       const waitStarted = Date.now();
       result.capture.httpProbe = await probe;
@@ -160,6 +212,7 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
   } finally {
     clearTimeout(hardTimer);
     await context.close().catch(() => undefined);
+    await browserSession?.detach().catch(() => undefined);
   }
 }
 
@@ -170,12 +223,18 @@ async function runCapture(
   settings: CloudSettings,
   hardLimitHit: () => boolean,
   contextStarted: number,
-): Promise<CloudCaptureResult> {
+  ownTargets: Set<string>,
+): Promise<CloudCaptureResult & { page: Page }> {
   const environment = cloudEnvironment(chromeVersionOf(await browser.version()));
   const page = await context.newPage();
   const client = await clientOf(page);
+  const own = (await client.send('Target.getTargetInfo')) as { targetInfo: { targetId: string } };
+  ownTargets.add(own.targetInfo.targetId);
   const emulationFailed = await prepareVisitorPage(page, client, environment.userAgent);
   await page.evaluateOnNewDocument(buildBannerProbeScript(settings.tools));
+  // Every document request of the main frame waits for the SSRF guard (redirects and later
+  // navigations included), on a session of its own so Puppeteer's network handling is untouched.
+  const navigation = await installNavigationGuard(await page.createCDPSession(), settings.guard);
   const mainFrame = page.mainFrame();
 
   let t0 = Date.now();
@@ -335,13 +394,14 @@ async function runCapture(
     )
       .then((response) => response.result.value ?? null)
       .catch(() => null);
+    // The data must come from a document the guard allows (second line of defence).
+    if (snapshot !== null && !(await checkReadDocument(navigation, settings.guard, snapshot.url ?? page.url()))) snapshot = null;
   }
-  const failure = failureOf(
-    navigationError,
-    mainResponse === null ? null : { status: mainResponse.status(), headers },
-    snapshot,
-    records.length,
-  );
+  const refused = navigation.blocked[0];
+  const failure =
+    refused !== undefined
+      ? { reason: 'not-allowed' as const, message: navigationBlockMessage(refused) }
+      : failureOf(navigationError, mainResponse === null ? null : { status: mainResponse.status(), headers }, snapshot, records.length);
   // axe only on a page that was captured: an error page, a check page or a timeout costs no browser time.
   let axe: AxeCapture | null = null;
   if (settings.axeSource !== null) {
@@ -351,6 +411,8 @@ async function runCapture(
     else if (budget === 0) axe = axeNotRun('skipped', 'no time left before the hard limit of the page');
     else axe = await runAxeOverCdp(client, settings.axeSource, budget);
   }
+  // Lab only: the cost of reading element positions for "Feld B2" (not part of the capture).
+  const fieldPositions = settings.measureFieldPositions && failure === null && snapshot !== null && !hardLimitHit() && !crashed && !page.isClosed() ? await measureFieldPositions(client, axe, settings.hardLimitMs - (Date.now() - contextStarted) - 1_000) : undefined;
   const endMs = rel();
 
   const finalUrl = mainResponse?.url() ?? null;
@@ -379,13 +441,14 @@ async function runCapture(
     failure,
     finalUrl,
     mainDocument: mainResponse === null ? null : { status: mainResponse.status(), headers, redirectChain },
-    requests: records,
+    // A copy: the tab may still report late requests until the caller closes it.
+    requests: records.map((r) => ({ ...r, frameUrls: [...r.frameUrls], initiator: r.initiator === null ? null : { ...r.initiator } })),
     page: pageSnapshotOf(snapshot),
     consentBanner: bannerObservation(snapshot, toCaptureMs),
     axe,
     timings: { domContentLoadedMs, loadMs, networkQuietMs, endMs, stopReason },
   };
-  return { capture, stats: { events, polls: 0, emulationFailed, wallMs: 0 } };
+  return { page, capture, stats: { events, polls: 0, emulationFailed, wallMs: 0, ...(fieldPositions !== undefined ? { fieldPositions } : {}) } };
 }
 
 function lowerCase(headers: Record<string, string>): Record<string, string> {

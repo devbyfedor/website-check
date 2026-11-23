@@ -6,6 +6,7 @@ import { DEFAULT_RULES } from '../data.ts';
 import { compareCaptures, type CaptureComparison } from './compare-captures.ts';
 import { AXE_RULES } from '../a11y/types.ts';
 import { a11yFixtureExpectations, startLabFixture, type LabFixture, type RecordedRequest } from './lab-fixture.ts';
+import { createLocalGuard } from './node-resolver.ts';
 import { captureWithPlaywright, launchLocalBrowser } from './playwright-capture.ts';
 import { parseSitesFile } from './sites-file.ts';
 
@@ -271,7 +272,9 @@ async function main(): Promise<void> {
   try {
     for (const target of targets) {
       const before = fixture?.recorded.length ?? 0;
-      const { capture: local } = await captureWithPlaywright(browser, target.url);
+      // A5: in fixture mode only the fixture site's own origin is exempt from the SSRF guard (as in `npm run lab:dev`).
+      const guard = fixture !== null ? createLocalGuard({ exempt: (url) => url.origin === `http://127.0.0.1:${fixture?.port}` }) : undefined;
+      const { capture: local } = await captureWithPlaywright(browser, target.url, guard !== undefined ? { guard } : {});
       if (fixture !== null) headerLog[`local-${target.number}`] = fixture.recorded.slice(before);
       await save(`local-site-${target.number}.json`, local);
       for (const strategy of strategies) {

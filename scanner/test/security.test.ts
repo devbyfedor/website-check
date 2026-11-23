@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { analyzeSecurity, checkCsp, checkHsts, checkPermissionsPolicy, checkReferrerPolicy, checkXcto } from '../src/analyzers/security.ts';
-import { httpVariantOf, isDefaultProbeTarget, probeHttpRedirect } from '../src/security/http-probe.ts';
+import { httpVariantOf, probeHttpRedirect, type HttpProbeOptions } from '../src/security/http-probe.ts';
+import { createUrlGuard } from '../src/security/ssrf.ts';
 import type { HttpProbe } from '../src/security/types.ts';
 import { makeCapture } from './helpers.ts';
 
@@ -153,12 +154,16 @@ function fakeFetch(answers: Record<string, { status: number; location?: string }
 }
 
 describe('probeHttpRedirect', () => {
+  // Every name resolves to a public address unless a test says otherwise; no DNS is used.
+  const publicGuard = (addresses: Record<string, string[]> = {}) => createUrlGuard({ resolve: async (host) => addresses[host] ?? ['93.184.215.14'] });
+  const probe = (url: string, options: HttpProbeOptions = {}) => probeHttpRedirect(url, { guard: publicGuard(), ...options });
+
   it('follows http redirects by hand and stops at the first https address without requesting it', async () => {
     const f = fakeFetch({
       'http://example.de/': { status: 301, location: 'http://www.example.de/' },
       'http://www.example.de/': { status: 308, location: 'https://www.example.de/' },
     });
-    const result = await probeHttpRedirect('http://example.de/', { fetch: f.fetch, userAgent: 'UA', acceptLanguage: 'de-DE' });
+    const result = await probe('http://example.de/', { fetch: f.fetch, userAgent: 'UA', acceptLanguage: 'de-DE' });
     expect(result.outcome).toBe('redirects-to-https');
     expect(result.httpsTarget).toBe('https://www.example.de/');
     expect(result.hops.map((h) => [h.url, h.status, h.location])).toEqual([
@@ -173,54 +178,71 @@ describe('probeHttpRedirect', () => {
 
   it('resolves a relative Location', async () => {
     const f = fakeFetch({ 'http://www.example.de/': { status: 302, location: '/start' }, 'http://www.example.de/start': { status: 301, location: 'https://www.example.de/start' } });
-    expect((await probeHttpRedirect('http://www.example.de/', { fetch: f.fetch })).outcome).toBe('redirects-to-https');
+    expect((await probe('http://www.example.de/', { fetch: f.fetch })).outcome).toBe('redirects-to-https');
   });
 
   it('a 2xx answer on http is no redirect; 4xx or 5xx is an error page', async () => {
-    expect((await probeHttpRedirect('http://www.example.de/', { fetch: fakeFetch({ 'http://www.example.de/': { status: 200 } }).fetch })).outcome).toBe('no-redirect');
-    expect((await probeHttpRedirect('http://www.example.de/', { fetch: fakeFetch({ 'http://www.example.de/': { status: 403 } }).fetch })).outcome).toBe('http-error');
+    expect((await probe('http://www.example.de/', { fetch: fakeFetch({ 'http://www.example.de/': { status: 200 } }).fetch })).outcome).toBe('no-redirect');
+    expect((await probe('http://www.example.de/', { fetch: fakeFetch({ 'http://www.example.de/': { status: 403 } }).fetch })).outcome).toBe('http-error');
   });
 
   it('no connection at all is unavailable; a timeout is a timeout', async () => {
-    const refused = await probeHttpRedirect('http://www.example.de/', { fetch: fakeFetch({ 'http://www.example.de/': new TypeError('fetch failed') }).fetch });
+    const refused = await probe('http://www.example.de/', { fetch: fakeFetch({ 'http://www.example.de/': new TypeError('fetch failed') }).fetch });
     expect(refused.outcome).toBe('unavailable');
     expect(refused.hops[0]?.error).toContain('fetch failed');
     const slow = Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
-    expect((await probeHttpRedirect('http://www.example.de/', { fetch: fakeFetch({ 'http://www.example.de/': slow }).fetch })).outcome).toBe('timeout');
+    expect((await probe('http://www.example.de/', { fetch: fakeFetch({ 'http://www.example.de/': slow }).fetch })).outcome).toBe('timeout');
   });
 
   it('stops after the allowed number of redirects', async () => {
     const answers: Record<string, { status: number; location: string }> = {};
     for (let i = 0; i < 10; i += 1) answers[`http://www.example.de/${i}`] = { status: 302, location: `/${i + 1}` };
     const f = fakeFetch(answers);
-    const result = await probeHttpRedirect('http://www.example.de/0', { fetch: f.fetch, maxRedirects: 5 });
+    const result = await probe('http://www.example.de/0', { fetch: f.fetch, maxRedirects: 5 });
     expect(result.outcome).toBe('too-many-redirects');
     expect(f.calls).toHaveLength(6);
   });
 
   it('never opens an address that is not allowed, and stops on a redirect without Location', async () => {
     const f = fakeFetch({ 'http://www.example.de/': { status: 301, location: 'http://www.example.de:8080/' } });
-    expect((await probeHttpRedirect('http://www.example.de/', { fetch: f.fetch })).outcome).toBe('stopped');
+    expect((await probe('http://www.example.de/', { fetch: f.fetch })).outcome).toBe('stopped');
     expect(f.calls).toHaveLength(1);
     const none = fakeFetch({ 'http://www.example.de/': { status: 302 } });
-    expect((await probeHttpRedirect('http://www.example.de/', { fetch: none.fetch })).outcome).toBe('stopped');
+    expect((await probe('http://www.example.de/', { fetch: none.fetch })).outcome).toBe('stopped');
     const nothing = fakeFetch({});
-    expect((await probeHttpRedirect('http://user:pw@www.example.de/', { fetch: nothing.fetch })).outcome).toBe('stopped');
-    expect((await probeHttpRedirect('https://www.example.de/', { fetch: nothing.fetch })).outcome).toBe('stopped');
+    expect((await probe('http://user:pw@www.example.de/', { fetch: nothing.fetch })).outcome).toBe('stopped');
+    expect((await probe('https://www.example.de/', { fetch: nothing.fetch })).outcome).toBe('stopped');
     expect(nothing.calls).toHaveLength(0);
     const ftp = fakeFetch({ 'http://www.example.de/': { status: 301, location: 'ftp://www.example.de/' } });
-    expect((await probeHttpRedirect('http://www.example.de/', { fetch: ftp.fetch })).outcome).toBe('stopped');
+    expect((await probe('http://www.example.de/', { fetch: ftp.fetch })).outcome).toBe('stopped');
     const custom = fakeFetch({ 'http://www.example.de/': { status: 301, location: 'http://intranet.local/' } });
-    expect((await probeHttpRedirect('http://www.example.de/', { fetch: custom.fetch, isAllowed: (u) => !u.hostname.endsWith('.local') })).outcome).toBe('stopped');
+    const local = await probe('http://www.example.de/', { fetch: custom.fetch });
+    expect(local.outcome).toBe('stopped');
+    expect(local.hops.at(-1)?.error).toContain('host-name');
     expect(custom.calls).toHaveLength(1);
+    // A public-looking name that resolves to a private address is refused after resolving it.
+    const rebound = fakeFetch({ 'http://www.example.de/': { status: 301, location: 'http://inside.example.de/' } });
+    const toPrivate = await probe('http://www.example.de/', { fetch: rebound.fetch, guard: publicGuard({ 'inside.example.de': ['10.0.0.7'] }) });
+    expect(toPrivate.outcome).toBe('stopped');
+    expect(toPrivate.hops.at(-1)?.error).toContain('private');
+    expect(rebound.calls).toHaveLength(1);
+    // The first address itself is checked too.
+    const first = fakeFetch({});
+    expect((await probe('http://www.example.de/', { fetch: first.fetch, guard: publicGuard({ 'www.example.de': ['127.0.0.1'] }) })).outcome).toBe('stopped');
+    expect(first.calls).toHaveLength(0);
   });
 
-  it('httpVariantOf and isDefaultProbeTarget', () => {
+  it('the time limit covers name resolution (A5 review)', async () => {
+    const slow = createUrlGuard({ resolve: () => new Promise<string[]>((resolve) => setTimeout(() => resolve(['93.184.215.14']), 1_500)) });
+    const started = Date.now();
+    const result = await probe('http://www.example.de/', { fetch: fakeFetch({}).fetch, guard: slow, timeoutMs: 150 });
+    expect(result.outcome).toBe('timeout');
+    expect(Date.now() - started).toBeLessThan(1_000);
+  });
+
+  it('httpVariantOf', () => {
     expect(httpVariantOf('https://www.example.de/shop?x=1#top')).toBe('http://www.example.de/shop?x=1');
     expect(httpVariantOf('https://www.example.de:8443/')).toBe('http://www.example.de/');
     expect(httpVariantOf('mailto:a@b.de')).toBeNull();
-    expect(isDefaultProbeTarget(new URL('http://www.example.de/'))).toBe(true);
-    expect(isDefaultProbeTarget(new URL('https://www.example.de:443/'))).toBe(true);
-    expect(isDefaultProbeTarget(new URL('http://www.example.de:8080/'))).toBe(false);
   });
 });

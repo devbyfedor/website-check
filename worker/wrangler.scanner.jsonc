@@ -1,0 +1,39 @@
+// The scan Worker of Website-Check DE (session A5 part 4): only the Durable Object `ScanQueueObject` with
+// the queue, the browser, axe-core, the rules data and the analyzers. No public address: the API Worker
+// (`wrangler.jsonc`) reaches the object through its Durable Object binding with `script_name`.
+// Not deployed: no deploy before stage C (brief). Locally together with the API Worker:
+//   npx wrangler dev -c worker/wrangler.jsonc -c worker/wrangler.scanner.jsonc
+// The D1 database is the same as the API Worker's (the object writes status and report); the id is a
+// placeholder until Fedor creates the real database before the first deploy. Since A5 part 5 the queue object runs the
+// start of a scan (cache, DNS check, rate limit, D1 writes): Fedor sets the secret RATE_LIMIT_SECRET on this Worker
+// (npx wrangler secret put RATE_LIMIT_SECRET -c worker/wrangler.scanner.jsonc); the API Worker does not need it.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "website-check-scanner",
+  "main": "src/scan-worker.ts",
+  "compatibility_date": "2026-11-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": false,
+    "logs": { "enabled": false, "invocation_logs": false },
+    "traces": { "enabled": false }
+  },
+  // A5 part 3: the pinned axe-core is bundled as a string (the glob matches the import specifier).
+  "rules": [{ "type": "Text", "globs": ["axe-core/axe.min.js"], "fallthrough": false }],
+  "browser": { "binding": "BROWSER" },
+  // The scan queue: one Durable Object in the EU jurisdiction (chosen in the code), SQLite-backed as the free plan requires.
+  "durable_objects": {
+    "bindings": [{ "name": "SCAN_QUEUE", "class_name": "ScanQueueObject" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ScanQueueObject"] }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "website-check",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

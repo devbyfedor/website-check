@@ -1,0 +1,41 @@
+// Lab API Worker of the end-to-end checks of session A5 parts 3 and 4 (Fedor's permission, docs/decisions.md):
+// the real API behind a token, with a lab D1 database of its own, on workers.dev only. Since part 4 the
+// queue object runs in the lab scan Worker (`wrangler.lab-e2e-scanner.jsonc`, the production entry
+// `src/scan-worker.ts`), reached with `script_name` exactly as in production. Deploy the scan Worker first.
+// Deleted at the end of the session together with its database:
+//   npx wrangler delete -c worker/wrangler.lab-e2e.local.jsonc
+//   npx wrangler delete -c worker/wrangler.lab-e2e-scanner.local.jsonc
+//   npx wrangler d1 delete website-check-lab-db
+// The database id below is a placeholder: the deploy uses git-ignored copies `*.local.jsonc` with the id of
+// the lab database, so no account resource id is committed.
+// The secret LAB_TOKEN is set from `worker/.dev.vars` and never printed. Since A5 part 5 the start of a scan runs in
+// the queue object, so RATE_LIMIT_SECRET belongs to the lab scan Worker, not to this one.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "website-check-lab",
+  "main": "src/lab/e2e.ts",
+  "compatibility_date": "2026-11-21",
+  // The same flags as the production API Worker (`wrangler.jsonc`): no `nodejs_compat`.
+  "workers_dev": true,
+  "preview_urls": false,
+  // Nothing is kept: no Workers Logs, no traces (wrangler tail still shows CPU and wall time live).
+  "observability": {
+    "enabled": false,
+    "logs": { "enabled": false, "invocation_logs": false },
+    "traces": { "enabled": false }
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "SCAN_QUEUE", "class_name": "ScanQueueObject", "script_name": "website-check-lab-scanner" }]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "website-check-lab-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // More scans per hour than the API's 5, so the CPU measurement can start new quick checks in a row (passed to the
+  // queue object with the start, which applies the rate limit since A5 part 5).
+  "vars": { "LAB_RATE_PER_HOUR": "40" }
+}

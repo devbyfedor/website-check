@@ -8,10 +8,15 @@ import {
   type Capture,
   type CaptureEnvironment,
   type CaptureFailure,
+  type CaptureVisit,
   type ConsentBannerObservation,
   type ConsentTool,
   type PageSnapshot,
+  type PopupGuardState,
   type SnapshotResult,
+  type UrlGuard,
+  createDohResolver,
+  createUrlGuard,
 } from '@website-check/scanner';
 
 /** Options of both Cloudflare strategies; defaults are the shared capture settings. */
@@ -24,8 +29,22 @@ export interface CloudCaptureOptions {
   axeSource?: string | null;
   /** Check the redirect from http:// to https:// with `fetch`, in parallel to the page (no browser time). */
   httpProbe?: boolean;
-  /** Every address of the redirect check before it is requested. Default: http or https on ports 80 and 443. */
-  isProbeTargetAllowed?: (url: URL) => boolean;
+  /**
+   * Session A5: the SSRF guard of this capture (the address, every redirect and navigation of the
+   * main document, the redirect check). Default: a new guard that resolves names with DNS over HTTPS.
+   */
+  guard?: UrlGuard;
+  /** Session A5 part 3: open the Impressum in a second tab of the same context (strategy a only). */
+  impressum?: boolean;
+  /** Lab only (Fedor, A5 part 3): measure what reading element positions for "Feld B2" costs; nothing goes into the capture. */
+  measureFieldPositions?: boolean;
+  /** Session A5 part 3: where the browser runs (one trace per browser session), copied into the capture. */
+  visit?: CaptureVisit | null;
+  /**
+   * Session A5 part 3: the popup guard of the browser, installed once per browser by the queue and shared by
+   * parallel scans (one set of the scanner's own pages). Without it the capture installs a guard of its own.
+   */
+  popupGuard?: { ownTargets: Set<string>; state: PopupGuardState };
 }
 
 export interface CloudSettings {
@@ -35,7 +54,10 @@ export interface CloudSettings {
   tools: readonly ConsentTool[];
   axeSource: string | null;
   httpProbe: boolean;
-  isProbeTargetAllowed: ((url: URL) => boolean) | null;
+  guard: UrlGuard;
+  impressum: boolean;
+  measureFieldPositions: boolean;
+  visit: CaptureVisit | null;
 }
 
 /** What the Worker saw while capturing, for the measurement (not part of the capture). */
@@ -50,6 +72,14 @@ export interface CaptureStats {
   wallMs: number;
   /** How long the capture waited for the http redirect check after the page was done (0 if it was faster). */
   probeWaitMs?: number;
+  /** Windows the page opened itself that the popup guard refused (their documents were never sent). */
+  popupsBlocked?: number;
+  /** Browser time of the homepage tab: from creating the browser context until the tab is closed. */
+  homepageMs?: number;
+  /** Browser time of the Impressum tab (open to close), when one was opened. */
+  impressumMs?: number;
+  /** Lab only: time and size of reading element positions for "Feld B2" (one evaluation in the page). */
+  fieldPositions?: { ms: number; elements: number; boxes: number; failed: boolean };
 }
 
 export interface CloudCaptureResult {
@@ -65,7 +95,10 @@ export function resolveSettings(options: CloudCaptureOptions): CloudSettings {
     tools: options.consentTools ?? DEFAULT_CONSENT_TOOLS,
     axeSource: options.axeSource ?? null,
     httpProbe: options.httpProbe ?? false,
-    isProbeTargetAllowed: options.isProbeTargetAllowed ?? null,
+    guard: options.guard ?? createUrlGuard({ resolve: createDohResolver() }),
+    impressum: options.impressum ?? false,
+    measureFieldPositions: options.measureFieldPositions ?? false,
+    visit: options.visit ?? null,
   };
 }
 
