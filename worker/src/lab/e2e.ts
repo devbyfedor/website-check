@@ -1,3 +1,5 @@
+import { createDohResolver, createUrlGuard } from '@website-check/scanner/api';
+import { hashVisitor } from '../api/rate-limit.ts';
 import { handleRequest, queueStub, type Env as AppEnv } from '../app.ts';
 import { sameToken } from './token.ts';
 
@@ -17,6 +19,9 @@ import { sameToken } from './token.ts';
  *   GET /lab/stats      the queue object's counters and the measurements of the last jobs (token)
  *   GET /lab/limits     Browser Run limits and recent sessions with start and end, read by the queue object (token)
  *   GET /lab/hits       how often each fixture address was requested (token)
+ *   GET /lab/cost?op=   one operation of a scan start alone, for the CPU diagnosis of part 4 (token): none,
+ *                       d1 (one D1 read), d1x6 (six in a row), doh (the SSRF guard on example.com: two
+ *                       DNS-over-HTTPS queries), do (one request to the queue object), hmac (the visitor hash)
  *   GET /               public fixture homepage for the real Browser Run: windows opened by script, a
  *                       speculation-rules prerender, a prefetch, an image and an iframe (controls), and an
  *                       Impressum link; the queue scans it like a site
@@ -119,6 +124,32 @@ async function route(request: Request, env: Env): Promise<Response> {
   }
   if (url.pathname === '/lab/stats') return queueStub(env.SCAN_QUEUE, request, env.DEV_MODE === '1').fetch('https://queue.internal/stats');
   if (url.pathname === '/lab/limits') return queueStub(env.SCAN_QUEUE, request, env.DEV_MODE === '1').fetch('https://queue.internal/limits');
+  if (url.pathname === '/lab/cost') {
+    // A5 part 4, diagnosis: one kind of operation of a scan start alone, so its CPU can be read from the tail.
+    const op = url.searchParams.get('op') ?? '';
+    if (op === 'none') return json({ op });
+    if (op === 'd1') {
+      await env.DB.prepare('SELECT ?1 AS n').bind(1).all();
+      return json({ op });
+    }
+    if (op === 'd1x6') {
+      for (let i = 0; i < 6; i += 1) await env.DB.prepare('SELECT ?1 AS n').bind(i).all();
+      return json({ op });
+    }
+    if (op === 'doh') {
+      const verdict = await createUrlGuard({ resolve: createDohResolver() }).check('https://example.com/');
+      return json({ op, allowed: verdict.allowed });
+    }
+    if (op === 'do') {
+      await queueStub(env.SCAN_QUEUE, request, env.DEV_MODE === '1').fetch('https://queue.internal/position?id=none');
+      return json({ op });
+    }
+    if (op === 'hmac') {
+      await hashVisitor('x'.repeat(40), 'salt-of-the-day', '198.51.100.7');
+      return json({ op });
+    }
+    return json({ error: 'unknown op' }, 400);
+  }
   if (url.pathname === '/lab/hits') {
     // Only hits since the driver's run started, so earlier runs (or a stranger on the public routes) do not count.
     const since = Number(url.searchParams.get('since') ?? '0');

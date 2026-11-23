@@ -114,13 +114,36 @@ async function round(base: string, name: string, first: 'start' | 'status', devV
   console.log(`saved local/a5/part4/${name}.json (${calls.length} API requests)`);
 }
 
+/** Diagnosis: each operation of a scan start alone (`/lab/cost`), interleaved, after a fresh deploy. */
+async function probe(base: string, name: string, devVars: string): Promise<void> {
+  const token = await readToken(devVars);
+  const calls: Call[] = [];
+  const ops = ['none', 'd1', 'd1x6', 'doh', 'do', 'hmac'];
+  let seq = 0;
+  for (let repeat = 0; repeat < 4; repeat += 1) {
+    for (const op of ops) {
+      seq += 1;
+      const label = `${name}-${String(seq).padStart(2, '0')}-cost-${op}`;
+      const started = performance.now();
+      const response = await fetch(`${base}/lab/cost?op=${op}&label=${encodeURIComponent(label)}`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30_000) });
+      await response.text();
+      const served = Number(response.headers.get('x-lab-served'));
+      const record: Call = { label, kind: `cost-${op}`, method: 'GET', status: response.status, isolate: response.headers.get('x-lab-isolate'), served: Number.isInteger(served) && served > 0 ? served : null, ms: Math.round(performance.now() - started), body: null };
+      calls.push(record);
+      console.log(`${label}: HTTP ${record.status} isolate ${record.isolate ?? '-'} #${record.served ?? '-'} ${record.ms} ms`);
+    }
+  }
+  await mkdir(OUT, { recursive: true });
+  await writeFile(resolve(OUT, `${name}.json`), `${JSON.stringify({ round: name, first: 'probe', at: new Date().toISOString(), calls }, null, 2)}\n`);
+}
+
 function quantile(values: number[], q: number): number {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.min(sorted.length - 1, Math.floor(q * (sorted.length - 1) + 0.5))] ?? Number.NaN;
 }
 
-async function summary(): Promise<void> {
-  const files = (await readdir(OUT)).filter((f) => /^r\d+\.json$/.test(f)).sort();
+async function summary(pattern: RegExp, outName: string): Promise<void> {
+  const files = (await readdir(OUT)).filter((f) => pattern.test(f)).sort();
   const all: (Call & { round: string; cpu: number | null; wall: number | null; outcome: string | null })[] = [];
   let tailEvents = 0;
   let unlabelled = 0;
@@ -155,7 +178,7 @@ async function summary(): Promise<void> {
     const r = all.filter((c) => `${c.round}.json` === file);
     console.log(`  ${file.replace('.json', '')}: ${r.length} requests, isolates ${new Set(r.map((c) => c.isolate)).size}, CPU ${r.map((c) => c.cpu ?? '?').join(' ')}`);
   }
-  await writeFile(resolve(OUT, 'summary.json'), `${JSON.stringify(all, null, 2)}\n`);
+  await writeFile(resolve(OUT, outName), `${JSON.stringify(all, null, 2)}\n`);
 }
 
 const { values } = parseArgs({
@@ -164,14 +187,18 @@ const { values } = parseArgs({
     round: { type: 'string' },
     first: { type: 'string', default: 'start' },
     summary: { type: 'boolean', default: false },
+    // Diagnosis round `p<n>` of the operations of a start (`/lab/cost`), and its summary with --summary --probe.
+    probe: { type: 'boolean', default: false },
     'dev-vars': { type: 'string', default: 'worker/.dev.vars' },
   },
 });
-if (values.summary) await summary();
+if (values.summary) await summary(values.probe ? /^p\d+\.json$/ : /^r\d+\.json$/, values.probe ? 'summary-probe.json' : 'summary.json');
 else {
-  if (values.base === undefined || values.round === undefined || !/^r\d+$/.test(values.round)) throw new Error('usage: --base <url> --round r<n> [--first start|status] | --summary');
+  const pattern = values.probe ? /^p\d+$/ : /^r\d+$/;
+  if (values.base === undefined || values.round === undefined || !pattern.test(values.round)) throw new Error('usage: --base <url> --round r<n> [--first start|status] | --probe --round p<n> | --summary [--probe]');
   const base = values.base.replace(/\/$/, '');
   const url = new URL(base);
   if (url.protocol !== 'https:' && !['127.0.0.1', 'localhost'].includes(url.hostname)) throw new Error('--base must be https (or local wrangler dev)');
-  await round(base, values.round, values.first === 'status' ? 'status' : 'start', resolve(values['dev-vars']));
+  if (values.probe) await probe(base, values.round, resolve(values['dev-vars']));
+  else await round(base, values.round, values.first === 'status' ? 'status' : 'start', resolve(values['dev-vars']));
 }
