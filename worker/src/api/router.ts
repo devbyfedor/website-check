@@ -1,4 +1,4 @@
-import { normalizeSiteAddress, type UrlRejection, type UrlVerdict } from '@website-check/scanner';
+import { normalizeSiteAddress, type UrlRejection, type UrlVerdict } from '@website-check/scanner/api';
 import { createScan, findCachedScan, getReportText, getScan, markError, type ScanRow } from '../db/store.ts';
 import { cryptoRandomBytes, isScanId, newScanId } from './ids.ts';
 import { hashVisitor, MIN_SECRET_LENGTH, RATE_LIMIT, releaseSlot, saltOfDay, takeSlot, visitorKeyOf } from './rate-limit.ts';

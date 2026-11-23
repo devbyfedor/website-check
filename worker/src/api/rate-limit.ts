@@ -1,4 +1,4 @@
-import { parseIPv4, parseIPv6 } from '@website-check/scanner';
+import { parseIPv4, parseIPv6 } from '@website-check/scanner/api';
 
 /**
  * Rate limit of the brief: 5 new scans per hour per visitor, by a hash of the visitor's IP address with

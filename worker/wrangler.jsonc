@@ -1,15 +1,19 @@
-// The Worker of Website-Check DE (sessions A5 part 2 and 3): the API, and the Durable Object with the
-// scan queue and the browser. Not deployed: no deploy before stage C (brief). Local only:
+// The API Worker of Website-Check DE (sessions A5 part 2 to 4): the API, D1 and the hourly cleanup. Since
+// A5 part 4 the scan queue with the browser is a Worker of its own (`wrangler.scanner.jsonc`); this Worker
+// reaches its Durable Object through the binding below with `script_name`, and bundles no Puppeteer, no
+// axe-core and no rules data (reason in docs/decisions.md, A5 part 4).
+// Not deployed: no deploy before stage C (brief). Local only, both Workers in one wrangler process:
 //   npx wrangler d1 migrations apply website-check --local -c worker/wrangler.jsonc
-//   npx wrangler dev -c worker/wrangler.jsonc
-// Fedor creates the real D1 database before the first deploy and puts its id below; until then the id is
-// a placeholder that only works locally.
+//   npx wrangler dev -c worker/wrangler.jsonc -c worker/wrangler.scanner.jsonc
+// Deploy order in stage C: the scan Worker first (it defines the Durable Object class), then this one.
+// Fedor creates the real D1 database before the first deploy and puts its id below and into
+// `wrangler.scanner.jsonc`; until then the id is a placeholder that only works locally.
 {
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "website-check",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-21",
-  "compatibility_flags": ["nodejs_compat"],
+  // No `nodejs_compat`: the API uses no Node built-ins (the scan Worker needs them for Puppeteer).
   "workers_dev": true,
   "preview_urls": false,
   // Workers Logs would keep request metadata such as the visitor's address; the brief stores no raw IP addresses.
@@ -21,14 +25,10 @@
   // Hourly: delete the salts of earlier days and rate-limit events older than an hour, also without traffic,
   // and end scans stuck for half an hour. Free plan; it runs only once the Worker is deployed.
   "triggers": { "crons": ["0 * * * *"] },
-  // A5 part 3: the pinned axe-core is bundled as a string (the glob matches the import specifier).
-  "rules": [{ "type": "Text", "globs": ["axe-core/axe.min.js"], "fallthrough": false }],
-  "browser": { "binding": "BROWSER" },
-  // The scan queue: one Durable Object in the EU jurisdiction (chosen in the code), SQLite-backed as the free plan requires.
+  // The scan queue: the Durable Object of the scan Worker, in the EU jurisdiction (chosen in the code).
   "durable_objects": {
-    "bindings": [{ "name": "SCAN_QUEUE", "class_name": "ScanQueueObject" }]
+    "bindings": [{ "name": "SCAN_QUEUE", "class_name": "ScanQueueObject", "script_name": "website-check-scanner" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ScanQueueObject"] }],
   "d1_databases": [
     {
       "binding": "DB",

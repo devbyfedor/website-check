@@ -22,7 +22,7 @@
     "fixtures:snapshots": "node scanner/src/local/make-fixture-snapshots.ts",
     "report:check": "node scanner/src/local/report-check.ts",
     "lab:e2e": "node scanner/src/local/e2e-lab.ts",
-    "lab:e2e:dev": "wrangler dev -c worker/wrangler.lab-e2e.jsonc --ip 127.0.0.1 --port 8788 --local --var DEV_MODE:1"
+    "lab:e2e:dev": "node scanner/src/local/lab-e2e-dev.ts"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

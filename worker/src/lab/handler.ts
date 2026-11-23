@@ -2,6 +2,7 @@ import { precheckUrl, type Capture, type CaptureStrategy } from '@website-check/
 import type { CaptureStats } from '../capture/common.ts';
 import type { EnvironmentCheck } from '../capture/emulation.ts';
 import { cpuWork, isValidSteps, MAX_CPU_STEPS } from './cpu.ts';
+import { sameToken } from './token.ts';
 
 /**
  * Lab endpoint of session A2: measurement only, behind a token, no site and no storage.
@@ -81,16 +82,7 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-/** Constant-time comparison of two strings (no early exit on the first difference). */
-export function sameToken(given: string, expected: string): boolean {
-  const encoder = new TextEncoder();
-  const a = encoder.encode(given);
-  const b = encoder.encode(expected);
-  let diff = a.length ^ b.length;
-  const length = Math.max(a.length, b.length);
-  for (let i = 0; i < length; i += 1) diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
-  return diff === 0;
-}
+export { sameToken };
 
 function authorized(request: Request, env: LabEnv): boolean {
   const token = env.LAB_TOKEN;

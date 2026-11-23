@@ -6,6 +6,7 @@
   "description": "Scan core: capture types, rules data and analyzers (runs in Node and in a Cloudflare Worker). The local Playwright adapter lives in ./local (Node only).",
   "exports": {
     ".": "./src/index.ts",
+    "./api": "./src/api.ts",
     "./local": "./src/local/index.ts"
   },
   "engines": {

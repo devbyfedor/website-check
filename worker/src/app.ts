@@ -1,22 +1,24 @@
-import { createDohResolver, createUrlGuard } from '@website-check/scanner';
+import { createDohResolver, createUrlGuard } from '@website-check/scanner/api';
 import { cleanupRateLimit } from './api/rate-limit.ts';
 import { createApi, type DispatchResult } from './api/router.ts';
 import { endStuckScans } from './db/store.ts';
 
 /**
- * The Worker of Website-Check DE without the Durable Object class (session A5 part 3), so unit tests can
- * load it in Node: the API with D1, the hand-over of new scans to the queue object, and the hourly cleanup.
- * `index.ts` adds the Durable Object export. Not deployed before stage C.
+ * The API Worker of Website-Check DE (sessions A5 part 3 and 4): the API with D1, the hand-over of new
+ * scans to the queue object, and the hourly cleanup. Not deployed before stage C.
  *
  * The Worker stays small (10 ms CPU per request on the free plan): it parses only the small request body
- * and the small answers of the queue object, never a capture or a report.
+ * and the small answers of the queue object, never a capture or a report. Since A5 part 4 it imports only
+ * `@website-check/scanner/api` (address rules, SSRF guard, normalized address); the queue object with the
+ * browser, axe-core and the rules data lives in the scan Worker (`scan-worker.ts`). A unit test checks
+ * that nothing else reaches this Worker's import graph (`worker/test/api-bundle.test.ts`).
  */
 
 export interface Env {
   DB: D1Database;
   /** Key of the visitor hash of the rate limit, set by Fedor as a Worker secret (locally in `.dev.vars`). */
   RATE_LIMIT_SECRET?: string;
-  /** The queue (`ScanQueueObject`), reached in the EU jurisdiction. Missing in unit tests: scans then stay queued. */
+  /** The queue (`ScanQueueObject` of the scan Worker, binding with `script_name`), reached in the EU jurisdiction. Missing in unit tests: scans then stay queued. */
   SCAN_QUEUE?: DurableObjectNamespace;
   /** Local `wrangler dev` only: "1" uses the plain namespace (workerd has no jurisdictions) for loopback requests. */
   DEV_MODE?: string;

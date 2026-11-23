@@ -20,8 +20,10 @@ import { runScanJob, type CaptureOutcome } from './job.ts';
  *   GET  /position?id=…                           → {position}: 0 running, 1 next, null unknown
  *   GET  /stats                                   → day counters and the last jobs' measurements (the lab reads it; the
  *                                                   production Worker never routes a visitor here)
+ *   GET  /limits                                  → Browser Run's limits and recent sessions (the lab reads it, as /stats)
  *
- * The object is reached only through the Worker (a Durable Object has no public address).
+ * Since A5 part 4 the object lives in the scan Worker (`worker/src/scan-worker.ts`); it is reached only
+ * through the API Worker's binding with `script_name` (a Durable Object has no public address).
  */
 
 export interface QueueEnv {
@@ -161,6 +163,11 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
           metrics: this.#metrics,
           browsers: this.#browsers,
         });
+      }
+      if (pathname === '/limits' && request.method === 'GET') {
+        // Browser Run's limits and recent sessions, for the lab (A5 part 4: the API Worker bundles no Puppeteer).
+        const [limits, history] = await Promise.all([puppeteer.limits(this.env.BROWSER).catch(() => null), puppeteer.history(this.env.BROWSER).catch(() => [])]);
+        return json({ limits, history: (Array.isArray(history) ? history : []).slice(0, 10) });
       }
       return json({ error: 'not-found' }, 404);
     } catch (error) {
