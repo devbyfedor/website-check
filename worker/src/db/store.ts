@@ -176,6 +176,21 @@ export async function markError(db: D1Database, id: string, reason: string, now:
   await db.prepare("UPDATE scans SET status = 'error', error = ?2, finished_at = ?3 WHERE id = ?1 AND status IN ('queued', 'running')").bind(id, reason.slice(0, 200), now).run();
 }
 
+/** A queued or running scan older than this will not finish: the hourly cleanup ends it as an error (session A5 part 3). */
+export const STUCK_MS = 30 * 60 * 1000;
+
+/**
+ * Ends scans that have been queued or running for more than `STUCK_MS` (the queue object was lost, or its
+ * retry gave up without reaching D1), so the scan screen stops waiting. Our own failure: no report.
+ */
+export async function endStuckScans(db: D1Database, now: number): Promise<number> {
+  const result = await db
+    .prepare("UPDATE scans SET status = 'error', error = 'stuck', finished_at = ?1 WHERE status IN ('queued', 'running') AND created_at < ?2")
+    .bind(now, now - STUCK_MS)
+    .run();
+  return result.meta.changes ?? 0;
+}
+
 /**
  * Deletes every scan created before `before` with its findings and hosts (ON DELETE CASCADE), and the
  * sites that have no scan left. The retention period is chosen by Fedor in stage C.

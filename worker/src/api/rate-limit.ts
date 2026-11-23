@@ -68,17 +68,17 @@ export async function saltOfDay(db: D1Database, now: number, randomBytes: (n: nu
 export type SlotResult = { allowed: true; at: number; nonce: string } | { allowed: false; retryAfterSeconds: number };
 
 /**
- * Takes one of the visitor's slots if fewer than `RATE_LIMIT.scans` were taken in the last hour. The check
+ * Takes one of the visitor's slots if fewer than `limit` (default `RATE_LIMIT.scans`) were taken in the last hour. The check
  * and the insert are one statement, so two requests at the same moment cannot both take the fifth slot.
  * Events older than the window are deleted in the same transaction.
  */
-export async function takeSlot(db: D1Database, visitor: string, now: number, nonce: string): Promise<SlotResult> {
+export async function takeSlot(db: D1Database, visitor: string, now: number, nonce: string, limit: number = RATE_LIMIT.scans): Promise<SlotResult> {
   const since = now - RATE_LIMIT.windowMs;
   const results = await db.batch([
     db.prepare('DELETE FROM rate_events WHERE at <= ?1').bind(since),
     db
       .prepare('INSERT INTO rate_events (visitor, at, nonce) SELECT ?1, ?2, ?3 WHERE (SELECT COUNT(*) FROM rate_events WHERE visitor = ?1 AND at > ?4) < ?5')
-      .bind(visitor, now, nonce, since, RATE_LIMIT.scans),
+      .bind(visitor, now, nonce, since, limit),
     db.prepare('SELECT MIN(at) AS oldest FROM rate_events WHERE visitor = ?1 AND at > ?2').bind(visitor, since),
   ]);
   if ((results[1]?.meta.changes ?? 0) === 1) return { allowed: true, at: now, nonce };

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import worker from '../src/index.ts';
+import worker from '../src/app.ts';
 import { localD1, type LocalD1 } from './d1.ts';
 
 let d1: LocalD1;

@@ -21,7 +21,8 @@ export type NormalizedAddress =
   | { ok: true; url: string; host: string }
   | { ok: false; error: AddressError; rejection: UrlRejection | null; detail: string };
 
-export function normalizeSiteAddress(input: string): NormalizedAddress {
+/** `exempt`: only for tests and local `wrangler dev` (exact fixture origins), as in `precheckUrl`. */
+export function normalizeSiteAddress(input: string, exempt?: (url: URL) => boolean): NormalizedAddress {
   const trimmed = input.trim();
   if (trimmed === '' || trimmed.length > MAX_ADDRESS_INPUT || /[\s\u0000-\u001f\u007f]/u.test(trimmed)) {
     return { ok: false, error: 'invalid-input', rejection: null, detail: 'empty, too long, or with spaces or control characters' };
@@ -35,7 +36,7 @@ export function normalizeSiteAddress(input: string): NormalizedAddress {
   } catch {
     return { ok: false, error: 'invalid-url', rejection: 'invalid-url', detail: 'not a valid web address' };
   }
-  const verdict = precheckUrl(url);
+  const verdict = precheckUrl(url, exempt);
   if (verdict !== null && !verdict.allowed) {
     return { ok: false, error: verdict.rejection === 'invalid-url' ? 'invalid-url' : 'not-allowed', rejection: verdict.rejection, detail: verdict.detail };
   }

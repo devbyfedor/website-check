@@ -6,7 +6,7 @@ import { base32, isScanId, newScanId } from '../src/api/ids.ts';
 import { visitorKeyOf } from '../src/api/rate-limit.ts';
 import { createApi, MAX_BODY_BYTES } from '../src/api/router.ts';
 import { purgeBefore, saveResult } from '../src/db/store.ts';
-import worker from '../src/index.ts';
+import worker from '../src/app.ts';
 import { localD1, TABLES, WORKER_ROOT, type LocalD1 } from './d1.ts';
 
 /**

@@ -1,7 +1,7 @@
 import { normalizeSiteAddress, type UrlRejection, type UrlVerdict } from '@website-check/scanner';
 import { createScan, findCachedScan, getReportText, getScan, markError, type ScanRow } from '../db/store.ts';
 import { cryptoRandomBytes, isScanId, newScanId } from './ids.ts';
-import { hashVisitor, MIN_SECRET_LENGTH, releaseSlot, saltOfDay, takeSlot, visitorKeyOf } from './rate-limit.ts';
+import { hashVisitor, MIN_SECRET_LENGTH, RATE_LIMIT, releaseSlot, saltOfDay, takeSlot, visitorKeyOf } from './rate-limit.ts';
 
 /**
  * The API of the brief (session A5 part 2):
@@ -26,9 +26,20 @@ export interface ApiDeps {
   secret: string | undefined;
   now?: () => number;
   randomBytes?: (n: number) => Uint8Array;
-  /** Hands a new scan to the queue (the Durable Object of part 3). Until then scans stay queued. */
-  dispatch?: (scan: { id: string; url: string }) => Promise<void>;
+  /**
+   * Hands a new scan to the queue (the Durable Object, session A5 part 3). Without it scans stay queued.
+   * `undefined` counts as accepted (tests); a refusal of the day's cap answers 503 "daily-limit".
+   */
+  dispatch?: (scan: { id: string; url: string; createdAt: number }) => Promise<DispatchResult | void>;
+  /** The place of a queued scan in the queue (0 running, 1 next); null when the queue does not know it. */
+  position?: (id: string) => Promise<number | null>;
+  /** Scans per hour per visitor (default `RATE_LIMIT.scans`, 5; the lab Worker may raise it). */
+  ratePerHour?: number;
+  /** Local `wrangler dev` only: exact fixture origins that skip the address rules (never set on Cloudflare). */
+  exempt?: (url: URL) => boolean;
 }
+
+export type DispatchResult = { accepted: true; position: number } | { accepted: false; reason: 'daily-limit'; retryAfterSeconds: number };
 
 export const MAX_BODY_BYTES = 2048;
 
@@ -53,12 +64,14 @@ function iso(ms: number | null): string | null {
   return ms === null ? null : new Date(ms).toISOString();
 }
 
-function scanBody(scan: ScanRow, cached: boolean): Record<string, unknown> {
+function scanBody(scan: ScanRow, cached: boolean, queuePosition: number | null = null): Record<string, unknown> {
   return {
     id: scan.id,
     status: scan.status,
     state: scan.state,
     cached,
+    // Only while the scan waits: its place in the queue (1 = next), shown by the scan screen (B2).
+    queuePosition: scan.status === 'queued' ? queuePosition : null,
     createdAt: iso(scan.createdAt),
     startedAt: iso(scan.startedAt),
     finishedAt: iso(scan.finishedAt),
@@ -103,7 +116,9 @@ function refusal(rejection: UrlRejection | null): Response {
   return error(400, 'address-not-allowed', { reason: rejection });
 }
 
-async function startScan(request: Request, deps: Required<Omit<ApiDeps, 'dispatch'>> & Pick<ApiDeps, 'dispatch'>): Promise<Response> {
+type Deps = Required<Omit<ApiDeps, 'dispatch' | 'position' | 'ratePerHour' | 'exempt'>> & Pick<ApiDeps, 'dispatch' | 'position' | 'ratePerHour' | 'exempt'>;
+
+async function startScan(request: Request, deps: Deps): Promise<Response> {
   const type = request.headers.get('content-type') ?? '';
   if (!/^application\/json\b/i.test(type)) return error(415, 'unsupported-media-type');
   const text = await readSmallBody(request);
@@ -117,7 +132,7 @@ async function startScan(request: Request, deps: Required<Omit<ApiDeps, 'dispatc
   const input = typeof body === 'object' && body !== null && !Array.isArray(body) ? (body as { url?: unknown }).url : undefined;
   if (typeof input !== 'string') return error(400, 'invalid-request');
 
-  const address = normalizeSiteAddress(input);
+  const address = normalizeSiteAddress(input, deps.exempt);
   if (!address.ok) return refusal(address.rejection);
   const now = deps.now();
 
@@ -131,7 +146,7 @@ async function startScan(request: Request, deps: Required<Omit<ApiDeps, 'dispatc
   if (deps.secret === undefined || deps.secret.length < MIN_SECRET_LENGTH) return error(503, 'not-configured');
   const salt = await saltOfDay(deps.db, now, deps.randomBytes);
   const visitor = await hashVisitor(deps.secret, salt, visitorKeyOf(request.headers.get('cf-connecting-ip')));
-  const slot = await takeSlot(deps.db, visitor, now, newScanId(deps.randomBytes).slice(0, 8));
+  const slot = await takeSlot(deps.db, visitor, now, newScanId(deps.randomBytes).slice(0, 8), deps.ratePerHour ?? RATE_LIMIT.scans);
   if (!slot.allowed) return error(429, 'rate-limited', { retryAfterSeconds: slot.retryAfterSeconds }, { 'retry-after': String(slot.retryAfterSeconds) });
 
   let result: Awaited<ReturnType<typeof createScan>>;
@@ -146,15 +161,24 @@ async function startScan(request: Request, deps: Required<Omit<ApiDeps, 'dispatc
     await releaseSlot(deps.db, visitor, slot);
     return json(200, scanBody(result.scan, true));
   }
+  let position: number | null = null;
   if (deps.dispatch !== undefined) {
+    let dispatched: DispatchResult | void;
     try {
-      await deps.dispatch({ id: result.scan.id, url: address.url });
+      dispatched = await deps.dispatch({ id: result.scan.id, url: address.url, createdAt: result.scan.createdAt });
     } catch {
       await markError(deps.db, result.scan.id, 'dispatch failed', deps.now());
       return error(503, 'queue-unavailable', {}, { 'retry-after': '60' });
     }
+    if (dispatched !== undefined && !dispatched.accepted) {
+      // The day's cap of the queue: no scan today; the visitor's slot is given back.
+      await markError(deps.db, result.scan.id, 'daily-limit', deps.now());
+      await releaseSlot(deps.db, visitor, slot).catch(() => undefined);
+      return error(503, 'daily-limit', { retryAfterSeconds: dispatched.retryAfterSeconds }, { 'retry-after': String(dispatched.retryAfterSeconds) });
+    }
+    position = dispatched?.position ?? null;
   }
-  return json(202, scanBody(result.scan, false));
+  return json(202, scanBody(result.scan, false, position));
 }
 
 export function createApi(input: ApiDeps): (request: Request) => Promise<Response> {
@@ -172,7 +196,9 @@ export function createApi(input: ApiDeps): (request: Request) => Promise<Respons
       if (!isScanId(id)) return error(404, 'not-found');
       if (match[2] === undefined) {
         const scan = await getScan(deps.db, id);
-        return scan === null ? error(404, 'not-found') : json(200, scanBody(scan, false));
+        if (scan === null) return error(404, 'not-found');
+        const position = scan.status === 'queued' && deps.position !== undefined ? await deps.position(id).catch(() => null) : null;
+        return json(200, scanBody(scan, false, position));
       }
       const stored = await getReportText(deps.db, id);
       if (stored === null) return error(404, 'not-found');
