@@ -347,8 +347,47 @@ Fedor's answer before the start (in `docs/decisions.md`): in version 1 subresour
 - D1 rows written per scan (measured, `docs/d1.md`): at the caps of the report (60 findings, 100 hosts) 334 rows including the later deletion by the retention rule; with 8 findings and 5 hosts 40 rows; the largest real capture 116. At 80 scans per day with 20 rows per scan kept free for part 3: 28,322 rows at the caps, 4,802 at the median, against Fedor's limit of 33,333 (a third of 100,000).
 - `git ls-files local` is empty.
 
+## A5 part 3: queue, Impressum tab, quick check, end to end on Cloudflare (23.11.2026)
+
+Branch `a5-api`, **not merged**: one point of the merge condition failed (Worker CPU above 8 ms on 3 of 50 API requests). Session time: about 1 hour 40 minutes (18:14 to about 19:55). Browser time on Cloudflare: 36.1 s (0.6 browser minutes), one session; browser time of the day 36.1 s of 600. Lab Worker and lab D1 deployed with Fedor's permission and deleted at the end.
+
+Fedor's answers before the start (in `docs/decisions.md`): an accessibility statement that was not found is "nicht gefunden, bitte manuell prüfen", never "fehlt"; the cost of element positions for "Feld B2" is measured, the field is not added; risk rule accepted with `usually-consent` services at medium risk (a test pins it); lab Worker and a separate lab D1 allowed for the end-to-end check, both deleted at the end, the real database is Fedor's.
+
+### What was built
+
+- Step 1, queue (`worker/src/queue/`): one Durable Object `ScanQueueObject` in the EU jurisdiction keeps the jobs and the day's counters; the Worker creates the scan in D1, hands it over and asks for the place in the queue while it waits (`queuePosition` in the status answer). Scans run in the object's alarm: at most 3 started per alarm run, up to 3 at the same time as tabs of one browser, one new browser at most every 20 s, the browser closed as soon as nothing needs it. Day caps per UTC day: 150 scans (then HTTP 503 `daily-limit` until 00:00 UTC), 80 full checks, and a full check only while the day's browser time plus 45 s stays within 540 s, with Cloudflare's own count checked before every launch; otherwise the quick check. Stuck jobs are retried once; the hourly cron ends scans stuck in D1 for 30 minutes. Reasons in `docs/decisions.md`.
+- Step 2, Impressum tab of the Cloudflare adapter (`worker/src/capture/impressum.ts`): the same context, visitor settings, navigation guard, check of the read document, wait and snapshot as the local adapter; the homepage tab is closed first.
+- Step 3, country of the visit: one trace tab per browser session (`Capture.visit`, report `visit.country` and `visit.colo`): 0.22 s of browser time per session on Cloudflare, once for all scans of the session.
+- Step 4, quick check (`scanner/src/quick/`): homepage and Impressum fetched with `safeFetch` under the SSRF rules, read by a static HTML snapshot that follows the in-page snapshot; report `quick` with "Die vollständige Prüfung ist morgen wieder möglich."; third-party services and accessibility not checked. The HTML reader was written by a helper and then attacked by a second helper against the real Chromium on synthetic pages (no network): 12 defects found and fixed (9 differences, 3 CPU traps of up to 183 s on hostile 2 MB pages, now at most 0.3 s), 300 tests; on the 59 fixture pages of A4 the links match the browser on 57, the Impressum fields on 58 (the rest is script- or CSS-made and listed).
+- The end-to-end lab Worker `worker/src/lab/e2e.ts` (real API and queue behind a token, an invented fixture page for windows, prerender and the Impressum) and the driver `npm run lab:e2e`.
+- An independent review before the Cloudflare run (three lenses, every finding checked by a skeptic): 11 findings, 11 confirmed. Fixed before the run: a scan that started while the browser was opening ran with its own popup guard and the two guards closed each other's tabs; day counters lost updates with parallel scans (a test showed `full: 1` instead of 3); after the day cap every start still wrote D1 rows and got its slot back (now the isolate answers 503 without writes and the slot is kept); the dev switch on a real host (the Worker now refuses with 503); public hit routes of the lab counted forever (now only since the run); `alert()` froze a page until the hard limit (dialogs dismissed, as Playwright does); the "Feld B2" measurement could run into the hard limit; request records changed after the capture. Not fixed: the 50 subrequests per alarm run can be exceeded by a crafted site (backlog).
+
+### Numbers (details in `docs/measurements/a5.md`)
+
+- `npm test`: 1,000 of 1,000 (657 before part 3), among them the SSRF suite (108 cases), cache, rate limit, the queue (18), the scan job and API (12), the quick check (7) and the HTML reader (300). `npm run typecheck`: no errors. `npm run test:integration` on plain `wrangler dev`: 21 of 21 (two new Impressum cases: the text is read; a link to 127.0.0.1 is refused, 0 hits).
+- End to end on Cloudflare: 6 of 6 reports valid (our validator and Ajv): Site 10, Site 14, Site 26 `complete` with the Impressum, the fixture page `complete`, two quick checks `quick`. Place in the queue 1, 1, 2, 3. Browser in Sweden (`SE`, ARN).
+- Popup guard and prerender on the real Browser Run: 0 of 3 windows reached the server, the guard refused 3; the prerender page was fetched ahead once but never rendered (0 requests from it); controls prefetch, image and iframe 1 each.
+- "Feld B2": 6 to 21 ms per page (mean 12.7 ms), about 0.1 % of a full check.
+- Browser seconds per full check with the Impressum: 6.80, 6.00, 18.08 s (mean 10.29 s, median 6.80 s; Site 26 ran to the 15 s limit); the Impressum adds 1.23 to 2.03 s; about 1 s per browser session for launch and trace. Free plan: about 52 full checks per day within the queue's 540 s at the mean (58 on the full 600 s), 79 at the median, 29 in the worst case.
+- Worker CPU: 50 API events, median 1 ms, 3 above 8 ms (14 and 11 ms on starts of new scans, 9 ms on a start answered from the cache); all 62 Worker events `ok`. Durable Object: 27 of 27 events `ok`, at most 125 ms.
+
+### Merge condition of A5
+
+- `npm test` passes completely with SSRF, cache, rate limit and quick check tests: yes, 1,000 of 1,000.
+- Three reports of the end-to-end check pass the schema: yes, 3 of 3.
+- Worker CPU at most 8 ms on every request and the Durable Object never cut off: **no** for the CPU (3 of 50 API events: 14, 11, 9 ms); yes for the object (27 of 27 `ok`).
+- At most 3 browser minutes in the session: yes, 36.1 s.
+- No token, secrets, addresses or names of sites in git: yes (0 hits for 2 secrets and 64 site strings in 304 tracked files and the whole history; `git ls-files local` empty).
+
+Result: not merged into `main`; everything is committed on `a5-api`.
+
+### Lab deleted
+
+Lab Worker deleted (workers.dev 404 with error 1042, API code 10007), lab D1 deleted (0 databases on the account), `LAB_TOKEN` removed from `worker/.dev.vars`.
+
 ## Next
 
-- A5 part 3: queue in the Durable Object (wire `dispatch`; `markRunning`, `buildReport`, `saveResult`), the country of the visit from a trace request, the Impressum tab of the Cloudflare adapter with the navigation guard, the quick check with `safeFetch` and `mode: 'quick'`, end to end through Cloudflare (3 real sites, report JSON valid), merge.
+- A5 part 4 (short, no browser needed): bring the Worker's CPU per API request under 8 ms and measure again, then merge. Hypothesis to check first: the cost of a fresh isolate of the large bundle (Puppeteer, axe-core and the rules are in the same Worker as the API). Candidate: the queue object in a Worker of its own (Durable Object binding with `script_name`), the API Worker importing only the address and SSRF modules; measure with quick checks of the fixture page (no browser minutes).
+- Fedor: decide on "Feld B2" from the numbers above.
 - Fedor: push `main` (A4 is merged; `a5-api` is not).
-- Fedor: review the German draft texts in `docs/content-drafts.md`, among them the two new texts of the mandatory information.
+- Fedor: review the German draft texts in `docs/content-drafts.md`.
