@@ -340,6 +340,32 @@ Written in session A5 (22.11.2026) after Fedor's answers to the questions of A4 
 - Used when: the accessibility statement link has `certain: false` (a link that names only the topic, for example "Barrierefreiheit" or "Digitale Barrierefreiheit"). Never shown as "Erklärung vorhanden". Whether the BFSG applies is the visitor's question (BFSG scheme of the design).
 - Status: Entwurf
 
+## Unsure results of the scan (session fix-a1)
+
+Written in session fix-a1 (23.11.2026) for three results the report gives when the scan itself is unsure. Like every text in this file, they are drafts; the look is decided in B2 to B4.
+
+### `report-page-almost-empty`
+
+- Text: Die Seite hat bei unserem Besuch fast keinen Inhalt gezeigt. Möglicherweise hat ein Schutz vor automatischen Zugriffen unsere Prüfung nicht durchgelassen. Die Angaben unten beschreiben nur, was wir gesehen haben. Bitte prüfen Sie die Seite manuell.
+- Used when: the report is `complete`, but the page showed at most 1 500 characters of text, 3 links and 15 requests and linked to no Impressum and no Datenschutzerklärung. No Prüfmaß is "erfüllt" in such a report.
+- Status: Entwurf
+
+### `third-party-frame-unknown`
+
+- Title: {service}: Herkunft der Anfrage unklar, bitte manuell prüfen
+- Fact: Während unseres Besuchs ging eine Anfrage an {service} ({provider}). Wir konnten nicht feststellen, ob Ihre Seite selbst sie ausgelöst hat oder ein eingebetteter Inhalt eines anderen Anbieters, zum Beispiel ein Formular oder ein Video.
+- Fix: Prüfen Sie, ob Sie {service} selbst einbinden. Wenn nicht, gehört die Anfrage zu einem eingebetteten Inhalt.
+- Used when: a service that would be a finding by its risk class was seen only in requests whose document the capture does not know. A hint without a risk.
+- Status: Entwurf
+
+### `legal-impressum-no-link-empty-page`
+
+- Title: Impressum-Link nicht gefunden, bitte manuell prüfen
+- Fact: Die Seite hat bei unserem Besuch fast keinen Inhalt gezeigt, auch keinen Link zum Impressum. Das sagt nichts darüber aus, ob der Link auf Ihrer Website vorhanden ist.
+- Fix: Öffnen Sie Ihre Startseite in einem Browser und prüfen Sie, ob der Link „Impressum“ ohne weiteren Klick sichtbar ist.
+- Used when: the Impressum state is `no-link` on a page with the notice `report-page-almost-empty` (or its quick-check variant). Without a risk, unlike `legal-impressum-no-link`.
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/

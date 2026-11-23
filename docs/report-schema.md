@@ -8,15 +8,17 @@ The report holds facts, states, text ids and their parameters, never finished Ge
 
 `state` is one of:
 
-- `complete`: the full check with the browser.
+- `complete`: the full check with the browser. Its `notice` is null, with one exception (session fix-a1): `report-page-almost-empty` when the page showed almost nothing (at most 1 500 characters of text, 3 links and 15 requests) and linked to no Impressum and no Datenschutzerklärung. Such a page may be a page of bot protection that no rule names, so the report claims nothing from what it lacks: no Prüfmaß is `pass` (each becomes `manual`), and the missing Impressum link is `legal-impressum-no-link-empty-page` without a risk. What was measured stays (a `fail`, a finding with its evidence). The quick check of such a page keeps its own notice with the parameter `pageAlmostEmpty: true` and follows the same two rules.
 - `quick`: the daily browser limit was reached and only the quick check without a browser ran (part 3). `notice.textId` is `report-quick-incomplete` ("Die vollständige Prüfung ist morgen wieder möglich."); the sections that need the browser (third-party services, accessibility) are `not-checked` with the reason `quick-check`.
 - `blocked`: the site refused the scan (check page, bot protection). No findings, no Prüfmaße, notice `report-blocked`.
 - `not-allowed`: refused by the SSRF protection (`failure.reason` `not-allowed`, notice `report-not-allowed` with the rule as `rejection`). No findings.
-- `failed`: the homepage did not load (timeout, unreachable, HTTP error). No findings, notice `report-failed`.
+- `failed`: the homepage did not load (timeout, unreachable, HTTP error), or the capture was cut off after it had answered (the hard limit of a page, a crashed or closed tab; session fix-a1). No findings, notice `report-failed`. A browser lost during a capture gives no report at all: the scan ends as an error.
 
 `sections` says for each part (third-party, accessibility, security, mandatory information, system) whether it was checked and why not (`quick-check`, `page-not-loaded`, `page-not-read` when the page loaded but its text and links could not be read, or the analyzer's reason). A check that did not run is never shown as "keine Funde".
 
 `findings[].beforeConsent` is true only when a request of the service got an answer: then data certainly went to the third party before consent, and the report names the country of the visit next to it. A service whose requests all failed is a hint with `beforeConsent` false.
+
+Session fix-a1: a service is a finding only when a request with a known document reached it. A request whose document the capture does not know (a CORS preflight, a web worker or an iframe the adapter could not place) may come from an embedded third-party page, so a service seen only in such requests is a hint with the text `third-party-frame-unknown` ("bitte manuell prüfen"), no risk and no fix text, whatever its risk class.
 
 ## Element by element (`design/reference/bericht.html`)
 
@@ -55,7 +57,7 @@ Prüfmaße (`measures`, in the order of the table; each row has `result` pass, f
 - Pos., Dienst, Anbieter: `position`, `name`, `provider`; the small line ("Schriften", "lädt weitere Skripte", "Statistik"): from `category`.
 - "Daten gehen an" ("Server in den USA möglich", "weltweites Servernetz"): `dataLocation`.
 - "Startet" ("vor der Einwilligung"): `starts`, always `before-consent`.
-- "Einwilligung" tag ("fehlt", "Graubereich"): `consent` missing, grey-zone, not-needed, and not-reached (no request of the service got an answer, so no data is known to have arrived; not in the design).
+- "Einwilligung" tag ("fehlt", "Graubereich"): `consent` missing, grey-zone, not-needed, not-reached (no request of the service got an answer, so no data is known to have arrived; not in the design), and manual (session fix-a1: the requests reached the service, but the scan cannot tell whether the page itself made them; not in the design).
 - "Liste für die Datenschutzerklärung kopieren": built from `services`, `site.displayHost` and `scan.scannedAt`.
 
 Finding detail ("fund-1"):
@@ -94,6 +96,8 @@ States the design does not show (B2 and B3 build them from existing elements and
 11. The country of the visit in the head and next to findings with `beforeConsent`.
 12. System "unbekannt": no tab carries "erkannt".
 13. The tag `not-reached` in the Stückliste (a service whose requests never got an answer), and a domain shown in punycode.
+15. Session fix-a1: the tag `manual` in the Stückliste and the hint `third-party-frame-unknown` (a service seen only in requests whose document is unknown).
+16. Session fix-a1: the notice `report-page-almost-empty` on a `complete` report, with Prüfmaße that are `manual` instead of "erfüllt".
 
 Conflict with a product rule (decided):
 14. The design shows the accessibility statement as "fehlt" and "nicht erfüllt". By product rule 3 a statement the scan did not find is "nicht gefunden, bitte manuell prüfen" (it can be linked from another page), so the schema gives `actual.state` not-found with result `manual`. Fedor confirmed this on 23.11.2026 (message of A5 part 3): the report shows "nicht gefunden, bitte manuell prüfen", never "fehlt".
