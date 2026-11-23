@@ -1,4 +1,4 @@
-// The Worker of Website-Check DE (session A5 part 2): the API, and from part 3 the Durable Object with the
+// The Worker of Website-Check DE (sessions A5 part 2 and 3): the API, and the Durable Object with the
 // scan queue and the browser. Not deployed: no deploy before stage C (brief). Local only:
 //   npx wrangler d1 migrations apply website-check --local -c worker/wrangler.jsonc
 //   npx wrangler dev -c worker/wrangler.jsonc
@@ -18,9 +18,17 @@
     "logs": { "enabled": false, "invocation_logs": false },
     "traces": { "enabled": false }
   },
-  // Hourly: delete the salts of earlier days and rate-limit events older than an hour, also without traffic.
-  // Free plan; it runs only once the Worker is deployed.
+  // Hourly: delete the salts of earlier days and rate-limit events older than an hour, also without traffic,
+  // and end scans stuck for half an hour. Free plan; it runs only once the Worker is deployed.
   "triggers": { "crons": ["0 * * * *"] },
+  // A5 part 3: the pinned axe-core is bundled as a string (the glob matches the import specifier).
+  "rules": [{ "type": "Text", "globs": ["axe-core/axe.min.js"], "fallthrough": false }],
+  "browser": { "binding": "BROWSER" },
+  // The scan queue: one Durable Object in the EU jurisdiction (chosen in the code), SQLite-backed as the free plan requires.
+  "durable_objects": {
+    "bindings": [{ "name": "SCAN_QUEUE", "class_name": "ScanQueueObject" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ScanQueueObject"] }],
   "d1_databases": [
     {
       "binding": "DB",

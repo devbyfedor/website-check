@@ -29,9 +29,9 @@ beforeEach(async () => {
   await d1.clear();
 });
 
-function api(options: { dispatch?: (scan: { id: string; url: string; createdAt: number }) => Promise<DispatchResult | void>; position?: (id: string) => Promise<number | null>; ratePerHour?: number } = {}) {
+function api(options: { dispatch?: (scan: { id: string; url: string; createdAt: number }) => Promise<DispatchResult | void>; position?: (id: string) => Promise<number | null>; ratePerHour?: number; dailyGate?: { until: number } } = {}) {
   const guard = createUrlGuard({ resolve: resolver });
-  return createApi({ db: d1.db, check: (url) => guard.check(url), secret: SECRET, now: () => clock, ...options });
+  return createApi({ db: d1.db, check: (url) => guard.check(url), secret: SECRET, now: () => clock, dailyGate: { until: 0 }, ...options });
 }
 
 async function start(handler: (r: Request) => Promise<Response>, url: string, ip = '203.0.113.7'): Promise<{ status: number; body: Record<string, unknown>; headers: Headers }> {
@@ -122,16 +122,28 @@ describe('the API and the queue', () => {
     expect(await status.json()).toMatchObject({ status: 'queued', queuePosition: 2 });
   });
 
-  it('answers 503 daily-limit when the queue refuses, gives the slot back and keeps no scan to wait for', async () => {
-    const handler = api({ dispatch: async () => ({ accepted: false, reason: 'daily-limit', retryAfterSeconds: 3_600 }) });
+  it('answers 503 daily-limit when the queue refuses, then refuses further starts without writing to D1', async () => {
+    const gate = { until: 0 };
+    let asked = 0;
+    const handler = api({ dailyGate: gate, dispatch: async () => (asked++, { accepted: false, reason: 'daily-limit', retryAfterSeconds: 3_600 }) });
     const refused = await start(handler, 'beispiel-baeckerei.de');
     expect(refused.status).toBe(503);
     expect(refused.body).toEqual({ error: 'daily-limit', retryAfterSeconds: 3_600 });
     expect(refused.headers.get('retry-after')).toBe('3600');
+    // The slot is kept: the hourly limit still bounds a visitor who retries (review of A5 part 3).
     const events = await d1.db.prepare('SELECT COUNT(*) AS n FROM rate_events').all<{ n: number }>();
-    expect(events.results[0]?.n).toBe(0);
+    expect(events.results[0]?.n).toBe(1);
     const scans = await d1.db.prepare("SELECT status, error FROM scans").all<{ status: string; error: string }>();
     expect(scans.results).toEqual([{ status: 'error', error: 'daily-limit' }]);
+    // Further starts in this isolate: 503 at once, nothing written, the queue not asked again.
+    for (let i = 0; i < 4; i += 1) {
+      const again = await start(handler, `andere-${i}.de`, `203.0.113.${20 + i}`);
+      expect(again.status).toBe(503);
+      expect(again.body.retryAfterSeconds).toBe(3_600);
+    }
+    expect(asked).toBe(1);
+    expect((await d1.db.prepare('SELECT COUNT(*) AS n FROM scans').all<{ n: number }>()).results[0]?.n).toBe(1);
+    expect((await d1.db.prepare('SELECT COUNT(*) AS n FROM rate_events').all<{ n: number }>()).results[0]?.n).toBe(1);
     // An error is never reused by the cache: the next day a new scan starts.
     clock += 24 * 3600 * 1000;
     expect((await start(api(), 'beispiel-baeckerei.de')).status).toBe(202);

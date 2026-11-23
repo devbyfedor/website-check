@@ -55,7 +55,9 @@ export async function drain(deps: DrainDeps): Promise<DrainResult> {
   const result: DrainResult = { started: 0, full: 0, quick: 0, failed: 0, more: false };
   let runningFull = 0;
 
-  const stale = await queue.recoverStale(deps.now(), new Set());
+  // A run starts only when no other run is active in the object (and a Durable Object has one instance), so a
+  // job that counts as started is not running any more: retried at once, or given up after its second start.
+  const stale = await queue.recoverStale(deps.now(), new Set(), 0);
   for (const job of stale.abandoned) await deps.onJobError(job, new Error('job did not finish after a retry')).catch(() => undefined);
 
   const runOne = async (job: QueueJob): Promise<void> => {

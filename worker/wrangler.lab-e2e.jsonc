@@ -1,0 +1,41 @@
+// Lab Worker of the end-to-end check of session A5 part 3 (Fedor's permission, docs/decisions.md): the real
+// API and the real queue object (`ScanQueueObject`, EU jurisdiction) behind a token, with a lab D1 database
+// of its own, on workers.dev only. Deleted at the end of the session together with its database:
+//   npx wrangler delete -c worker/wrangler.lab-e2e.local.jsonc
+//   npx wrangler d1 delete website-check-lab-db
+// The database id below is a placeholder: the deploy uses a git-ignored copy `wrangler.lab-e2e.local.jsonc`
+// with the id of the lab database, so no account resource id is committed.
+// Secrets (LAB_TOKEN, RATE_LIMIT_SECRET) are set from `worker/.dev.vars` and never printed.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "website-check-lab",
+  "main": "src/lab/e2e.ts",
+  "compatibility_date": "2026-11-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  // Nothing is kept: no Workers Logs, no traces (wrangler tail still shows CPU and wall time live).
+  "observability": {
+    "enabled": false,
+    "logs": { "enabled": false, "invocation_logs": false },
+    "traces": { "enabled": false }
+  },
+  "rules": [{ "type": "Text", "globs": ["axe-core/axe.min.js"], "fallthrough": false }],
+  "browser": { "binding": "BROWSER" },
+  "durable_objects": {
+    "bindings": [{ "name": "SCAN_QUEUE", "class_name": "ScanQueueObject" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ScanQueueObject"] }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "website-check-lab-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // One scan at a time, so the browser seconds of one full check can be read from one session; the
+  // cost of element positions for "Feld B2" is measured (nothing stored); more scans per hour than the
+  // API's 5, so a repeated step does not hit the visitor limit.
+  "vars": { "QUEUE_MAX_PARALLEL": "1", "LAB_MEASURE_FIELD": "1", "LAB_RATE_PER_HOUR": "20" }
+}

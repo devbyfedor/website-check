@@ -93,6 +93,11 @@ function frameUrlsOf(frame: Frame, main: Frame): string[] {
  */
 export async function prepareVisitorPage(page: Page, client: CDPSession, userAgent: string): Promise<string[]> {
   const failed: string[] = [];
+  // alert(), confirm() and prompt() are dismissed at once, as Playwright does by default in the local adapter;
+  // an open dialog would freeze the page until the hard limit (review of A5 part 3). Dismissing is no consent.
+  page.on('dialog', (dialog) => {
+    void dialog.dismiss().catch(() => undefined);
+  });
   const childCommands = frameEmulation(userAgent);
   const emulateChild = (session: CDPSession): void => {
     session.on(CDPSessionEvent.SessionAttached, emulateChild);
@@ -158,10 +163,14 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
           acceptLanguage: CAPTURE_SETTINGS.acceptLanguage,
           guard: settings.guard,
         }).catch(() => null);
-  // Windows the page opens itself never load (A5 review); the scanner's own page is added below.
-  const browserSession = await browser.target().createCDPSession();
-  const ownTargets = new Set<string>();
-  const popups = await installPopupGuard(browserSession, ownTargets);
+  // Windows the page opens itself never load (A5 review); the scanner's own pages are added below. A browser
+  // shared by parallel scans has ONE popup guard with one set of own pages (A5 part 3): a guard per scan
+  // would fail the main document of the other scan's tab as a foreign window.
+  const shared = options.popupGuard ?? null;
+  const browserSession = shared === null ? await browser.target().createCDPSession() : null;
+  const ownTargets = shared?.ownTargets ?? new Set<string>();
+  const popups = shared?.state ?? (await installPopupGuard(browserSession as NonNullable<typeof browserSession>, ownTargets));
+  const popupsBefore = popups.blocked.length;
   const context = await browser.createBrowserContext();
   let hardLimitHit = false;
   const hardTimer = setTimeout(() => {
@@ -192,7 +201,8 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
     }
     if (settings.visit !== null) capture.visit = settings.visit;
     result.stats.wallMs = Date.now() - startedWall;
-    result.stats.popupsBlocked = popups.blocked.length;
+    // With parallel scans in one browser this counts the windows refused during this scan, of any tab.
+    result.stats.popupsBlocked = popups.blocked.length - popupsBefore;
     if (probe !== null) {
       const waitStarted = Date.now();
       result.capture.httpProbe = await probe;
@@ -202,7 +212,7 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
   } finally {
     clearTimeout(hardTimer);
     await context.close().catch(() => undefined);
-    await browserSession.detach().catch(() => undefined);
+    await browserSession?.detach().catch(() => undefined);
   }
 }
 
@@ -402,7 +412,7 @@ async function runCapture(
     else axe = await runAxeOverCdp(client, settings.axeSource, budget);
   }
   // Lab only: the cost of reading element positions for "Feld B2" (not part of the capture).
-  const fieldPositions = settings.measureFieldPositions && failure === null && snapshot !== null && !hardLimitHit() && !crashed && !page.isClosed() ? await measureFieldPositions(client, axe) : undefined;
+  const fieldPositions = settings.measureFieldPositions && failure === null && snapshot !== null && !hardLimitHit() && !crashed && !page.isClosed() ? await measureFieldPositions(client, axe, settings.hardLimitMs - (Date.now() - contextStarted) - 1_000) : undefined;
   const endMs = rel();
 
   const finalUrl = mainResponse?.url() ?? null;
@@ -432,7 +442,7 @@ async function runCapture(
     finalUrl,
     mainDocument: mainResponse === null ? null : { status: mainResponse.status(), headers, redirectChain },
     // A copy: the tab may still report late requests until the caller closes it.
-    requests: records.slice(),
+    requests: records.map((r) => ({ ...r, frameUrls: [...r.frameUrls], initiator: r.initiator === null ? null : { ...r.initiator } })),
     page: pageSnapshotOf(snapshot),
     consentBanner: bannerObservation(snapshot, toCaptureMs),
     axe,

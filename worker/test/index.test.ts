@@ -22,4 +22,11 @@ describe('worker entry point', () => {
     expect(refused.status).toBe(400);
     expect(await refused.json()).toEqual({ error: 'address-not-allowed', reason: 'address' });
   });
+
+  it('refuses to work when the local dev switch is set on a real host (A5 part 3 review)', async () => {
+    const env = { DB: d1.db, DEV_MODE: '1', DEV_ORIGINS: 'http://127.0.0.1:8788' };
+    const response = await worker.fetch(new Request('https://website-check.test/api/scans', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"url":"http://127.0.0.1:8788/"}' }), env);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'misconfigured' });
+  });
 });

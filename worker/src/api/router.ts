@@ -37,7 +37,15 @@ export interface ApiDeps {
   ratePerHour?: number;
   /** Local `wrangler dev` only: exact fixture origins that skip the address rules (never set on Cloudflare). */
   exempt?: (url: URL) => boolean;
+  /**
+   * Remembers in this isolate until when the queue refuses new scans (its day cap), so further starts are
+   * answered without writing to D1 (review of A5 part 3). Default: one object per isolate.
+   */
+  dailyGate?: { until: number };
 }
+
+/** The isolate's memory of the queue's day cap (Workers reuse an isolate for many requests). */
+export const DAILY_GATE: { until: number } = { until: 0 };
 
 export type DispatchResult = { accepted: true; position: number } | { accepted: false; reason: 'daily-limit'; retryAfterSeconds: number };
 
@@ -118,6 +126,10 @@ function refusal(rejection: UrlRejection | null): Response {
 
 type Deps = Required<Omit<ApiDeps, 'dispatch' | 'position' | 'ratePerHour' | 'exempt'>> & Pick<ApiDeps, 'dispatch' | 'position' | 'ratePerHour' | 'exempt'>;
 
+function dailyLimit(retryAfterSeconds: number): Response {
+  return error(503, 'daily-limit', { retryAfterSeconds }, { 'retry-after': String(retryAfterSeconds) });
+}
+
 async function startScan(request: Request, deps: Deps): Promise<Response> {
   const type = request.headers.get('content-type') ?? '';
   if (!/^application\/json\b/i.test(type)) return error(415, 'unsupported-media-type');
@@ -138,6 +150,8 @@ async function startScan(request: Request, deps: Deps): Promise<Response> {
 
   const cached = await findCachedScan(deps.db, address.url, now);
   if (cached !== null) return json(200, scanBody(cached, true));
+  // The queue refused new scans for today: answer without any D1 write (a cached report above is still served).
+  if (deps.dailyGate.until > now) return dailyLimit(Math.max(1, Math.ceil((deps.dailyGate.until - now) / 1000)));
 
   const verdict = await deps.check(address.url);
   if (!verdict.allowed) return refusal(verdict.rejection);
@@ -171,10 +185,11 @@ async function startScan(request: Request, deps: Deps): Promise<Response> {
       return error(503, 'queue-unavailable', {}, { 'retry-after': '60' });
     }
     if (dispatched !== undefined && !dispatched.accepted) {
-      // The day's cap of the queue: no scan today; the visitor's slot is given back.
+      // The day's cap of the queue: no scan today. This isolate remembers it, so further starts write nothing,
+      // and the visitor's slot is kept, so the hourly limit still bounds retries (review of A5 part 3).
+      deps.dailyGate.until = Math.max(deps.dailyGate.until, now + dispatched.retryAfterSeconds * 1000);
       await markError(deps.db, result.scan.id, 'daily-limit', deps.now());
-      await releaseSlot(deps.db, visitor, slot).catch(() => undefined);
-      return error(503, 'daily-limit', { retryAfterSeconds: dispatched.retryAfterSeconds }, { 'retry-after': String(dispatched.retryAfterSeconds) });
+      return dailyLimit(dispatched.retryAfterSeconds);
     }
     position = dispatched?.position ?? null;
   }
@@ -182,7 +197,7 @@ async function startScan(request: Request, deps: Deps): Promise<Response> {
 }
 
 export function createApi(input: ApiDeps): (request: Request) => Promise<Response> {
-  const deps = { now: () => Date.now(), randomBytes: cryptoRandomBytes, ...input };
+  const deps = { now: () => Date.now(), randomBytes: cryptoRandomBytes, dailyGate: DAILY_GATE, ...input };
   return async (request) => {
     const path = new URL(request.url).pathname;
     if (path === '/api/scans') {

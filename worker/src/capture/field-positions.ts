@@ -52,14 +52,16 @@ export function fieldPositionsExpression(axeTargets: readonly (readonly string[]
 })()`;
 }
 
-export async function measureFieldPositions(client: CDPSession, axe: AxeCapture | null): Promise<{ ms: number; elements: number; boxes: number; failed: boolean }> {
+/** `leftMs`: time left before the page's hard limit; the measurement never runs into it (review of A5 part 3). */
+export async function measureFieldPositions(client: CDPSession, axe: AxeCapture | null, leftMs = 4_000): Promise<{ ms: number; elements: number; boxes: number; failed: boolean }> {
+  if (leftMs < 500) return { ms: 0, elements: 0, boxes: 0, failed: true };
   const targets: string[][] = [];
   for (const rule of Object.values(axe?.rules ?? {})) {
     for (const example of rule?.examples ?? []) if (Array.isArray(example.target) && example.target.length > 0) targets.push(example.target.map(String));
   }
   const started = Date.now();
   try {
-    const response = (await withTimeout(client.send('Runtime.evaluate', { expression: fieldPositionsExpression(targets), returnByValue: true }), 4_000)) as {
+    const response = (await withTimeout(client.send('Runtime.evaluate', { expression: fieldPositionsExpression(targets), returnByValue: true }), Math.min(4_000, leftMs))) as {
       result?: { value?: { elements?: number; boxes?: number } };
     };
     return { ms: Date.now() - started, elements: response.result?.value?.elements ?? 0, boxes: response.result?.value?.boxes ?? 0, failed: false };

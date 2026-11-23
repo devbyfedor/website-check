@@ -164,6 +164,28 @@ describe('queue: a run (drain)', () => {
     expect((await queue.day(T0 + 60_000)).full).toBe(5);
   });
 
+  it('counts every scan that waited for the same browser launch (review: lost updates of the day counters)', async () => {
+    const queue = queueWith({ maxParallel: 3 });
+    await enqueueMany(queue, 3);
+    const browser = new FakeBrowser();
+    let opening: Promise<void> | null = null;
+    browser.ensure = async () => {
+      opening ??= tick(20).then(() => {
+        browser.open = true;
+        browser.launches += 1;
+      });
+      return opening;
+    };
+    const r = runner(queue, browser);
+    expect(await r.run()).toMatchObject({ started: 3, full: 3 });
+    const day = await queue.day(T0 + 60_000);
+    expect(day.full).toBe(3);
+    expect(day.accepted).toBe(3);
+    // Two time additions at the same moment both count.
+    await Promise.all([queue.addBrowserTime(1_000, T0), queue.addBrowserTime(2_000, T0), queue.countStart('quick', T0)]);
+    expect(await queue.day(T0)).toMatchObject({ browserMs: 3_000, quick: 1 });
+  });
+
   it('closes the browser as soon as no scan needs it, but never while another scan still uses it', async () => {
     const queue = queueWith({ maxParallel: 3 });
     await enqueueMany(queue, 2);
@@ -222,6 +244,23 @@ describe('queue: a run (drain)', () => {
     expect(result).toMatchObject({ started: 2, failed: 2, more: false });
     expect(r.errors).toEqual(['scan00: websocket closed', 'scan01: websocket closed']);
     expect((await queue.jobs()).length).toBe(0);
+  });
+
+  it('a new run retries at once a scan that a lost run left started, and gives it up after its second start', async () => {
+    const queue = queueWith();
+    await enqueueMany(queue, 1);
+    await queue.takeNext(T0); // the run that took it died with the object
+    const browser = new FakeBrowser();
+    const r = runner(queue, browser);
+    expect(await r.run()).toMatchObject({ started: 1, failed: 0 });
+    expect(r.ran.map((x) => x.id)).toEqual(['scan00']);
+    await enqueueMany(queue, 1, T0 + 1_000);
+    await queue.takeNext(T0 + 1_000);
+    await queue.recoverStale(T0 + 1_000, new Set(), 0);
+    await queue.takeNext(T0 + 2_000); // second start, lost again
+    const second = runner(queue, browser);
+    expect(await second.run()).toMatchObject({ started: 0 });
+    expect(second.errors).toEqual(['scan00: job did not finish after a retry']);
   });
 
   it('retries a scan once that a lost run left started, then gives it up as an error', async () => {

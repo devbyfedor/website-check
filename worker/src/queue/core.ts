@@ -110,6 +110,11 @@ export function chooseMode(job: Pick<QueueJob, 'force'>, day: DayCounters, limit
 export class ScanQueue {
   readonly #store: KvStore;
   readonly limits: QueueLimits;
+  /**
+   * Every read-modify-write of the day's counters and every new job run one after the other (review of A5
+   * part 3: parallel scans of one alarm run read the counters before any of them wrote, and lost updates).
+   */
+  #chain: Promise<unknown> = Promise.resolve();
 
   constructor(store: KvStore, limits: QueueLimits = QUEUE_LIMITS) {
     this.#store = store;
@@ -126,13 +131,27 @@ export class ScanQueue {
     await this.#store.put(DAY_KEY, day);
   }
 
+  #serial<T>(work: () => Promise<T>): Promise<T> {
+    const run = this.#chain.then(work);
+    this.#chain = run.catch(() => undefined);
+    return run;
+  }
+
+  #updateDay(now: number, change: (day: DayCounters) => DayCounters): Promise<void> {
+    return this.#serial(async () => this.#saveDay(change(await this.day(now))));
+  }
+
   async jobs(): Promise<{ key: string; job: QueueJob }[]> {
     const map = await this.#store.list<QueueJob>({ prefix: JOB_PREFIX });
     return [...map.entries()].map(([key, job]) => ({ key, job }));
   }
 
   /** Accepts a job unless the day's cap is reached; a job that is already in the queue is not added twice. */
-  async enqueue(input: { id: string; url: string; createdAt: number; force?: 'quick' }, now: number): Promise<EnqueueResult> {
+  enqueue(input: { id: string; url: string; createdAt: number; force?: 'quick' }, now: number): Promise<EnqueueResult> {
+    return this.#serial(() => this.#enqueue(input, now));
+  }
+
+  async #enqueue(input: { id: string; url: string; createdAt: number; force?: 'quick' }, now: number): Promise<EnqueueResult> {
     const all = await this.jobs();
     const existing = all.find((entry) => entry.job.id === input.id);
     if (existing !== undefined) return { accepted: true, position: positionIn(all, input.id) };
@@ -171,11 +190,11 @@ export class ScanQueue {
    * Jobs that started long ago but are not running in this object (it was restarted, for example after an
    * error): retried once, then given up (`abandoned`, for `markError` in D1).
    */
-  async recoverStale(now: number, runningIds: ReadonlySet<string>): Promise<{ retried: number; abandoned: QueueJob[] }> {
+  async recoverStale(now: number, runningIds: ReadonlySet<string>, minAgeMs: number = this.limits.staleRunningMs): Promise<{ retried: number; abandoned: QueueJob[] }> {
     let retried = 0;
     const abandoned: QueueJob[] = [];
     for (const { key, job } of await this.jobs()) {
-      if (job.startedAt === undefined || runningIds.has(job.id) || now - job.startedAt < this.limits.staleRunningMs) continue;
+      if (job.startedAt === undefined || runningIds.has(job.id) || now - job.startedAt < minAgeMs) continue;
       if (job.attempts < 2) {
         const { startedAt: _startedAt, ...rest } = job;
         await this.#store.put(key, rest);
@@ -189,19 +208,16 @@ export class ScanQueue {
   }
 
   /** Counts a started check; full checks also count against `maxFullScansPerDay`. */
-  async countStart(mode: ScanMode, now: number): Promise<void> {
-    const day = await this.day(now);
-    await this.#saveDay(mode === 'full' ? { ...day, full: day.full + 1 } : { ...day, quick: day.quick + 1 });
+  countStart(mode: ScanMode, now: number): Promise<void> {
+    return this.#updateDay(now, (day) => (mode === 'full' ? { ...day, full: day.full + 1 } : { ...day, quick: day.quick + 1 }));
   }
 
-  async addBrowserTime(ms: number, now: number): Promise<void> {
-    const day = await this.day(now);
-    await this.#saveDay({ ...day, browserMs: day.browserMs + Math.max(0, Math.round(ms)) });
+  addBrowserTime(ms: number, now: number): Promise<void> {
+    return this.#updateDay(now, (day) => ({ ...day, browserMs: day.browserMs + Math.max(0, Math.round(ms)) }));
   }
 
-  async markExhausted(now: number): Promise<void> {
-    const day = await this.day(now);
-    await this.#saveDay({ ...day, exhausted: true });
+  markExhausted(now: number): Promise<void> {
+    return this.#updateDay(now, (day) => ({ ...day, exhausted: true }));
   }
 
   async lastLaunchAt(): Promise<number | null> {

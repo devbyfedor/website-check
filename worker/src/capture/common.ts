@@ -12,6 +12,7 @@ import {
   type ConsentBannerObservation,
   type ConsentTool,
   type PageSnapshot,
+  type PopupGuardState,
   type SnapshotResult,
   type UrlGuard,
   createDohResolver,
@@ -39,6 +40,11 @@ export interface CloudCaptureOptions {
   measureFieldPositions?: boolean;
   /** Session A5 part 3: where the browser runs (one trace per browser session), copied into the capture. */
   visit?: CaptureVisit | null;
+  /**
+   * Session A5 part 3: the popup guard of the browser, installed once per browser by the queue and shared by
+   * parallel scans (one set of the scanner's own pages). Without it the capture installs a guard of its own.
+   */
+  popupGuard?: { ownTargets: Set<string>; state: PopupGuardState };
 }
 
 export interface CloudSettings {

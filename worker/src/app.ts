@@ -71,7 +71,13 @@ export function queueClient(stub: { fetch(input: string, init?: RequestInit): Pr
   };
 }
 
-export function handleRequest(request: Request, env: Env, options: { ratePerHour?: number; force?: 'quick' } = {}): Promise<Response> {
+export async function handleRequest(request: Request, env: Env, options: { ratePerHour?: number; force?: 'quick' } = {}): Promise<Response> {
+  // The dev switch belongs to local `wrangler dev` only: on any other host the Worker refuses to work with it,
+  // so the queue object's dev settings (exempt fixture origins, a fixture trace page) can never act on Cloudflare.
+  const { hostname } = new URL(request.url);
+  if (env.DEV_MODE === '1' && hostname !== '127.0.0.1' && hostname !== 'localhost') {
+    return new Response(JSON.stringify({ error: 'misconfigured' }), { status: 503, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+  }
   // One guard per request: a scan start resolves the visitor's address once (two DNS-over-HTTPS subrequests).
   const exempt = devExempt(env, request);
   const guard = createUrlGuard({ resolve: createDohResolver(), ...(exempt !== undefined ? { exempt } : {}) });
