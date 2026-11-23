@@ -78,6 +78,12 @@ export interface CaptureStats {
   homepageMs?: number;
   /** Browser time of the Impressum tab (open to close), when one was opened. */
   impressumMs?: number;
+  /**
+   * Session fix-a1 (strategy a): requests of an iframe whose address Puppeteer learned only after they
+   * started, placed at the end of the capture; and requests whose document stayed unknown.
+   */
+  framesPlacedLate?: number;
+  framesUnknown?: number;
   /** Lab only: time and size of reading element positions for "Feld B2" (one evaluation in the page). */
   fieldPositions?: { ms: number; elements: number; boxes: number; failed: boolean };
 }

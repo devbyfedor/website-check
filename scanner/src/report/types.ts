@@ -160,9 +160,10 @@ export interface ReportService {
   /**
    * The tag in the column "Einwilligung": `missing` (fehlt), `grey-zone` (Graubereich), `not-needed` (not
    * flagged), `not-reached` (no request of the service got an answer, so no data is known to have arrived;
-   * not in the design).
+   * not in the design), `manual` (session fix-a1: the requests reached the service, but the scan cannot tell
+   * whether the page itself or an embedded third-party page made them: "bitte manuell prüfen"; not in the design).
    */
-  consent: 'missing' | 'grey-zone' | 'not-needed' | 'not-reached';
+  consent: 'missing' | 'grey-zone' | 'not-needed' | 'not-reached' | 'manual';
   /** "Startet": every request of the scan happened without consent, because the scan never clicks. */
   starts: 'before-consent';
   requestCount: number;
@@ -256,7 +257,11 @@ export interface ReportV1 {
     timezone: string;
     viewport: { width: number; height: number };
   };
-  /** Text id of the notice for a state other than `complete` (quick check, blocked, not allowed, failed); null for `complete`. */
+  /**
+   * Text id of the notice for a state other than `complete` (quick check, blocked, not allowed, failed). For
+   * `complete` it is null, except `report-page-almost-empty` (session fix-a1): the page showed almost nothing
+   * and may have been a page of bot protection; such a report has no `pass` among its measures.
+   */
   notice: { textId: string; params: Record<string, TextParam> } | null;
   failure: { reason: CaptureFailureReason; status: number | null } | null;
   /** "Geprüfte Seiten": Startseite and Impressum. */

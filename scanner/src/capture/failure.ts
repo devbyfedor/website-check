@@ -50,7 +50,8 @@ export interface PageEvidence {
  * Anfrage geprüft wird …", no links, 2 requests. Deliberately narrow, because a normal homepage
  * taken for a check page would hide its findings: a title that only starts with such words
  * ("Sicherheitsprüfung & HU – Kfz-Prüfstelle …") does not count, and neither does a page that
- * says it redirects the visitor.
+ * only asks to wait and says it redirects the visitor (a text that says the browser is being checked
+ * counts with or without such a sentence: the classic check pages announce the redirect themselves).
  */
 const WAIT_TITLE = /^(?:einen? moment,? bitte|bitte (?:kurz )?warten|one moment,? please|please wait)[\s.…!]*$/iu;
 // Not "Ihre Anfrage wird geprüft" alone: a thank-you page after a contact form says that too.
@@ -76,13 +77,44 @@ export function checkPageReason(page: PageEvidence): string | null {
   const text = normalize(page.text);
   if (text.length > CHECK_PAGE_MAX_TEXT || page.links > CHECK_PAGE_MAX_LINKS) return null;
   if (page.requests !== undefined && page.requests > CHECK_PAGE_MAX_REQUESTS) return null;
-  if (REDIRECT_TEXT.test(text)) return null;
   const titleMatch = WAIT_TITLE.test(title);
   const textMatch = CHECK_TEXT.test(text);
   if (!titleMatch && !textMatch) return null;
+  // "Einen Moment bitte, Sie werden weitergeleitet" is a redirect page of the site, not a check.
+  if (!textMatch && REDIRECT_TEXT.test(text)) return null;
   const rule = [titleMatch ? 'wait title' : null, textMatch ? 'check text' : null].filter((r) => r !== null).join(' and ');
   const requests = page.requests === undefined ? '' : `, ${page.requests} requests`;
   return `check page (${rule}): ${text.length} characters, ${page.links} links${requests}`;
+}
+
+/**
+ * Session fix-a1: the sizes of a page that shows about as little as a check page, whatever its words:
+ * at most 1 500 characters of text, 3 links and 15 requests. Null for any larger page. Such a page is
+ * not `blocked` (a small page of the site itself looks the same), but nothing can be concluded from
+ * what it does not show: `analyzeCapture` adds that it has no link to an Impressum or a
+ * Datenschutzerklärung, and the report then gives no "erfüllt" and no risk for the missing Impressum
+ * link. The text limit is wider than the check page's 600 characters: a protection page that explains
+ * itself in two languages is longer, and the links decide (the smallest of 186 saved captures of
+ * ordinary homepages has 17 links and 803 characters).
+ */
+const ALMOST_EMPTY_MAX_TEXT = 1_500;
+
+export function almostEmptyReason(page: PageEvidence): string | null {
+  const text = normalize(page.text);
+  if (text.length > ALMOST_EMPTY_MAX_TEXT || page.links > CHECK_PAGE_MAX_LINKS) return null;
+  if (page.requests !== undefined && page.requests > CHECK_PAGE_MAX_REQUESTS) return null;
+  const requests = page.requests === undefined ? '' : `, ${page.requests} requests`;
+  return `almost empty page: ${text.length} characters, ${page.links} links${requests}`;
+}
+
+/**
+ * Session fix-a1: the failure of a capture that was cut off after the main document answered: the
+ * hard limit of a page, a crashed tab or a closed tab. What was recorded until then is not the
+ * page's whole behaviour, so it is never analysed.
+ */
+export function interruptedFailure(cause: 'hard-limit' | 'crashed' | 'closed'): CaptureFailure {
+  if (cause === 'hard-limit') return { reason: 'timeout', message: 'Timeout: hard limit for one page reached' };
+  return { reason: 'other', message: cause === 'crashed' ? 'capture interrupted: the tab crashed' : 'capture interrupted: the tab was closed' };
 }
 
 /**
@@ -121,11 +153,15 @@ export function pageEvidenceOf(page: { title: string; text: string; links: reado
 /**
  * The capture with its failure decided again from its own data (main document and page). For
  * captures saved before a classification rule existed, for example the check pages of A2 part 2:
- * such a capture becomes `blocked` instead of a normal page. Returns the same object if nothing
- * changes; never turns a failed capture into a captured one.
+ * such a capture becomes `blocked` instead of a normal page. A capture that an adapter stopped
+ * with an error although the main document had answered (session fix-a1) is a failed capture, whatever
+ * the adapter said. Returns the same object if nothing changes; never turns a failed capture into a
+ * captured one.
  */
 export function recheckCapture(capture: Capture): Capture {
-  if (!capture.ok || capture.mainDocument === null) return capture;
+  if (!capture.ok) return capture;
+  if (capture.timings.stopReason === 'error') return { ...capture, ok: false, failure: { reason: 'other', message: 'capture interrupted before the page was read' } };
+  if (capture.mainDocument === null) return capture;
   const { status, headers } = capture.mainDocument;
   const failure = classifyMainDocument(status, headers, capture.page?.title ?? '', pageEvidenceOf(capture.page, capture.requests.length));
   return failure === null ? capture : { ...capture, ok: false, failure };

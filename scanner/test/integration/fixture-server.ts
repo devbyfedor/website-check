@@ -157,6 +157,8 @@ route('127.0.0.1', '/loop', (_req, res) => {
 });
 
 // 5. Error pages.
+// Session fix-a1: a page whose script never ends: no load event, the hard limit of the page cuts the capture off.
+route('www.busy.test', '/forever', (_req, res) => send(res, 200, 'text/html', html('<h1>Besetzt</h1><script>for (;;) {}</script>')));
 route('www.blocked.test', '/', (_req, res) => send(res, 403, 'text/html', html('Just a moment...'), { 'cf-mitigated': 'challenge' }));
 route('www.broken.test', '/', (_req, res) => send(res, 500, 'text/html', html('Internal Server Error')));
 

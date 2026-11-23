@@ -8,7 +8,18 @@
 export const SCANNER_VERSION = '0.1.0';
 
 export * from './capture/types.ts';
-export { checkPageReason, classifyMainDocument, classifyNavigationError, notAllowedCapture, pageEvidenceOf, recheckCapture, type PageEvidence } from './capture/failure.ts';
+export {
+  almostEmptyReason,
+  checkPageReason,
+  classifyMainDocument,
+  classifyNavigationError,
+  interruptedFailure,
+  notAllowedCapture,
+  pageEvidenceOf,
+  recheckCapture,
+  type PageEvidence,
+} from './capture/failure.ts';
+export { frameUnknown } from './capture/frames.ts';
 export { analyzeCapture, type CaptureAnalysis, type CaptureState } from './analyzers/capture.ts';
 export * from './a11y/types.ts';
 export { AXE_REPORTER, AXE_RUN_EXPRESSION, AXE_RUN_OPTIONS, AXE_TIME, axeBudgetMs, axeCaptureFrom, axeNotRun, type AxeRunOutput } from './a11y/axe-script.ts';

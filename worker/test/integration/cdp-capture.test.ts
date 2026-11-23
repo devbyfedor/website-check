@@ -1,0 +1,162 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Browser } from '@cloudflare/puppeteer';
+import { analyzeThirdParty, buildReport, compileRules, createUrlGuard, parseRulesFile, validateReport, type Capture, type Report } from '@website-check/scanner';
+import { BROWSER_LOST, captureWithCdpEvents } from '../../src/capture/cdp-events.ts';
+import type { CloudCaptureOptions } from '../../src/capture/common.ts';
+import { startCdpFixture, type CdpFixture } from './cdp-fixture.ts';
+
+/**
+ * Session fix-a1: the review's reproductions of findings 1, 2 and 17 as tests of the Cloudflare adapter
+ * itself, on the local Chromium (see `cdp-fixture.ts`). Every test failed before the fix:
+ * - a request of a third-party iframe, a CORS preflight or a web worker became a finding of the site;
+ * - a capture cut off by a crashed tab, a lost browser or the hard limit became a clean, complete report.
+ */
+
+// Invented services: an embedded player (a product), a tracker and a font host of other providers.
+const rules = compileRules(
+  parseRulesFile({
+    version: 1,
+    updated: '2026-11-23',
+    services: [
+      { id: 'x-player', name: 'X Player', provider: 'PlayerCo', category: 'video', riskClass: 'usually-consent', dataLocation: 'unknown', hosts: ['embed.playerco.test'], sources: ['test'] },
+      { id: 'x-tracker', name: 'X Tracker', provider: 'TrackCo', category: 'analytics', riskClass: 'consent-required', dataLocation: 'unknown', hosts: ['px.trackco.test'], sources: ['test'] },
+      { id: 'x-fonts', name: 'X Fonts', provider: 'FontCo', category: 'fonts', riskClass: 'precedent', dataLocation: 'unknown', hosts: ['css.fontco.test'], sources: ['test'] },
+    ],
+  }),
+);
+
+let fixture: CdpFixture;
+let browser: Browser;
+
+const guard = () =>
+  createUrlGuard({
+    resolve: async () => {
+      throw new Error('no DNS in this test');
+    },
+    exempt: (url) => url.hostname.endsWith('.test'),
+  });
+const options = (extra: CloudCaptureOptions = {}): CloudCaptureOptions => ({ guard: guard(), axeSource: null, httpProbe: false, impressum: false, ...extra });
+
+function reportOf(capture: Capture): Report {
+  const { report } = buildReport({ id: 'abcdefghijklmnopqrstuvwxyz', createdAt: '2026-11-23T10:00:00.000Z', siteUrl: 'http://www.shop.test/', mode: 'full', capture, rules, scannerVersion: '0.0.0', rulesUpdated: '2026-11-23' });
+  expect(validateReport(report)).toEqual([]);
+  return report;
+}
+
+const services = (capture: Capture): string[] => analyzeThirdParty(capture, rules).services.map((s) => `${s.key}=${s.severity}`);
+const to = (capture: Capture, host: string) => capture.requests.filter((r) => r.url.includes(`//${host}`));
+
+beforeAll(async () => {
+  fixture = await startCdpFixture();
+  browser = (await fixture.connect()).browser;
+});
+afterAll(async () => {
+  await fixture?.close();
+});
+
+describe('finding 17: a request without a frame belongs to the document that caused it', () => {
+  it('a CORS preflight inside a third-party iframe is no separate finding', async () => {
+    const { capture, stats } = await captureWithCdpEvents(browser, fixture.url('www.shop.test', '/preflight'), options());
+    const frame = fixture.url('embed.playerco.test', '/preflight');
+    const tracker = to(capture, 'px.trackco.test');
+    expect(tracker.map((r) => r.method).sort()).toEqual(['OPTIONS', 'POST']);
+    for (const request of tracker) expect(request).toMatchObject({ isMainFrame: false, frameUrls: [frame], frameKnown: true });
+    expect(stats.framesUnknown).toBe(0);
+    expect(services(capture)).toEqual(['x-player=finding']);
+    expect(reportOf(capture).findings.filter((f) => f.area === 'privacy').map((f) => f.id)).toEqual(['third-party:x-player']);
+  });
+
+  it('a request of a web worker inside a third-party iframe is no separate finding', async () => {
+    const { capture, stats } = await captureWithCdpEvents(browser, fixture.url('www.shop.test', '/worker'), options());
+    const fonts = to(capture, 'css.fontco.test');
+    expect(fonts).toHaveLength(1);
+    expect(fonts[0]).toMatchObject({ isMainFrame: false, frameUrls: [fixture.url('embed.playerco.test', '/worker')], frameKnown: true });
+    expect(stats.framesUnknown).toBe(0);
+    expect(services(capture)).toEqual(['x-player=finding']);
+  });
+
+  it('a preflight and a worker of the page itself still count for the page', async () => {
+    const { capture } = await captureWithCdpEvents(browser, fixture.url('www.shop.test', '/own'), options());
+    const own = [...to(capture, 'px.trackco.test'), ...to(capture, 'css.fontco.test')];
+    expect(own.map((r) => r.method).sort()).toEqual(['GET', 'OPTIONS', 'POST']);
+    for (const request of own) expect(request).toMatchObject({ isMainFrame: true, frameUrls: [], frameKnown: true });
+    expect(services(capture).sort()).toEqual(['x-fonts=finding', 'x-tracker=finding']);
+  });
+});
+
+describe('finding 1: two third-party iframes that answer at almost the same time', () => {
+  it('the requests of the first iframe keep its address, and its fonts are no finding of the site', async () => {
+    // The review's setting: 25 ms each way between the Worker and the browser, the second widget answers
+    // 60 to 74 ms after the first. Before the fix Puppeteer then recorded the first widget's requests
+    // without its address in most of these captures (`framesPlacedLate` counts them now).
+    const delayed = (await fixture.connect(25)).browser;
+    const widget = fixture.url('forms.widget.test', '/embed');
+    let placedLate = 0;
+    for (const gap of [60, 62, 63, 64, 65, 66, 68, 74]) {
+      fixture.setGap(gap);
+      const { capture, stats } = await captureWithCdpEvents(delayed, fixture.url('www.shop.test', '/race'), options({ maxWaitMs: 8_000 }));
+      expect(capture.ok).toBe(true);
+      const inWidget = capture.requests.filter((r) => !r.isNavigation && (r.url.includes('//css.fontco.test') || r.url.includes('//forms.widget.test')));
+      expect(inWidget).toHaveLength(3);
+      for (const request of inWidget) expect(request).toMatchObject({ isMainFrame: false, frameUrls: [widget], frameKnown: true });
+      expect(stats.framesUnknown).toBe(0);
+      placedLate += stats.framesPlacedLate ?? 0;
+      expect(services(capture)).toEqual(['unknown:widget.test=hint']);
+      expect(reportOf(capture).findings.filter((f) => f.kind === 'finding' && f.area === 'privacy')).toEqual([]);
+    }
+    console.log(`requests of the widget placed only at the end of the capture: ${placedLate} in 8 captures`);
+    await delayed.disconnect();
+  });
+});
+
+describe('finding 2: a capture that is cut off is never a complete report', () => {
+  const ticker = (): string => fixture.url('www.shop.test', '/ticker');
+
+  it('control: the whole visit sees the tracker that starts after 2.5 s', async () => {
+    const { capture } = await captureWithCdpEvents(browser, ticker(), options());
+    expect(capture).toMatchObject({ ok: true, failure: null, timings: { stopReason: 'network-quiet' } });
+    const report = reportOf(capture);
+    expect(report.state).toBe('complete');
+    expect(report.measures.find((m) => m.id === 'third-party-before-consent')).toMatchObject({ result: 'fail', actual: { type: 'count', count: 1 } });
+  });
+
+  it('a tab that crashes 1.2 s after the document gives a failed capture, not a page without services', async () => {
+    fixture.onNextDocument(() => {
+      setTimeout(() => {
+        void (async () => {
+          const target = browser.targets().find((t) => t.type() === 'page' && t.url().startsWith(fixture.url('www.shop.test', '/')));
+          const session = await target?.createCDPSession();
+          void session?.send('Page.crash').catch(() => undefined);
+        })();
+      }, 1_200);
+    });
+    const { capture } = await captureWithCdpEvents(browser, ticker(), options());
+    expect(capture.ok).toBe(false);
+    expect(capture.failure).toMatchObject({ reason: 'other' });
+    expect(to(capture, 'px.trackco.test')).toEqual([]);
+    const report = reportOf(capture);
+    expect(report.state).toBe('failed');
+    expect(report.measures).toEqual([]);
+    expect(report.services).toEqual([]);
+  });
+
+  it('a page that never finishes is cut by the hard limit: a timeout, not a clean report', async () => {
+    const { capture } = await captureWithCdpEvents(browser, fixture.url('www.shop.test', '/busy'), options({ maxWaitMs: 2_000, hardLimitMs: 3_500 }));
+    expect(capture.ok).toBe(false);
+    expect(capture.failure).toMatchObject({ reason: 'timeout' });
+    const report = reportOf(capture);
+    expect(report.state).toBe('failed');
+    expect(report.measures).toEqual([]);
+  });
+
+  it('a browser lost 1.2 s after the document makes the capture throw: the scan ends as an error, without a report', async () => {
+    const own = await fixture.connect();
+    fixture.onNextDocument(() => {
+      setTimeout(() => own.dropConnection(), 1_200);
+    });
+    const started = Date.now();
+    await expect(captureWithCdpEvents(own.browser, ticker(), options())).rejects.toThrow(BROWSER_LOST);
+    // Noticed at once, not after the 15 s of the longest wait.
+    expect(Date.now() - started).toBeLessThan(8_000);
+  });
+});

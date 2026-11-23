@@ -1,3 +1,4 @@
+import { frameUnknown } from '../capture/frames.ts';
 import type { Capture, CapturedRequest } from '../capture/types.ts';
 import { firstPartySites, hostOf, siteOfHost, siteOfUrl } from '../domain/site.ts';
 import type { CompiledRules, RuleMatch } from '../rules/match.ts';
@@ -31,6 +32,10 @@ import {
  * - Risk class comes from the rules data. Unknown third parties are grey-zone hints.
  * - A service is a finding only if at least one of its requests reached the server (a
  *   response arrived). Requests that all failed (for example a dead domain) make it a hint.
+ * - Session fix-a1: a request whose document the adapter does not know (`frameUnknown`: a CORS
+ *   preflight, a web worker or an iframe that could not be placed) may come from an embedded
+ *   third-party page. It never counts as a request of the page itself: a service is a finding only
+ *   if a request with a known document reached the server; otherwise it is a hint to check by hand.
  */
 
 export const THIRD_PARTY_ANALYSIS_VERSION = 1;
@@ -58,6 +63,8 @@ export interface ThirdPartyEvidence {
   ownServiceId: string | null;
   /** Document, stylesheet or script that triggered the request, if known (best effort) */
   initiatorUrl: string | null;
+  /** False when the adapter does not know which document made the request (`frameUnknown`) */
+  frameKnown: boolean;
 }
 
 export interface DetectedService {
@@ -75,6 +82,11 @@ export interface DetectedService {
   severity: Severity;
   /** At least one request reached the server */
   confirmed: boolean;
+  /**
+   * Requests reached the server, but only ones whose document is unknown: nothing shows that the page
+   * itself contacted the service, so it is a hint ("bitte manuell prüfen") whatever its risk class.
+   */
+  frameUnknown: boolean;
   hosts: string[];
   requestCount: number;
   firstStartMs: number;
@@ -225,14 +237,14 @@ export function analyzeThirdParty(capture: Capture, rules: CompiledRules): Third
   }
 
   const bannerAt = capture.consentBanner.detected ? capture.consentBanner.visibleAtMs : null;
-  const groups = new Map<string, { owner: Owner; items: { request: CapturedRequest; via: Via | null; own: Owner }[] }>();
+  const groups = new Map<string, { owner: Owner; items: { request: CapturedRequest; via: Via | null; own: Owner; frameKnown: boolean }[] }>();
   for (const request of requests) {
     const attribution = attributions.get(request.seq);
     if (attribution === undefined) continue;
     const own = ownerOfUrl(request.url);
     if (own === null) continue;
     const group = groups.get(attribution.owner.key) ?? { owner: attribution.owner, items: [] };
-    group.items.push({ request, via: attribution.via, own });
+    group.items.push({ request, via: attribution.via, own, frameKnown: !frameUnknown(capture, request) });
     groups.set(attribution.owner.key, group);
   }
 
@@ -243,7 +255,9 @@ export function analyzeThirdParty(capture: Capture, rules: CompiledRules): Third
     const rule = owner.kind === 'service' ? owner.match.rule : null;
     const riskClass: RiskClass = rule?.riskClass ?? 'grey-zone';
     const baseSeverity = SEVERITY_OF_RISK_CLASS[riskClass];
-    const severity: Severity = baseSeverity === 'finding' && !confirmed ? 'hint' : baseSeverity;
+    // Seen from a known document: only that shows that the page itself, or an iframe it embeds, made the request.
+    const placed = items.some((item) => item.frameKnown && reachedServer(item.request));
+    const severity: Severity = baseSeverity === 'finding' && !placed ? 'hint' : baseSeverity;
     const includes = new Map<string, number>();
     for (const item of items) {
       if (item.own.kind === 'service' && item.own.key !== owner.key) {
@@ -263,12 +277,13 @@ export function analyzeThirdParty(capture: Capture, rules: CompiledRules): Third
       sources: rule?.sources ?? [],
       severity,
       confirmed,
+      frameUnknown: confirmed && !placed,
       hosts: [...new Set(items.map((item) => hostOf(item.request.url) ?? ''))].filter((h) => h !== '').sort(),
       requestCount: items.length,
       firstStartMs,
       startsBeforeBanner: bannerAt === null ? null : firstStartMs < bannerAt,
       includes: [...includes.entries()].map(([serviceId, requestCount]) => ({ serviceId, requestCount })).sort((a, b) => a.serviceId.localeCompare(b.serviceId)),
-      evidence: items.slice(0, MAX_EVIDENCE).map(({ request, via, own }) => ({
+      evidence: items.slice(0, MAX_EVIDENCE).map(({ request, via, own, frameKnown }) => ({
         url: truncate(request.url),
         startMs: request.startMs,
         resourceType: request.resourceType,
@@ -278,6 +293,7 @@ export function analyzeThirdParty(capture: Capture, rules: CompiledRules): Third
         via: via === null ? null : { kind: via.kind, url: truncate(via.url) },
         ownServiceId: own.kind === 'service' && own.key !== owner.key ? own.key : null,
         initiatorUrl: request.initiator?.url ? truncate(request.initiator.url) : null,
+        frameKnown,
       })),
       evidenceTruncated: items.length > MAX_EVIDENCE,
     });
