@@ -501,7 +501,7 @@ Result: merged into `main` with `git merge --no-ff`.
 
 ## fix-a2: the second polishing session after the review of stage A (24.11.2026)
 
-Branch `fix-a2`, **merged into `main`**. Session time: about 1 hour 10 minutes (23:35 on 23.11.2026 to about 00:45 on 24.11.2026). No Cloudflare, no browser minutes, no site visited: everything ran on the laptop (unit tests, the local Chromium against pages on 127.0.0.1, the saved captures).
+Branch `fix-a2`, **merged into `main`**. Session time: about 1 hour (23:35 on 23.11.2026 to about 00:37 on 24.11.2026). No Cloudflare, no browser minutes, no site visited: everything ran on the laptop (unit tests, the local Chromium against pages on 127.0.0.1, the saved captures).
 
 Fedor's answer before the start (in `docs/decisions.md`): an almost empty page shows no findings, only the notice and manual checks.
 
