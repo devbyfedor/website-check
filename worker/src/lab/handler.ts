@@ -218,12 +218,5 @@ export function createLabHandler<E extends LabEnv>(deps: LabDeps<E>): Handler<E>
   return createLabGate(createLabRoutes(deps));
 }
 
-/** Reads `key=value` lines of https://www.cloudflare.com/cdn-cgi/trace (only the keys we keep). */
-export function parseTrace(text: string): Pick<TraceResult, 'loc' | 'colo' | 'http' | 'tls'> {
-  const values = new Map<string, string>();
-  for (const line of text.split(/\r?\n/)) {
-    const index = line.indexOf('=');
-    if (index > 0) values.set(line.slice(0, index).trim(), line.slice(index + 1).trim());
-  }
-  return { loc: values.get('loc') ?? null, colo: values.get('colo') ?? null, http: values.get('http') ?? null, tls: values.get('tls') ?? null };
-}
+/** Reads `key=value` lines of https://www.cloudflare.com/cdn-cgi/trace; shared with the scan queue since A5 part 3. */
+export { parseTrace } from '../capture/visit.ts';

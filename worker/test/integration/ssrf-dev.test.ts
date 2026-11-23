@@ -52,6 +52,10 @@ function startFixture(): Promise<void> {
       res.writeHead(200, { 'content-type': 'image/svg+xml' });
       res.end('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
     } else if (path === '/ok') html('<h1>Öffentliche Seite</h1>');
+    else if (path === '/with-impressum') html('<h1>Muster Werkstatt</h1><footer><a href="/impressum-page">Impressum</a></footer>');
+    else if (path === '/impressum-page')
+      html('<main><h1>Impressum</h1><p>Muster Werkstatt GmbH<br>Musterweg 12<br>87654 Musterhausen</p><p>E-Mail: kontakt [at] muster-werkstatt.example</p><p>Handelsregister: HRB 12345, Amtsgericht Beispielburg</p></main>');
+    else if (path === '/impressum-internal') html(`<h1>Muster Werkstatt</h1><footer><a href="${internal}/ssrf/secret">Impressum</a></footer>`);
     else if (path === '/image-from-internal') html(`<h1>Bild</h1><img src="${internal}/ssrf/secret.svg" alt="">`);
     else if (path === '/redirect-loopback') redirect(302, `${internal}/ssrf/secret`);
     else if (path === '/redirect-decimal') redirect(301, '/redirect-decimal-2');
@@ -224,6 +228,26 @@ describe('SSRF guard in the Cloudflare adapter (wrangler dev)', () => {
     const c = await capture(path, strategy);
     expect(c.ok, c.failure?.message ?? '').toBe(true);
     await new Promise((done) => setTimeout(done, 500));
+    expect(hits.secret).toBe(before);
+  });
+
+  it('A5 part 3: opens the Impressum in a second tab of the same context and reads its text', async () => {
+    const c = await capture('/with-impressum');
+    expect(c.ok, c.failure?.message ?? '').toBe(true);
+    expect(c.impressum?.ok, c.impressum?.failure?.message ?? '').toBe(true);
+    expect(c.impressum?.url).toBe(site('/impressum-page'));
+    expect(c.impressum?.page?.text).toContain('87654 Musterhausen');
+    expect(c.impressum?.timings.stopReason).toBe('text-stable');
+    expect(c.impressum?.timings.totalMs).toBeGreaterThan(0);
+  });
+
+  it('A5 part 3: refuses an Impressum link to 127.0.0.1 before it is sent, the homepage stays captured', async () => {
+    const before = hits.secret;
+    const c = await capture('/impressum-internal');
+    expect(c.ok, c.failure?.message ?? '').toBe(true);
+    expect(c.impressum?.ok).toBe(false);
+    expect(c.impressum?.failure?.reason).toBe('not-allowed');
+    expect(c.impressum?.page).toBeNull();
     expect(hits.secret).toBe(before);
   });
 

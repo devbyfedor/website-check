@@ -14,7 +14,24 @@ import type { HttpProbe } from '../security/types.ts';
 
 export const CAPTURE_SCHEMA_VERSION = 1;
 
-export type CaptureAdapterId = 'playwright-local' | 'cloudflare-browser-run';
+/**
+ * `quick-fetch` (session A5 part 3): the quick check without a browser, when the day's browser time is used
+ * up: the HTML and headers of the homepage and the Impressum, fetched under the SSRF rules.
+ */
+export type CaptureAdapterId = 'playwright-local' | 'cloudflare-browser-run' | 'quick-fetch';
+
+/**
+ * Session A5 part 3: where the site was visited from (Fedor, 21.11.2026: named in the report). On
+ * Cloudflare it comes from Cloudflare's trace page, once per browser session (`browser-trace`), or for the
+ * quick check from the Durable Object's own request (`object-trace`).
+ */
+export interface CaptureVisit {
+  /** ISO 3166 country code (`loc` of the trace page), or null when unknown. */
+  country: string | null;
+  /** Cloudflare data center (`colo`), or null. */
+  colo: string | null;
+  source: 'browser-trace' | 'object-trace' | 'local';
+}
 
 /**
  * How the Cloudflare adapter collected the requests (session A2 measures both):
@@ -177,7 +194,8 @@ export interface ImpressumTimings {
   snapshotMs: number | null;
   /** Browser time of the Impressum: from opening the tab until it was closed. */
   totalMs: number;
-  stopReason: 'text-stable' | 'max-wait' | 'error';
+  /** `fetched`: the quick check read the HTML as the server sent it (no browser, no waiting). */
+  stopReason: 'text-stable' | 'max-wait' | 'fetched' | 'error';
 }
 
 export interface SecurityMeta {
@@ -230,7 +248,8 @@ export interface CaptureTimings {
   networkQuietMs: number | null;
   /** When the adapter stopped watching the page. */
   endMs: number;
-  stopReason: 'network-quiet' | 'max-wait' | 'error';
+  /** `fetched`: the quick check without a browser (session A5 part 3). */
+  stopReason: 'network-quiet' | 'max-wait' | 'fetched' | 'error';
 }
 
 export interface Capture {
@@ -268,5 +287,7 @@ export interface Capture {
    * a `javascript:` link, or an anchor on the homepage itself).
    */
   impressum?: ImpressumCapture | null;
+  /** Session A5 part 3: where the site was visited from. Missing in older captures and in local runs. */
+  visit?: CaptureVisit | null;
   timings: CaptureTimings;
 }

@@ -153,7 +153,7 @@ export class LabBrowser extends DurableObject<Env> {
         const guard = createUrlGuard({ resolve: createDohResolver(), ...(exempt !== undefined ? { exempt } : {}) });
         return this.#withBrowser(sessionId, (browser) =>
           strategy === 'cdp-events'
-            ? captureWithCdpEvents(browser, url, { axeSource: AXE_SOURCE, httpProbe: true, guard })
+            ? captureWithCdpEvents(browser, url, { axeSource: AXE_SOURCE, httpProbe: true, guard, impressum: true })
             : captureWithResourceTiming(browser, url, { guard }),
         );
       },

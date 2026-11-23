@@ -8,6 +8,7 @@ import {
   type Capture,
   type CaptureEnvironment,
   type CaptureFailure,
+  type CaptureVisit,
   type ConsentBannerObservation,
   type ConsentTool,
   type PageSnapshot,
@@ -32,6 +33,12 @@ export interface CloudCaptureOptions {
    * main document, the redirect check). Default: a new guard that resolves names with DNS over HTTPS.
    */
   guard?: UrlGuard;
+  /** Session A5 part 3: open the Impressum in a second tab of the same context (strategy a only). */
+  impressum?: boolean;
+  /** Lab only (Fedor, A5 part 3): measure what reading element positions for "Feld B2" costs; nothing goes into the capture. */
+  measureFieldPositions?: boolean;
+  /** Session A5 part 3: where the browser runs (one trace per browser session), copied into the capture. */
+  visit?: CaptureVisit | null;
 }
 
 export interface CloudSettings {
@@ -42,6 +49,9 @@ export interface CloudSettings {
   axeSource: string | null;
   httpProbe: boolean;
   guard: UrlGuard;
+  impressum: boolean;
+  measureFieldPositions: boolean;
+  visit: CaptureVisit | null;
 }
 
 /** What the Worker saw while capturing, for the measurement (not part of the capture). */
@@ -56,6 +66,14 @@ export interface CaptureStats {
   wallMs: number;
   /** How long the capture waited for the http redirect check after the page was done (0 if it was faster). */
   probeWaitMs?: number;
+  /** Windows the page opened itself that the popup guard refused (their documents were never sent). */
+  popupsBlocked?: number;
+  /** Browser time of the homepage tab: from creating the browser context until the tab is closed. */
+  homepageMs?: number;
+  /** Browser time of the Impressum tab (open to close), when one was opened. */
+  impressumMs?: number;
+  /** Lab only: time and size of reading element positions for "Feld B2" (one evaluation in the page). */
+  fieldPositions?: { ms: number; elements: number; boxes: number; failed: boolean };
 }
 
 export interface CloudCaptureResult {
@@ -72,6 +90,9 @@ export function resolveSettings(options: CloudCaptureOptions): CloudSettings {
     axeSource: options.axeSource ?? null,
     httpProbe: options.httpProbe ?? false,
     guard: options.guard ?? createUrlGuard({ resolve: createDohResolver() }),
+    impressum: options.impressum ?? false,
+    measureFieldPositions: options.measureFieldPositions ?? false,
+    visit: options.visit ?? null,
   };
 }
 

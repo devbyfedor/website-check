@@ -55,7 +55,7 @@ export interface BuildReportOptions {
   rules: CompiledRules;
   scannerVersion: string;
   rulesUpdated: string;
-  /** Where the browser ran (Cloudflare `loc` and `colo`); null when unknown. */
+  /** Where the browser ran (Cloudflare `loc` and `colo`); null when unknown. Default: `capture.visit`. */
   visit?: { country: string | null; colo: string | null };
 }
 
@@ -714,8 +714,8 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
       axeVersion: capture.axe?.axeVersion ?? null,
     },
     visit: {
-      country: countryOf(options.visit?.country),
-      colo: coloOf(options.visit?.colo),
+      country: countryOf((options.visit ?? capture.visit)?.country),
+      colo: coloOf((options.visit ?? capture.visit)?.colo),
       adapter: capture.adapter,
       browser: options.mode === 'quick' ? null : clip(capture.environment.browser, 80),
       locale: capture.environment.locale,

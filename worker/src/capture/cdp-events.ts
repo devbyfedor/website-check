@@ -17,6 +17,7 @@ import {
   type AxeCapture,
   type HttpProbe,
   CAPTURE_SETTINGS,
+  chooseImpressumTarget,
   chromeVersionOf,
   LONG_LIVED_RESOURCE_TYPES,
   SNAPSHOT_EXPRESSION,
@@ -42,6 +43,8 @@ import {
   type CloudSettings,
 } from './common.ts';
 import { applyEmulation, frameEmulation, sendAll, userAgentMetadataOf, viewportEmulation, VISITOR_PLATFORM } from './emulation.ts';
+import { measureFieldPositions } from './field-positions.ts';
+import { captureImpressumTabCdp } from './impressum.ts';
 
 /**
  * Strategy (a): request events through the browser protocol.
@@ -158,7 +161,7 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
   // Windows the page opens itself never load (A5 review); the scanner's own page is added below.
   const browserSession = await browser.target().createCDPSession();
   const ownTargets = new Set<string>();
-  await installPopupGuard(browserSession, ownTargets);
+  const popups = await installPopupGuard(browserSession, ownTargets);
   const context = await browser.createBrowserContext();
   let hardLimitHit = false;
   const hardTimer = setTimeout(() => {
@@ -166,8 +169,30 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
     void context.close().catch(() => undefined);
   }, settings.hardLimitMs);
   try {
-    const result = await runCapture(browser, context, url, settings, () => hardLimitHit, startedWall, ownTargets);
+    const { page, ...result } = await runCapture(browser, context, url, settings, () => hardLimitHit, startedWall, ownTargets);
+    // The homepage is done: its hard limit no longer applies (the Impressum tab has its own), and its tab is
+    // closed before the Impressum opens, so its late requests cost no more events (session A5 part 3).
+    clearTimeout(hardTimer);
+    await page.close().catch(() => undefined);
+    result.stats.homepageMs = Date.now() - startedWall;
+    const capture = result.capture;
+    if (settings.impressum && !hardLimitHit && capture.ok && capture.page !== null) {
+      const target = chooseImpressumTarget(capture.page.links, capture.page.url ?? capture.finalUrl);
+      if (target.action === 'open') {
+        capture.impressum = await captureImpressumTabCdp(context, target.url, {
+          guard: settings.guard,
+          ownTargets,
+          userAgent: capture.environment.userAgent,
+          homepageStartedAt: Date.parse(capture.startedAt),
+        });
+        result.stats.impressumMs = capture.impressum.timings.totalMs;
+      } else {
+        capture.impressum = null;
+      }
+    }
+    if (settings.visit !== null) capture.visit = settings.visit;
     result.stats.wallMs = Date.now() - startedWall;
+    result.stats.popupsBlocked = popups.blocked.length;
     if (probe !== null) {
       const waitStarted = Date.now();
       result.capture.httpProbe = await probe;
@@ -189,7 +214,7 @@ async function runCapture(
   hardLimitHit: () => boolean,
   contextStarted: number,
   ownTargets: Set<string>,
-): Promise<CloudCaptureResult> {
+): Promise<CloudCaptureResult & { page: Page }> {
   const environment = cloudEnvironment(chromeVersionOf(await browser.version()));
   const page = await context.newPage();
   const client = await clientOf(page);
@@ -376,6 +401,8 @@ async function runCapture(
     else if (budget === 0) axe = axeNotRun('skipped', 'no time left before the hard limit of the page');
     else axe = await runAxeOverCdp(client, settings.axeSource, budget);
   }
+  // Lab only: the cost of reading element positions for "Feld B2" (not part of the capture).
+  const fieldPositions = settings.measureFieldPositions && failure === null && snapshot !== null && !hardLimitHit() && !crashed && !page.isClosed() ? await measureFieldPositions(client, axe) : undefined;
   const endMs = rel();
 
   const finalUrl = mainResponse?.url() ?? null;
@@ -404,13 +431,14 @@ async function runCapture(
     failure,
     finalUrl,
     mainDocument: mainResponse === null ? null : { status: mainResponse.status(), headers, redirectChain },
-    requests: records,
+    // A copy: the tab may still report late requests until the caller closes it.
+    requests: records.slice(),
     page: pageSnapshotOf(snapshot),
     consentBanner: bannerObservation(snapshot, toCaptureMs),
     axe,
     timings: { domContentLoadedMs, loadMs, networkQuietMs, endMs, stopReason },
   };
-  return { capture, stats: { events, polls: 0, emulationFailed, wallMs: 0 } };
+  return { page, capture, stats: { events, polls: 0, emulationFailed, wallMs: 0, ...(fieldPositions !== undefined ? { fieldPositions } : {}) } };
 }
 
 function lowerCase(headers: Record<string, string>): Record<string, string> {
