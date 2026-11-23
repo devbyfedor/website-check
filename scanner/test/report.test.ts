@@ -117,8 +117,8 @@ describe('buildReport: a complete scan', () => {
     const base = shopCapture();
     const capture = shopCapture({
       requests: [
-        ...base.requests.map(({ seq: _seq, ...r }) => r),
-        { url: 'https://maps.googleapis.com/maps/api/js?key=TEST', resourceType: 'script', startMs: 900, endMs: 1100 },
+        ...base.requests,
+        { seq: base.requests.length, url: 'https://maps.googleapis.com/maps/api/js?key=TEST', method: 'GET', resourceType: 'script', startMs: 900, endMs: 1100, status: 200, failure: null, isMainFrame: true, frameUrls: [], isNavigation: false, initiator: null, redirectedFrom: null },
       ],
     });
     const maps = build({ capture }).report.findings.find((f) => f.id === 'third-party:google-maps');

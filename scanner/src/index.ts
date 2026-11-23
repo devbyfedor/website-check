@@ -83,3 +83,5 @@ export * from './report/types.ts';
 export { buildReport, type BuildReportOptions, type BuiltReport, type NetworkHostRow } from './report/build.ts';
 export { compileSchema, REPORT_SCHEMA_V1, validateReport, type CompiledSchema, type SchemaError } from './report/validate.ts';
 export { decodePunycodeLabel, displayHostOf, hostToUnicode, MAX_ADDRESS_INPUT, normalizeSiteAddress, type AddressError, type NormalizedAddress } from './report/site-address.ts';
+export { decodeHtml, snapshotFromHtml } from './quick/html-snapshot.ts';
+export { fetchFailure, QUICK_ADAPTER, quickCapture, type QuickCaptureOptions } from './quick/quick-capture.ts';
