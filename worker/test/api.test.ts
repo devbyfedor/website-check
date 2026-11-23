@@ -5,7 +5,8 @@ import { createUrlGuard, type Resolver } from '@website-check/scanner';
 import { base32, isScanId, newScanId } from '../src/api/ids.ts';
 import { visitorKeyOf } from '../src/api/rate-limit.ts';
 import { createApi, MAX_BODY_BYTES } from '../src/api/router.ts';
-import { saveResult } from '../src/db/store.ts';
+import { purgeBefore, saveResult } from '../src/db/store.ts';
+import worker from '../src/index.ts';
 import { localD1, TABLES, WORKER_ROOT, type LocalD1 } from './d1.ts';
 
 /**
@@ -28,10 +29,11 @@ const resolver: Resolver = async (host) => {
 
 let d1: LocalD1;
 let clock = Date.UTC(2026, 10, 23, 9, 0, 0);
+const SECRET = 'test-secret-of-the-unit-tests-only-0123456789';
 
 function api(dispatch?: (scan: { id: string; url: string }) => Promise<void>): (request: Request) => Promise<Response> {
   const guard = createUrlGuard({ resolve: resolver });
-  return createApi({ db: d1.db, check: (url) => guard.check(url), now: () => clock, ...(dispatch !== undefined ? { dispatch } : {}) });
+  return createApi({ db: d1.db, check: (url) => guard.check(url), secret: SECRET, now: () => clock, ...(dispatch !== undefined ? { dispatch } : {}) });
 }
 
 function post(url: unknown, ip: string | null = '203.0.113.7', init: { contentType?: string; body?: BodyInit } = {}): Request {
@@ -165,10 +167,12 @@ describe('rate limit: 5 scans per hour per visitor, hashed IP with a daily salt'
     expect((await start('laden6-beispiel.de')).status).toBe(202);
   });
 
-  it('counts each visitor apart, IPv6 by its /64, IPv4-mapped IPv6 as the IPv4 address', async () => {
-    for (let i = 1; i <= 5; i += 1) expect((await start(`v6-${i}-beispiel.de`, `2001:db8:1:2::${i}`)).status).toBe(202);
+  it('counts each visitor apart, IPv6 by its /56, IPv4-mapped IPv6 as the IPv4 address', async () => {
+    for (let i = 1; i <= 5; i += 1) expect((await start(`v6-${i}-beispiel.de`, `2001:db8:1:2${i}::${i}`)).status).toBe(202);
     expect((await start('v6-6-beispiel.de', '2001:db8:1:2:ffff:ffff:ffff:ffff')).status).toBe(429);
-    expect((await start('v6-7-beispiel.de', '2001:db8:1:3::1')).status).toBe(202);
+    // Another /64 of the same delegated /56 is the same visitor (review of A5 part 2).
+    expect((await start('v6-6b-beispiel.de', '2001:db8:1:ff::1')).status).toBe(429);
+    expect((await start('v6-7-beispiel.de', '2001:db8:1:100::1')).status).toBe(202);
     for (let i = 1; i <= 5; i += 1) expect((await start(`v4-${i}-beispiel.de`, '198.51.100.9')).status).toBe(202);
     expect((await start('v4-6-beispiel.de', '::ffff:198.51.100.9')).status).toBe(429);
     expect(visitorKeyOf('::ffff:198.51.100.9')).toBe(visitorKeyOf('198.51.100.9'));
@@ -192,7 +196,7 @@ describe('rate limit: 5 scans per hour per visitor, hashed IP with a daily salt'
     const dump: string[] = [];
     for (const table of TABLES) dump.push(JSON.stringify((await d1.db.prepare(`SELECT * FROM ${table}`).all()).results));
     const all = dump.join('\n');
-    for (const needle of ['203.0.113.77', '2001:db8:abcd:12', '2001:0db8', '4:3405803853', '6:2001:db8:abcd:12']) expect(all).not.toContain(needle);
+    for (const needle of ['203.0.113.77', '2001:db8:abcd:12', '2001:0db8', '4:3405803853', '6:2001:db8:abcd:0/56', SECRET]) expect(all).not.toContain(needle);
 
     const hashes = async (): Promise<string[]> => (await d1.db.prepare('SELECT visitor FROM rate_events ORDER BY at').all<{ visitor: string }>()).results.map((r) => r.visitor);
     await d1.clear();
@@ -207,6 +211,22 @@ describe('rate limit: 5 scans per hour per visitor, hashed IP with a daily salt'
     expect(day1).not.toBe(day2);
     const salts = await d1.db.prepare('SELECT day FROM rate_salts').all<{ day: string }>();
     expect(salts.results).toEqual([{ day: '2026-11-24' }]);
+  });
+
+  it('without the secret no scan starts (fail closed), and nothing is written', async () => {
+    const guard = createUrlGuard({ resolve: resolver });
+    for (const secret of [undefined, 'zu-kurz']) {
+      const response = await createApi({ db: d1.db, check: (url) => guard.check(url), secret, now: () => clock })(post('kaffee-beispiel.de'));
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: 'not-configured' });
+    }
+    for (const table of TABLES) expect(await count(table), table).toBe(0);
+  });
+
+  it('two starts of the same address at the same moment by one visitor take one slot', async () => {
+    const [a, b] = await Promise.all([start('kaffee-beispiel.de'), start('kaffee-beispiel.de')]);
+    expect([a?.status, b?.status].sort()).toEqual([200, 202]);
+    expect(await count('rate_events')).toBe(1);
   });
 
   it('a request without the visitor header shares one limit', async () => {
@@ -335,6 +355,36 @@ describe('status and report', () => {
     expect(router.match(/JSON\.parse\(/g)).toHaveLength(1);
     expect(router).toMatch(/const text = await readSmallBody\(request\);[\s\S]{0,200}JSON\.parse\(text\)/);
     expect(store).not.toMatch(/JSON\.parse\(|\.json\(\)/);
+  });
+});
+
+describe('store edge cases (review of A5 part 2)', () => {
+  it('saving the same result twice returns false instead of failing, and adds no rows', async () => {
+    const { body } = await start('kaffee-beispiel.de');
+    const id = String(body.id);
+    const input = { id, now: clock, state: 'complete' as const, reportVersion: 1, reportJson: '{}', country: null, colo: null, findings: [{ findingId: 'a11y:label', area: 'accessibility', kind: 'finding', risk: 'medium', textId: 'a11y-label', serviceKey: null }], hosts: [{ host: 'kaffee-beispiel.de', party: 'first' as const, serviceKey: null, requestCount: 3, firstStartMs: 0, lastEndMs: 90, beforeBanner: null }] };
+    expect(await saveResult(d1.db, input)).toBe(true);
+    expect(await saveResult(d1.db, input)).toBe(false);
+    expect(await count('findings')).toBe(1);
+    expect(await count('network_requests')).toBe(1);
+  });
+
+  it('the retention delete counts scans, not the rows of the cascade', async () => {
+    for (const name of ['a', 'b']) {
+      const { body } = await start(`${name}-beispiel.de`);
+      await saveResult(d1.db, { id: String(body.id), now: clock, state: 'complete', reportVersion: 1, reportJson: '{}', country: null, colo: null, findings: [{ findingId: 'a11y:label', area: 'accessibility', kind: 'finding', risk: 'medium', textId: 'a11y-label', serviceKey: null }], hosts: [] });
+    }
+    expect(await purgeBefore(d1.db, clock + 1)).toEqual({ scans: 2, sites: 2 });
+    expect(await count('findings')).toBe(0);
+  });
+
+  it('the hourly cleanup deletes old salts and expired events without any scan', async () => {
+    await start('kaffee-beispiel.de');
+    clock += 25 * 3_600_000;
+    const env = { DB: d1.db };
+    await worker.scheduled({ scheduledTime: clock, cron: '0 * * * *', noRetry() {} } as ScheduledController, env);
+    expect(await count('rate_salts')).toBe(0);
+    expect(await count('rate_events')).toBe(0);
   });
 });
 

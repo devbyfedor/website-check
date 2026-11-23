@@ -192,6 +192,21 @@ describe('host names', () => {
   it('keeps ordinary names', () => {
     for (const name of ['www.example.de', 'shop.example.co.uk', 'xn--mller-kva.de', 'localhost-shop.de', 'my.local-bakery.de', 'test.de', 'internal.example.de']) expect(hostNameRejection(name), name).toBeNull();
   });
+
+  it.each(['http://localhost../', 'http://printer.local../', 'http://intranet../', 'http://shop.example.de../', 'http://shop..example.de/'])(
+    'refuses %s with an empty label without asking DNS (review of A5 part 2)',
+    async (url) => {
+      const resolve = resolverOf({});
+      const verdict = await createUrlGuard({ resolve }).check(url);
+      expect(verdict.allowed).toBe(false);
+      if (!verdict.allowed) expect(verdict.rejection).toBe('host-name');
+      expect(resolve.calls).toEqual([]);
+    },
+  );
+
+  it('keeps one trailing dot, the root of DNS', async () => {
+    expect((await guardOf().check('https://shop.example.de./')).allowed).toBe(true);
+  });
 });
 
 describe('names that resolve to internal addresses', () => {

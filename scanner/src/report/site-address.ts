@@ -39,8 +39,9 @@ export function normalizeSiteAddress(input: string): NormalizedAddress {
   if (verdict !== null && !verdict.allowed) {
     return { ok: false, error: verdict.rejection === 'invalid-url' ? 'invalid-url' : 'not-allowed', rejection: verdict.rejection, detail: verdict.detail };
   }
+  // One trailing dot is the root of DNS ("beispiel.de." is "beispiel.de"); an empty label ("beispiel.de..", ".de") is no address.
   const host = url.hostname.replace(/\.$/, '');
-  if (host === '') return { ok: false, error: 'invalid-url', rejection: 'invalid-url', detail: 'no host name' };
+  if (host === '' || host.startsWith('.') || host.endsWith('.') || host.includes('..')) return { ok: false, error: 'invalid-url', rejection: 'invalid-url', detail: 'empty label in the host name' };
   const port = url.port === '' ? '' : `:${url.port}`;
   return { ok: true, url: `${url.protocol}//${host}${port}/`, host };
 }
@@ -111,13 +112,30 @@ export function decodePunycodeLabel(input: string): string | null {
   return String.fromCodePoint(...output);
 }
 
-/** "xn--mller-kva.de" becomes "müller.de"; labels that do not decode stay as they are. */
+/**
+ * Letters a label may show decoded: ASCII letters, digits and the hyphen, and the Latin letters with
+ * accents and umlauts of Latin-1 and Latin Extended-A (ä, ö, ü, ß, é, ł, …). A label with any other
+ * character (Cyrillic, Greek, symbols) stays in punycode, so "xn--80ak6aa92e.com" never reads as a look-alike
+ * of a well-known name in the head of a shared report (review of A5 part 2; browsers do the same).
+ */
+function isDisplaySafe(text: string): boolean {
+  for (const ch of text) {
+    const code = ch.codePointAt(0) as number;
+    if ((code >= 0x61 && code <= 0x7a) || (code >= 0x30 && code <= 0x39) || code === 0x2d) continue;
+    if (code >= 0xdf && code <= 0x17f && code !== 0xf7) continue;
+    return false;
+  }
+  return true;
+}
+
+/** "xn--mller-kva.de" becomes "müller.de"; labels that do not decode, or decode to other scripts, stay as they are. */
 export function hostToUnicode(host: string): string {
   return host
     .split('.')
     .map((label) => {
       if (!/^xn--/i.test(label)) return label;
-      return decodePunycodeLabel(label.slice(4).toLowerCase()) ?? label;
+      const decoded = decodePunycodeLabel(label.slice(4).toLowerCase());
+      return decoded !== null && isDisplaySafe(decoded) ? decoded : label;
     })
     .join('.');
 }

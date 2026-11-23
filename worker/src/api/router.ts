@@ -1,7 +1,7 @@
 import { normalizeSiteAddress, type UrlRejection, type UrlVerdict } from '@website-check/scanner';
 import { createScan, findCachedScan, getReportText, getScan, markError, type ScanRow } from '../db/store.ts';
 import { cryptoRandomBytes, isScanId, newScanId } from './ids.ts';
-import { hashVisitor, saltOfDay, takeSlot, visitorKeyOf } from './rate-limit.ts';
+import { hashVisitor, MIN_SECRET_LENGTH, releaseSlot, saltOfDay, takeSlot, visitorKeyOf } from './rate-limit.ts';
 
 /**
  * The API of the brief (session A5 part 2):
@@ -22,6 +22,8 @@ export interface ApiDeps {
   db: D1Database;
   /** The SSRF guard with name resolution (`createUrlGuard` with `createDohResolver` in the Worker). */
   check: (url: string) => Promise<UrlVerdict>;
+  /** Key of the visitor hash (Worker secret `RATE_LIMIT_SECRET`, at least 32 characters). Without it no scan starts. */
+  secret: string | undefined;
   now?: () => number;
   randomBytes?: (n: number) => Uint8Array;
   /** Hands a new scan to the queue (the Durable Object of part 3). Until then scans stay queued. */
@@ -125,13 +127,25 @@ async function startScan(request: Request, deps: Required<Omit<ApiDeps, 'dispatc
   const verdict = await deps.check(address.url);
   if (!verdict.allowed) return refusal(verdict.rejection);
 
+  // Fail closed: without the secret the hashes could be reversed from the database alone.
+  if (deps.secret === undefined || deps.secret.length < MIN_SECRET_LENGTH) return error(503, 'not-configured');
   const salt = await saltOfDay(deps.db, now, deps.randomBytes);
-  const visitor = await hashVisitor(salt, visitorKeyOf(request.headers.get('cf-connecting-ip')));
+  const visitor = await hashVisitor(deps.secret, salt, visitorKeyOf(request.headers.get('cf-connecting-ip')));
   const slot = await takeSlot(deps.db, visitor, now, newScanId(deps.randomBytes).slice(0, 8));
   if (!slot.allowed) return error(429, 'rate-limited', { retryAfterSeconds: slot.retryAfterSeconds }, { 'retry-after': String(slot.retryAfterSeconds) });
 
-  const result = await createScan(deps.db, { id: newScanId(deps.randomBytes), url: address.url, host: address.host, now });
-  if (!result.created) return json(200, scanBody(result.scan, true));
+  let result: Awaited<ReturnType<typeof createScan>>;
+  try {
+    result = await createScan(deps.db, { id: newScanId(deps.randomBytes), url: address.url, host: address.host, now });
+  } catch {
+    await releaseSlot(deps.db, visitor, slot).catch(() => undefined);
+    return error(503, 'unavailable', {}, { 'retry-after': '30' });
+  }
+  if (!result.created) {
+    // Another visitor started the same address at the same moment: this one gets that scan and keeps its slot.
+    await releaseSlot(deps.db, visitor, slot);
+    return json(200, scanBody(result.scan, true));
+  }
   if (deps.dispatch !== undefined) {
     try {
       await deps.dispatch({ id: result.scan.id, url: address.url });

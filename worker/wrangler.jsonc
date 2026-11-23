@@ -18,6 +18,9 @@
     "logs": { "enabled": false, "invocation_logs": false },
     "traces": { "enabled": false }
   },
+  // Hourly: delete the salts of earlier days and rate-limit events older than an hour, also without traffic.
+  // Free plan; it runs only once the Worker is deployed.
+  "triggers": { "crons": ["0 * * * *"] },
   "d1_databases": [
     {
       "binding": "DB",

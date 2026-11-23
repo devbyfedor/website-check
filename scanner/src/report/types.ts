@@ -107,7 +107,10 @@ export interface Finding {
   field: string | null;
   /** Third-party findings: the key of the service in `services`. */
   serviceKey: string | null;
-  /** Data went to a third party before consent: the report names the country of the visit next to it. */
+  /**
+   * Data went to a third party before consent (a request of the service got an answer): the report names
+   * the country of the visit next to it. False for services whose requests never reached the server.
+   */
   beforeConsent: boolean;
   evidence: Evidence[];
   /** Text id of the fix instructions with system tabs ("Montageanleitung"); null when there is none. */
@@ -154,8 +157,12 @@ export interface ReportService {
   riskClass: RiskClass;
   dataLocation: DataLocation;
   severity: Severity;
-  /** The tag in the column "Einwilligung": `missing` (fehlt), `grey-zone` (Graubereich), `not-needed` (not flagged). */
-  consent: 'missing' | 'grey-zone' | 'not-needed';
+  /**
+   * The tag in the column "Einwilligung": `missing` (fehlt), `grey-zone` (Graubereich), `not-needed` (not
+   * flagged), `not-reached` (no request of the service got an answer, so no data is known to have arrived;
+   * not in the design).
+   */
+  consent: 'missing' | 'grey-zone' | 'not-needed' | 'not-reached';
   /** "Startet": every request of the scan happened without consent, because the scan never clicks. */
   starts: 'before-consent';
   requestCount: number;

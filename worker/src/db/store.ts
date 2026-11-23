@@ -83,6 +83,22 @@ export async function findCachedScan(db: D1Database, url: string, now: number): 
  * existing scan is returned.
  */
 export async function createScan(db: D1Database, input: { id: string; url: string; host: string; now: number }): Promise<{ created: true; scan: ScanRow } | { created: false; scan: ScanRow }> {
+  // The scan that blocked the insert can change its state before it is read again (a quick check, an
+  // error): then a second attempt creates the scan (review of A5 part 2).
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const result = await tryCreateScan(db, input);
+    if (result !== null) return result;
+  }
+  const newest = await db
+    .prepare('SELECT s.id, s.status, s.state, s.created_at, s.started_at, s.finished_at, s.country FROM scans s WHERE s.site_id = (SELECT id FROM sites WHERE url = ?1) ORDER BY s.created_at DESC LIMIT 1')
+    .bind(input.url)
+    .all<RawScan>();
+  const row = newest.results[0];
+  if (row === undefined) throw new Error('scan was neither created nor found');
+  return { created: false, scan: toScan(row) };
+}
+
+async function tryCreateScan(db: D1Database, input: { id: string; url: string; host: string; now: number }): Promise<{ created: true; scan: ScanRow } | { created: false; scan: ScanRow } | null> {
   const [, insert] = await db.batch([
     db.prepare('INSERT INTO sites (url, host, created_at) VALUES (?1, ?2, ?3) ON CONFLICT (url) DO NOTHING').bind(input.url, input.host, input.now),
     db
@@ -97,8 +113,7 @@ export async function createScan(db: D1Database, input: { id: string; url: strin
     return { created: true, scan: { id: input.id, status: 'queued', state: null, createdAt: input.now, startedAt: null, finishedAt: null, country: null } };
   }
   const existing = await findCachedScan(db, input.url, input.now);
-  if (existing === null) throw new Error('scan was neither created nor found');
-  return { created: false, scan: existing };
+  return existing === null ? null : { created: false, scan: existing };
 }
 
 export async function getScan(db: D1Database, id: string): Promise<ScanRow | null> {
@@ -140,14 +155,16 @@ export async function saveResult(
       .prepare(
         `INSERT INTO findings (scan_id, position, finding_id, area, kind, risk, text_id, service_key)
          SELECT ?1, j.key, json_extract(j.value, '$[0]'), json_extract(j.value, '$[1]'), json_extract(j.value, '$[2]'), json_extract(j.value, '$[3]'), json_extract(j.value, '$[4]'), json_extract(j.value, '$[5]')
-         FROM json_each(?2) AS j WHERE EXISTS (SELECT 1 FROM scans WHERE id = ?1 AND status = 'done' AND finished_at = ?3)`,
+         FROM json_each(?2) AS j WHERE EXISTS (SELECT 1 FROM scans WHERE id = ?1 AND status = 'done' AND finished_at = ?3)
+         AND NOT EXISTS (SELECT 1 FROM findings WHERE scan_id = ?1)`,
       )
       .bind(input.id, findings, input.now),
     db
       .prepare(
         `INSERT INTO network_requests (scan_id, position, host, party, service_key, request_count, first_start_ms, last_end_ms, before_banner)
          SELECT ?1, j.key, json_extract(j.value, '$[0]'), json_extract(j.value, '$[1]'), json_extract(j.value, '$[2]'), json_extract(j.value, '$[3]'), json_extract(j.value, '$[4]'), json_extract(j.value, '$[5]'), json_extract(j.value, '$[6]')
-         FROM json_each(?2) AS j WHERE EXISTS (SELECT 1 FROM scans WHERE id = ?1 AND status = 'done' AND finished_at = ?3)`,
+         FROM json_each(?2) AS j WHERE EXISTS (SELECT 1 FROM scans WHERE id = ?1 AND status = 'done' AND finished_at = ?3)
+         AND NOT EXISTS (SELECT 1 FROM network_requests WHERE scan_id = ?1)`,
       )
       .bind(input.id, hosts, input.now),
   ]);
@@ -164,9 +181,11 @@ export async function markError(db: D1Database, id: string, reason: string, now:
  * sites that have no scan left. The retention period is chosen by Fedor in stage C.
  */
 export async function purgeBefore(db: D1Database, before: number): Promise<{ scans: number; sites: number }> {
-  const [scans, sites] = await db.batch([
+  // `changes` of the DELETE would include the rows deleted by the cascade, so the scans are counted first.
+  const [count, , sites] = await db.batch([
+    db.prepare('SELECT COUNT(*) AS n FROM scans WHERE created_at < ?1').bind(before),
     db.prepare('DELETE FROM scans WHERE created_at < ?1').bind(before),
     db.prepare('DELETE FROM sites WHERE NOT EXISTS (SELECT 1 FROM scans WHERE scans.site_id = sites.id)'),
   ]);
-  return { scans: scans?.meta.changes ?? 0, sites: sites?.meta.changes ?? 0 };
+  return { scans: (count?.results[0] as { n?: number } | undefined)?.n ?? 0, sites: sites?.meta.changes ?? 0 };
 }

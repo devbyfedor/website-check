@@ -97,6 +97,8 @@ export function precheckUrl(input: string | URL, exempt?: (url: URL) => boolean)
     return refuse(href, 'address', `${literal.rejection} address ${literal.canonical}`, literal.rejection);
   }
   if (literal === null) {
+    // bareHost dropped one trailing dot (the DNS root); an empty label left ("intern.local..", ".de") is no host (review of A5 part 2).
+    if (host === '' || host.startsWith('.') || host.endsWith('.') || host.includes('..')) return refuse(href, 'host-name', 'empty label in the host name');
     const nameReason = hostNameRejection(host);
     if (nameReason !== null) return refuse(href, 'host-name', nameReason);
   }

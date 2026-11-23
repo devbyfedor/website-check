@@ -261,6 +261,46 @@ describe('buildReport: unsure cases', () => {
     expect(build({ visit: undefined }).report.visit.country).toBeNull();
   });
 
+  it('a third party on a very long domain keeps a short, unique key and the report validates (review)', () => {
+    const bucket = 'b'.repeat(63);
+    const capture = shopCapture();
+    const requests = [
+      ...capture.requests,
+      { ...capture.requests[1], seq: 100, url: `https://${bucket}.s3.dualstack.eu-central-1.amazonaws.com/w.js`, startMs: 900 },
+      { ...capture.requests[1], seq: 101, url: `https://${'c'.repeat(63)}.s3.dualstack.eu-central-1.amazonaws.com/w.js`, startMs: 910 },
+      { ...capture.requests[1], seq: 102, url: `https://${'d'.repeat(110)}.example/x.js`, startMs: 920, status: null, failure: 'net::ERR_NAME_NOT_RESOLVED' },
+    ] as typeof capture.requests;
+    const built = build({ capture: { ...capture, requests } });
+    expectValid(built.report);
+    const long = built.report.services.filter((s) => s.key.length >= 90);
+    expect(long).toHaveLength(3);
+    expect(new Set(long.map((s) => s.key)).size).toBe(3);
+    for (const s of long) expect(s.key.length).toBeLessThanOrEqual(100);
+    expect(built.report.findings.filter((f) => f.serviceKey !== null).every((f) => built.report.services.some((s) => s.key === f.serviceKey))).toBe(true);
+    expect(built.networkHosts.filter((h) => h.serviceKey !== null).every((h) => (h.serviceKey ?? '').length <= 100)).toBe(true);
+  });
+
+  it('a service whose requests never got an answer sent no data: no "before consent", tag not-reached (review)', () => {
+    const capture = shopCapture();
+    const requests = capture.requests.map((r) => (r.url.includes('fonts.g') ? { ...r, status: null, failure: 'net::ERR_CONNECTION_RESET' } : r));
+    const { report } = build({ capture: { ...capture, requests } });
+    expectValid(report);
+    expect(report.findings.find((f) => f.id === 'third-party:google-fonts')).toMatchObject({ kind: 'hint', risk: null, textId: 'third-party-unconfirmed', beforeConsent: false });
+    expect(report.services.find((s) => s.key === 'google-fonts')?.consent).toBe('not-reached');
+    expect(report.findings.find((f) => f.id === 'third-party:google-analytics')?.beforeConsent).toBe(true);
+    expect(report.priorities).not.toContain('third-party:google-fonts');
+  });
+
+  it('a loaded page whose text and links were not read: mandatory information not checked, nothing reported missing (review)', () => {
+    const { report } = build({ capture: shopCapture({ page: null }) });
+    expectValid(report);
+    expect(report.sections.legal).toEqual({ status: 'not-checked', reason: 'page-not-read' });
+    expect(report.legal).toBeNull();
+    expect(report.findings.some((f) => f.area === 'mandatory-information')).toBe(false);
+    expect(report.measures.find((m) => m.id === 'impressum-fields')?.result).toBe('not-checked');
+    expect(report.measures.find((m) => m.id === 'accessibility-statement')?.result).toBe('not-checked');
+  });
+
   it('a huge page stays within the caps and still validates', () => {
     const requests = [{ url: SHOP, resourceType: 'document', isNavigation: true, startMs: 0, endMs: 100 }];
     for (let i = 0; i < 2000; i += 1) {

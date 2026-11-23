@@ -14,14 +14,16 @@ The report holds facts, states, text ids and their parameters, never finished Ge
 - `not-allowed`: refused by the SSRF protection (`failure.reason` `not-allowed`, notice `report-not-allowed` with the rule as `rejection`). No findings.
 - `failed`: the homepage did not load (timeout, unreachable, HTTP error). No findings, notice `report-failed`.
 
-`sections` says for each part (third-party, accessibility, security, mandatory information, system) whether it was checked and why not. A check that did not run is never shown as "keine Funde".
+`sections` says for each part (third-party, accessibility, security, mandatory information, system) whether it was checked and why not (`quick-check`, `page-not-loaded`, `page-not-read` when the page loaded but its text and links could not be read, or the analyzer's reason). A check that did not run is never shown as "keine Funde".
+
+`findings[].beforeConsent` is true only when a request of the service got an answer: then data certainly went to the third party before consent, and the report names the country of the visit next to it. A service whose requests all failed is a hint with `beforeConsent` false.
 
 ## Element by element (`design/reference/bericht.html`)
 
 Header and footer of the site (logo, "So prüfen wir", "BFSG-Check", "Neue Prüfung", footer links): static, no field.
 
 Head:
-- "Prüfbericht für roesterei-muster.de": `site.displayHost` (Unicode, without "www."); `site.host` and `site.url` keep the exact address.
+- "Prüfbericht für roesterei-muster.de": `site.displayHost` (Unicode, without "www."); `site.host` and `site.url` keep the exact address. Only labels with Latin letters (ASCII, umlauts and accents of Latin-1 and Latin Extended-A) are shown decoded; a label in another script stays in punycode, so a look-alike domain never reads as a known name in a shared report.
 - Buttons "Als PDF speichern", "Link kopieren", "An Entwickler weitergeben": actions of the page; the link is built from `id`.
 - "Geprüft am 19. November 2026, 18:42 Uhr": `scan.scannedAt` (UTC; the page shows Europe/Berlin).
 - "System WordPress mit WooCommerce": `platform.system`, `platform.woocommerce`, `platform.shopwareVersion`.
@@ -53,7 +55,7 @@ Prüfmaße (`measures`, in the order of the table; each row has `result` pass, f
 - Pos., Dienst, Anbieter: `position`, `name`, `provider`; the small line ("Schriften", "lädt weitere Skripte", "Statistik"): from `category`.
 - "Daten gehen an" ("Server in den USA möglich", "weltweites Servernetz"): `dataLocation`.
 - "Startet" ("vor der Einwilligung"): `starts`, always `before-consent`.
-- "Einwilligung" tag ("fehlt", "Graubereich"): `consent` missing, grey-zone, not-needed.
+- "Einwilligung" tag ("fehlt", "Graubereich"): `consent` missing, grey-zone, not-needed, and not-reached (no request of the service got an answer, so no data is known to have arrived; not in the design).
 - "Liste für die Datenschutzerklärung kopieren": built from `services`, `site.displayHost` and `scan.scannedAt`.
 
 Finding detail ("fund-1"):
@@ -91,9 +93,10 @@ States the design does not show (B2 and B3 build them from existing elements and
 10. Fewer than three entries for "Drei Dinge" (or none), and a report with no findings at all.
 11. The country of the visit in the head and next to findings with `beforeConsent`.
 12. System "unbekannt": no tab carries "erkannt".
+13. The tag `not-reached` in the Stückliste (a service whose requests never got an answer), and a domain shown in punycode.
 
 Conflict with a product rule:
-13. The design shows the accessibility statement as "fehlt" and "nicht erfüllt". By product rule 3 a statement the scan did not find is "nicht gefunden, bitte manuell prüfen" (it can be linked from another page), so the schema gives `actual.state` not-found with result `manual`. Question to Fedor in the report.
+14. The design shows the accessibility statement as "fehlt" and "nicht erfüllt". By product rule 3 a statement the scan did not find is "nicht gefunden, bitte manuell prüfen" (it can be linked from another page), so the schema gives `actual.state` not-found with result `manual`. Question to Fedor in the report.
 
 Texts that do not exist yet (ids used by the builder; drafts follow in B3 and B4): `report-quick-incomplete`, `report-blocked`, `report-not-allowed`, `report-failed`, `third-party-precedent`, `third-party-consent-required`, `third-party-usually-consent`, `third-party-grey-zone`, `third-party-unconfirmed`, `third-party-unknown`, `security-headers`, `security-http-redirect-not-checked`, `legal-not-checked`, `legal-impressum-same-page`, `legal-impressum-pdf`, `legal-impressum-failed`, `legal-impressum-not-checked`, `legal-field-not-found`, `legal-datenschutz-no-link`, `legal-accessibility-statement-not-found`, and the `fix-<service>` texts.
 

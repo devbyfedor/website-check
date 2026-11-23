@@ -95,9 +95,30 @@ function idPart(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9.-]+/g, '-').replace(/^-+|-+$/g, '') || 'x';
 }
 
-/** `third-party:google-fonts`, `third-party:unknown:beispiel.example`. */
+/** FNV-1a, 32 bits: a short, stable suffix that keeps shortened keys apart. */
+function fnv1a(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+const MAX_KEY = 100;
+
+/**
+ * The service key as the report and D1 store it: unchanged up to 100 characters; a longer one (an
+ * unknown third party on a very long registrable domain, which the page controls) keeps its start and
+ * gets a hash of the whole key, so it stays unique and within the schema's 120 characters.
+ */
+export function reportServiceKey(key: string): string {
+  return key.length <= MAX_KEY ? key : `${key.slice(0, MAX_KEY - 9)}-${fnv1a(key)}`;
+}
+
+/** `third-party:google-fonts`, `third-party:unknown:beispiel.example`; at most 112 characters. */
 function serviceFindingId(key: string): string {
-  return `third-party:${key.split(':').map(idPart).join(':')}`;
+  return `third-party:${reportServiceKey(key).split(':').map(idPart).join(':')}`;
 }
 
 function ms(value: number): number {
@@ -130,8 +151,15 @@ function finding(
 // ---------------------------------------------------------------------------------------------
 // Third-party services
 
+/** No request of the service got an answer: nothing is known to have reached it. */
+function unreached(service: DetectedService): boolean {
+  return !service.confirmed;
+}
+
 function consentOf(service: DetectedService): ReportService['consent'] {
-  return service.severity === 'finding' ? 'missing' : service.severity === 'hint' ? 'grey-zone' : 'not-needed';
+  if (service.severity === 'finding') return 'missing';
+  if (unreached(service) && service.riskClass !== 'not-flagged') return 'not-reached';
+  return service.severity === 'hint' ? 'grey-zone' : 'not-needed';
 }
 
 function serviceTextId(service: DetectedService): string {
@@ -170,8 +198,9 @@ function thirdPartyFindings(analysis: ThirdPartyAnalysis): Finding[] {
           firstStartMs: ms(service.firstStartMs),
           beforeBanner: service.startsBeforeBanner,
         },
-        serviceKey: service.key,
-        beforeConsent: true,
+        serviceKey: reportServiceKey(service.key),
+        // Only a request that got an answer certainly sent data to the third party (review of A5 part 2).
+        beforeConsent: service.confirmed,
         evidence,
         fixTextId: service.known && kind === 'finding' && service.serviceId !== null ? `fix-${idPart(service.serviceId)}` : null,
       }),
@@ -185,7 +214,7 @@ function reportServices(analysis: ThirdPartyAnalysis, findingIds: ReadonlySet<st
     const id = serviceFindingId(service.key);
     return {
       position: index + 1,
-      key: clip(service.key, 120),
+      key: reportServiceKey(service.key),
       known: service.known,
       name: clip(service.name, 120),
       provider: service.provider === null ? null : clip(service.provider, 120),
@@ -304,7 +333,7 @@ function buildTimeline(capture: Capture, analysis: ThirdPartyAnalysis): Timeline
         label: clip(group.host, 300),
         party: 'third',
         kind: service?.category === 'consent' ? 'consent-tool' : 'service',
-        serviceKey: service === null ? null : clip(service.key, 120),
+        serviceKey: service === null ? null : reportServiceKey(service.key),
         provider: service?.provider === null || service === null ? null : clip(service.provider, 120),
         startMs: ms(start),
         endMs: lastEnd(requests),
@@ -333,7 +362,7 @@ function networkHosts(capture: Capture, analysis: ThirdPartyAnalysis | null): { 
     return {
       host: clip(group.host, 253),
       party: group.party,
-      serviceKey: service === null ? null : clip(service.key, 120),
+      serviceKey: service === null ? null : reportServiceKey(service.key),
       requestCount: group.requests.length,
       firstStartMs: ms(first),
       lastEndMs: lastEnd(group.requests),
@@ -629,7 +658,8 @@ function sectionsOf(state: ReportState, analysis: CaptureAnalysis): Record<Secti
     thirdParty: state === 'quick' ? quick : checked,
     accessibility: state === 'quick' ? quick : a11y === null || a11y.status === 'not-checked' ? { status: 'not-checked', reason: clip(a11y?.reason ?? 'no accessibility data', 300) } : checked,
     security: checked,
-    legal: checked,
+    // A loaded page whose text and links could not be read: no link counts as missing (review of A5 part 2).
+    legal: analysis.legal !== null && !analysis.legal.homepageRead ? { status: 'not-checked', reason: 'page-not-read' } : checked,
     platform: checked,
   };
 }
@@ -703,7 +733,7 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
     priorities,
     services,
     timeline: tp === null ? null : buildTimeline(capture, tp),
-    legal: loaded && analysis.legal !== null ? reportLegal(analysis.legal) : null,
+    legal: loaded && sections.legal.status === 'checked' && analysis.legal !== null ? reportLegal(analysis.legal) : null,
     security: loaded && analysis.security !== null ? reportSecurity(analysis.security) : null,
     counts: {
       findings: all.filter((f) => f.kind === 'finding').length,
