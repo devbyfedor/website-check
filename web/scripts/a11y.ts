@@ -21,6 +21,7 @@
 // --reference runs axe on the reference files too, for comparison. Results: local/a11y/.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { chromium, type Browser, type Page } from 'playwright';
 import { PNG } from 'pngjs';
 import { ROOT, VIEWPORT_HEIGHT, nextFrames, routeHosts, settle, startCheckServer } from './browser-setup.ts';
@@ -73,7 +74,7 @@ function activeElement(): { id: string; tag: string; text: string; key: string; 
 }
 
 // Runs in the page: every element a keyboard user must reach, in document order.
-function controls(): string[] {
+export function controls(): string[] {
   const list = Array.from(document.querySelectorAll('a[href], button, input, select, textarea, [tabindex]'));
   return list
     .filter((el) => !(el as HTMLButtonElement).disabled && el.getAttribute('tabindex') !== '-1')
@@ -97,7 +98,7 @@ const contrast = (a: number[], b: number[]): number => {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 };
 
-interface RingMeasure {
+export interface RingMeasure {
   changed: number; // pixels that differ between focused and unfocused
   strong: number; // of them with a contrast of at least 3:1 between the two states
   required: number; // area of a 2 px line around the element (2.4.13)
@@ -126,7 +127,7 @@ function measureRing(box: { width: number; height: number }, focused: Buffer, un
   };
 }
 
-async function newPage(browser: Browser, url: string, width: number, origin: string, reduced: boolean, fonts: 'local' | 'none') {
+export async function newPage(browser: Browser, url: string, width: number, origin: string, reduced: boolean, fonts: 'local' | 'none') {
   const context = await browser.newContext({
     viewport: { width, height: VIEWPORT_HEIGHT[width] ?? 900 },
     deviceScaleFactor: 1,
@@ -141,7 +142,7 @@ async function newPage(browser: Browser, url: string, width: number, origin: str
   return { context, page, blocked };
 }
 
-async function keyboard(page: Page, label: string): Promise<{ problems: string[]; stops: unknown[] }> {
+export async function keyboard(page: Page, label: string): Promise<{ problems: string[]; stops: unknown[] }> {
   const problems: string[] = [];
   const expected = await page.evaluate(controls);
   const stops: { id: string; text: string; key: string; focusVisible: boolean; outline: string; ring: RingMeasure; ringCut: boolean }[] = [];
@@ -254,7 +255,7 @@ async function activation(page: Page, label: string): Promise<{ problems: string
   return { problems, done };
 }
 
-interface AxeSummary {
+export interface AxeSummary {
   state: string;
   violations: { id: string; impact: string | null; nodes: number }[];
   incomplete: { id: string; nodes: number }[];
@@ -262,7 +263,7 @@ interface AxeSummary {
   rules: number;
 }
 
-async function axe(page: Page, state: string, source: string): Promise<AxeSummary> {
+export async function axe(page: Page, state: string, source: string): Promise<AxeSummary> {
   await page.addScriptTag({ content: source });
   const r = await page.evaluate(async () => {
     const w = window as unknown as { axe: { run: (ctx: Document, opts: object) => Promise<Record<string, { id: string; impact?: string | null; nodes: unknown[] }[]>> } };
@@ -278,7 +279,7 @@ async function axe(page: Page, state: string, source: string): Promise<AxeSummar
   };
 }
 
-interface TextContrast {
+export interface TextContrast {
   element: string;
   text: string;
   reason: string; // axe's message key, for example bgImage
@@ -294,7 +295,7 @@ interface TextContrast {
 // the boxes of the element's own text is compared with its text colour, blended with that pixel by the
 // opacity of the element and its ancestors (a step of the scan screen that has not lit up yet is shown
 // at 0.32). Paused animations stay where they are. Needs axe in the page.
-async function contrastByPixels(page: Page): Promise<TextContrast[]> {
+export async function contrastByPixels(page: Page): Promise<TextContrast[]> {
   const items = await page.evaluate(async () => {
     type Node = { target: string[]; any: { data?: { messageKey?: string } }[] };
     const w = window as unknown as { axe: { run: (ctx: Document, opts: object) => Promise<{ incomplete: { nodes: Node[] }[] }> } };
@@ -368,7 +369,7 @@ async function contrastByPixels(page: Page): Promise<TextContrast[]> {
   });
 }
 
-function printContrast(prefix: string, list: TextContrast[]): void {
+export function printContrast(prefix: string, list: TextContrast[]): void {
   if (!list.length) return;
   const reasons = [...new Set(list.map((t) => t.reason))].join(', ');
   const worstTypical = list.reduce((a, b) => (b.typical / b.required < a.typical / a.required ? b : a));
@@ -528,4 +529,5 @@ async function main(): Promise<void> {
   if (problems.length || blocked) process.exitCode = 1;
 }
 
-await main();
+// web/scripts/scan-check.ts uses the functions above without running these checks.
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) await main();
