@@ -24,7 +24,8 @@
     "lab:e2e:dev": "node scanner/src/local/lab-e2e-dev.ts",
     "lab:cpu": "node scanner/src/local/cpu-lab.ts",
     "build:web": "npm run build --workspace web",
-    "visual": "npm run build --workspace web && node web/scripts/visual.ts"
+    "visual": "npm run build --workspace web && node web/scripts/visual.ts",
+    "preview": "npm run build:web && node web/scripts/serve.ts"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

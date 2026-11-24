@@ -53,13 +53,23 @@ async function resolve(mounts: Mount[], urlPath: string): Promise<{ file: string
   return null;
 }
 
-export async function startStaticServer(mounts: Mount[]): Promise<StaticServer> {
+export interface ServerOptions {
+  port?: number; // 0 (default): any free port
+  notFoundFile?: string; // HTML answered with status 404
+}
+
+export async function startStaticServer(mounts: Mount[], options: ServerOptions = {}): Promise<StaticServer> {
   const normalized = mounts.map((m) => ({ prefix: m.prefix, dir: normalize(m.dir) }));
   const server: Server = createServer((req, res) => {
     const urlPath = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
     void (async () => {
       const hit = await resolve(normalized, urlPath);
       if (!hit) {
+        if (options.notFoundFile) {
+          res.writeHead(404, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+          res.end(await readFile(options.notFoundFile));
+          return;
+        }
         res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
         res.end('not found');
         return;
@@ -75,7 +85,10 @@ export async function startStaticServer(mounts: Mount[]): Promise<StaticServer> 
       res.end();
     });
   });
-  await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+  await new Promise<void>((ok, fail) => {
+    server.once('error', fail);
+    server.listen(options.port ?? 0, '127.0.0.1', ok);
+  });
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('no port');
   return {
