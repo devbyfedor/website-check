@@ -949,7 +949,7 @@ Brief: the scan screen differs by at most 1 % (final state with fixture data); e
 - Pages with the id of a scan: `noindex, nofollow` by meta element and `X-Robots-Tag` (measured on `wrangler dev`), the API `noindex, nofollow, noarchive`.
 - Requests to other hosts: 0 in visual, motion, a11y, check:scan and the end-to-end runs.
 - `npm test` 1,422 of 1,422 (1,402 before); `npm run test:integration` scanner 90 of 90, worker 65 of 65; `npm run typecheck` no errors; `npm run build:web` passes: routes `/`, `/_not-found`, `/pruefung`, no path with "beispiel" and no "roesterei-muster" in `web/out`.
-- No name, address or data of a test site in git: the search over 171 strings (hosts and names of both site lists, Impressum values) finds 0 real hits in the 422 tracked files, the added lines of the 23 commits of the branch and their messages; the only matches are false ones, a short part of one host name inside an identifier of our code (6 files, 17 places in added lines). `git ls-files local` is empty.
+- No name, address or data of a test site in git: the search over 171 strings (hosts and names of both site lists, Impressum values) finds 0 real hits in the 422 tracked files, the added lines of the 23 commits of the branch and their messages; the only matches are false ones, a short part of one host name inside an identifier of our code (7 tracked files with this one, 18 places in added lines). `git ls-files local` is empty.
 
 ### How to look at the states
 
