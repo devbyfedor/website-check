@@ -335,14 +335,58 @@ describe('queue: "Prüfung abbrechen" (session B2 part 2, Fedor\'s answer 2)', (
     const browser = new FakeBrowser();
     const r = runner(queue, browser, () => 60);
     const run = r.run();
-    for (let i = 0; i < 50 && (await queue.position('scanaa')) !== 0; i += 1) await tick(2);
-    expect(await queue.position('scanaa')).toBe(0);
+    for (let i = 0; i < 50 && r.ran.length === 0; i += 1) await tick(2);
+    expect(r.ran.map((x) => x.id)).toEqual(['scanaa']);
     const told: string[] = [];
     expect(await queue.cancel('scanaa', 'token-a', async (j) => void told.push(j.id))).toBe('running');
     await run;
     expect(r.ran.map((x) => x.id)).toEqual(['scanaa']);
     expect(r.errors).toEqual([]);
     expect(told).toEqual([]);
+  });
+
+  it('review: a job a run took that still waits for the browser can be cancelled; its capture never runs and the browser closes', async () => {
+    const queue = queueWith();
+    await queue.enqueue(job('scanaa', 'token-a'), T0);
+    let open: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    let ensureCalls = 0;
+    const browser = new FakeBrowser();
+    const ensure = browser.ensure.bind(browser);
+    browser.ensure = async () => {
+      ensureCalls += 1;
+      await gate; // the launch spacing of Browser Run
+      await ensure();
+    };
+    const r = runner(queue, browser);
+    const run = r.run();
+    for (let i = 0; i < 50 && ensureCalls === 0; i += 1) await tick(2);
+    expect(await queue.position('scanaa')).toBe(0);
+    expect(await queue.cancel('scanaa', 'token-a', async () => undefined)).toBe('removed');
+    open();
+    await run;
+    expect(r.ran).toEqual([]);
+    expect(browser.open).toBe(false);
+    expect((await queue.day(T0 + 60_000)).full).toBe(0);
+    expect((await queue.jobs()).length).toBe(0);
+
+    // Cancelled after the run took it but before it asked for the browser: no browser at all.
+    const second = queueWith();
+    await second.enqueue(job('scanbb', 'token-b'), T0);
+    const taken = await second.takeNext(T0 + 1);
+    expect(taken?.id).toBe('scanbb');
+    expect(await second.cancel('scanbb', 'token-b', async () => undefined)).toBe('removed');
+    expect(await second.beginCapture('scanbb')).toBe(false);
+  });
+
+  it('a job of older code without tokens cannot be cancelled by a visitor who joins it', async () => {
+    const queue = queueWith();
+    await queue.enqueue({ id: 'scanaa', url: 'https://scanaa.example/', createdAt: T0 }, T0);
+    expect(await queue.join('scanaa', 'token-b')).toBe(true);
+    expect(await queue.cancel('scanaa', 'token-b', async () => undefined)).toBe('not-holder');
+    expect(await queue.position('scanaa')).toBe(1);
   });
 
   it('a wrong token changes nothing, a job without tokens (older code) cannot be cancelled, and the other scans keep their places', async () => {

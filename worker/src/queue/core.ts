@@ -72,8 +72,13 @@ export interface QueueJob {
    * the job leaves the queue only when no token is left and it has not started. Missing on jobs of older code.
    */
   holders?: string[];
-  /** More visitors joined than `MAX_HOLDERS`: the job is never cancelled any more. */
+  /** More visitors joined than `MAX_HOLDERS`, or the job was queued by older code without tokens: never cancelled. */
   pinned?: boolean;
+  /**
+   * The capture has begun (the browser is ready, or the quick check starts): from here on the scan runs to its end.
+   * A job that a run took but that still waits for the browser can be cancelled (review of B2 part 2).
+   */
+  capturing?: boolean;
   /** Its last visitor cancelled it: no run takes it and nobody joins it while D1 is told; then it is deleted. */
   cancelled?: boolean;
 }
@@ -220,15 +225,17 @@ export class ScanQueue {
       if (entry === undefined) return false;
       const holders = entry.job.holders ?? [];
       if (holders.includes(token) || entry.job.pinned === true) return true;
-      const job: QueueJob = holders.length >= MAX_HOLDERS ? { ...entry.job, pinned: true } : { ...entry.job, holders: [...holders, token] };
+      // A job of older code has no tokens: its visitor could not cancel it, so the one who joins cannot either.
+      const job: QueueJob = entry.job.holders === undefined || holders.length >= MAX_HOLDERS ? { ...entry.job, pinned: true } : { ...entry.job, holders: [...holders, token] };
       await this.#store.put(entry.key, job);
       return true;
     });
   }
 
   /**
-   * Session B2 part 2 (Fedor's answer 2): "Prüfung abbrechen" of one visitor. A job that has started runs to its
-   * end; a waiting job loses this visitor's token and leaves the queue when no token is left. Before it is deleted,
+   * Session B2 part 2 (Fedor's answer 2): "Prüfung abbrechen" of one visitor. A job whose capture has begun runs to
+   * its end; a waiting job (also one a run took that still waits for the browser) loses this visitor's token and leaves
+   * the queue when no token is left. Before it is deleted,
    * `finalize` records the end in D1 while the job is marked `cancelled`, inside the queue's order of changes: a
    * start that joins at that moment waits and then finds the job gone and D1 already changed, and no run takes it.
    */
@@ -236,7 +243,7 @@ export class ScanQueue {
     return this.#serial(async () => {
       const entry = (await this.#liveJobs()).find((e) => e.job.id === id);
       if (entry === undefined) return 'unknown';
-      if (entry.job.startedAt !== undefined) return 'running';
+      if (entry.job.capturing === true) return 'running';
       const holders = entry.job.holders ?? [];
       if (!holders.includes(token)) return 'not-holder';
       const left = holders.filter((h) => h !== token);
@@ -251,6 +258,24 @@ export class ScanQueue {
         await this.#store.delete(entry.key);
       }
       return 'removed';
+    });
+  }
+
+  /** Whether the job still waits or runs (not finished, not cancelled). */
+  async isLive(id: string): Promise<boolean> {
+    return (await this.#liveJobs()).some((e) => e.job.id === id);
+  }
+
+  /**
+   * Review of B2 part 2: the capture of a job begins. False when the job was cancelled meanwhile (it was taken by a
+   * run but still waited for the browser): then the run skips it. In the queue's order of changes, as `cancel`.
+   */
+  beginCapture(id: string): Promise<boolean> {
+    return this.#serial(async () => {
+      const entry = (await this.#liveJobs()).find((e) => e.job.id === id);
+      if (entry === undefined) return false;
+      await this.#store.put(entry.key, { ...entry.job, capturing: true });
+      return true;
     });
   }
 

@@ -55,6 +55,8 @@ const KEEP_ALIVE_MS = 20_000;
 const METRICS_KEPT = 30;
 /** When D1 did not take a scan's error, the next try comes this much later (session fix-a5, review finding 44). */
 const UNRECORDED_RETRY_MS = 60_000;
+/** The D1 write of a cancel holds the queue's order of changes at most this long (review of B2 part 2). */
+const CANCEL_WRITE_MS = 5_000;
 /** Chrome of Browser Run as measured in A2 (`@cloudflare/puppeteer` 2.0.1): the quick check's user agent until a browser of the day reported its version. */
 const KNOWN_CHROME_VERSION = '152.0.0.0';
 
@@ -232,7 +234,16 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
    */
   async #recordCancel(id: string): Promise<void> {
     try {
-      await markError(this.env.DB, id, 'cancelled', Date.now());
+      // The queue waits for this write (its order of changes): at most a few seconds, then the next runs write it.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const slow = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('D1 slow')), CANCEL_WRITE_MS);
+      });
+      try {
+        await Promise.race([markError(this.env.DB, id, 'cancelled', Date.now()), slow]);
+      } finally {
+        clearTimeout(timer);
+      }
     } catch {
       await this.#queue.addUnrecorded(id, 'cancelled', Date.now());
       if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + UNRECORDED_RETRY_MS);

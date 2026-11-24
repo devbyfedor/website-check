@@ -121,22 +121,27 @@ export async function startScan(input: StartInput, deps: StartDeps): Promise<Ans
   const budget = await checkStart(deps.db, visitor, now, starts);
   if (!budget.result.allowed) return rateLimited(budget.result.retryAfterSeconds, budget.result.limit);
 
-  let cached = await findCachedScan(deps.db, address.url, now);
-  let token: string | null = null;
-  if (cached !== null && inProgress(cached) && deps.join !== undefined) {
-    // Session B2 part 2: the visitor joins the scan with a cancel token of their own. A scan that left the queue
-    // between the read and the join (its last visitor cancelled it) is read again: D1 knows that by now.
-    token = await deps.join(cached.id);
-    if (token === null) {
-      cached = await findCachedScan(deps.db, address.url, clock());
-      if (cached !== null && inProgress(cached)) token = await deps.join(cached.id);
-    }
-  }
+  const cached = await findCachedScan(deps.db, address.url, now);
+  let first: LoadedState | undefined = budget.loaded;
   if (cached !== null) {
-    // A cached answer takes no scan slot, but it is a start of the visitor's budget.
+    // A cached answer takes no scan slot, but it is a start of the visitor's budget. Counted before the visitor joins
+    // (review of B2 part 2), so a refused start leaves no token with the job that nobody holds.
     const counted = await recordStart(deps.db, visitor, now, starts, budget.loaded);
     if (!counted.allowed) return rateLimited(counted.retryAfterSeconds, counted.limit);
-    return answer(200, scanBody(cached, true, null, { host: address.host, cancelToken: token }));
+    first = undefined;
+    // Session B2 part 2: the visitor joins a scan that waits or runs with a cancel token of their own. A scan that left
+    // the queue between the read and the join (its last visitor cancelled it) is read again: D1 knows that by now.
+    let shown: typeof cached | null = cached;
+    let token: string | null = null;
+    if (inProgress(cached) && deps.join !== undefined) {
+      token = await deps.join(cached.id);
+      if (token === null) {
+        shown = await findCachedScan(deps.db, address.url, clock());
+        if (shown !== null && inProgress(shown)) token = await deps.join(shown.id);
+      }
+    }
+    // Nothing reusable any more: a new scan, as for a miss (this rare start then counts twice in the budget).
+    if (shown !== null) return answer(200, scanBody(shown, true, null, { host: address.host, cancelToken: token }));
   }
 
   const verdict = await deps.check(address.url);
@@ -145,7 +150,6 @@ export async function startScan(input: StartInput, deps: StartDeps): Promise<Ans
   // The name check can take time: the slot and the new scan use the time after it, not the first reading, and a
   // start that crossed midnight UTC meanwhile counts for the new day with the newest salt (finding 8).
   const at = clock();
-  let first: LoadedState | undefined = budget.loaded;
   if (utcDay(at) !== salt.day) {
     salt = await saltOfDay(deps.db, at, randomBytes);
     visitor = await rateVisitor(secret, salt, input.visitor);

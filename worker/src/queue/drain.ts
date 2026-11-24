@@ -69,6 +69,9 @@ export async function drain(deps: DrainDeps): Promise<DrainResult> {
     let holdsBrowser = mode === 'full';
     if (holdsBrowser) runningFull += 1;
     try {
+      // Review of B2 part 2: a job taken by this run can still be cancelled until its capture begins (it may wait
+      // for the browser's launch spacing). A cancelled job opens no browser and runs no capture.
+      if (!(await queue.isLive(job.id))) return;
       if (mode === 'full') {
         try {
           await deps.browser.ensure();
@@ -80,6 +83,7 @@ export async function drain(deps: DrainDeps): Promise<DrainResult> {
           runningFull -= 1;
         }
       }
+      if (!(await queue.beginCapture(job.id))) return;
       await queue.countStart(mode, deps.now());
       result[mode] += 1;
       await deps.runJob(job, mode);
