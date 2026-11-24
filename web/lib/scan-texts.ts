@@ -3,6 +3,9 @@
 // design/reference/pruefung.html. Texts with numbers are functions; a value of the scanned page is never put into
 // a template string here: the view model keeps it apart, so the page shows it as a text node of its own (<bdi>).
 
+/** "a", "a und b", "a, b und c". */
+export const listText = (items: readonly string[]): string => (items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} und ${items[items.length - 1]}`);
+
 export const SCAN_TEXTS = {
   /** <title> of the scan screen (draft of B2 part 1). */
   title: 'Prüfung läuft, Website-Check DE',
@@ -58,12 +61,13 @@ export const SCAN_TEXTS = {
 
   // The text description of the drawing (its aria-label).
   drawingWaiting: 'Der Plotter zeichnet die Startseite, die wir prüfen.',
-  drawingDone: (marks: number) =>
-    marks === 0
+  /** With the report: the marks, each priority with its place (`markAt`), in the order of the priorities. */
+  drawingDone: (marks: readonly string[]) =>
+    marks.length === 0
       ? 'Der Plotter zeichnet die geprüfte Startseite.'
-      : marks === 1
-        ? 'Der Plotter zeichnet die geprüfte Startseite und markiert einen vorrangigen Punkt rot.'
-        : `Der Plotter zeichnet die geprüfte Startseite und markiert ${marks} vorrangige Punkte rot.`,
+      : `Der Plotter zeichnet die geprüfte Startseite und markiert rot, wo vorrangige Punkte liegen: ${listText(marks)}.`,
+  /** One placed priority: its measured field of the plan ("Feld B2"), or the source code of the page. */
+  markAt: (n: number, field: string | null) => (field === null ? `Punkt ${n} im Quelltext` : `Punkt ${n} in Feld ${field}`),
 
   // The status line (role="status"): a text only at real changes.
   statusQueued: (place: number | null) => (place !== null && place > 0 ? `Ihre Prüfung wartet: Platz ${place} in der Warteschlange.` : 'Ihre Prüfung wartet in der Warteschlange.'),

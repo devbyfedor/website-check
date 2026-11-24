@@ -82,7 +82,7 @@ export function Plotter({ label, marks, scale = 1 }: { label: string; marks: Plo
         return [
           <path key={`${m.place}-mark`} className={`${s.rp} ${s.draw}`} pathLength={1} d={shape.d} style={timing(m.draw.delay, m.draw.duration)} />,
           <text key={`${m.place}-number`} className={`${s.rpt} ${s.pop}`} x={shape.x} y={shape.y} style={timing(m.numberDelay)}>
-            {m.number}
+            {m.numbers.join(", ")}
           </text>,
         ];
       })}

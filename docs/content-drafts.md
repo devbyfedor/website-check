@@ -561,7 +561,7 @@ All texts of the real scan screen and of the form live in `web/lib/scan-texts.ts
 ### Text description of the drawing (aria-label)
 
 - While waiting: Der Plotter zeichnet die Startseite, die wir prüfen.
-- With the report: "Der Plotter zeichnet die geprüfte Startseite." (no priority), "… und markiert einen vorrangigen Punkt rot." (one), "… und markiert {n} vorrangige Punkte rot." (two or three). "Punkte", because a priority can be a manual check (no Impressum link found), which is no "Fund". The reference names the places ("Überschrift, Quelltext am Seitenende und Unterzeile"); the real marks stand on those places in the order of the priorities, which is no measured place (see `docs/decisions.md`), so the text does not name them.
+- With the report (B2 part 3, Fedor's answer 1): "Der Plotter zeichnet die geprüfte Startseite." when no priority has a place on the drawing; otherwise "Der Plotter zeichnet die geprüfte Startseite und markiert rot, wo vorrangige Punkte liegen: {Liste}.", where each placed priority is "Punkt {n} in Feld {Feld}" (its measured field, B2, A2 or A3) or "Punkt {n} im Quelltext" (a request made by the page's own code, or the language of the page), joined by ", " and " und ". A priority without a place is not named. The reference names the parts of the drawing ("Überschrift, Quelltext am Seitenende und Unterzeile"); the real text names the field, because the drawing is a sketch, not the visitor's page.
 - Status: Entwurf
 
 ### Status line (role="status")

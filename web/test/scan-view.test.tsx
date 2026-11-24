@@ -1,13 +1,13 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { buildReport, DEFAULT_RULES, RULES_FILE, SCANNER_VERSION, type Report } from '@website-check/scanner';
+import { buildReport, DEFAULT_RULES, RULES_FILE, SCANNER_VERSION, type Finding, type Report } from '@website-check/scanner';
 import { SHOP_URL, shopCapture } from '../../scanner/test/report-helpers.ts';
 import { drawingEnd } from '../components/scan/plotter';
 import type { Phrase, ScanScreenData } from '../components/scan/scan-data';
 import { ScanScreen } from '../components/scan/scan-screen';
 import { parseScan } from '../lib/scan-api';
 import { SCAN_TEXTS } from '../lib/scan-texts';
-import { LIVE_MOTION_SCALE, liveScreen, MARKS_START, statusOf, summaryOf, type LiveScanState } from '../lib/scan-view';
+import { LIVE_MOTION_SCALE, liveScreen, MARKS_START, marksLabel, marksOf, priorityPlaces, statusOf, summaryOf, type LiveScanState } from '../lib/scan-view';
 
 // The real scan screen of session B2 part 2 without a browser (Fedor's answers 1 and 3): before the report no result,
 // no number and no mark; with the report its rows, marks, summary and the link to the report of B3; every motion but
@@ -87,11 +87,11 @@ describe('with the report: rows, marks, summary and the link (Fedor, answer 1)',
     expect(flat(screen.steps[6]?.title)).toBe('Barrierefreiheit geprüft');
   });
 
-  it('marks the priorities in their order, at most three, and links to the report of B3 with the id', () => {
-    expect(screen.marks.map((m) => m.number)).toEqual(r.priorities.slice(0, 3).map((_, i) => i + 1));
-    expect(screen.marks.map((m) => m.place)).toEqual(['heading', 'source', 'subline'].slice(0, screen.marks.length));
+  it('marks only placed priorities and links to the report of B3 with the id', () => {
+    const placed = priorityPlaces(r).filter((p) => p.where !== null);
+    expect(screen.marks.flatMap((m) => m.numbers).sort()).toEqual(placed.map((p) => p.number).sort());
     expect(screen.report?.href).toBe(`/bericht?id=${ID}`);
-    expect(screen.drawingLabel).toBe(SCAN_TEXTS.drawingDone(screen.marks.length));
+    expect(screen.drawingLabel).toBe(marksLabel(r));
     expect(screen.domain).toBe(r.site.displayHost);
   });
 
@@ -115,6 +115,52 @@ describe('with the report: rows, marks, summary and the link (Fedor, answer 1)',
     expect(other.steps.every((s) => s.delay === null)).toBe(true);
     expect(other.marks).toEqual([]);
     expect(other.report?.summary).toBe(SCAN_TEXTS.summaryOther);
+  });
+});
+
+describe('the marks stand only where they show the place of the finding (Fedor, B2 part 3, answer 1)', () => {
+  const base = report();
+  const own = base.site.finalUrl ?? base.site.url;
+  const template = base.findings[0]!;
+  const request = (via: string | null) => ({ type: 'request' as const, url: 'https://tracker.example/x.js', startMs: 10, status: 200, reachedServer: true, beforeBanner: null, via });
+  const f = (id: string, over: Partial<Finding>): Finding => ({ ...template, id, kind: 'finding', risk: 'high', area: 'privacy', serviceKey: 'svc', field: null, evidence: [], ...over });
+  const withPriorities = (...findings: Finding[]): Report => ({ ...structuredClone(base), findings, priorities: findings.map((x) => x.id) });
+  const places = (rep: Report) => marksOf(rep, 0).map((m) => [m.place, m.numbers.join(', ')]);
+
+  it('a measured field gives the mark of the design in that field (B2 heading, A2 subline, A3 source), any other field none', () => {
+    const rep = withPriorities(f('a', { field: 'C1' }), f('b', { field: 'B2', area: 'accessibility', serviceKey: null }), f('c', { field: 'A2' }));
+    expect(places(rep)).toEqual([
+      ['heading', '2'],
+      ['subline', '3'],
+    ]);
+    expect(places(withPriorities(f('a', { field: 'A3', area: 'accessibility', serviceKey: null })))).toEqual([['source', '1']]);
+    expect(marksLabel(rep)).toBe('Der Plotter zeichnet die geprüfte Startseite und markiert rot, wo vorrangige Punkte liegen: Punkt 2 in Feld B2 und Punkt 3 in Feld A2.');
+  });
+
+  it('without a field: the source code for a third party that the page\'s own code requested, nothing otherwise', () => {
+    const fromPage = f('fonts', { evidence: [request('https://tracker.example/a.css'), request(own)] });
+    const fromOwnFile = f('tag', { evidence: [request(`${new URL(own).origin}/wp-content/theme.js`)] });
+    const fromThirdParty = f('ga', { evidence: [request('https://www.googletagmanager.com/gtm.js')] });
+    expect(places(withPriorities(fromPage))).toEqual([['source', '1']]);
+    expect(places(withPriorities(fromOwnFile))).toEqual([['source', '1']]);
+    expect(places(withPriorities(fromThirdParty))).toEqual([]);
+    expect(places(withPriorities(f('x', { evidence: [request(null)] })))).toEqual([]);
+    // A look-alike host is no file of the site.
+    expect(places(withPriorities(f('y', { evidence: [request(`https://${new URL(own).hostname}.evil.example/x.js`)] })))).toEqual([]);
+    // Mandatory information and security have no place on the drawing.
+    expect(places(withPriorities(f('legal', { area: 'mandatory-information', serviceKey: null, kind: 'manual' })))).toEqual([]);
+    expect(marksLabel(withPriorities(fromThirdParty))).toBe('Der Plotter zeichnet die geprüfte Startseite.');
+  });
+
+  it('the language of the page is in the source, whatever its "field"; two priorities at one place share the mark', () => {
+    const lang = f('a11y:page-language', { area: 'accessibility', serviceKey: null, risk: 'medium', field: 'C2' });
+    const fonts = f('fonts', { evidence: [request(own)] });
+    const rep = withPriorities(fonts, f('b', { field: 'D3' }), lang);
+    expect(places(rep)).toEqual([['source', '1, 3']]);
+    expect(marksLabel(rep)).toBe('Der Plotter zeichnet die geprüfte Startseite und markiert rot, wo vorrangige Punkte liegen: Punkt 1 im Quelltext und Punkt 3 im Quelltext.');
+    const screen = liveScreen(state({ phase: 'done', report: rep }));
+    expect(screen.marks).toHaveLength(1);
+    expect(renderToStaticMarkup(<ScanScreen scan={screen} />)).toContain('>1, 3</text>');
   });
 });
 

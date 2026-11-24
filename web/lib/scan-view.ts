@@ -1,4 +1,4 @@
-import type { Report } from '@website-check/scanner/report';
+import type { Finding, Report } from '@website-check/scanner/report';
 import type { MarkPlace, Phrase, PlotMark, ScanScreenData, ScanStep } from '../components/scan/scan-data';
 import { SCAN_TEXTS as T, SYSTEM_NAMES } from './scan-texts';
 
@@ -22,8 +22,15 @@ const MARK_TIMES = [
   { at: 0.55, duration: 0.5, number: 1.05 },
   { at: 1.1, duration: 0.5, number: 1.65 },
 ] as const;
-/** The places of the design in the order of the priorities (the reference: Feld B2, A3, A2). */
-const MARK_PLACES: readonly MarkPlace[] = ['heading', 'source', 'subline'];
+/**
+ * The marks of the design and the field of the plan each one stands in: bericht.html names them "Überschrift in Feld
+ * B2, Quelltext am Seitenende in Feld A3, Unterzeile in Feld A2", and on the drawn page of pruefung.html (x 40 to 560,
+ * y 84 to 400 below the browser bar) the same 4 × 3 grid puts the heading in B2, the subline in A2 and the code mark
+ * in A3. Another field has no mark of the design.
+ */
+const FIELD_PLACES: Readonly<Record<string, MarkPlace>> = { B2: 'heading', A2: 'subline', A3: 'source' };
+/** The language of the page is an attribute in the source; its "field" is the box of the whole page, no place. */
+const PAGE_LANGUAGE = new Set(['a11y:page-language']);
 /** "Bericht öffnen" rises this long after the first mark (0.4 s), so it stands before the last number is in. */
 const PANEL_AFTER = 1.0;
 
@@ -130,18 +137,76 @@ export function summaryOf(report: Report): Phrase {
   return text;
 }
 
-/** The marks of the priorities ("Drei Dinge"), numbered as in the report, starting `base` seconds after they appear. */
+/** Where a priority stands on the drawing, and why: its measured field, or the page's source code. */
+export type MarkWhere = { place: MarkPlace; field: string } | { place: 'source'; field: null };
+
+/** The host without a leading "www.": a host equal to it or below it belongs to the site itself. */
+const baseHost = (host: string): string => host.toLowerCase().replace(/^www\./, '');
+
+/** True when a request of the finding was made by the page's own code: the homepage or a file of the site's hosts. */
+function fromPageCode(finding: Finding, report: Report): boolean {
+  const own = [report.site.host, parsed(report.site.finalUrl)?.hostname].filter((h): h is string => typeof h === 'string' && h.length > 0).map(baseHost);
+  return finding.evidence.some((e) => {
+    if (e.type !== 'request') return false;
+    const host = parsed(e.via)?.hostname.toLowerCase();
+    return host !== undefined && own.some((base) => host === base || host.endsWith(`.${base}`));
+  });
+}
+
+/**
+ * The place of one priority on the drawing (Fedor, B2 part 3, answer 1): a mark stands only where it shows the place
+ * of the finding truly. That is its measured field ("Feld"), when the design has a mark in that field; otherwise the
+ * place of the drawing that is the place of the finding by its meaning: the source code, for a third party whose
+ * request the page's own code made, and for the language of the page. Anything else gets no mark.
+ */
+export function markWhere(finding: Finding, report: Report): MarkWhere | null {
+  if (PAGE_LANGUAGE.has(finding.id)) return { place: 'source', field: null };
+  if (finding.field !== null) {
+    const place = FIELD_PLACES[finding.field];
+    return place === undefined ? null : { place, field: finding.field };
+  }
+  if (finding.area === 'privacy' && finding.serviceKey !== null && fromPageCode(finding, report)) return { place: 'source', field: null };
+  return null;
+}
+
+/** Each priority ("Drei Dinge", numbered as in the report) with its place on the drawing, or null. */
+export function priorityPlaces(report: Report): { number: number; where: MarkWhere | null }[] {
+  if (report.state !== 'complete' && report.state !== 'quick') return [];
+  const byId = new Map(report.findings.map((f) => [f.id, f]));
+  return report.priorities.slice(0, 3).map((id, i) => {
+    const finding = byId.get(id);
+    return { number: i + 1, where: finding === undefined ? null : markWhere(finding, report) };
+  });
+}
+
+/**
+ * The marks of the priorities, one per place of the drawing (two priorities at one place share it: "1, 2"), in the
+ * order of their first number, starting `base` seconds after they appear. The order of the priorities never chooses
+ * a place.
+ */
 export function marksOf(report: Report, base: number, scale = LIVE_MOTION_SCALE): PlotMark[] {
-  if (!isPlainComplete(report)) return [];
-  return report.priorities.slice(0, 3).map((_, i) => {
+  const byPlace = new Map<MarkPlace, number[]>();
+  for (const p of priorityPlaces(report)) {
+    if (p.where === null) continue;
+    const list = byPlace.get(p.where.place) ?? [];
+    list.push(p.number);
+    byPlace.set(p.where.place, list);
+  }
+  return [...byPlace.entries()].map(([place, numbers], i) => {
     const t = MARK_TIMES[i]!;
     return {
-      place: MARK_PLACES[i]!,
-      number: i + 1,
+      place,
+      numbers,
       draw: { delay: base + t.at * scale, duration: t.duration * scale },
       numberDelay: base + t.number * scale,
     };
   });
+}
+
+/** The text description of the marks: each placed priority with its field or "im Quelltext". */
+export function marksLabel(report: Report): string {
+  const placed = priorityPlaces(report).filter((p): p is { number: number; where: MarkWhere } => p.where !== null);
+  return T.drawingDone(placed.map((p) => T.markAt(p.number, p.where.field)));
 }
 
 export function statusOf(state: Pick<LiveScanState, 'phase' | 'queuePosition'>): string {
@@ -183,7 +248,7 @@ export function liveScreen(state: LiveScanState): ScanScreenData {
   return {
     ...base,
     domain: report.site.displayHost,
-    drawingLabel: isPlainComplete(report) ? T.drawingDone(marks.length) : T.drawingWaiting,
+    drawingLabel: isPlainComplete(report) ? marksLabel(report) : T.drawingWaiting,
     marks,
     steps: isPlainComplete(report) ? reportSteps(report) : waitingSteps(),
     progress: { kind: 'live', phase: 'done', since: 0 },

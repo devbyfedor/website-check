@@ -9,7 +9,8 @@ export type MarkPlace = 'heading' | 'source' | 'subline';
 
 export interface PlotMark {
   place: MarkPlace;
-  number: number;
+  /** The numbers of the priorities at this place, written beside the mark ("1", or "1, 2" when two share it). */
+  numbers: readonly number[];
   draw: { delay: number; duration: number }; // the red outline
   numberDelay: number; // the number beside it
 }

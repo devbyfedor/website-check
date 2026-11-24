@@ -9,9 +9,9 @@ export const EXAMPLE_SCAN: ScanScreenData = {
   domain: 'roesterei-muster.de',
   drawingLabel: 'Der Plotter zeichnet die geprüfte Startseite und markiert drei Funde rot: Überschrift, Quelltext am Seitenende und Unterzeile.',
   marks: [
-    { place: 'heading', number: 1, draw: { delay: 5.3, duration: 0.6 }, numberDelay: 5.9 },
-    { place: 'source', number: 2, draw: { delay: 5.85, duration: 0.5 }, numberDelay: 6.35 },
-    { place: 'subline', number: 3, draw: { delay: 6.4, duration: 0.5 }, numberDelay: 6.95 },
+    { place: 'heading', numbers: [1], draw: { delay: 5.3, duration: 0.6 }, numberDelay: 5.9 },
+    { place: 'source', numbers: [2], draw: { delay: 5.85, duration: 0.5 }, numberDelay: 6.35 },
+    { place: 'subline', numbers: [3], draw: { delay: 6.4, duration: 0.5 }, numberDelay: 6.95 },
   ],
   steps: [
     { title: 'Seite aufgerufen', detail: 'wie von einem Besucher aus Deutschland', delay: 0.4 },
