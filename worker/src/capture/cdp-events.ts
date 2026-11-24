@@ -13,6 +13,11 @@ import {
   installNavigationGuard,
   interruptedFailure,
   installPopupGuard,
+  limitCapture,
+  limitRequest,
+  limitSnapshot,
+  pageLimitFailure,
+  RequestBudget,
   navigationBlockMessage,
   notAllowedCapture,
   probeHttpRedirect,
@@ -29,6 +34,7 @@ import {
   toInitiator,
   type Capture,
   type CapturedRequest,
+  type CaptureFailure,
   type CaptureTimings,
   type CdpInitiator,
   type RedirectHop,
@@ -231,6 +237,8 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
     if (httpsProbe !== null) result.capture.httpsProbe = await httpsProbe;
     // A browser lost on the way (also during the Impressum tab) makes the whole capture an error, not a report.
     assertConnected(browser);
+    // Session fix-a4: whatever the page sent, the capture leaves the adapter within the limits.
+    result.capture = limitCapture(result.capture);
     return result;
   } finally {
     clearTimeout(hardTimer);
@@ -272,6 +280,18 @@ async function runCapture(
   });
   const byRequest = new Map<HTTPRequest, CapturedRequest>();
   const inflight = new Set<HTTPRequest>();
+  // Session fix-a4: a page may make only so many requests with so much address text. One more, and nothing
+  // further is kept and the tab is closed at once, so its events stop costing memory and CPU of the object
+  // that also runs other visitors' scans. The capture then fails with `page-limit`.
+  const budget = new RequestBudget();
+  const keep = (record: CapturedRequest): boolean => {
+    if (budget.add(record)) {
+      records.push(record);
+      return true;
+    }
+    void context.close().catch(() => undefined);
+    return false;
+  };
   let events = 0;
   let lastActivity = 0;
   let domContentLoadedMs: number | null = null;
@@ -290,11 +310,13 @@ async function runCapture(
   });
   page.on('request', (request) => {
     events += 1;
+    if (budget.exceeded !== null) return;
     const frame = frameOf(request);
     const chain = request.redirectChain();
     const cdpInitiator = request.initiator() as (CdpInitiator & { requestId?: string }) | undefined;
     const frames = frame === null ? { urls: [], complete: false } : frameChain(frame, mainFrame, request.isNavigationRequest());
-    const record: CapturedRequest = {
+    // Addresses are kept cut to their limit: the page chooses how long they are.
+    const record: CapturedRequest = limitRequest({
       seq: records.length,
       url: request.url(),
       method: request.method(),
@@ -308,8 +330,8 @@ async function runCapture(
       isNavigation: request.isNavigationRequest(),
       initiator: cdpInitiator === undefined ? null : toInitiator(cdpInitiator),
       redirectedFrom: chain.length > 0 ? (chain[chain.length - 1]?.url() ?? null) : null,
-    };
-    records.push(record);
+    });
+    if (!keep(record)) return;
     frameSources.push({
       record,
       frame,
@@ -331,10 +353,16 @@ async function runCapture(
     const isRedirect = status >= 300 && status < 400;
     if (!isRedirect && request.isNavigationRequest() && frameOf(request) === mainFrame) mainResponses.push(response);
   });
+  // A finished request is no longer held (only navigation requests are read again for the redirect chain),
+  // so the browser's own record of it, with its full address, can be freed.
+  const forget = (request: HTTPRequest): void => {
+    if (!request.isNavigationRequest()) byRequest.delete(request);
+  };
   page.on('requestfinished', (request) => {
     events += 1;
     const record = byRequest.get(request);
     if (record !== undefined) record.endMs = rel();
+    forget(request);
     inflight.delete(request);
     lastActivity = rel();
   });
@@ -343,8 +371,9 @@ async function runCapture(
     const record = byRequest.get(request);
     if (record !== undefined) {
       record.endMs = rel();
-      record.failure = request.failure()?.errorText ?? 'failed';
+      record.failure = (request.failure()?.errorText ?? 'failed').slice(0, 300);
     }
+    forget(request);
     inflight.delete(request);
     lastActivity = rel();
   });
@@ -352,7 +381,8 @@ async function runCapture(
   const sockets = new Map<string, CapturedRequest>();
   client.on('Network.webSocketCreated', (event: { requestId: string; url: string }) => {
     events += 1;
-    const record: CapturedRequest = {
+    if (budget.exceeded !== null) return;
+    const record: CapturedRequest = limitRequest({
       seq: records.length,
       url: event.url,
       method: 'GET',
@@ -366,8 +396,8 @@ async function runCapture(
       isNavigation: false,
       initiator: null,
       redirectedFrom: null,
-    };
-    records.push(record);
+    });
+    if (!keep(record)) return;
     sockets.set(event.requestId, record);
     lastActivity = record.startMs;
   });
@@ -377,7 +407,7 @@ async function runCapture(
   });
   client.on('Network.webSocketFrameError', (event: { requestId: string; errorMessage: string }) => {
     const record = sockets.get(event.requestId);
-    if (record !== undefined) record.failure ??= event.errorMessage;
+    if (record !== undefined) record.failure ??= String(event.errorMessage).slice(0, 300);
   });
   client.on('Network.webSocketClosed', (event: { requestId: string }) => {
     const record = sockets.get(event.requestId);
@@ -400,7 +430,7 @@ async function runCapture(
     stopReason = 'max-wait';
     let lastCommandMs = rel();
     for (;;) {
-      if (crashed || hardLimitHit() || page.isClosed() || !browser.connected) {
+      if (crashed || hardLimitHit() || budget.exceeded !== null || page.isClosed() || !browser.connected) {
         stopReason = 'error';
         break;
       }
@@ -425,12 +455,13 @@ async function runCapture(
   const mainResponse = mainResponses.at(-1) ?? null;
   const headers: Record<string, string> = mainResponse === null ? {} : lowerCase(mainResponse.headers());
   let snapshot: SnapshotResult | null = null;
-  if (navigationError === null && !hardLimitHit() && !crashed) {
+  if (navigationError === null && !hardLimitHit() && !crashed && budget.exceeded === null) {
+    // The answer is checked field by field and cut to the limits before anything uses it (session fix-a4).
     snapshot = await withTimeout(
-      client.send('Runtime.evaluate', { expression: SNAPSHOT_EXPRESSION, returnByValue: true }) as Promise<{ result: { value?: SnapshotResult } }>,
+      client.send('Runtime.evaluate', { expression: SNAPSHOT_EXPRESSION, returnByValue: true }) as Promise<{ result: { value?: unknown } }>,
       4_000,
     )
-      .then((response) => response.result.value ?? null)
+      .then((response) => limitSnapshot(response.result.value))
       .catch(() => null);
     // The data must come from a document the guard allows (second line of defence).
     if (snapshot !== null && !(await checkReadDocument(navigation, settings.guard, snapshot.url ?? page.url()))) snapshot = null;
@@ -442,9 +473,11 @@ async function runCapture(
   // A page that only could not be read (the snapshot failed on an open tab) is not cut off: its requests are complete.
   const tabGone = hardLimitHit() ? 'hard-limit' : crashed ? 'crashed' : page.isClosed() || stopReason === 'error' ? 'closed' : null;
   const cutOff = navigationError === null && (stopReason === 'error' || snapshot === null) ? tabGone : null;
-  let failure =
+  let failure: CaptureFailure | null =
     refused !== undefined
       ? { reason: 'not-allowed' as const, message: navigationBlockMessage(refused) }
+      : budget.exceeded !== null
+        ? pageLimitFailure(budget.exceeded)
       : cutOff !== null
         ? interruptedFailure(cutOff)
         : failureOf(navigationError, mainResponse === null ? null : { status: mainResponse.status(), headers }, snapshot, records.length);

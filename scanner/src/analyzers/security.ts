@@ -35,7 +35,10 @@ export type HeaderStatus =
   | 'report-only'
   /** Only the old `Feature-Policy` instead of `Permissions-Policy`. */
   | 'legacy'
-  /** No header, and the page's meta tags could not be read (no page snapshot): bitte manuell prüfen. */
+  /**
+   * No header, and the page's meta tags could not be read (no page snapshot); or (session fix-a4) the header
+   * is set, but its value is longer than the scan keeps and was not analysed: bitte manuell prüfen.
+   */
   | 'manual';
 
 export interface HeaderCheck {
@@ -202,7 +205,13 @@ const SF_NUMBER = /^-?\d{1,15}(?:\.\d{1,3})?/;
  * `=` is a boolean and gives no allowlist, so it is listed in `bare`.
  */
 export function parseSfDictionaryKeys(input: string): { keys: string[]; bare: string[] } | null {
-  let s = input.replace(/^[ \t]+|[ \t]+$/g, '');
+  // Spaces and tabs at both ends, cut by index: a pattern that ends in `[ \t]+$` tries every run of spaces
+  // inside the value again and again (session fix-a4, review finding 13).
+  let from = 0;
+  let to = input.length;
+  while (from < to && (input.charCodeAt(from) === 0x20 || input.charCodeAt(from) === 0x09)) from += 1;
+  while (to > from && (input.charCodeAt(to - 1) === 0x20 || input.charCodeAt(to - 1) === 0x09)) to -= 1;
+  let s = input.slice(from, to);
   const keys: string[] = [];
   const bare: string[] = [];
   const bareItem = (): boolean => {
@@ -360,12 +369,20 @@ export function analyzeSecurity(capture: Capture): SecurityAnalysis {
   const h = capture.mainDocument?.headers ?? {};
   // undefined: the page's meta tags were not read (no snapshot, or a capture made before A3).
   const meta = capture.page?.securityMeta;
+  // Session fix-a4: a header whose value was not kept (longer than the limit) is set, but nothing is known
+  // about it: "bitte manuell prüfen", never "fehlt". The same when an older form of the header was not kept
+  // and the header itself is not there.
+  const cut = new Set(capture.mainDocument?.headersCut ?? []);
+  const tooLong = (key: SecurityHeaderKey, header: SecurityHeaderName, ...older: string[]): HeaderCheck | null => {
+    const hit = cut.has(header) ? header : h[header] === undefined ? older.find((name) => cut.has(name)) : undefined;
+    return hit === undefined ? null : check(key, header, 'manual', null, `too-long: ${hit}`, 'security-header-too-long');
+  };
   const headers = [
-    checkHsts(h['strict-transport-security'], isHttps),
-    checkCsp(h['content-security-policy'], h['content-security-policy-report-only'], meta === undefined ? undefined : meta.csp),
-    checkXcto(h['x-content-type-options']),
-    checkReferrerPolicy(h['referrer-policy'], meta === undefined ? undefined : meta.referrer),
-    checkPermissionsPolicy(h['permissions-policy'], h['feature-policy']),
+    tooLong('hsts', 'strict-transport-security') ?? checkHsts(h['strict-transport-security'], isHttps),
+    tooLong('csp', 'content-security-policy', 'content-security-policy-report-only') ?? checkCsp(h['content-security-policy'], h['content-security-policy-report-only'], meta === undefined ? undefined : meta.csp),
+    tooLong('xcto', 'x-content-type-options') ?? checkXcto(h['x-content-type-options']),
+    tooLong('referrer-policy', 'referrer-policy') ?? checkReferrerPolicy(h['referrer-policy'], meta === undefined ? undefined : meta.referrer),
+    tooLong('permissions-policy', 'permissions-policy', 'feature-policy') ?? checkPermissionsPolicy(h['permissions-policy'], h['feature-policy']),
   ];
   return {
     version: SECURITY_ANALYSIS_VERSION,

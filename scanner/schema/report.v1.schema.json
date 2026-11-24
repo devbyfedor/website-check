@@ -5,7 +5,7 @@
   "description": "The report JSON of one scan (session A5). TypeScript types: scanner/src/report/types.ts. Mapping to design/reference/bericht.html: docs/report-schema.md. Only the keywords that scanner/src/report/validate.ts supports may be used.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "id", "createdAt", "state", "site", "scan", "visit", "notice", "failure", "pages", "revision", "sections", "platform", "measures", "findings", "priorities", "services", "timeline", "legal", "security", "counts"],
+  "required": ["schemaVersion", "id", "createdAt", "state", "site", "scan", "visit", "notice", "failure", "pages", "revision", "sections", "platform", "measures", "findings", "priorities", "services", "timeline", "legal", "security", "counts", "truncated"],
   "properties": {
     "schemaVersion": { "const": 1 },
     "id": { "$ref": "#/$defs/scanId" },
@@ -72,7 +72,7 @@
           "additionalProperties": false,
           "required": ["reason", "status"],
           "properties": {
-            "reason": { "enum": ["timeout", "blocked", "invalid-address", "unreachable", "http-error", "not-allowed", "other"] },
+            "reason": { "enum": ["timeout", "blocked", "invalid-address", "unreachable", "http-error", "not-allowed", "page-limit", "other"] },
             "status": { "type": ["integer", "null"], "minimum": 100, "maximum": 999 }
           }
         },
@@ -136,6 +136,20 @@
         "hints": { "$ref": "#/$defs/count" },
         "notChecked": { "$ref": "#/$defs/count" },
         "services": { "$ref": "#/$defs/count" }
+      }
+    },
+    "truncated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findings", "services", "page"],
+      "properties": {
+        "findings": { "type": "boolean" },
+        "services": { "type": "boolean" },
+        "page": {
+          "type": "array",
+          "maxItems": 5,
+          "items": { "enum": ["homepage-text", "homepage-links", "impressum-text", "impressum-links", "headers"] }
+        }
       }
     }
   },

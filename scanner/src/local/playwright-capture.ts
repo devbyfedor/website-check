@@ -32,6 +32,7 @@ import {
   type RequestInitiator,
 } from '../capture/types.ts';
 import { toInitiator, type CdpInitiator } from '../capture/cdp.ts';
+import { CAPTURE_LIMITS, limitCapture, limitPageSnapshot, limitRequest, limitSnapshot, pageLimitFailure, RequestBudget } from '../capture/limits.ts';
 import { IMPRESSUM_SNAPSHOT_EXPRESSION, SNAPSHOT_EXPRESSION, TEXT_PROGRESS_EXPRESSION, type SnapshotResult, type TextProgress } from '../capture/page-scripts.ts';
 import { CAPTURE_SETTINGS, desktopChromeUserAgent, LONG_LIVED_RESOURCE_TYPES } from '../capture/settings.ts';
 import { buildBannerProbeScript } from '../consent/probe-script.ts';
@@ -249,6 +250,8 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
     if (httpsProbe !== null) capture.httpsProbe = await httpsProbe;
     // Session fix-a1: a browser lost on the way makes the capture an error, never a report.
     assertConnected(browser);
+    // Session fix-a4: the capture leaves the adapter within the limits.
+    result.capture = limitCapture(capture);
     return result;
   } finally {
     clearTimeout(hardTimer);
@@ -307,6 +310,18 @@ async function runCapture(
   const records: CapturedRequest[] = [];
   const byRequest = new Map<Request, CapturedRequest>();
   const inflight = new Set<Request>();
+  // Session fix-a4, as in the Cloudflare adapter: one request more than a page may make, and nothing further
+  // is kept and the tab is closed; the capture fails with `page-limit`. The records keep their full
+  // addresses until the end (the initiators are matched by address); `limitCapture` cuts them.
+  const budget = new RequestBudget();
+  const keep = (record: CapturedRequest): boolean => {
+    if (budget.add(limitRequest(record))) {
+      records.push(record);
+      return true;
+    }
+    void context.close().catch(() => undefined);
+    return false;
+  };
   let lastActivity = 0;
   let domContentLoadedMs: number | null = null;
   let loadMs: number | null = null;
@@ -323,6 +338,7 @@ async function runCapture(
     crashed = true;
   });
   page.on('request', (request) => {
+    if (budget.exceeded !== null) return;
     const frame = frameOf(request);
     const record: CapturedRequest = {
       seq: records.length,
@@ -341,7 +357,7 @@ async function runCapture(
       initiator: null,
       redirectedFrom: request.redirectedFrom()?.url() ?? null,
     };
-    records.push(record);
+    if (!keep(record)) return;
     byRequest.set(request, record);
     if (!LONG_LIVED_RESOURCE_TYPES.has(record.resourceType)) inflight.add(request);
     lastActivity = record.startMs;
@@ -371,6 +387,7 @@ async function runCapture(
     lastActivity = rel();
   });
   page.on('websocket', (socket) => {
+    if (budget.exceeded !== null) return;
     const record: CapturedRequest = {
       seq: records.length,
       url: socket.url(),
@@ -386,7 +403,7 @@ async function runCapture(
       initiator: null,
       redirectedFrom: null,
     };
-    records.push(record);
+    if (!keep(record)) return;
     lastActivity = record.startMs;
     const opened = (): void => {
       record.status ??= 101;
@@ -431,7 +448,7 @@ async function runCapture(
   if (navigationError === null) {
     stopReason = 'max-wait';
     for (;;) {
-      if (crashed || hardLimitHit() || page.isClosed() || !browser.isConnected()) {
+      if (crashed || hardLimitHit() || budget.exceeded !== null || page.isClosed() || !browser.isConnected()) {
         stopReason = 'error';
         break;
       }
@@ -457,8 +474,11 @@ async function runCapture(
   if (mainResponse !== null) {
     headers = await withTimeout(mainResponse.allHeaders(), 2_000).catch(() => mainResponse.headers());
   }
-  if (navigationError === null && !hardLimitHit() && !crashed) {
-    snapshot = await withTimeout(page.evaluate(SNAPSHOT_EXPRESSION) as Promise<SnapshotResult>, 4_000).catch(() => null);
+  if (navigationError === null && !hardLimitHit() && !crashed && budget.exceeded === null) {
+    // The answer is checked field by field and cut to the limits before anything uses it (session fix-a4).
+    snapshot = await withTimeout(page.evaluate(SNAPSHOT_EXPRESSION) as Promise<unknown>, 4_000)
+      .then((value) => limitSnapshot(value))
+      .catch(() => null);
     // The data must come from a document the guard allows (second line of defence).
     if (snapshot !== null && !(await checkReadDocument(navigation, guard, snapshot.url ?? page.url()))) snapshot = null;
   }
@@ -471,6 +491,8 @@ async function runCapture(
   const cutOff = navigationError === null && (stopReason === 'error' || snapshot === null) ? tabGone : null;
   if (refused !== undefined) {
     failure = { reason: 'not-allowed', message: navigationBlockMessage(refused) };
+  } else if (budget.exceeded !== null) {
+    failure = pageLimitFailure(budget.exceeded);
   } else if (cutOff !== null) {
     failure = interruptedFailure(cutOff);
   } else if (navigationError !== null) {
@@ -615,9 +637,15 @@ export async function captureImpressumTab(
     navigation = null;
   }
   let requestCount = 0;
+  let overLimit = false;
   let domContentLoadedMs: number | null = null;
   page.on('request', () => {
     requestCount += 1;
+    // Session fix-a4: a tab that makes more requests than a page may is closed at once.
+    if (requestCount > CAPTURE_LIMITS.maxRequests && !overLimit) {
+      overLimit = true;
+      void page.close().catch(() => undefined);
+    }
   });
   page.on('domcontentloaded', () => {
     domContentLoadedMs ??= since();
@@ -630,7 +658,7 @@ export async function captureImpressumTab(
   let navigationError: string | null = null;
   let response: Response | null = null;
   let stopReason: ImpressumCapture['timings']['stopReason'] = 'error';
-  let snapshot: SnapshotResult | null = null;
+  let snapshot: PageSnapshot | null = null;
   let snapshotMs: number | null = null;
   let html: string | null = null;
   let screenshot: Buffer | null = null;
@@ -660,7 +688,9 @@ export async function captureImpressumTab(
         await sleep(IMPRESSUM_SETTINGS.pollMs);
       }
       if (!hardLimitHit && !page.isClosed()) {
-        snapshot = await withTimeout(page.evaluate(IMPRESSUM_SNAPSHOT_EXPRESSION) as Promise<SnapshotResult>, 4_000).catch(() => null);
+        snapshot = await withTimeout(page.evaluate(IMPRESSUM_SNAPSHOT_EXPRESSION) as Promise<unknown>, 4_000)
+          .then((value) => limitPageSnapshot(value))
+          .catch(() => null);
         if (snapshot !== null && navigation !== null && !(await checkReadDocument(navigation, guard, snapshot.url ?? page.url()))) snapshot = null;
         snapshotMs = since();
       }
@@ -684,6 +714,7 @@ export async function captureImpressumTab(
   const refused = navigation?.blocked[0];
   if (navigation === null) failure = { reason: 'other', message: 'the SSRF guard could not be installed; the Impressum was not opened' };
   else if (refused !== undefined) failure = { reason: 'not-allowed', message: navigationBlockMessage(refused) };
+  else if (overLimit) failure = pageLimitFailure('requests');
   else if (navigationError !== null) failure = { reason: classifyNavigationError(navigationError), message: navigationError };
   else if (response === null) failure = { reason: 'other', message: 'no Impressum response' };
   else if (snapshot === null) failure = { reason: hardLimitHit ? 'timeout' : 'other', message: 'the text of the Impressum could not be read' };
@@ -694,10 +725,7 @@ export async function captureImpressumTab(
     failure,
     finalUrl: response?.url() ?? null,
     status: response?.status() ?? null,
-    page:
-      snapshot === null
-        ? null
-        : { ...(snapshot.url ? { url: snapshot.url } : {}), title: snapshot.title, lang: snapshot.lang, text: snapshot.text, textTruncated: snapshot.textTruncated, links: snapshot.links, linksTruncated: snapshot.linksTruncated },
+    page: failure?.reason === 'page-limit' ? null : snapshot,
     requestCount,
     timings: {
       openedAtMs: Math.max(0, Math.round(opened - homepageStartedAt)),

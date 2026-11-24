@@ -575,18 +575,17 @@ describe('charsets (Chromium checked)', () => {
     expect(textOf(latin(`<!doctype html><script>var s = '<meta charset="iso-8859-1">';</script><p>Geschäftsführer</p>`), 'text/html')).toBe('Geschäftsführer');
   });
 
-  // Known differences: the spec of the quick check says UTF-8 when nothing in the header or the first 1024 bytes names
-  // a charset. Chromium instead guesses a legacy encoding from the bytes and keeps looking for <meta> while only head
-  // elements came; it never guesses UTF-8 and falls back to the browser's locale default.
-  it('known: undeclared Latin-1 gives U+FFFD (Chromium guessed windows-1252: "Geschäftsführer: Jürgen Müller – 5 €")', () => {
+  // Session fix-a4: when nothing in the header or the first 1024 bytes names a charset, the quick check reads valid
+  // UTF-8 as UTF-8 and anything else as windows-1252. Chromium guesses a legacy encoding from the bytes and keeps
+  // looking for <meta> while only head elements came; it never guesses UTF-8 and falls back to the browser's locale default.
+  it('undeclared Latin-1 is read as windows-1252, as Chromium guessed: "Geschäftsführer: Jürgen Müller – 5 €"', () => {
     const text = textOf(latin('<!doctype html><html><head><title>Straße</title></head><body><p>Geschäftsführer: Jürgen Müller – 5 €</p></body></html>'), 'text/html');
-    expect(text).not.toBe('Geschäftsführer: Jürgen Müller – 5 €');
-    expect(text).toContain('�');
+    expect(text).toBe('Geschäftsführer: Jürgen Müller – 5 €');
   });
 
-  it('known: a <meta http-equiv> after 1024 bytes of <head> is not seen (Chromium kept scanning the head: "Geschäftsführer")', () => {
+  it('a <meta http-equiv> after 1024 bytes of <head> is not seen, but the bytes are not UTF-8 and are read as windows-1252 (Chromium kept scanning the head: "Geschäftsführer")', () => {
     const head = `<!doctype html><html><head><title>T</title><style>${'p{color:red}'.repeat(120)}</style><meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">`;
-    expect(textOf(latin(`${head}</head><body><p>Geschäftsführer</p></body></html>`), 'text/html')).toBe('Gesch�ftsf�hrer');
+    expect(textOf(latin(`${head}</head><body><p>Geschäftsführer</p></body></html>`), 'text/html')).toBe('Geschäftsführer');
   });
 
   it('known: undeclared UTF-8 is read as UTF-8 (Chromium used its locale default, windows-1251 on the recording machine)', () => {

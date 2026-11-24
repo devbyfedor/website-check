@@ -1,3 +1,4 @@
+import { CAPTURE_LIMITS, limitAxe } from '../capture/limits.ts';
 import { AXE_HTML_MAX, AXE_MAX_EXAMPLES, AXE_RULES, type AxeCapture, type AxeContrast, type AxeExample, type AxeImages, type AxeRuleId, type AxeRuleResult, type AxeScope, type AxeStatus } from './types.ts';
 
 /**
@@ -18,6 +19,10 @@ import { AXE_HTML_MAX, AXE_MAX_EXAMPLES, AXE_RULES, type AxeCapture, type AxeCon
  * kinds apart (`images`), from axe's own check `presentational-role` (the role axe computed, with an
  * empty alt as the implicit presentation role) and the alt attribute itself, so "Bilder mit Beschreibung"
  * counts only described images.
+ *
+ * Session fix-a4: the page controls what axe returns (selectors of its elements, or a `window.axe` of its
+ * own), so the expression copies only the known fields into its answer, each through a guard that uses
+ * nothing but `typeof` and the length of a primitive string, with counted loops for the lists.
  *
  * The page is only read: axe does not change the DOM, and with these rules it loads nothing
  * (`preload` is off and none of the seven rules preloads assets).
@@ -41,7 +46,7 @@ export const AXE_RUN_EXPRESSION = `(async () => {
   const empty = { rules: {}, ruleErrors: [], lowestContrast: { violation: null, pass: null } };
   const axe = window.axe;
   if (!axe || typeof axe.run !== 'function' || !axe.utils || typeof axe.utils.aggregateResult !== 'function' || typeof axe.addReporter !== 'function') {
-    return Object.assign({ status: 'error', error: 'axe-core is not available in the page', axeVersion: (axe && axe.version) || null, runMs: null }, empty);
+    return Object.assign({ status: 'error', error: 'axe-core is not available in the page', axeVersion: axe && typeof axe.version === 'string' && axe.version.length <= 40 ? axe.version : null, runMs: null }, empty);
   }
   // Frames are not checked (iframes: false); a page whose content sits in a frameset or in one
   // large iframe must not look clean, so the analyzer needs to know.
@@ -60,7 +65,13 @@ export const AXE_RUN_EXPRESSION = `(async () => {
       return { frameset: !!document.querySelector('frameset'), frames: frames.length, largestFrameShare: Math.round(largest * 100) / 100 };
     } catch (e) { return null; }
   })();
-  const str = (v) => (typeof v === 'string' ? v : null);
+  const SHORT = ${CAPTURE_LIMITS.shortText};
+  const TARGET_MAX = ${CAPTURE_LIMITS.axeTargetLength};
+  const TARGET_PARTS = ${CAPTURE_LIMITS.axeTargetParts};
+  const S = (v, max) => (typeof v === 'string' && v.length <= max ? v : '');
+  const cut = (v, max) => { if (typeof v !== 'string') return ''; if (v.length <= max) return v; let c = ''; try { c = v.slice(0, max); } catch (e) { c = ''; } return S(c, max); };
+  const str = (v) => (typeof v === 'string' && v.length <= SHORT ? v : null);
+  const num = (v) => (typeof v === 'number' && v === v ? v : 0);
   const contrastOf = (nodeResult) => {
     const checks = [].concat(nodeResult.any || [], nodeResult.all || [], nodeResult.none || []);
     for (const check of checks) {
@@ -80,11 +91,11 @@ export const AXE_RUN_EXPRESSION = `(async () => {
     try {
       const selector = node.selector;
       for (const part of Array.isArray(selector) ? selector : [selector]) {
-        for (const s of Array.isArray(part) ? part : [part]) if (typeof s === 'string') target.push(s);
+        for (const s of Array.isArray(part) ? part : [part]) if (typeof s === 'string' && target.length < TARGET_PARTS) target[target.length] = cut(s, TARGET_MAX);
       }
     } catch (e) { target = []; }
     const source = typeof node.source === 'string' ? node.source : '';
-    return { target, html: source.length > HTML_MAX ? source.slice(0, HTML_MAX) : source, contrast: withContrast ? contrastOf(nodeResult) : null };
+    return { target, html: cut(source, HTML_MAX), contrast: withContrast ? contrastOf(nodeResult) : null };
   };
   const lower = (a, b) => (b && typeof b.ratio === 'number' && (!a || b.ratio < a.ratio) ? b : a);
   // Why an image passes image-alt: 'decorative' when axe's check for a presentation role holds (alt="",
@@ -135,19 +146,49 @@ export const AXE_RUN_EXPRESSION = `(async () => {
       const i = ruleOf('incomplete', id);
       rules[id] = {
         violations: violations.length, incomplete: incomplete.length, passes: passes.length,
-        impact: (v && v.impact) || (i && i.impact) || null,
+        impact: str((v && v.impact) || (i && i.impact) || null),
         examples: violations.slice(0, MAX).map((n) => exampleOf(n, isContrast)),
         incompleteExamples: incomplete.slice(0, MAX).map((n) => exampleOf(n, isContrast)),
       };
     }
-    const ruleErrors = (Array.isArray(raw) ? raw : []).filter((r) => r && r.error).map((r) => String(r.id));
+    const ruleErrors = [];
+    for (let k = 0; Array.isArray(raw) && k < raw.length && ruleErrors.length < 20; k += 1) { const r = raw[k]; if (r && r.error) ruleErrors[ruleErrors.length] = cut(String(r.id), SHORT); }
     callback({ rules, ruleErrors, images, lowestContrast: { violation: lowViolation, pass: lowPass } });
   });
+  // What goes back to the scanner: the known fields of the result and nothing else, each within its limit.
+  const tidyContrast = (c) => (c && typeof c === 'object'
+    ? { ratio: typeof c.ratio === 'number' && c.ratio === c.ratio ? c.ratio : null, expected: str(c.expected), fgColor: str(c.fgColor), bgColor: str(c.bgColor), fontSize: str(c.fontSize), fontWeight: str(c.fontWeight), messageKey: str(c.messageKey) }
+    : null);
+  const tidyExamples = (list) => {
+    const out = [];
+    for (let k = 0; list && typeof list === 'object' && k < list.length && k < MAX; k += 1) {
+      const e = list[k] || {};
+      const target = [];
+      for (let t = 0; e.target && typeof e.target === 'object' && t < e.target.length && t < TARGET_PARTS; t += 1) target[target.length] = cut(e.target[t], TARGET_MAX);
+      out[out.length] = { target: target, html: cut(e.html, HTML_MAX), contrast: tidyContrast(e.contrast) };
+    }
+    return out;
+  };
+  const tidy = (result) => {
+    const r = result && typeof result === 'object' ? result : {};
+    const rules = {};
+    for (let k = 0; k < RULES.length; k += 1) {
+      const rule = r.rules && typeof r.rules === 'object' ? r.rules[RULES[k]] : null;
+      if (!rule || typeof rule !== 'object') continue;
+      rules[RULES[k]] = { violations: num(rule.violations), incomplete: num(rule.incomplete), passes: num(rule.passes), impact: str(rule.impact), examples: tidyExamples(rule.examples), incompleteExamples: tidyExamples(rule.incompleteExamples) };
+    }
+    const ruleErrors = [];
+    for (let k = 0; r.ruleErrors && typeof r.ruleErrors === 'object' && k < r.ruleErrors.length && k < 20; k += 1) ruleErrors[ruleErrors.length] = cut(r.ruleErrors[k], SHORT);
+    const images = r.images && typeof r.images === 'object' ? { described: num(r.images.described), decorative: num(r.images.decorative) } : null;
+    const low = r.lowestContrast && typeof r.lowestContrast === 'object' ? r.lowestContrast : {};
+    return { rules: rules, ruleErrors: ruleErrors, images: images, lowestContrast: { violation: tidyContrast(low.violation), pass: tidyContrast(low.pass) } };
+  };
+  const version = () => { let v = null; try { v = axe.version; } catch (e) { v = null; } return str(v); };
   try {
-    const result = await axe.run(document, { runOnly: { type: 'rule', values: RULES }, iframes: false, preload: false, reporter: '${AXE_REPORTER}' });
-    return Object.assign({ status: 'ok', error: null, axeVersion: axe.version || null }, result, { scope, runMs: Math.round(performance.now() - started) });
+    const result = tidy(await axe.run(document, { runOnly: { type: 'rule', values: RULES }, iframes: false, preload: false, reporter: '${AXE_REPORTER}' }));
+    return { status: 'ok', error: null, axeVersion: version(), rules: result.rules, ruleErrors: result.ruleErrors, images: result.images, lowestContrast: result.lowestContrast, scope: scope, runMs: Math.round(performance.now() - started) };
   } catch (e) {
-    return Object.assign({ status: 'error', error: String((e && e.message) || e).slice(0, 300), axeVersion: axe.version || null, runMs: Math.round(performance.now() - started) }, empty);
+    return { status: 'error', error: cut(String((e && e.message) || e), 300), axeVersion: version(), runMs: Math.round(performance.now() - started), rules: {}, ruleErrors: [], lowestContrast: { violation: null, pass: null } };
   }
 })()`;
 
@@ -232,7 +273,7 @@ export function axeNotRun(status: Exclude<AxeStatus, 'ok'>, error: string, timin
   return {
     status,
     error: error.slice(0, 300),
-    axeVersion,
+    axeVersion: axeVersion === null ? null : axeVersion.slice(0, CAPTURE_LIMITS.shortText),
     rules: {},
     ruleErrors: [],
     lowestContrast: { violation: null, pass: null },
@@ -259,7 +300,8 @@ export function axeCaptureFrom(output: unknown, timing: { injectMs: number | nul
     rules[id] = rule;
   }
   const lowest = (typeof o.lowestContrast === 'object' && o.lowestContrast !== null ? o.lowestContrast : { violation: null, pass: null }) as { violation?: unknown; pass?: unknown };
-  return {
+  // Session fix-a4: whatever the page returned, the capture keeps it only within the limits.
+  return limitAxe({
     status: 'ok',
     error: null,
     axeVersion,
@@ -269,7 +311,7 @@ export function axeCaptureFrom(output: unknown, timing: { injectMs: number | nul
     lowestContrast: { violation: contrastOf(lowest.violation), pass: contrastOf(lowest.pass) },
     scope: scopeOf(o.scope),
     timing: { injectMs: timing.injectMs, runMs, totalMs: timing.totalMs },
-  };
+  }) as AxeCapture;
 }
 
 /** Time left for axe before the page's hard limit, keeping a margin for closing the page. */
