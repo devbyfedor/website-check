@@ -662,9 +662,25 @@ describe('CPU on hostile pages of 2 MB found by this review (each took 0.6 s to 
   it.each(hostile)('%s', (_name, make) => {
     const html = make();
     expect(html.length).toBeGreaterThanOrEqual(MB2 / 2);
-    const started = performance.now();
-    snapshotFromHtml(html, `${ORIGIN}/`, { platform: true });
-    const ms = performance.now() - started;
-    expect(ms, `${Math.round(ms)} ms`).toBeLessThan(1000);
+    // Session fix-a6 (review finding 97): the limit is 1 s, or four times what an ordinary page of the same size takes
+    // right before. The whole suite runs in parallel, and on a busy laptop a page can take three times longer for a
+    // moment, so a try over the limit is repeated up to twice and the fastest try counts. A super-linear case (seconds
+    // to minutes before the fixes of the review) fails every try.
+    const ordinary = fill('<p>Willkommen bei der Beispiel GmbH. <a href="/impressum">Impressum</a></p>');
+    const timed = (input: string) => {
+      const started = performance.now();
+      const result = snapshotFromHtml(input, `${ORIGIN}/`, { platform: true });
+      return { result, ms: performance.now() - started };
+    };
+    let best = { ms: Number.POSITIVE_INFINITY, limit: 1000 };
+    let snap = null as ReturnType<typeof snapshotFromHtml> | null;
+    for (let attempt = 0; attempt < 3 && best.ms >= best.limit; attempt += 1) {
+      const limit = Math.max(1000, 4 * timed(ordinary).ms);
+      const run = timed(html);
+      snap = run.result;
+      if (run.ms - limit < best.ms - best.limit) best = { ms: run.ms, limit };
+    }
+    expect(snap).not.toBeNull();
+    expect(best.ms, `${Math.round(best.ms)} ms, limit ${Math.round(best.limit)} ms`).toBeLessThan(best.limit);
   });
 });

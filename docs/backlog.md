@@ -168,7 +168,7 @@ Postponed work. Each item names the session that should pick it up, or "later" w
     - 94: the test "never while another scan still uses it" passes when the browser is closed under a running scan.
     - 95: a race in `drain`: the browser can close while a full check just taken is already running.
     - 96: the purity test of the core misses dynamic imports, imports without `from` and some Node built-ins.
-    - 97: tests with a limit of 1 s wall time fail on a busy machine (seen again in fix-a6 when `npm test` ran at full load).
+    - 97: tests with a limit of wall time fail on a busy machine. Partly done in fix-a6: the two tests of the HTML reader on hostile pages of 2 MB (1.0 to 2.3 s at full load, 0.33 to 0.54 s alone, the same on the code of main) compare with an ordinary page of the same size and take the fastest of up to three tries; D1 tests of the worker with a 5 s timeout can still time out at full load (once in seven runs of fix-a6).
     - 98: the paragraph "Current state" of `docs/progress.md` contradicts itself and the code.
     - 101: the test "takes the country … when the queue does not pass one" always passes the country from the queue.
     - 102: small dead code and leftovers (an unused entry of the scanner package, an unused import, a test helper in a production module, a file with a BOM).
