@@ -915,10 +915,58 @@ Fedor's answers to the three questions of part 1 and his rules for part 2 are in
 - The queue and "Prüfung abbrechen": start `localhost:8792` (about 10 s) in one tab, then at once `localhost:8793` in a second tab: it shows "Platz 1 in der Warteschlange"; "Prüfung abbrechen" leads home and the scan never runs.
 - `npm run check:scan` and `npm run test:integration` repeat the checks.
 
+## B2 part 3: the states without design, the end-to-end path on three sites, the merge condition of B2 (24.11.2026)
+
+Branch `b2-scan`, **not merged** (session message: Fedor looks at the new states first; the merge is the first step of B3). Session time: about 1 hour 10 minutes (22:36 to 23:45). No Cloudflare, no deploy, nothing pushed. Three listed sites were visited locally through `npm run dev:local` (homepage and Impressum, no clicks), each twice: once on the code before the review, once on the final code. One helper (Sonnet), a read-only review of the branch: 11 findings, 7 fixed, 3 fixed in part, 1 open (`docs/backlog.md`); no leak of example data, no stored error text in the API, no markup from the scanned page.
+
+Fedor's answers to the three questions of part 2 and his rules for part 3 are in `docs/decisions.md` (owner decisions, B2 part 3); the technical decisions follow in the technical section.
+
+### What was done
+
+- Step 1, the marks (Fedor's answer 1): a priority gets the mark of the design in its measured field (B2 heading, A2 subline, A3 code mark: the fields the reference names, and the same 4 × 3 grid over the drawn page), or the code mark by meaning (a third-party request made by the page's own code, the page language); any other priority gets none. Two priorities at one place share the mark ("1, 2"); the description of the drawing names the field or "im Quelltext".
+- Step 2, the states without design from elements of the reference (`web/lib/scan-view.ts`, `web/lib/form-view.ts`, `web/components/home/scan-form.tsx`, `web/components/scan/`): every refused start of the form (empty field, invalid, not found, not allowed by rule, the visitor's limits by hour, day and starts, "heute ausgelastet", our errors, no answer); the scan screen for each kind of report (quick check, blocked, failed by reason, refused, almost empty page) and for a scan without a report (cancelled, the day's cap, our error, unknown, unreadable), no connection; rows "nicht geprüft" without a tick; the API status names why a scan ended (`errorReason`, a closed list). The temporary messages of part 2 are gone. Every new text is a draft (`docs/content-drafts.md`, "Session B2 part 3").
+- Example pages for each state (`npm run preview:examples`): `/pruefung/beispiel/<state>` (19) and `/beispiel/formular/<state>` (11), built with the scanner's own `buildReport` from captures of the invented shop; the production build fails on a path with "beispiel".
+- Step 3: the reports of all 292 saved captures built by the code of `main` and by the branch (no site visited): the only change is the new field `scan.requests` (289 with numbers, 3 `null` where third parties were not checked); both validators 292 of 292; `thirdParty` equals the sum of the services' requests in 289 of 289. `npm run scan:local -- --reanalyze` passes.
+- Step 4: the end-to-end path on three sites (below).
+- Step 5: the review and its fixes (an unreadable report no longer says "nicht nachgemessen", accessibility with a type axe could not check is "nicht geprüft", a block met by the quick check names no browser, the Impressum place keeps its query, a cut finding still counts, our error claims nothing about the site, a refusal of a changed address is not shown, three 404 before a scan of this tab is "unknown", the tab title follows the state, a timeout without `AbortSignal.timeout`).
+- `npm run check:scan` checks every state at both widths (`CLAUDE.md`).
+
+### End to end on three sites (step 4)
+
+Rule written before the first run: in the order of `local/sites.txt`, the first site whose latest saved analysis shows WordPress, the first with Shopify, the first with Wix; blocked or failed ones skipped. That gave three sites, one on each of these systems. Final run on the final code, one line per site, without labels, sorted by the time to "Bericht öffnen":
+- `complete`, "Bericht öffnen" after 17.5 s; 174 requests, 39 to third parties, 4 services before consent (three names and "und 1 weiterer"), 7 findings, 3 priorities, 4 manual checks: every value on the screen equals the report. Marks: priorities 1 and 2 share one code mark "1, 2" (two services requested by the page's own code); priority 3, a service requested by another service's tag, has none.
+- `complete`, after 24.3 s; 227 and 220 requests, 0 services, 2 findings, 2 priorities, 3 manual: all equal. Marks: 0 (priority 1 in field D1, where the design has no mark; priority 2 without a place on the drawing).
+- `complete`, after 24.9 s; 452 and 212 requests, 0 services, 1 finding, 1 priority, 4 manual: all equal. Marks: 0 (priority 1 has no place on the drawing).
+- The banner time, the Impressum place and the fields on the screen equal the report on all three.
+- Each report valid with our validator and with Ajv; the same screen at 390 px shows the same values; the page with the id and the status API answer `noindex`; 0 requests of our pages to other hosts. The first run (code before the review) gave the same result with other numbers of the live sites (the same marks).
+
+### Numbers against the merge condition of B2
+
+Brief: the scan screen differs by at most 1 % (final state with fixture data); end to end home → scan → report works for 3 sites in local development; reduced motion shows final states. Session message, at both widths:
+- Example against the reference: scan screen 0.000 % at 1440 px and 390 px (0 pixels); 44 of 44 animations without difference, frames at 12 moments 0 pixels at both widths; home 0.000 % at both widths, 25 of 25 animations, layer switch 0 pixels.
+- Real scan screen and form in every state (`npm run check:scan`): queued, running, ready, 17 more states of the screen, 3 sequences, 10 refused starts of the form, each at 1440 and 390 px: axe 0 violations; contrast where axe could not decide measured by pixels, lowest 4.89:1 (needs 4.5; the same lowest value as on the reference), waiting rows 5.15:1, 0 under the required ratio; Tab reaches every control (5 or 6 on the screen, 14 on the home page) in document order, ring at least 1.59 times the required area at 3:1, whole in the window; reduced motion 0 animations in every state; with motion everything but the time bar ends within 4,964 ms; every state change reached the status region once (part 2 sequence 4 changes for 6 answers, the new sequences 4 for 8, 2 for 3, 2 for 3); the form's message reached its alert region (there from the first paint) every time, the field tied by `aria-describedby`, `aria-invalid` only for the address, the focus back in the field, typing clears it.
+- `npm run a11y` (home and example): axe 0, 14 of 14 and 6 of 6 controls in the order of the reference, every ring whole in the window.
+- Pages with the id of a scan: `noindex, nofollow` by meta element and `X-Robots-Tag` (measured on `wrangler dev`), the API `noindex, nofollow, noarchive`.
+- Requests to other hosts: 0 in visual, motion, a11y, check:scan and the end-to-end runs.
+- `npm test` 1,422 of 1,422 (1,402 before); `npm run test:integration` scanner 90 of 90, worker 65 of 65; `npm run typecheck` no errors; `npm run build:web` passes: routes `/`, `/_not-found`, `/pruefung`, no path with "beispiel" and no "roesterei-muster" in `web/out`.
+- No name, address or data of a test site in git: the search over 171 strings (hosts and names of both site lists, Impressum values) finds 0 real hits in the 422 tracked files, the added lines of the 23 commits of the branch and their messages; the only matches are false ones, a short part of one host name inside an identifier of our code (6 files, 17 places in added lines). `git ls-files local` is empty.
+
+### How to look at the states
+
+- `npm run preview:examples`, then http://127.0.0.1:3000/ and the addresses below, in the browser at full width and at 390 px (the device toolbar of the browser); stop with Ctrl+C.
+- Scan screen: `/pruefung/beispiel` (the reference) and `/pruefung/beispiel/` + `warteschlange`, `laeuft`, `keine-verbindung`, `ohne-funde`, `impressum-auf-startseite`, `ohne-impressum`, `schnellpruefung`, `blockiert`, `zeitlimit`, `serverfehler`, `seitenlimit`, `keine-webseite`, `nicht-erlaubt`, `fast-leer`, `abgebrochen`, `ausgelastet`, `fehler`, `unbekannt`, `bericht-unlesbar`.
+- Form: `/beispiel/formular/` + `leer`, `ungueltig`, `nicht-gefunden`, `port`, `nicht-oeffentlich`, `stunde`, `tag`, `starts`, `ausgelastet`, `fehler`, `keine-antwort`.
+- The real path: `npm run dev:local` as in part 2.
+
+### Not done, on purpose
+
+- The merge into `main` (session message: first step of B3).
+- Review findings left open and observations (`docs/backlog.md`, B2 part 3): the code mark trusts `via` on the site's own host (the report has no initiator type), no pending state of the form, the lead text and scale of the reference in every state, a cut list of services.
+
 ## Next
 
-- Fedor: walk the path (`npm run dev:local`, above) and answer the questions of the report of B2 part 2.
-- B2 part 3: the states without design (`docs/backlog.md`, B2 part 2), the end-to-end path on three sites in local development, the merge condition of B2 and the merge.
+- Fedor: look at the states without design at both widths (`npm run preview:examples`, the addresses under "How to look at the states" of B2 part 3) and at their drafts in `docs/content-drafts.md`; answer the questions of the report of B2 part 3.
+- B3, first step: the merge of `b2-scan` into `main` (`git merge --no-ff`) after the checks of B2 ran again on the branch; then the report, part 1 (head, Prüfmaße, plan with the priorities and their fields, Zeitschnitt A–A).
 - Fedor: push `main` (the merge of B1, 05f9370).
-- Fedor: look at the German drafts in `docs/content-drafts.md` (also the five of fix-a6 and the title of the scan screen) together with the others.
+- Fedor: look at the German drafts in `docs/content-drafts.md` together with the others.
 - Fedor, before the launch (stage C): create the real D1 database (all five migrations) and put its id into both configs, set `RATE_LIMIT_SECRET` on the scan Worker; deploy the scan Worker first, then the API Worker. The measurements before the launch are in `docs/backlog.md`.
