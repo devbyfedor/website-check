@@ -64,6 +64,9 @@ Decisions made later in the sessions:
 - 24.11.2026 (Fedor, message of fix-a5, answer 1): a page with more than 2,000 requests is "Prüfung abgebrochen" without findings, as the code does since fix-a4. Reason: "no third-party services found" from a part of the page would be untrue. How the state looks is decided in B2.
 - 24.11.2026 (Fedor, message of fix-a5, answer 2): the daily limit of 15 scans per visitor stays until Turnstile and is looked at again in stage C. Reason: it bounds one visitor while there is no other bot protection.
 - 24.11.2026 (Fedor, message of fix-a5, answer 3): the CPU of the quick check's HTML reader is measured on Cloudflare before the launch, together with the other measurements (`docs/backlog.md`). Reason: on the laptop it needs up to 1.3 s for the worst synthetic pages, and only Cloudflare shows the real cost.
+- 24.11.2026 (Fedor, message of B1, answer 1 to fix-a6): "Bilder mit Beschreibung" on a page without images stays "erfüllt"; the report shows "keine Bilder" instead of "0 von 0". The German text is a draft in `docs/content-drafts.md`, written in B3. Reason: the row follows axe, and "0 von 0" reads like a measurement that did not happen.
+- 24.11.2026 (Fedor, message of B1, answer 2 to fix-a6): a finding without a field on the plan shows no "Feld" label. Finding the elements that use a font (and placing a script by its position in the source) is stage D (`docs/backlog.md`). Reason: a label without a measured place would claim more than the scan saw.
+- 24.11.2026 (Fedor, message of B1, answer 3 to fix-a6): the status line and the log of the brief are updated (stage A done, stage B in progress). Reason: the brief is read before every session and should say where the project stands.
 
 ## Technical decisions
 
