@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import s from './site-header.module.css';
 
 export type SheetWidth = 'page' | 'report';
 
@@ -10,7 +11,7 @@ const MAX_WIDTH: Record<SheetWidth, string> = {
 // The mark of the logo: a sheet with a title block and a tick.
 function LogoMark() {
   return (
-    <svg className="mk" width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+    <svg className={s.mark} width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
       <path d="M2 2H28V28H2Z" />
       <path d="M2 19H28M15 19V28" />
       <path d="M8 10.5l4 4 9-8" />
@@ -37,7 +38,7 @@ export function SiteHeader({ width = 'page', children }: { width?: SheetWidth; c
 // The main navigation of the blueprint pages.
 export function SiteNav() {
   return (
-    <nav className="nav flex flex-wrap gap-7" aria-label="Hauptnavigation">
+    <nav className={`${s.nav} flex flex-wrap gap-7`} aria-label="Hauptnavigation">
       <a href="#methode">So prüfen wir</a>
       <a href="/bfsg">BFSG-Check</a>
       <a href="#agenturen">Für Agenturen</a>

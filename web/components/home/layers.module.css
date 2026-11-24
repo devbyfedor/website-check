@@ -1,0 +1,60 @@
+/* "Was wir messen": the four layer buttons of the home page (start.html). */
+.lg {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 14px 16px;
+  margin: 0;
+  background: transparent;
+  border: 1.5px solid rgba(242, 246, 255, 0.2);
+  color: var(--color-chalk);
+  font: inherit;
+  cursor: pointer;
+}
+.lg:hover {
+  border-color: rgba(140, 203, 255, 0.75);
+}
+.lg.on {
+  border-color: var(--color-cyan);
+  background: rgba(140, 203, 255, 0.1);
+}
+
+/* The number of the layer, the same as on its callout in the drawing. */
+.callnum {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1.8px solid var(--color-pencil-light);
+  color: var(--color-pencil-light);
+  background: transparent;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+.lg.on .callnum {
+  background: var(--color-pencil-light);
+  color: var(--color-blueprint);
+}
+
+.lgt {
+  display: block;
+  font-family: var(--font-head);
+  font-size: 21px;
+  font-weight: 600;
+}
+.lgd {
+  display: block;
+  margin-top: 4px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-chalk-muted);
+}

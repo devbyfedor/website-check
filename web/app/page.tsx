@@ -2,6 +2,7 @@ import { SiteFooter } from '../components/site-footer';
 import { SiteHeader, SiteNav } from '../components/site-header';
 import { HomeDrawing } from '../components/home/home-drawing';
 import { LayerButtons, LayerProvider } from '../components/home/layers';
+import { ReportFeatures } from '../components/home/report-features';
 import { ScanForm } from '../components/home/scan-form';
 
 const AUTO_GRID_520 = 'grid grid-cols-[repeat(auto-fit,minmax(min(100%,520px),1fr))] gap-12';
@@ -40,42 +41,7 @@ export default function HomePage() {
           </section>
         </LayerProvider>
 
-        <section className="flex flex-col gap-[22px]">
-          <h2 className="m-0 font-head text-[32px] font-semibold">Was Ihr Bericht zusätzlich zeigt</h2>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,320px),1fr))] gap-5">
-            <a className="det" href="/bfsg">
-              <svg className="ic" width="46" height="34" viewBox="0 0 46 34" aria-hidden="true">
-                <path d="M2 2H16V12H2Z" />
-                <path d="M30 2H44V12H30Z" />
-                <path d="M2 22H16V32H2Z" />
-                <path d="M16 7H30M9 12V22" />
-              </svg>
-              <span className="dett">BFSG-Prüfschema</span>
-              <span className="detd">
-                Gilt das Barrierefreiheitsstärkungsgesetz für Sie? Drei Fragen, eine klare Antwort.
-              </span>
-              <span className="detl">Zum Prüfschema</span>
-            </a>
-            <div className="det">
-              <svg className="ic" width="46" height="34" viewBox="0 0 46 34" aria-hidden="true">
-                <path d="M2 2H44V32H2Z" />
-                <path d="M2 10H44M2 18H44M2 26H44M12 2V32" />
-              </svg>
-              <span className="dett">Stückliste der fremden Dienste</span>
-              <span className="detd">
-                Jeder Dienst mit Anbieter und Zeitpunkt. Die Liste übernehmen Sie in Ihre Datenschutzerklärung.
-              </span>
-            </div>
-            <div className="det">
-              <svg className="ic" width="46" height="34" viewBox="0 0 46 34" aria-hidden="true">
-                <path d="M23 2L43 32H3Z" />
-                <path d="M18 24V14h5a3 3 0 0 1 0 6h-5M23 20l4 4" />
-              </svg>
-              <span className="dett">Revisionen</span>
-              <span className="detd">Prüfen Sie nach der Korrektur erneut. Erledigte Funde werden durchgestrichen.</span>
-            </div>
-          </div>
-        </section>
+        <ReportFeatures />
       </main>
       <SiteFooter />
     </>

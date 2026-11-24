@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, type ReactNode } from 'react';
+import s from './layers.module.css';
 
 // "Was wir messen": four layers of the drawing. A button switches the highlighted callout and the note
 // on the drawing; layer 1 is active on load (design/README.md, "Interactive behavior").
@@ -37,13 +38,13 @@ export function LayerButtons() {
         const on = n === layer;
         return (
           <li key={n}>
-            <button type="button" className={on ? 'lg on' : 'lg'} aria-pressed={on} onClick={() => setLayer(n)}>
-              <span className="callnum" aria-hidden="true">
+            <button type="button" className={on ? `${s.lg} ${s.on}` : s.lg} aria-pressed={on} onClick={() => setLayer(n)}>
+              <span className={s.callnum} aria-hidden="true">
                 {n}
               </span>
               <span>
-                <span className="lgt">{title}</span>
-                <span className="lgd">{text}</span>
+                <span className={s.lgt}>{title}</span>
+                <span className={s.lgd}>{text}</span>
               </span>
             </button>
           </li>

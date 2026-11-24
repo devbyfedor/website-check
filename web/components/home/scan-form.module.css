@@ -1,0 +1,68 @@
+/*
+  The title block ("Schriftfeld") of the home page (start.html) with the address field, and the start
+  button below it. The report has a title block of its own with other measures (bericht.html, .stb, B4).
+*/
+.tb {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  border: 1.5px solid var(--color-chalk);
+  background: var(--color-blueprint-deep);
+}
+.tb > * {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(242, 246, 255, 0.45);
+  min-width: 0;
+}
+.tbl {
+  border-right: 1px solid rgba(242, 246, 255, 0.45);
+  font-size: 14px;
+  color: var(--color-chalk-muted);
+  display: flex;
+  align-items: center;
+}
+.tbv {
+  font-size: 17px;
+  color: var(--color-chalk);
+  display: flex;
+  align-items: center;
+}
+.fieldb {
+  width: 100%;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 4px;
+  border: 0;
+  border-bottom: 1.5px solid var(--color-chalk);
+  background: transparent;
+  color: var(--color-chalk);
+  font: inherit;
+  font-size: 19px;
+}
+.fieldb::placeholder {
+  color: var(--color-placeholder-on-blueprint);
+}
+
+/* In the reference a link; here the submit button of the form, so the box model is set to match. */
+.btnb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: content-box;
+  height: 60px;
+  margin: 0;
+  padding: 0;
+  background: var(--color-chalk);
+  color: var(--color-blueprint);
+  text-decoration: none;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 21px;
+  line-height: normal;
+  border: 1.5px solid var(--color-chalk);
+  border-top: 0;
+  cursor: pointer;
+}
+.btnb:hover {
+  background: #ffffff;
+  color: #0f2f73;
+}

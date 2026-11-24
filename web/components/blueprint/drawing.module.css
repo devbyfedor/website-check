@@ -1,0 +1,34 @@
+/*
+  Line and label styles of the drawings on the blueprint: the home drawing (start.html) and the
+  plotter of the scan screen (pruefung.html) use the same ones. How the lines are drawn (duration,
+  easing) differs between the two pages and lives with each drawing.
+*/
+.ln {
+  fill: none;
+  stroke: var(--color-chalk);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.lt {
+  fill: none;
+  stroke: var(--color-chalk);
+  stroke-width: 1;
+  stroke-opacity: 0.55;
+}
+.hd {
+  fill: none;
+  stroke: var(--color-chalk);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.dim {
+  fill: none;
+  stroke: var(--color-cyan);
+  stroke-width: 1.2;
+}
+.svt {
+  fill: var(--color-chalk);
+  font-family: var(--font-body);
+  font-size: 10px;
+}
