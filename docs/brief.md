@@ -92,8 +92,11 @@ Success criteria for version 1:
 
 **Platform: everything on Cloudflare free tiers.**
 - `web/`: Next.js with static export, TypeScript, Tailwind CSS v4. Served by Workers Static Assets. No server-side rendering on the Worker.
-- `worker/`: one Cloudflare Worker for the API, scan orchestration and later the lead form. Since 21.11.2026 (Fedor's choice after A2): the checks run in a Durable Object in the EU jurisdiction with strategy (a), request events through the browser protocol; the Worker only accepts the job and passes it on.
-- `scanner/`: plain TypeScript, no framework. Shared by the local runner and the Worker.
+- `worker/`: two Cloudflare Workers (since A5 part 4, `docs/decisions.md`).
+  - The API Worker (`worker/wrangler.jsonc`, entry `worker/src/index.ts`): the API, D1, the hourly cleanup, and later the lead form. It carries no browser code, no axe-core and no rules data (a bundle of about 30 KiB). For a start it only checks the request, normalizes the address and hands the start to the queue object.
+  - The scan Worker (`worker/wrangler.scanner.jsonc`, entry `worker/src/scan-worker.ts`): only the Durable Object `ScanQueueObject`, without a public address; the API Worker reaches it through a Durable Object binding.
+  - Since 21.11.2026 (Fedor's choice after A2) the checks run in that Durable Object, one object in the EU jurisdiction (SQLite-backed, as the free plan requires), with strategy (a): request events through the browser protocol. The object runs the start (cache, day caps, DNS check, rate limit, D1 writes), the queue with the place of a waiting scan, and the scans in its alarm: one browser at a time, up to three scans as tabs of it, the Impressum in a second tab, the browser closed as soon as no full check runs. Strategy (b) and the A2 lab are deleted (fix-a6).
+- `scanner/`: plain TypeScript, no framework. Shared by the local runner and the scan Worker.
 - Cloudflare Browser Run (formerly Browser Rendering): a real Chromium for the scans.
 - Cloudflare D1: database. Cloudflare Turnstile: bot protection (stage C).
 
@@ -104,6 +107,14 @@ Success criteria for version 1:
 - Workers: 100,000 requests per day, 10 ms CPU per request (waiting for the network does not count), 128 MB memory, 50 subrequests per request.
 - D1: 5 GB, 5 million rows read and 100,000 rows written per day.
 - Static assets: free and unlimited.
+
+**Limits from the measurements** (`docs/measurements/`, `docs/d1.md`, `docs/decisions.md`; stage A on 20 to 24.11.2026):
+- Worker CPU: a capture does not fit 10 ms (A2: 13 to 183 ms per page in the Worker), so it runs in the Durable Object (30 s of CPU per request on the free plan; at most 414 ms in one event measured). Since the start moved into the object the API Worker needs at most 5 ms per request (A5 part 5, 69 requests).
+- Browser time: a full check (homepage at most 20 s, Impressum at most 16 s) took about 8 s of browser time in A5. The queue counts the day's browser time itself and starts a full check only while that time plus 45 s stays within 540 s of the 600; at most 80 full checks and 150 accepted scans per UTC day. Beyond that a scan gets the quick check without a browser; after 150 scans every start gets HTTP 503 "heute ausgelastet", also for an address with a cached report.
+- Subrequests: 50 per invocation. A full check needs about 6 to 16, one quick check at most 45 (with its own budget); one alarm run starts at most three checks.
+- D1: about 28,600 rows written per day at 80 full checks and 80 cached answers at the caps of the report, within the 33,333 Fedor allows the project (a third of the free 100,000).
+- Visitors: at most 5 scans per hour and 15 per UTC day, and 20 starts per hour and 60 per UTC day with cached answers, by the hashed IP; the cache reuses only full checks, for 24 hours. Looked at again with Turnstile in stage C.
+- A page: at most 2,000 requests and 2 MB of captured data (`scanner/src/capture/limits.ts`); a larger page is a failed check without findings.
 
 **Budget rules for browser minutes.** Develop and debug against local Playwright. Use Cloudflare only for measurements and end-to-end checks, at most one full 30-site run per day. Stop a single page after 20 seconds.
 
@@ -203,6 +214,8 @@ Stage A builds the scan core without any user interface. Each session is one or 
 <stage_b>
 
 Stage B builds the user interface exactly as in the design reference. It starts after stage A is merged.
+
+Every B session that shows data of a report follows `docs/report-schema.md`, section "Strings of the scanned page": the report carries text, addresses and markup of the scanned site, which our pages show only as text and as links only after the checks named there.
 
 **Visual check, used by every B session:** a Playwright script `npm run visual` takes full-page screenshots of a reference file and of the matching app page at 1440 and 390 px width with `reducedMotion: 'reduce'`, writes diff images to `local/visual/` and prints the share of different pixels per page and width.
 
