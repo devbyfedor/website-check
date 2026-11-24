@@ -31,6 +31,8 @@ const fake = vi.hoisted(() => {
     /** Whether a browser was open while each quick check ran (finding 47). */
     openAtQuick: [] as boolean[],
     capture: null as null | (() => Capture),
+    /** Session B2 part 2: a capture waits for this before it ends (a scan that is running while a visitor cancels). */
+    captureGate: null as null | Promise<void>,
     log: [] as string[],
   };
   const newBrowser = (): FakeBrowser => {
@@ -91,6 +93,7 @@ vi.mock('../src/capture/cdp-events.ts', () => ({
   captureWithCdpEvents: async (browser: { closed: boolean }) => {
     if (browser.closed) throw new Error('browser closed under the capture');
     await new Promise((resolve) => setTimeout(resolve, 5));
+    if (fake.state.captureGate !== null) await fake.state.captureGate;
     return { capture: fake.state.capture?.() ?? shopCapture(), stats: { homepageMs: 5, events: 1 } };
   },
 }));
@@ -153,7 +156,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await d1.clear();
-  Object.assign(fake.state, { acquired: 0, connects: 0, connectFailures: 0, browsers: [], onClose: null, openAtQuick: [], capture: null, log: [] });
+  Object.assign(fake.state, { acquired: 0, connects: 0, connectFailures: 0, browsers: [], onClose: null, openAtQuick: [], capture: null, captureGate: null, log: [] });
 });
 
 describe('finding 31: the production queue object runs a scan from the start to the closed browser', () => {
@@ -298,5 +301,76 @@ describe('finding 50: a session acquired without a connection is retried, or clo
     const after = await stats(object);
     expect(after.browserOpen).toBe(false);
     expect(after.day.browserMs).toBeGreaterThanOrEqual(20_000);
+  });
+});
+
+describe('session B2 part 2: "Prüfung abbrechen" through the production queue object', () => {
+  async function cancel(object: InstanceType<typeof ScanQueueObject>, id: unknown, token: unknown): Promise<string> {
+    const response = await object.fetch(new Request('https://queue/cancel', { method: 'POST', body: JSON.stringify({ id, token }) }));
+    return ((await response.json()) as { outcome: string }).outcome;
+  }
+  const waitFor = async (check: () => Promise<boolean>): Promise<void> => {
+    for (let i = 0; i < 400 && !(await check()); i += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+  };
+
+  it('a scan cancelled in the queue never starts a browser, ends in D1 as cancelled, and is never reused', async () => {
+    const object = objectWith(new FakeStorage());
+    const started = await start(object, 'https://kaffee-beispiel.de/');
+    expect(started.status).toBe(202);
+    expect(started.body.cancelToken).toMatch(/^[a-z2-7]{26}$/);
+    expect(started.body.displayHost).toBe('kaffee-beispiel.de');
+    expect(await cancel(object, started.body.id, started.body.cancelToken)).toBe('removed');
+    expect(await scanRow(started.body.id)).toEqual({ status: 'error', state: null, error: 'cancelled', mode: null });
+    await object.alarm();
+    expect(fake.state.acquired).toBe(0);
+    expect(fake.state.log).toEqual([]);
+    const again = await start(object, 'https://kaffee-beispiel.de/', { visitor: '4:16909060' });
+    expect(again.status).toBe(202);
+    expect(again.body.id).not.toBe(started.body.id);
+  });
+
+  it('a scan another visitor joined stays for that visitor and runs to its report', async () => {
+    const object = objectWith(new FakeStorage());
+    const first = await start(object, 'https://kaffee-beispiel.de/');
+    const second = await start(object, 'https://kaffee-beispiel.de/', { visitor: '4:16909060' });
+    expect(second.status).toBe(200);
+    expect(second.body).toMatchObject({ id: first.body.id, cached: true, status: 'queued', displayHost: 'kaffee-beispiel.de' });
+    expect(second.body.cancelToken).toMatch(/^[a-z2-7]{26}$/);
+    expect(second.body.cancelToken).not.toBe(first.body.cancelToken);
+    expect(await cancel(object, first.body.id, first.body.cancelToken)).toBe('kept');
+    expect((await scanRow(first.body.id)).status).toBe('queued');
+    await object.alarm();
+    expect(await scanRow(first.body.id)).toEqual({ status: 'done', state: 'complete', error: null, mode: 'full' });
+    expect(fake.state.acquired).toBe(1);
+    expect(await cancel(object, first.body.id, second.body.cancelToken)).toBe('unknown');
+    expect((await scanRow(first.body.id)).status).toBe('done');
+  });
+
+  it('a running scan is not stopped: the cancel changes nothing and the report is saved', async () => {
+    const object = objectWith(new FakeStorage());
+    const started = await start(object, 'https://kaffee-beispiel.de/');
+    let open: () => void = () => undefined;
+    fake.state.captureGate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const run = object.alarm();
+    await waitFor(async () => (await scanRow(started.body.id)).status === 'running');
+    expect((await scanRow(started.body.id)).status).toBe('running');
+    expect(await cancel(object, started.body.id, started.body.cancelToken)).toBe('running');
+    open();
+    await run;
+    expect(await scanRow(started.body.id)).toEqual({ status: 'done', state: 'complete', error: null, mode: 'full' });
+    expect(fake.state.acquired).toBe(1);
+  });
+
+  it('a wrong token or a malformed request changes nothing', async () => {
+    const object = objectWith(new FakeStorage());
+    const started = await start(object, 'https://kaffee-beispiel.de/');
+    expect(await cancel(object, started.body.id, 'a'.repeat(26))).toBe('not-holder');
+    const malformed = await object.fetch(new Request('https://queue/cancel', { method: 'POST', body: JSON.stringify({ id: started.body.id, token: 'kurz' }) }));
+    expect(malformed.status).toBe(500);
+    expect((await scanRow(started.body.id)).status).toBe('queued');
+    await object.alarm();
+    expect((await scanRow(started.body.id)).status).toBe('done');
   });
 });

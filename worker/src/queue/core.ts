@@ -66,7 +66,32 @@ export interface QueueJob {
   /** Set when a run of the queue took the job. */
   startedAt?: number;
   attempts: number;
+  /**
+   * Session B2 part 2 (Fedor's answer 2): the cancel tokens of the visitors who wait for this scan, the one who
+   * started it and everyone who joined it from the cache. "Prüfung abbrechen" removes the token of one visitor;
+   * the job leaves the queue only when no token is left and it has not started. Missing on jobs of older code.
+   */
+  holders?: string[];
+  /** More visitors joined than `MAX_HOLDERS`, or the job was queued by older code without tokens: never cancelled. */
+  pinned?: boolean;
+  /**
+   * The capture has begun (the browser is ready, or the quick check starts): from here on the scan runs to its end.
+   * A job that a run took but that still waits for the browser can be cancelled (review of B2 part 2).
+   */
+  capturing?: boolean;
+  /** Its last visitor cancelled it: no run takes it and nobody joins it while D1 is told; then it is deleted. */
+  cancelled?: boolean;
 }
+
+/** Tokens kept per job; a job joined by more visitors cannot be cancelled any more (`pinned`). */
+export const MAX_HOLDERS = 50;
+
+/**
+ * What a cancel did (session B2 part 2): `removed` the job left the queue (no browser is spent on it), `kept`
+ * other visitors still wait for it, `running` it has started and runs to its end, `unknown` the queue does not
+ * know it (finished, or never queued), `not-holder` the token is not one of the job's.
+ */
+export type CancelOutcome = 'removed' | 'kept' | 'running' | 'unknown' | 'not-holder';
 
 export interface DayCounters {
   day: string;
@@ -156,21 +181,115 @@ export class ScanQueue {
     return [...map.entries()].map(([key, job]) => ({ key, job }));
   }
 
-  /** Accepts a job unless the day's cap is reached; a job that is already in the queue is not added twice. */
-  enqueue(input: { id: string; url: string; createdAt: number; force?: 'quick' }, now: number): Promise<EnqueueResult> {
+  /** Jobs that wait or run; a job being cancelled is left out. */
+  async #liveJobs(): Promise<{ key: string; job: QueueJob }[]> {
+    return (await this.jobs()).filter((entry) => entry.job.cancelled !== true);
+  }
+
+  /**
+   * Accepts a job unless the day's cap is reached; a job that is already in the queue is not added twice.
+   * `holder` is the cancel token of the visitor who started it (session B2 part 2).
+   */
+  enqueue(input: { id: string; url: string; createdAt: number; force?: 'quick'; holder?: string }, now: number): Promise<EnqueueResult> {
     return this.#serial(() => this.#enqueue(input, now));
   }
 
-  async #enqueue(input: { id: string; url: string; createdAt: number; force?: 'quick' }, now: number): Promise<EnqueueResult> {
-    const all = await this.jobs();
+  async #enqueue(input: { id: string; url: string; createdAt: number; force?: 'quick'; holder?: string }, now: number): Promise<EnqueueResult> {
+    const all = await this.#liveJobs();
     const existing = all.find((entry) => entry.job.id === input.id);
     if (existing !== undefined) return { accepted: true, position: positionIn(all, input.id) };
     const day = await this.day(now);
     if (day.accepted >= this.limits.maxScansPerDay) return { accepted: false, reason: 'daily-limit', retryAfterSeconds: secondsToNextUtcDay(now) };
-    const job: QueueJob = { id: input.id, url: input.url, createdAt: input.createdAt, enqueuedAt: now, attempts: 0, ...(input.force !== undefined ? { force: input.force } : {}) };
+    const job: QueueJob = {
+      id: input.id,
+      url: input.url,
+      createdAt: input.createdAt,
+      enqueuedAt: now,
+      attempts: 0,
+      ...(input.force !== undefined ? { force: input.force } : {}),
+      ...(input.holder !== undefined ? { holders: [input.holder] } : {}),
+    };
     await this.#store.put(jobKey(job), job);
     await this.#saveDay({ ...day, accepted: day.accepted + 1 });
     return { accepted: true, position: positionIn([...all, { key: jobKey(job), job }], job.id) };
+  }
+
+  /**
+   * Session B2 part 2: a visitor joins a scan that waits or runs (the start was answered from the cache) with a
+   * cancel token of their own. False when the queue does not know the job any more (it finished, or its last
+   * visitor cancelled it a moment ago): the caller reads D1 again instead of handing out a scan that will not run.
+   */
+  join(id: string, token: string): Promise<boolean> {
+    return this.#serial(async () => {
+      const entry = (await this.#liveJobs()).find((e) => e.job.id === id);
+      if (entry === undefined) return false;
+      const holders = entry.job.holders ?? [];
+      if (holders.includes(token) || entry.job.pinned === true) return true;
+      // A job of older code has no tokens: its visitor could not cancel it, so the one who joins cannot either.
+      const job: QueueJob = entry.job.holders === undefined || holders.length >= MAX_HOLDERS ? { ...entry.job, pinned: true } : { ...entry.job, holders: [...holders, token] };
+      await this.#store.put(entry.key, job);
+      return true;
+    });
+  }
+
+  /**
+   * Session B2 part 2 (Fedor's answer 2): "Prüfung abbrechen" of one visitor. A job whose capture has begun runs to
+   * its end; a waiting job (also one a run took that still waits for the browser) loses this visitor's token and leaves
+   * the queue when no token is left. Before it is deleted,
+   * `finalize` records the end in D1 while the job is marked `cancelled`, inside the queue's order of changes: a
+   * start that joins at that moment waits and then finds the job gone and D1 already changed, and no run takes it.
+   */
+  cancel(id: string, token: string, finalize: (job: QueueJob) => Promise<void>): Promise<CancelOutcome> {
+    return this.#serial(async () => {
+      const entry = (await this.#liveJobs()).find((e) => e.job.id === id);
+      if (entry === undefined) return 'unknown';
+      if (entry.job.capturing === true) return 'running';
+      const holders = entry.job.holders ?? [];
+      if (!holders.includes(token)) return 'not-holder';
+      const left = holders.filter((h) => h !== token);
+      if (left.length > 0 || entry.job.pinned === true) {
+        await this.#store.put(entry.key, { ...entry.job, holders: left });
+        return 'kept';
+      }
+      await this.#store.put(entry.key, { ...entry.job, holders: [], cancelled: true });
+      try {
+        await finalize(entry.job);
+      } finally {
+        await this.#store.delete(entry.key);
+      }
+      return 'removed';
+    });
+  }
+
+  /** Whether the job still waits or runs (not finished, not cancelled). */
+  async isLive(id: string): Promise<boolean> {
+    return (await this.#liveJobs()).some((e) => e.job.id === id);
+  }
+
+  /**
+   * Review of B2 part 2: the capture of a job begins. False when the job was cancelled meanwhile (it was taken by a
+   * run but still waited for the browser): then the run skips it. In the queue's order of changes, as `cancel`.
+   */
+  beginCapture(id: string): Promise<boolean> {
+    return this.#serial(async () => {
+      const entry = (await this.#liveJobs()).find((e) => e.job.id === id);
+      if (entry === undefined) return false;
+      await this.#store.put(entry.key, { ...entry.job, capturing: true });
+      return true;
+    });
+  }
+
+  /** Jobs left marked `cancelled` by a run that was lost during a cancel: deleted, returned so D1 can be told again. */
+  dropCancelled(): Promise<QueueJob[]> {
+    return this.#serial(async () => {
+      const dropped: QueueJob[] = [];
+      for (const { key, job } of await this.jobs()) {
+        if (job.cancelled !== true) continue;
+        await this.#store.delete(key);
+        dropped.push(job);
+      }
+      return dropped;
+    });
   }
 
   /**
@@ -184,26 +303,31 @@ export class ScanQueue {
 
   /** 0 while the job runs, 1 for the next job to start, null when the queue does not know it (finished or never queued). */
   async position(id: string): Promise<number | null> {
-    const all = await this.jobs();
+    const all = await this.#liveJobs();
     return all.some((entry) => entry.job.id === id) ? positionIn(all, id) : null;
   }
 
   async waitingCount(): Promise<number> {
-    return (await this.jobs()).filter((entry) => entry.job.startedAt === undefined).length;
+    return (await this.#liveJobs()).filter((entry) => entry.job.startedAt === undefined).length;
   }
 
   /** The oldest waiting job, not taken (session fix-a5: whether the browser is still needed). */
   async peekNext(): Promise<QueueJob | null> {
-    return (await this.jobs()).find((entry) => entry.job.startedAt === undefined)?.job ?? null;
+    return (await this.#liveJobs()).find((entry) => entry.job.startedAt === undefined)?.job ?? null;
   }
 
-  /** Takes the oldest waiting job and marks it started. */
-  async takeNext(now: number): Promise<QueueJob | null> {
-    const next = (await this.jobs()).find((entry) => entry.job.startedAt === undefined);
-    if (next === undefined) return null;
-    const job: QueueJob = { ...next.job, startedAt: now, attempts: next.job.attempts + 1 };
-    await this.#store.put(next.key, job);
-    return job;
+  /**
+   * Takes the oldest waiting job and marks it started. In the queue's order of changes (session B2 part 2), so a
+   * cancel and the start of the same job never interleave: the job is either cancelled before or running after.
+   */
+  takeNext(now: number): Promise<QueueJob | null> {
+    return this.#serial(async () => {
+      const next = (await this.#liveJobs()).find((entry) => entry.job.startedAt === undefined);
+      if (next === undefined) return null;
+      const job: QueueJob = { ...next.job, startedAt: now, attempts: next.job.attempts + 1 };
+      await this.#store.put(next.key, job);
+      return job;
+    });
   }
 
   async finish(job: Pick<QueueJob, 'id' | 'enqueuedAt'>): Promise<void> {
@@ -217,7 +341,7 @@ export class ScanQueue {
   async recoverStale(now: number, runningIds: ReadonlySet<string>, minAgeMs: number = this.limits.staleRunningMs): Promise<{ retried: number; abandoned: QueueJob[] }> {
     let retried = 0;
     const abandoned: QueueJob[] = [];
-    for (const { key, job } of await this.jobs()) {
+    for (const { key, job } of await this.#liveJobs()) {
       if (job.startedAt === undefined || runningIds.has(job.id) || now - job.startedAt < minAgeMs) continue;
       if (job.attempts < 2) {
         const { startedAt: _startedAt, ...rest } = job;

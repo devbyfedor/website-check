@@ -10,9 +10,11 @@
   "scripts": {
     "dev": "node scripts/next.ts dev",
     "build": "node scripts/next.ts build",
+    "build:examples": "node scripts/next.ts build --examples",
     "typecheck": "node scripts/next.ts typegen && tsc -p ."
   },
   "dependencies": {
+    "@website-check/scanner": "0.1.0",
     "next": "16.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1"

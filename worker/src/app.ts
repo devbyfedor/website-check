@@ -50,12 +50,19 @@ export interface QueueClient {
   /** The whole start in the queue object (`POST /start`); its answer unparsed. */
   start(input: StartInput): Promise<Response>;
   position(id: string): Promise<number | null>;
+  /** Session B2 part 2: "Prüfung abbrechen" (`POST /cancel`); throws when the object did not answer. */
+  cancel(id: string, token: string): Promise<void>;
 }
 
 export function queueClient(stub: { fetch(input: string, init?: RequestInit): Promise<Response> }): QueueClient {
   return {
     start(input) {
       return stub.fetch(`${QUEUE_ORIGIN}/start`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) });
+    },
+    async cancel(id, token) {
+      const response = await stub.fetch(`${QUEUE_ORIGIN}/cancel`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, token }) });
+      await response.body?.cancel().catch(() => undefined);
+      if (!response.ok) throw new Error(`cancel: HTTP ${response.status}`);
     },
     async position(id) {
       const response = await stub.fetch(`${QUEUE_ORIGIN}/position?id=${encodeURIComponent(id)}`);
@@ -78,7 +85,7 @@ export async function handleRequest(request: Request, env: Env, options: { rateP
   const api = createApi({
     db: env.DB,
     start: queue !== null ? (input) => queue.start(input) : () => Promise.reject(new Error('no queue binding')),
-    ...(queue !== null ? { position: (id: string) => queue.position(id) } : {}),
+    ...(queue !== null ? { position: (id: string) => queue.position(id), cancel: (id: string, token: string) => queue.cancel(id, token) } : {}),
     ...(options.ratePerHour !== undefined ? { ratePerHour: options.ratePerHour } : {}),
     ...(options.force !== undefined ? { force: options.force } : {}),
     ...(exempt !== undefined ? { exempt } : {}),

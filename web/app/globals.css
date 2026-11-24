@@ -90,6 +90,18 @@
     outline: 3px solid var(--color-cyan);
     outline-offset: 3px;
   }
+  /*
+    Not in the reference (Fedor, 24.11.2026, docs/decisions.md): when Tab scrolls a control into view, the
+    browser keeps 8 px between it and the edge of the window, so the ring (3 px at an offset of 3 px) is
+    seen whole. Nothing changes at rest.
+  */
+  a[href],
+  button,
+  input,
+  select,
+  textarea {
+    scroll-margin: 8px;
+  }
 }
 
 @layer components {

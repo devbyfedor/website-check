@@ -23,6 +23,10 @@ export interface ScanRow {
   startedAt: number | null;
   finishedAt: number | null;
   country: string | null;
+  /** Session B2 part 2: the host of the site (ASCII), read with the status only (`getScan`). */
+  host?: string | null;
+  /** Session B2 part 3: the reason of an error (free text of our own, never shown as it is), read with the status only. */
+  error?: string | null;
 }
 
 /** One D1 row of `findings`, taken from the report's findings in their order. */
@@ -120,10 +124,14 @@ async function tryCreateScan(db: D1Database, input: { id: string; url: string; h
   return existing === null ? null : { created: false, scan: existing };
 }
 
+/** The status of a scan with the host of its site (session B2 part 2: the heading of the scan screen); one query, two rows read. */
 export async function getScan(db: D1Database, id: string): Promise<ScanRow | null> {
-  const result = await db.prepare('SELECT id, status, state, created_at, started_at, finished_at, country FROM scans WHERE id = ?1').bind(id).all<RawScan>();
+  const result = await db
+    .prepare('SELECT s.id, s.status, s.state, s.created_at, s.started_at, s.finished_at, s.country, s.error, si.host FROM scans s JOIN sites si ON si.id = s.site_id WHERE s.id = ?1')
+    .bind(id)
+    .all<RawScan & { host: string; error: string | null }>();
   const row = result.results[0];
-  return row === undefined ? null : toScan(row);
+  return row === undefined ? null : { ...toScan(row), host: row.host, error: row.error };
 }
 
 /** The stored report text, unparsed; null when the scan does not exist. */

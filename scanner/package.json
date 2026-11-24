@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./api": "./src/api.ts",
+    "./report": "./src/report-entry.ts",
     "./local": "./src/local/index.ts"
   },
   "engines": {

@@ -517,6 +517,119 @@ German drafts for what the report says when a limit of the scan was reached. All
 - Used when: `failure.reason` is `not-html` (the main document has a content type other than HTML); the text `report-failed` itself is written in B3.
 - Status: Entwurf
 
+## Session B2 part 1
+
+### Title of the scan screen
+
+- Text: Prüfung läuft, Website-Check DE
+- Used when: the `<title>` of the scan screen (in part 1 only on the example page of the checks, `/pruefung/beispiel`). The reference has "Prüfung läuft, Bauplan", where "Bauplan" is the name of the design; the home page has "Website-Check DE". Since part 2 also the title of the real scan screen `/pruefung?id=…`.
+- Status: Entwurf
+
+## Session B2 part 2
+
+All texts of the real scan screen and of the form live in `web/lib/scan-texts.ts`. Texts marked "final" there are those of `design/reference/pruefung.html`; everything below is a draft. Values of the scanned site or of the visitor (the address, unknown service names, the place of the Impressum) are never part of a template: the page shows them as text of their own in `<bdi>`.
+
+### Heading before the address is known
+
+- Text: Ihre Website wird nachgemessen
+- Used when: the scan screen has loaded but neither the form nor the API has named the address yet (a fraction of a second, or a link opened in a new tab until the first answer). The reference: "{domain} wird nachgemessen".
+- Status: Entwurf
+
+### Rows of the "Messprotokoll" while they wait for the report
+
+- Texts, in the order of the rows: Seite aufrufen · Anfragen aufzeichnen · Einwilligungsbanner suchen · Fremde Dienste vor der Einwilligung prüfen · Impressum suchen · Pflichtangaben lesen · Barrierefreiheit prüfen · Verschlüsselung und Sicherheits-Header lesen
+- Used when: the scan waits in the queue or runs; the rows name what the scan does, never a result, no number (Fedor, B2 part 2, answer 1). Shown dimmed at a contrast of at least 4.5:1, without a tick. A row whose part the report did not check stays like this after the report (part 3 gives it a state).
+- Status: Entwurf
+
+### Rows with the report: variants not in the reference
+
+- "1 Anfrage aufgezeichnet" (singular of "{n} Anfragen aufgezeichnet"); "Anfragen aufgezeichnet" without a number for a report made before the count existed.
+- "keine an fremde Server" (for "davon {n} an fremde Server" with 0); "davon 1 an einen fremden Server" (with 1).
+- "Kein Einwilligungsbanner erkannt" (no banner seen; never a finding by itself).
+- "1 fremder Dienst vor der Einwilligung" (singular); "Keine Funde bei fremden Diensten" (no service is a finding; tick instead of "!"; requests to third parties such as public CDNs may still be counted in the row above); after three names "und 1 weiterer" or "und {n} weitere".
+- "Impressum-Link nicht gefunden" with the line "bitte manuell prüfen" (red "!", the manual check with a high risk; wording as `legal-impressum-no-link`).
+- "USt-IdNr." as the fourth name in the line of "Pflichtangaben gelesen" (the reference lists "Anschrift, E-Mail, Handelsregister"); "keine gefunden, bitte manuell prüfen" when no field was found.
+- Status: Entwurf
+
+### Summary under "Fertig. Ihr Bericht ist gezeichnet."
+
+- Pattern (final in the reference for 7 and 3): "{n} Funde, davon {p} vorrangig. Zu jedem gibt es eine Anleitung für {System}."
+- Drafts: "1 Fund" (singular); "Keine Funde."; ", davon {p} vorrangig" left out when no priority is a finding; "1 Punkt bitte manuell prüfen." or "{m} Punkte bitte manuell prüfen." when the report has manual checks; "Dazu gibt es eine Anleitung für {System}." for one finding. The sentence about the instructions only when the system is known and every finding names its instructions (B4 writes them).
+- "Der Bericht zeigt, was wir prüfen konnten." for a report that is not a complete check (quick check, blocked, refused, failed, almost empty page) until part 3 builds those states.
+- Status: Entwurf
+
+### Text description of the drawing (aria-label)
+
+- While waiting: Der Plotter zeichnet die Startseite, die wir prüfen.
+- With the report (B2 part 3, Fedor's answer 1): "Der Plotter zeichnet die geprüfte Startseite." when no priority has a place on the drawing; otherwise "Der Plotter zeichnet die geprüfte Startseite und markiert rot, wo vorrangige Punkte liegen: {Liste}.", where each placed priority is "Punkt {n} in Feld {Feld}" (its measured field, B2, A2 or A3) or "Punkt {n} im Quelltext" (a request made by the page's own code, or the language of the page), joined by ", " and " und ". A priority without a place is not named. The reference names the parts of the drawing ("Überschrift, Quelltext am Seitenende und Unterzeile"); the real text names the field, because the drawing is a sketch, not the visitor's page.
+- Status: Entwurf
+
+### Status line (role="status")
+
+- In the queue: "Ihre Prüfung wartet: Platz {n} in der Warteschlange." (without a known place: "Ihre Prüfung wartet in der Warteschlange.")
+- Running: "Die Messung läuft."
+- Ready: "Die Messung ist fertig. Der Bericht ist bereit."
+- Used when: the status region of the scan screen; a text only when the state changes (Fedor, B2 part 2, answer 3). Visible under the lead text in the cyan of "Startseite und Impressum".
+- Status: Entwurf
+
+### Temporary messages of part 2
+
+- Removed in part 3 (24.11.2026): "Das hat nicht geklappt. Bitte versuchen Sie es später noch einmal." (scan screen) and "Das hat nicht geklappt. Bitte prüfen Sie die Adresse und versuchen Sie es noch einmal." (form). The states of part 3 below replace them.
+- Status: ersetzt
+
+## Session B2 part 3
+
+The states that the design does not show, built only from elements of the reference (Fedor, B2 part 3). All texts live in `web/lib/scan-texts.ts`; every one of them is a draft. Each state opens at an address of its own in `npm run preview:examples`: the scan screen at `/pruefung/beispiel/<state>`, the form at `/beispiel/formular/<state>`. "Keine Funde bei fremden Diensten" (part 2) stays a draft (Fedor, B2 part 3, answer 3).
+
+### Form of the home page: a refused start
+
+Shown under "Website prüfen" in the light red of the marks, in a region with `role="alert"` that is there from the first paint and tied to the field (`aria-describedby`; `aria-invalid` only when the address is the problem); the focus goes back to the field. `{wann}` is the moment of `Retry-After`, rounded up to the next full minute, in the visitor's own time: "ab 14:25 Uhr" (today), "morgen ab 01:00 Uhr", "am 27.11. ab 14:04 Uhr"; "später" when the answer names no time.
+
+- Empty field: Bitte geben Sie die Adresse Ihrer Website ein, zum Beispiel ihre-website.de.
+- 400 `invalid-address`: Das ist keine Web-Adresse, die wir prüfen können. Bitte geben Sie sie so ein: ihre-website.de.
+- 400 `address-not-found`: Zu dieser Adresse finden wir keinen Server. Bitte prüfen Sie die Schreibweise.
+- 400 `address-not-allowed`, by its rule: `scheme` "Wir prüfen nur Adressen, die mit http:// oder https:// beginnen."; `credentials` "Bitte geben Sie die Adresse ohne Benutzernamen und Passwort ein."; `port` "Wir prüfen nur Websites auf den üblichen Ports. Bitte geben Sie die Adresse ohne Portnummer ein."; `host-name` "Diese Adresse ist nicht öffentlich erreichbar. Wir prüfen nur öffentliche Websites."; `address` "Diese Adresse führt zu keinem öffentlichen Server. Wir prüfen nur öffentliche Websites."; any other "Diese Adresse können wir nicht prüfen. Wir prüfen nur öffentliche Websites."
+- 429 `rate-limited`, `limit` `hour`: Sie haben in dieser Stunde so viele Prüfungen gestartet, wie wir einem Besucher erlauben. Die nächste ist {wann} möglich.
+- 429 `rate-limited`, `limit` `day`: Sie haben heute so viele Prüfungen gestartet, wie wir einem Besucher an einem Tag erlauben. Die nächste ist {wann} möglich.
+- 429 `rate-limited`, `limit` `starts`: Sie haben in kurzer Zeit sehr viele Prüfungen gestartet. Die nächste ist {wann} möglich.
+- 503 `daily-limit` ("heute ausgelastet"): Heute sind alle Prüfungen vergeben. Die nächste ist {wann} möglich.
+- Our errors (503 `queue-unavailable`, `not-configured`, `dns-unavailable`, any other answer, no answer): Bei uns ist gerade ein Fehler aufgetreten. Bitte versuchen Sie es {wann} noch einmal. (without a time: "… in einigen Minuten noch einmal.")
+- The texts name no number of scans, so they stay true when the limits change (`docs/backlog.md`, stage C).
+- Status: Entwurf
+
+### Scan screen: rows of the "Messprotokoll" that the report did not check
+
+- A part the report did not check is lit, without a tick: the name of its step ("Barrierefreiheit prüfen") with the line "nicht geprüft", or "nicht geprüft, Schnellprüfung ohne Browser" (quick check), "nicht geprüft, bitte manuell prüfen" (mandatory information when the Impressum page was not read), "nicht geprüft, kein Impressum geöffnet" (no Impressum link).
+- Quick check, first row: "Quelltext der Seite gelesen" with "ohne Browser, so wie Ihr Server ihn ausliefert".
+- Blocked: "Prüfung blockiert" with "Ihre Website hat unseren Browser nicht durchgelassen" (and "(Antwort {Status})" when there was one); a block met by the quick check without a browser: "Ihre Website hat unsere Abfrage nicht durchgelassen".
+- Accessibility when axe could not check one of the six types: "Barrierefreiheit prüfen" with "nicht geprüft, nicht alle Fehlertypen, bitte manuell prüfen".
+- Failed: "Seite nicht geladen" with the reason: "sie hat nicht rechtzeitig geantwortet" (timeout), "der Server war nicht erreichbar", "der Server hat mit dem Fehler {Status} geantwortet", "unter dieser Adresse gibt es keine Website", "sie stellt mehr Anfragen oder liefert mehr Daten, als die Prüfung aufzeichnet" (page limit), "unter der Adresse liegt keine Webseite, sondern eine Datei" (not HTML), "bei der Prüfung ist ein Fehler aufgetreten" (other).
+- Refused address: "Adresse nicht geprüft" with "wir prüfen nur Adressen mit http:// oder https://", "die Adresse enthält einen Benutzernamen oder ein Passwort", "wir prüfen nur die üblichen Ports 80 und 443", "die Adresse oder eine Weiterleitung führt zu keinem öffentlichen Server", "zu dieser Adresse gibt es keinen Server", "die Seite leitet mehr als fünfmal weiter", "die Adresse ist für die Prüfung nicht zugelassen".
+- Services on an almost empty page (tag "manuell prüfen"): "{n} fremde Dienste, bitte manuell prüfen" ("1 fremder Dienst, …") with their names, a tick.
+- The Impressum: "Impressum auf der Startseite" with "als Abschnitt, ohne eigene Seite" (an anchor of the homepage, one page asked for); "Impressum gefunden" with "als PDF, das wir nicht lesen", "die Seite ließ sich nicht lesen, bitte manuell prüfen" or "nicht geöffnet, bitte manuell prüfen". "Impressum-Link nicht gefunden" is red with "!" only when the report gives it a risk; on an almost empty page or in a quick check it has a tick.
+- Status: Entwurf
+
+### Scan screen: the summary, the status line and the drawing for a report that is not a plain complete check
+
+- Summary of a quick check: "{Funde}. Schnellprüfung ohne Browser. Die vollständige Prüfung ist morgen wieder möglich." (the last sentence is the brief's).
+- Almost empty page: "Die Seite hat bei unserem Besuch fast keinen Inhalt gezeigt. Deshalb zeigt der Bericht keine Funde, nur Punkte, die Sie bitte manuell prüfen."
+- Blocked: "Ihre Website hat unsere Prüfung blockiert. Deshalb zeigt der Bericht keine Funde." Failed: "Ihre Startseite ließ sich nicht prüfen. Deshalb zeigt der Bericht keine Funde." Refused: "Diese Adresse dürfen wir nicht prüfen. Deshalb zeigt der Bericht keine Funde." All of them keep "Fertig. Ihr Bericht ist gezeichnet." and "Bericht öffnen": the report (B3) explains the state.
+- Status line: "Die Schnellprüfung ist fertig. Der Bericht ist bereit."; "Die Prüfung ist beendet: Ihre Website hat sie blockiert. Der Bericht ist bereit."; "Die Prüfung ist beendet: Ihre Startseite ließ sich nicht prüfen. Der Bericht ist bereit."; "Die Prüfung ist beendet: Diese Adresse dürfen wir nicht prüfen. Der Bericht ist bereit."; while several status requests in a row get no answer (the page keeps asking): "Keine Verbindung zu unserem Server. Wir versuchen es weiter."
+- Drawing (aria-label) of a scan that measured nothing: "Der Plotter zeichnet eine Startseite ohne Markierungen, denn diese Prüfung hat sie nicht gemessen."
+- Status: Entwurf
+
+### Scan screen: a scan that ended without a report
+
+The panel of "Bericht öffnen" with its own heading and line and the button "Neue Prüfung" (to the home page); the header shows "Neue Prüfung" (the outlined link of the report's header in bericht.html) instead of "Prüfung abbrechen"; every row "nicht geprüft"; the status line says the heading of the panel. The page heading is "{Adresse} wurde nicht nachgemessen" ("Ihre Website wurde nicht nachgemessen" without an address, "Prüfung nicht gefunden" for an unknown scan).
+
+- Cancelled by its last visitor, opened later by a link: "Diese Prüfung wurde abgebrochen." / "Sie wurde aus der Warteschlange genommen, bevor sie begann. Deshalb gibt es keinen Bericht."
+- The day's cap was reached at its start: "Heute sind alle Prüfungen vergeben." / "Diese Prüfung konnte nicht mehr beginnen. Die nächste ist {wann} möglich." (the next 00:00 UTC in the visitor's time).
+- Our error: "Die Prüfung ist bei uns fehlgeschlagen." / "Deshalb gibt es keinen Bericht. Bitte starten Sie eine neue Prüfung." (the review of part 3: "Das liegt nicht an Ihrer Website." claimed more than we know).
+- Unknown scan (404, or a broken link): "Diese Prüfung finden wir nicht." / "Der Link ist unvollständig, oder die Prüfung ist nicht mehr gespeichert."
+- The report could not be read three times (the scan is done): "Den Bericht können wir gerade nicht anzeigen." / "Die Prüfung ist fertig. Bitte laden Sie diese Seite in einigen Minuten neu." with the button "Neu laden" (this page again); the heading stays "{Adresse} wird nachgemessen" and the rows wait, because the scan did measure.
+- Title of the tab (`<title>`): "Prüfung läuft, Website-Check DE" while the scan waits or runs (part 1), "Bericht bereit, Website-Check DE" with the report, "Prüfung beendet, Website-Check DE" after a scan without a report.
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import s from './site-header.module.css';
 
 export type SheetWidth = 'page' | 'report';
@@ -32,6 +32,16 @@ export function SiteHeader({ width = 'page', children }: { width?: SheetWidth; c
       </a>
       {children}
     </header>
+  );
+}
+
+// The outlined link on the right of the header: "Prüfung abbrechen" on the scan screen, "Neue Prüfung"
+// on the report (`.newb` in pruefung.html and bericht.html).
+export function HeaderAction({ href, children, onClick }: { href: string; children: ReactNode; onClick?: (event: MouseEvent<HTMLAnchorElement>) => void }) {
+  return (
+    <a className={s.newb} href={href} {...(onClick !== undefined ? { onClick } : {})}>
+      {children}
+    </a>
   );
 }
 

@@ -7,9 +7,9 @@ import { answerResponse, parseStartInput, startScan, type StartDeps } from '../s
  * `parseStartInput`, the answer comes back as the object's response). For the unit tests on the local D1.
  */
 export function localApi(
-  input: Omit<StartDeps, 'dailyGate' | 'dispatch'> & Partial<Pick<StartDeps, 'dailyGate' | 'dispatch'>> & Pick<ApiDeps, 'position' | 'ratePerHour' | 'force'> & { exempt?: (url: URL) => boolean },
+  input: Omit<StartDeps, 'dailyGate' | 'dispatch'> & Partial<Pick<StartDeps, 'dailyGate' | 'dispatch'>> & Pick<ApiDeps, 'position' | 'cancel' | 'ratePerHour' | 'force'> & { exempt?: (url: URL) => boolean },
 ): (request: Request) => Promise<Response> {
-  const { position, ratePerHour, force, exempt, ...start } = input;
+  const { position, cancel, ratePerHour, force, exempt, ...start } = input;
   const deps: StartDeps = { dailyGate: { until: 0 }, ...start, ...(exempt !== undefined ? { exempt } : {}) };
   return createApi({
     db: input.db,
@@ -19,6 +19,7 @@ export function localApi(
       return answerResponse(await startScan(parsed, deps));
     },
     ...(position !== undefined ? { position } : {}),
+    ...(cancel !== undefined ? { cancel } : {}),
     ...(ratePerHour !== undefined ? { ratePerHour } : {}),
     ...(force !== undefined ? { force } : {}),
     ...(exempt !== undefined ? { exempt } : {}),
