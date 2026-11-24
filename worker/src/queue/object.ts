@@ -50,6 +50,8 @@ export interface QueueEnv {
 /** Idle timeout of a queue browser: closed by Browser Run if the object loses it (the object closes it at once when the queue is empty). */
 const KEEP_ALIVE_MS = 20_000;
 const METRICS_KEPT = 30;
+/** When D1 did not take a scan's error, the next try comes this much later (session fix-a5, review finding 44). */
+const UNRECORDED_RETRY_MS = 60_000;
 /** Chrome of Browser Run as measured in A2 (`@cloudflare/puppeteer` 2.0.1): the quick check's user agent until a browser of the day reported its version. */
 const KNOWN_CHROME_VERSION = '152.0.0.0';
 
@@ -218,7 +220,9 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
     }
     this.#draining = true;
     let more = false;
+    let unrecorded = 0;
     try {
+      unrecorded = await this.#recordPendingErrors();
       const result = await drain({
         queue: this.#queue,
         browser: this.#browserPort(),
@@ -234,7 +238,23 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
       this.#draining = false;
       // Jobs left (the run's cap, or one that arrived at the very end): the next run starts at once.
       if (more || (await this.#queue.waitingCount()) > 0) await this.ctx.storage.setAlarm(Date.now());
+      // Errors D1 did not take: another try in a minute, not only with the next scan (finding 44).
+      else if (unrecorded > 0 || (await this.#queue.unrecorded(Date.now())).length > 0) await this.ctx.storage.setAlarm(Date.now() + UNRECORDED_RETRY_MS);
     }
+  }
+
+  /** Writes the errors of scans that D1 did not take before; returns how many are still not written. */
+  async #recordPendingErrors(): Promise<number> {
+    let left = 0;
+    for (const entry of await this.#queue.unrecorded(Date.now())) {
+      try {
+        await markError(this.env.DB, entry.id, entry.reason, Date.now());
+        await this.#queue.clearUnrecorded(entry.id);
+      } catch {
+        left += 1;
+      }
+    }
+    return left;
   }
 
   #browserPort(): BrowserPort {
@@ -371,7 +391,8 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
   async #runJob(job: QueueJob, mode: ScanMode): Promise<void> {
     const started = Date.now();
     const metric: Partial<JobMetric> = { impressumOpened: false };
-    const result = await runScanJob(job, mode, { db: this.env.DB, now: () => Date.now(), capture: (url, m) => this.#capture(url, m, metric) });
+    const result = await runScanJob(job, mode, { db: this.env.DB, now: () => Date.now(), sleep, capture: (url, m) => this.#capture(url, m, metric) });
+    if (result.unrecorded === true) await this.#queue.addUnrecorded(job.id, result.error ?? 'save-failed', Date.now());
     const visit = mode === 'quick' ? this.#objectVisit : this.#visit;
     this.#remember(this.#metrics, {
       ...metric,

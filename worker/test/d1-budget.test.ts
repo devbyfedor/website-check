@@ -89,9 +89,10 @@ describe('D1 rows written per scan', () => {
     expect(worst['cache lookup (hit)']).toBe(0);
     expect(worst['rate limit slot']).toBe(1);
     expect(worst['cached answer counted']).toBe(1);
-    // Site: table and the unique index on url. Scan: table, the primary key index and (site_id, created_at).
-    expect(worst['create site and scan']).toBe(5);
-    expect(worst['mark running']).toBe(1);
+    // Site: table and the unique index on url. Scan: table, the primary key index, (site_id, created_at) and, since
+    // fix-a5 (finding 42), the partial index of scans in progress, which also changes when the scan starts.
+    expect(worst['create site and scan']).toBe(6);
+    expect(worst['mark running']).toBe(2);
     expect(worst['save report and rows']).toBe(1 + REPORT_LIMITS.findings + REPORT_LIMITS.networkHosts);
     // The visitor's row deleted after the day.
     expect(worst['rate limit cleanup']).toBe(1);

@@ -241,6 +241,40 @@ describe('finding 49: the time of a closed browser is counted from its own launc
   });
 });
 
+describe('finding 44: when D1 takes neither the report nor the error, the queue writes the error with its next alarm', () => {
+  it('the scan does not stay running until the hourly cron: one minute later it is our error', async () => {
+    const storage = new FakeStorage();
+    let failing = false;
+    const db = new Proxy(d1.db, {
+      get(target, prop) {
+        if (failing && (prop === 'prepare' || prop === 'batch')) {
+          return () => {
+            throw new Error('Too many subrequests.');
+          };
+        }
+        const value: unknown = Reflect.get(target, prop);
+        return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+      },
+    });
+    fake.state.capture = () => {
+      failing = true;
+      return shopCapture();
+    };
+    const object = objectWith(storage, {}, db);
+    const started = await start(object, 'https://kaffee-beispiel.de/');
+    await object.alarm();
+    expect((await scanRow(started.body.id)).status).toBe('running');
+    // The next try is set a minute ahead, not only for the next scan.
+    expect(storage.alarm).not.toBeNull();
+    expect(storage.alarm! - Date.now()).toBeGreaterThan(30_000);
+    failing = false;
+    await object.alarm();
+    const row = await scanRow(started.body.id);
+    expect(row.status).toBe('error');
+    expect(row.error).toMatch(/^save-failed: /);
+  });
+});
+
 describe('finding 50: a session acquired without a connection is retried, or closed by Browser Run and counted', () => {
   it('the connection fails once: one more try, the scan runs, the browser is closed', async () => {
     fake.state.connectFailures = 1;
