@@ -81,7 +81,10 @@ describe('fixture manifest', () => {
 describe('Impressum fields on the fixture pages', () => {
   it.each(Object.entries(impressum))('%s', (name, expected) => {
     const snap = snapshot('impressum', name);
-    const fields = extractImpressumFields(snap.text, snap.links);
+    // Session fix-a3 (review finding 71): a mailto link whose text is not the address itself counts only on
+    // the site's own domain. The fixture pages are served from one host; the firm of this page owns this domain.
+    const own = new Set(name === '07-mailto-linktext' ? ['tintenfabel.example'] : []);
+    const fields = extractImpressumFields(snap.text, snap.links, own);
     const quoteOk = (field: { status: string; quote?: string; source?: string }): void => {
       if (field.status !== 'found') return;
       if (field.source === 'text') expect(snap.text.includes(field.quote ?? '\u0000'), `quote ${JSON.stringify(field.quote)}`).toBe(true);

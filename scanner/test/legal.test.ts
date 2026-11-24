@@ -85,7 +85,9 @@ describe('e-mail', () => {
     expect(found(extractImpressumFields('info(at)muster.example').email)).toEqual({ value: 'info@muster.example', form: 'obfuscated' });
     expect(found(extractImpressumFields('E-Mail: info at muster dot example').email)).toEqual({ value: 'info@muster.example', form: 'obfuscated' });
     const links: PageLink[] = [{ href: 'mailto:Kontakt@Muster.example?subject=Hallo', text: 'Schreiben Sie uns' }];
-    expect(found(extractImpressumFields('Kontakt: Schreiben Sie uns', links).email)).toEqual({ value: 'kontakt@muster.example', form: 'mailto' });
+    // A link whose text is not the address counts on the site's own domain (session fix-a3, review finding 71).
+    expect(found(extractImpressumFields('Kontakt: Schreiben Sie uns', links, new Set(['muster.example'])).email)).toEqual({ value: 'kontakt@muster.example', form: 'mailto' });
+    expect(found(extractImpressumFields('Kontakt: Schreiben Sie uns', links).email)).toBeNull();
   });
 
   it('takes " at " words only with an e-mail label on the line', () => {
