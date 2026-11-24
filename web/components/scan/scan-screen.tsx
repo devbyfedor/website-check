@@ -53,7 +53,7 @@ export function ScanScreen({ scan, onCancel }: { scan: ScanScreenData; onCancel?
           <Plotter label={scan.drawingLabel} marks={scan.marks} scale={scan.motionScale ?? 1} />
           <Protocol steps={scan.steps} progress={scan.progress} />
         </section>
-        {scan.report ? <ReportReady report={scan.report} /> : null}
+        {scan.report ? <ReportReady report={scan.report} live={scan.progress.kind === 'live'} /> : null}
       </main>
       <SiteFooter />
     </>

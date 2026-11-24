@@ -191,6 +191,22 @@ async function main(): Promise<void> {
       const q = await open(browser, server.origin, width, false, d);
       await reach(q.page, STATUS.done());
       const doneAtLoad = await animations(q.page);
+      // "Bericht öffnen" waits invisible (and out of the Tab order) until its panel rises, then stays.
+      const linkVisibility = () =>
+        q.page.evaluate(() => {
+          const link = Array.from(document.querySelectorAll('a')).find((a) => a.textContent === 'Bericht öffnen');
+          return link === undefined ? 'missing' : getComputedStyle(link).visibility;
+        });
+      const early = await linkVisibility();
+      await q.page.keyboard.press('Tab');
+      await q.page.keyboard.press('Tab');
+      await q.page.keyboard.press('Tab');
+      const focusedEarly = await q.page.evaluate(() => document.activeElement?.textContent ?? '');
+      await q.page.waitForTimeout(LIMIT_MS);
+      const later = await linkVisibility();
+      if (early !== 'hidden' || focusedEarly === 'Bericht öffnen') problems.push(`${width} px: "Bericht öffnen" can be reached before its panel is shown (${early}, focus "${focusedEarly}")`);
+      if (later !== 'visible') problems.push(`${width} px: "Bericht öffnen" not visible 5 s after the report (${later})`);
+      console.log(`  "Bericht öffnen" with the report at load: ${early} at first (third Tab on "${focusedEarly}"), ${later} 5 s later`);
       blocked += q.blocked.length;
       await q.context.close();
 

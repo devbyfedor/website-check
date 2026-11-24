@@ -77,7 +77,9 @@ describe('with the report: rows, marks, summary and the link (Fedor, answer 1)',
     expect(screen.steps.every((s) => s.delay === 0)).toBe(true);
     expect(flat(screen.steps[0]?.title)).toBe('Seite aufgerufen');
     expect(flat(screen.steps[1]?.title)).toBe(`${r.scan.requests?.total} Anfragen aufgezeichnet`);
-    expect(flat(screen.steps[1]?.detail)).toBe(`davon ${r.scan.requests?.thirdParty} an fremde Server`);
+    expect(flat(screen.steps[1]?.detail)).toBe(SCAN_TEXTS.requestsThirdParty(r.scan.requests?.thirdParty ?? -1));
+    expect(SCAN_TEXTS.requestsThirdParty(9)).toBe('davon 9 an fremde Server');
+    expect(SCAN_TEXTS.requestsThirdParty(1)).toBe('davon 1 an einen fremden Server');
     const services = r.services.filter((s) => s.severity === 'finding');
     expect(screen.steps[3]?.finding).toBe(services.length > 0);
     expect(flat(screen.steps[3]?.title)).toBe(SCAN_TEXTS.servicesBefore(services.length));

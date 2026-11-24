@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
-import { startScan } from '../../lib/scan-api';
-import { rememberScan } from '../../lib/scan-store';
+import { useEffect, useState, type FormEvent } from 'react';
+import { cancelScan, startScan } from '../../lib/scan-api';
+import { recallScan, rememberScan } from '../../lib/scan-store';
 import { SCAN_TEXTS } from '../../lib/scan-texts';
 import s from './scan-form.module.css';
 
@@ -14,6 +14,14 @@ import s from './scan-form.module.css';
 export function ScanForm() {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // "Zurück" from the scan screen can bring this page back from the browser's cache with `busy` still set.
+  useEffect(() => {
+    const onShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setBusy(false);
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, []);
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (busy) return;
@@ -30,7 +38,11 @@ export function ScanForm() {
         return;
       }
       const scan = answer.value;
-      rememberScan(scan.id, { displayHost: scan.displayHost, cancelToken: scan.cancelToken });
+      // The same address again from this tab while its scan still waits: the tab keeps the token it has, and the new
+      // one is given back at once, so no token stays with the job that nobody holds (review of B2 part 2).
+      const known = recallScan(scan.id)?.cancelToken ?? null;
+      if (known !== null && scan.cancelToken !== null && known !== scan.cancelToken) void cancelScan(scan.id, scan.cancelToken);
+      rememberScan(scan.id, { displayHost: scan.displayHost, cancelToken: known ?? scan.cancelToken });
       window.location.assign(`/pruefung?id=${scan.id}`);
     });
   };

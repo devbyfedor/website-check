@@ -5,6 +5,11 @@ import { REPORT_SCHEMA_VERSION, validateReport, type Report } from '@website-che
 // shape, the report with the scanner's own validator (docs/report-schema.md, "Strings of the scanned page").
 
 const ID = /^[a-z2-7]{26}$/;
+/** A request without an answer after this long counts as no answer (review of B2 part 2). */
+const TIMEOUT_MS = 10_000;
+
+/** Well formed for display; browsers without `toWellFormed` (before 2023) show the string as it is (a text node). */
+const wellFormed = (s: string): string => (typeof s.toWellFormed === 'function' ? s.toWellFormed() : s);
 
 export const isScanId = (value: string): boolean => ID.test(value);
 
@@ -32,7 +37,7 @@ export function parseScan(value: unknown): ApiScan | null {
   const v = value as Record<string, unknown>;
   if (typeof v.id !== 'string' || !ID.test(v.id)) return null;
   if (typeof v.status !== 'string' || !STATUSES.includes(v.status as ScanStatusName)) return null;
-  const host = typeof v.displayHost === 'string' && v.displayHost.length > 0 && v.displayHost.length <= 253 ? v.displayHost.toWellFormed() : null;
+  const host = typeof v.displayHost === 'string' && v.displayHost.length > 0 && v.displayHost.length <= 253 ? wellFormed(v.displayHost) : null;
   const position = typeof v.queuePosition === 'number' && Number.isInteger(v.queuePosition) && v.queuePosition >= 0 && v.queuePosition <= 100_000 ? v.queuePosition : null;
   const startedAt = typeof v.startedAt === 'string' && !Number.isNaN(Date.parse(v.startedAt)) ? v.startedAt : null;
   const token = typeof v.cancelToken === 'string' && ID.test(v.cancelToken) ? v.cancelToken : null;
@@ -51,7 +56,7 @@ async function json(response: Response): Promise<unknown> {
 export async function startScan(url: string): Promise<ApiResult<ApiScan>> {
   let response: Response;
   try {
-    response = await fetch('/api/scans', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url }) });
+    response = await fetch('/api/scans', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url }), signal: AbortSignal.timeout(TIMEOUT_MS) });
   } catch {
     return { ok: false, status: 0 };
   }
@@ -64,7 +69,7 @@ export async function startScan(url: string): Promise<ApiResult<ApiScan>> {
 export async function fetchStatus(id: string): Promise<ApiResult<ApiScan>> {
   let response: Response;
   try {
-    response = await fetch(`/api/scans/${id}`, { cache: 'no-store' });
+    response = await fetch(`/api/scans/${id}`, { cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS) });
   } catch {
     return { ok: false, status: 0 };
   }
@@ -77,14 +82,18 @@ export async function fetchStatus(id: string): Promise<ApiResult<ApiScan>> {
 export async function fetchReport(id: string): Promise<ApiResult<Report>> {
   let response: Response;
   try {
-    response = await fetch(`/api/scans/${id}/report`, { cache: 'no-store' });
+    response = await fetch(`/api/scans/${id}/report`, { cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS) });
   } catch {
     return { ok: false, status: 0 };
   }
   if (response.status !== 200) return { ok: false, status: response.status };
   const report = await json(response);
   if (typeof report !== 'object' || report === null || (report as { schemaVersion?: unknown }).schemaVersion !== REPORT_SCHEMA_VERSION) return { ok: false, status: 0 };
-  if (validateReport(report).length > 0 || (report as Report).id !== id) return { ok: false, status: 0 };
+  try {
+    if (validateReport(report).length > 0 || (report as Report).id !== id) return { ok: false, status: 0 };
+  } catch {
+    return { ok: false, status: 0 };
+  }
   return { ok: true, value: report as Report };
 }
 

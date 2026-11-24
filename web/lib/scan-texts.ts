@@ -28,12 +28,13 @@ export const SCAN_TEXTS = {
   pageOpenedDetail: 'wie von einem Besucher aus Deutschland', // reference
   requests: (n: number) => (n === 1 ? '1 Anfrage aufgezeichnet' : `${n} Anfragen aufgezeichnet`), // reference for n > 1
   requestsWithoutCount: 'Anfragen aufgezeichnet',
-  requestsThirdParty: (n: number) => (n === 0 ? 'keine an fremde Server' : `davon ${n} an fremde Server`), // reference for n > 0
+  requestsThirdParty: (n: number) => (n === 0 ? 'keine an fremde Server' : n === 1 ? 'davon 1 an einen fremden Server' : `davon ${n} an fremde Server`), // reference for n > 1
   bannerSeen: 'Einwilligungsbanner erkannt', // reference
   bannerSeenAfter: (seconds: string) => `sichtbar nach ${seconds} Sekunden`, // reference
   bannerNotSeen: 'Kein Einwilligungsbanner erkannt',
   servicesBefore: (n: number) => (n === 1 ? '1 fremder Dienst vor der Einwilligung' : `${n} fremde Dienste vor der Einwilligung`), // reference for n > 1
-  servicesNone: 'Keine fremden Dienste vor der Einwilligung',
+  /** No service is a finding; requests to third parties (hints, grey zone) may still be there (row 2). */
+  servicesNone: 'Keine Funde bei fremden Diensten',
   servicesMore: (n: number) => (n === 1 ? 'und 1 weiterer' : `und ${n} weitere`),
   impressumFound: 'Impressum gefunden', // reference
   impressumAt: 'unter ', // reference: "unter /impressum"
@@ -61,8 +62,8 @@ export const SCAN_TEXTS = {
     marks === 0
       ? 'Der Plotter zeichnet die geprüfte Startseite.'
       : marks === 1
-        ? 'Der Plotter zeichnet die geprüfte Startseite und markiert einen vorrangigen Fund rot.'
-        : `Der Plotter zeichnet die geprüfte Startseite und markiert ${marks} vorrangige Funde rot.`,
+        ? 'Der Plotter zeichnet die geprüfte Startseite und markiert einen vorrangigen Punkt rot.'
+        : `Der Plotter zeichnet die geprüfte Startseite und markiert ${marks} vorrangige Punkte rot.`,
 
   // The status line (role="status"): a text only at real changes.
   statusQueued: (place: number | null) => (place !== null && place > 0 ? `Ihre Prüfung wartet: Platz ${place} in der Warteschlange.` : 'Ihre Prüfung wartet in der Warteschlange.'),

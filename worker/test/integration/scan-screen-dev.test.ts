@@ -100,7 +100,7 @@ describe('home → scan screen → ready → "Bericht öffnen" (local wrangler d
     expect(await link.getAttribute('href')).toBe(`/bericht?id=${id}`);
     const rows = await page.locator('ol li').allTextContents();
     expect(rows[0]).toBe('Seite aufgerufenwie von einem Besucher aus Deutschland');
-    expect(rows[1]).toMatch(/^\d+ Anfragen aufgezeichnet(davon \d+ an fremde Server|keine an fremde Server)$/);
+    expect(rows[1]).toMatch(/^\d+ Anfragen aufgezeichnet(davon \d+ an fremde Server|davon 1 an einen fremden Server|keine an fremde Server)$/);
     expect(rows[4]).toBe('Impressum gefundenunter /impressum');
     expect(rows[5]).toBe('Pflichtangaben gelesenAnschrift, E-Mail, Handelsregister, USt-IdNr.');
     const summary = await page.locator('section p', { hasText: /Funde?|Keine Funde/ }).last().textContent();
