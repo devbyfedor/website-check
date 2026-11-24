@@ -630,6 +630,41 @@ The panel of "Bericht öffnen" with its own heading and line and the button "Neu
 - Title of the tab (`<title>`): "Prüfung läuft, Website-Check DE" while the scan waits or runs (part 1), "Bericht bereit, Website-Check DE" with the report, "Prüfung beendet, Website-Check DE" after a scan without a report.
 - Status: Entwurf
 
+## Session B3 part 1
+
+The upper part of the report (head, Prüfmaße, "Drei Dinge" with the plan, Zeitschnitt A–A). The texts of `design/reference/bericht.html` are final and are not listed; these are the texts the reference does not have (in `web/lib/report-texts.ts`). Every one is an Entwurf.
+
+### Title of the report page
+
+- `<title>`: Prüfbericht, Website-Check DE (the reference: "Prüfbericht, Bauplan").
+
+### Head
+
+- "Geprüfte Seiten" when only the homepage was checked: Startseite.
+- "System" when the system was not recognised: unbekannt (the word of the brief).
+- "System" for Shopware with a known version: Shopware 5, Shopware 6.
+
+### Prüfmaße
+
+- Ergebnis of a row the scan is unsure about: bitte manuell prüfen (the mark of "teilweise", the dash, in grey). Product rule 3: the accessibility statement the scan did not find is "nicht gefunden" in the column Ist and "bitte manuell prüfen" in the column Ergebnis, never "fehlt" and "nicht erfüllt" as in the reference (Fedor, 23.11.2026, `docs/report-schema.md`, conflict 14).
+- Ergebnis of a row that was not checked, and Ist without a value: nicht geprüft (B3 part 2 shows these states).
+- Ist of the accessibility statement: nicht gefunden; Link gefunden, bitte prüfen (a link that names only the topic). Ist of the encryption: HTTP, unbekannt.
+- A failing contrast is written with one decimal, rounded down (4,47 : 1 is "4,4 : 1"), so it never reads as the required value.
+
+### "Drei Dinge sollten Sie zuerst beheben"
+
+- Title of a finding about a third-party service other than Google Fonts and Google Analytics (the two titles of the reference): {Dienst} startet vor der Einwilligung.
+- Title of the finding about the security headers: {n} von {gesamt} Sicherheits-Headern gesetzt.
+- The other titles are those of the drafts above (`a11y-*`, `security-https-missing`, `security-http-no-redirect`, `legal-impressum-no-link`).
+- A text id without a title: Vorrangiger Punkt (never the id).
+- Area: Pflichtangaben (mandatory information), Sicherheit (security); risk: niedriges Risiko (the reference has "Datenschutz", "Barrierefreiheit", "hohes Risiko" and "mittleres Risiko").
+- The accessible name of the plan names the marks of the design by their place, as the reference does ("Überschrift in Feld B2", "Quelltext am Seitenende in Feld A3", "Unterzeile in Feld A2"); a code mark without a field (a request made by the page's own code) is "Quelltext am Seitenende". Two priorities at one place share the mark ("1, 2"), and the place is named once.
+
+### Zeitschnitt A–A
+
+- The small line of the site's own files: Ihre Dateien. The reference says "Ihre Dateien: Design und Skripte"; the report does not say which kind of files they are (schema v1 has the row kind `files` only).
+- The small line of a third-party host without a known provider: fremder Server; of a consent tool loaded from its provider: {Anbieter}, fremder Server (the row label is then its host; the reference's "Einwilligungstool, Ihr Server" is the tool on the site's own server).
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/
