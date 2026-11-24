@@ -607,7 +607,7 @@ Result: merged into `main` with `git merge --no-ff`.
 
 ## fix-a4: the fourth polishing session after the review of stage A (24.11.2026)
 
-Branch `fix-a4`, **merged into `main`**. Session time: about 2 hours 50 minutes (02:01 to about 04:50), longer than the one to two hours of a session: the measurement of the heavy pages ran twice, about 25 minutes each, and the new tests ran once more against the old sources. No Cloudflare, no deploy, nothing pushed, no site visited: everything ran on the laptop (unit tests, the local Chromium against pages on 127.0.0.1, the saved captures). Two helpers (Sonnet): one made the rate-limit change with its tests, one built and ran the measurement of the heavy pages.
+Branch `fix-a4`, **merged into `main`**. Session time: about 2 hours 45 minutes (02:01 to about 04:45), longer than the one to two hours of a session: the measurement of the heavy pages ran twice, about 25 minutes each, and the new tests ran once more against the old sources. No Cloudflare, no deploy, nothing pushed, no site visited: everything ran on the laptop (unit tests, the local Chromium against pages on 127.0.0.1, the saved captures). Two helpers (Sonnet): one made the rate-limit change with its tests, one built and ran the measurement of the heavy pages.
 
 Fedor's answers before the start (in `docs/decisions.md`): "Informationen zur Barrierefreiheit" stays "Link gefunden, bitte prüfen"; "DE" plus 9 digits under the label "Steuernummer" is a found USt-IdNr (the code already reads it so); finding 75 is a separate step of the last polishing session.
 
