@@ -201,13 +201,26 @@ export interface Timeline {
   rowsTruncated: boolean;
 }
 
-export type FieldState = { status: 'found'; quote: string } | { status: 'not-found'; reason: 'not-on-page' | 'impressum-not-checked' };
+/**
+ * `quote` is text of the scanned page (untrusted, render as text only). Session fix-a6 (review finding 52): `source`
+ * says whether it is a part of the page text or the e-mail address named by a link (mailto, Cloudflare's protection).
+ */
+export type FieldState = { status: 'found'; quote: string; source: 'text' | 'link' } | { status: 'not-found'; reason: 'not-on-page' | 'impressum-not-checked' };
+
+/**
+ * A link of the page. `href` is an http or https address without user name and password, or null when the address is
+ * longer than the report keeps (session fix-a6, review finding 53: never a shortened address); `text` is untrusted text.
+ */
+export interface ReportLink {
+  href: string | null;
+  text: string;
+}
 
 export interface ReportLegal {
-  impressumLink: { href: string; text: string } | null;
-  datenschutzLink: { href: string; text: string } | null;
+  impressumLink: ReportLink | null;
+  datenschutzLink: ReportLink | null;
   /** `certain` false: the link names only the topic ("bitte prüfen, ob es die Erklärung ist"). */
-  accessibilityStatement: { href: string; text: string; certain: boolean; page: 'homepage' | 'impressum' } | null;
+  accessibilityStatement: (ReportLink & { certain: boolean; page: 'homepage' | 'impressum' }) | null;
   impressum: { state: 'analyzed' | 'same-page' | 'no-link' | 'pdf' | 'failed' | 'not-captured'; url: string | null; crossSite: boolean };
   fields: { address: FieldState; email: FieldState; handelsregister: FieldState; ustId: FieldState };
 }

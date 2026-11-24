@@ -92,9 +92,40 @@ export interface BuiltReport {
 // ---------------------------------------------------------------------------------------------
 // Small helpers
 
+/**
+ * Session fix-a6 (review finding 58): every string of the page goes into the report well formed and without invisible
+ * controls. A surrogate that the page script cut in half becomes U+FFFD; C0 and C1 controls (except tab and line
+ * break), bidi controls (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069), U+200B and U+FEFF are removed.
+ */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+const INVISIBLE = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u061C\u200B\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g;
+
+export function cleanText(text: string): string {
+  return text.replace(LONE_SURROGATE, '\uFFFD').replace(INVISIBLE, '');
+}
+
+/** A string of the page within `max` code points, cut with "…" (never inside a surrogate pair). */
 function clip(text: string, max: number = REPORT_LIMITS.textLength): string {
-  const chars = [...text];
-  return chars.length <= max ? text : `${chars.slice(0, max - 1).join('')}…`;
+  const clean = cleanText(text);
+  const chars = [...clean];
+  return chars.length <= max ? clean : `${chars.slice(0, max - 1).join('')}…`;
+}
+
+/**
+ * Session fix-a6 (review findings 28 and 53): an address of the page that the report keeps as an address. Only http
+ * and https (and ws, wss for requests), without user name and password (`pageAddress`), and never cut: an address
+ * longer than the report keeps is null, so no shortened address can lead to another page.
+ */
+function webAddress(url: string, kind: 'request' | 'page' | 'link', schemes: RegExp): string | null {
+  const address = cleanText(pageAddress(url, kind));
+  return schemes.test(address) && [...address].length <= REPORT_LIMITS.urlLength ? address : null;
+}
+
+const HTTP = /^https?:\/\/[^/?#\s]/i;
+
+/** A link of the page (Impressum, Datenschutz, accessibility statement): http or https only, or null. */
+function linkAddress(url: string): string | null {
+  return webAddress(url, 'link', HTTP);
 }
 
 /** An address of the page as the report keeps it (fix-a5, finding 90: no query, fragment or session id), cut to the report's length. */
@@ -247,6 +278,11 @@ function exampleField(examples: readonly AxeExample[]): string | null {
   return null;
 }
 
+function viaOf(url: string | null): string | null {
+  if (url === null || hostOf(url) === null) return null;
+  return clipUrl(url);
+}
+
 function thirdPartyFindings(analysis: ThirdPartyAnalysis, positions: AxePositions | null = null): Finding[] {
   const out: Finding[] = [];
   for (const service of analysis.services) {
@@ -259,7 +295,8 @@ function thirdPartyFindings(analysis: ThirdPartyAnalysis, positions: AxePosition
       status: e.status,
       reachedServer: e.reachedServer,
       beforeBanner: analysis.bannerVisibleAtMs === null ? null : e.startMs < analysis.bannerVisibleAtMs,
-      via: e.via === null ? (e.initiatorUrl === null ? null : clipUrl(e.initiatorUrl)) : clipUrl(e.via.url),
+      // Session fix-a6 (review finding 28): the initiator is a string the page can choose (`//# sourceURL=`); only a web address stays.
+      via: viaOf(e.via === null ? e.initiatorUrl : e.via.url),
     }));
     out.push(
       finding({
@@ -565,8 +602,12 @@ function reportSecurity(security: SecurityAnalysis): ReportSecurity {
 
 const FIELD_IDS = ['address', 'email', 'handelsregister', 'ustId'] as const;
 
+/**
+ * Session fix-a6 (review finding 52): `source` says whether the quote is a part of the page text or the address of a
+ * link (for a link the quote is the e-mail address the link names, never the link itself).
+ */
 function fieldState(field: FieldResult<unknown>): FieldState {
-  return field.status === 'found' ? { status: 'found', quote: clip(field.quote, 300) } : { status: 'not-found', reason: field.reason };
+  return field.status === 'found' ? { status: 'found', quote: clip(field.quote, 300), source: field.source } : { status: 'not-found', reason: field.reason };
 }
 
 function isShop(analysis: CaptureAnalysis): boolean | null {
@@ -623,14 +664,14 @@ function legalFindings(legal: LegalAnalysis, shop: boolean | null, almostEmpty: 
 }
 
 function reportLegal(legal: LegalAnalysis): ReportLegal {
-  const link = (l: { href: string; text: string } | null): { href: string; text: string } | null => (l === null ? null : { href: clipUrl(l.href, 'link'), text: clip(l.text, 300) });
+  const link = (l: { href: string; text: string } | null): { href: string | null; text: string } | null => (l === null ? null : { href: linkAddress(l.href), text: clip(l.text, 300) });
   const statement = legal.accessibilityStatement;
   return {
     impressumLink: link(legal.links.impressum),
     // Only a link the scan is sure of; an uncertain one is the manual check `legal-datenschutz-uncertain`.
     datenschutzLink: link(legal.links.datenschutz?.certain === true ? legal.links.datenschutz : null),
-    accessibilityStatement: statement === null ? null : { href: clipUrl(statement.href, 'link'), text: clip(statement.text, 300), certain: statement.certain, page: statement.page },
-    impressum: { state: legal.impressum.state, url: legal.impressum.url === null ? null : clipUrl(legal.impressum.url, 'link'), crossSite: legal.impressum.crossSite },
+    accessibilityStatement: statement === null ? null : { href: linkAddress(statement.href), text: clip(statement.text, 300), certain: statement.certain, page: statement.page },
+    impressum: { state: legal.impressum.state, url: legal.impressum.url === null ? null : linkAddress(legal.impressum.url), crossSite: legal.impressum.crossSite },
     fields: {
       address: fieldState(legal.fields.address),
       email: fieldState(legal.fields.email),

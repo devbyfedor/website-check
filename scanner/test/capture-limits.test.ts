@@ -614,7 +614,7 @@ describe('backlog: a page without a declared encoding that is not UTF-8 is read 
     expect(capture.impressum?.page?.text).toContain('Königstraße 12');
     const { report } = buildReport({ id: ID, createdAt: '2026-11-24T10:00:00.000Z', siteUrl: site, mode: 'quick', capture, rules: DEFAULT_RULES, scannerVersion: SCANNER_VERSION, rulesUpdated: RULES_FILE.updated });
     expect(validateReport(report)).toEqual([]);
-    expect(report.legal?.fields.address).toEqual({ status: 'found', quote: 'Königstraße 12\n87654 Musterhausen' });
+    expect(report.legal?.fields.address).toEqual({ status: 'found', quote: 'Königstraße 12\n87654 Musterhausen', source: 'text' });
     expect(report.legal?.datenschutzLink?.text).toBe('Datenschutzerklärung');
   });
 });

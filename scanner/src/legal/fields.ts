@@ -608,7 +608,19 @@ function textEmails(text: string): EmailCandidate[] {
   return found.sort((a, b) => a.index - b.index);
 }
 
-function linkEmails(links: readonly PageLink[]): EmailCandidate[] {
+/** An http(s) address on the site's own domain (any http(s) address when the caller names no domain). */
+function cloudflareLinkOfSite(href: string, ownSites: ReadonlySet<string>): boolean {
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+  return ownSites.size === 0 || ownSites.has(siteOfHost(url.hostname));
+}
+
+function linkEmails(links: readonly PageLink[], ownSites: ReadonlySet<string> = new Set()): EmailCandidate[] {
   const found: EmailCandidate[] = [];
   links.forEach((link, index) => {
     const href = link.href;
@@ -620,13 +632,16 @@ function linkEmails(links: readonly PageLink[]): EmailCandidate[] {
         // keep as is
       }
       address = (address.split(/[,;]/)[0] ?? '').trim().toLowerCase();
-      if (plainValid(address)) found.push({ index, quote: href, value: address, form: 'mailto', source: 'link', linkText: link.text });
+      // Session fix-a6 (review finding 52): the quote of a link is the address it names, never the link itself.
+      if (plainValid(address)) found.push({ index, quote: address, value: address, form: 'mailto', source: 'link', linkText: link.text });
       return;
     }
+    // Session fix-a6 (review finding 52): Cloudflare's e-mail protection is a web address of the site itself.
+    if (!cloudflareLinkOfSite(href, ownSites)) return;
     const cf = /\/cdn-cgi\/l\/email-protection#([0-9a-f]+)$/i.exec(href);
     if (cf !== null) {
       const address = decodeCloudflareEmail(cf[1] ?? '')?.toLowerCase() ?? null;
-      if (address !== null && plainValid(address)) found.push({ index, quote: href, value: address, form: 'cloudflare', source: 'link', linkText: link.text });
+      if (address !== null && plainValid(address)) found.push({ index, quote: address, value: address, form: 'cloudflare', source: 'link', linkText: link.text });
     }
   });
   return found;
@@ -736,7 +751,7 @@ function findEmail(doc: Doc, links: readonly PageLink[], ownSites: ReadonlySet<s
   // address on the site's own domain.
   let searchFrom = 0;
   let loose: LooseText | null = null;
-  for (const candidate of linkEmails(links).slice(0, MAX_LINK_EMAILS)) {
+  for (const candidate of linkEmails(links, ownSites).slice(0, MAX_LINK_EMAILS)) {
     if (skipped.has(candidate.value)) continue;
     const linkText = (candidate.linkText ?? '').trim();
     const showsAddress = candidate.form === 'cloudflare' || linkText.toLowerCase().replace(/[\s\u00a0]+/g, '').includes(candidate.value);
