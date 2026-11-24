@@ -45,8 +45,8 @@ const REPORT = buildReport({
   visit: { country: 'IT', colo: 'MXP' },
 }).report;
 
-const STATUS: Record<Phase, (position: number) => string> = {
-  queued: (n) => `Ihre Prüfung wartet: Platz ${n} in der Warteschlange.`,
+const STATUS: Record<Phase, (position?: number) => string> = {
+  queued: (n) => `Ihre Prüfung wartet: Platz ${n ?? 0} in der Warteschlange.`,
   running: () => 'Die Messung läuft.',
   done: () => 'Die Messung ist fertig. Der Bericht ist bereit.',
 };

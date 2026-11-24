@@ -34,20 +34,23 @@ async function watched(page: Page): Promise<Watch> {
   const watch: Watch = { requests: [], responses: [] };
   page.on('request', (r) => watch.requests.push({ url: r.url(), method: r.method(), at: Date.now() }));
   page.on('response', (r) => watch.responses.push({ url: r.url(), status: r.status() }));
-  await page.addInitScript(() => {
-    const seen: (string | null)[] = [];
-    (window as unknown as { __status: (string | null)[] }).__status = seen;
-    const observer = new MutationObserver((records) => {
-      const region = document.querySelector('[role="status"]');
-      if (region === null) return;
-      if (records.some((r) => region === r.target || region.contains(r.target))) seen.push(region.textContent);
-    });
-    observer.observe(document, { subtree: true, childList: true, characterData: true });
+  // In the page (as text: the Worker's TypeScript has no DOM types).
+  await page.addInitScript({
+    content: `(() => {
+      const seen = [];
+      window.__status = seen;
+      new MutationObserver((records) => {
+        const region = document.querySelector('[role="status"]');
+        if (region !== null && records.some((r) => region === r.target || region.contains(r.target))) seen.push(region.textContent);
+      }).observe(document, { subtree: true, childList: true, characterData: true });
+    })();`,
   });
   return watch;
 }
 
-const statusTexts = (page: Page): Promise<(string | null)[]> => page.evaluate(() => (window as unknown as { __status: (string | null)[] }).__status);
+const statusTexts = (page: Page): Promise<(string | null)[]> => page.evaluate('window.__status') as Promise<(string | null)[]>;
+const statusIs = (page: Page, test: string, timeout: number): Promise<unknown> =>
+  page.waitForFunction(`(() => { const t = document.querySelector('[role="status"]')?.textContent ?? ''; return ${test}; })()`, null, { timeout });
 
 async function api(path: string, body?: unknown): Promise<{ status: number; json: Record<string, unknown> | null }> {
   const response = await fetch(`${site.origin}${path}`, body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -92,7 +95,7 @@ describe('home → scan screen → ready → "Bericht öffnen" (local wrangler d
     expect(await page.locator('h1').textContent()).toBe('localhost wird nachgemessen');
     expect(await page.locator('a', { hasText: 'Bericht öffnen' }).count()).toBe(0);
 
-    await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent?.startsWith('Die Messung ist fertig'), null, { timeout: 90_000 });
+    await statusIs(page, `t.startsWith('Die Messung ist fertig')`, 90_000);
     const link = page.locator('a', { hasText: 'Bericht öffnen' });
     expect(await link.getAttribute('href')).toBe(`/bericht?id=${id}`);
     const rows = await page.locator('ol li').allTextContents();
@@ -147,7 +150,7 @@ describe('"Prüfung abbrechen" of a scan that waits in the queue', () => {
     await page.click('button[type="submit"]');
     await page.waitForURL(/\/pruefung\?id=[a-z2-7]{26}$/, { timeout: 30_000 });
     const id = new URL(page.url()).searchParams.get('id') ?? '';
-    await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent === 'Ihre Prüfung wartet: Platz 1 in der Warteschlange.', null, { timeout: 20_000 });
+    await statusIs(page, `t === 'Ihre Prüfung wartet: Platz 1 in der Warteschlange.'`, 20_000);
     expect(await statusOf(id)).toBe('queued');
 
     await page.click('text=Prüfung abbrechen');
