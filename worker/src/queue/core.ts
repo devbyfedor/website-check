@@ -182,6 +182,11 @@ export class ScanQueue {
     return (await this.jobs()).filter((entry) => entry.job.startedAt === undefined).length;
   }
 
+  /** The oldest waiting job, not taken (session fix-a5: whether the browser is still needed). */
+  async peekNext(): Promise<QueueJob | null> {
+    return (await this.jobs()).find((entry) => entry.job.startedAt === undefined)?.job ?? null;
+  }
+
   /** Takes the oldest waiting job and marks it started. */
   async takeNext(now: number): Promise<QueueJob | null> {
     const next = (await this.jobs()).find((entry) => entry.job.startedAt === undefined);

@@ -259,6 +259,9 @@ async function runCapture(
   const environment = cloudEnvironment(chromeVersionOf(await browser.version()));
   const page = await context.newPage();
   const client = await clientOf(page);
+  // Console and browser log entries are never read; a page that fails a socket or logs in a loop would send one
+  // message each (session fix-a5: half of 668,000 messages of a WebSocket flood). Puppeteer enabled the domain.
+  await client.send('Log.disable').catch(() => undefined);
   const own = (await client.send('Target.getTargetInfo')) as { targetInfo: { targetId: string } };
   ownTargets.add(own.targetInfo.targetId);
   const emulationFailed = await prepareVisitorPage(page, client, environment.userAgent);
@@ -413,7 +416,13 @@ async function runCapture(
   });
   client.on('Network.webSocketClosed', (event: { requestId: string }) => {
     const record = sockets.get(event.requestId);
-    if (record !== undefined) record.endMs ??= rel();
+    if (record !== undefined) {
+      record.endMs ??= rel();
+      return;
+    }
+    // A socket that was never created (refused by Chromium's limit): an attempt of the page all the same.
+    events += 1;
+    if (budget.exceeded === null && !budget.attempt()) void context.close().catch(() => undefined);
   });
 
   const startedAt = new Date().toISOString();

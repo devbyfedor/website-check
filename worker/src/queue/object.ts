@@ -262,15 +262,33 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
       if ((limits?.timeUntilNextAllowedBrowserAcquisition ?? 0) > 0) await sleep(Math.min(limits?.timeUntilNextAllowedBrowserAcquisition ?? 0, this.#queue.limits.launchSpacingMs));
       const started = Date.now();
       await this.#queue.setLastLaunchAt(started);
-      let browser: Browser;
+      let sessionId: string;
       try {
-        browser = await puppeteer.launch(this.env.BROWSER, { keep_alive: KEEP_ALIVE_MS });
+        // `puppeteer.launch` is acquire and connect in one; apart, a session that was acquired but could not be
+        // connected is not lost (session fix-a5, review finding 50).
+        sessionId = (await puppeteer.acquire(this.env.BROWSER, { keep_alive: KEEP_ALIVE_MS })).sessionId;
       } catch (error) {
         if (!isLimitError(error)) throw error;
         // A refused launch although a new browser was allowed: the day's browser time is used up.
         const after = (await puppeteer.limits(this.env.BROWSER).catch(() => null)) as { timeUntilNextAllowedBrowserAcquisition?: number } | null;
         if ((after?.timeUntilNextAllowedBrowserAcquisition ?? 0) > 0) throw error;
         throw new BrowserTimeExhausted(error instanceof Error ? error.message.slice(0, 120) : 'launch refused');
+      }
+      let browser: Browser;
+      try {
+        browser = await puppeteer.connect(this.env.BROWSER, sessionId);
+      } catch {
+        // The session runs at Browser Run from the acquire on. One more try a moment later ("retry", says the error);
+        // with a handle it is closed like any browser of the queue.
+        await sleep(1_000);
+        try {
+          browser = await puppeteer.connect(this.env.BROWSER, sessionId);
+        } catch (error) {
+          // Without a handle the session cannot be closed: Browser Run ends it after the keep-alive without a
+          // connection. That time counts against the day like the time of any browser of the queue.
+          await this.#queue.addBrowserTime(Date.now() - started + KEEP_ALIVE_MS, Date.now());
+          throw error;
+        }
       }
       const launchMs = Date.now() - started;
       try {
@@ -300,14 +318,17 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
   async #closeBrowser(): Promise<void> {
     const browser = this.#browser;
     if (browser === null) return;
+    // Read before the first await (session fix-a5, review finding 49): while this browser closes, another job of
+    // the run may open a new one and set `#launchedAt` again.
+    const launchedAt = this.#launchedAt;
     this.#browser = null;
     this.#visit = null;
     this.#popupGuard = null;
     await browser.close().catch(() => undefined);
     const closedAt = Date.now();
-    const openMs = closedAt - this.#launchedAt;
+    const openMs = closedAt - launchedAt;
     await this.#queue.addBrowserTime(openMs, closedAt);
-    const entry = this.#browsers.findLast((b) => b.launchedAt === this.#launchedAt);
+    const entry = this.#browsers.findLast((b) => b.launchedAt === launchedAt);
     if (entry !== undefined) {
       entry.closedAt = closedAt;
       entry.openMs = openMs;

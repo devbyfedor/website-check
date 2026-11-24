@@ -62,6 +62,19 @@ afterAll(async () => {
   await fixture?.close();
 });
 
+describe('session fix-a5 (backlog of fix-a4): no page keeps its tab past the hard limit of 20 s', () => {
+  it('WebSockets in bursts: sockets Chromium refused count as requests, the capture ends with page-limit within seconds', async () => {
+    const before = wire.messages;
+    const { capture, report, wallMs } = await scan('/heavy/ws-flood');
+    expect(capture.failure?.reason).toBe('page-limit');
+    // Before the fix: 38 to 39 s, a timeout, and 668,000 messages of the browser (Log.entryAdded and webSocketClosed).
+    expect(wallMs).toBeLessThan(10_000);
+    expect(wire.messages - before).toBeLessThan(100_000);
+    expect(report.state).toBe('failed');
+    expect(report.failure).toEqual({ reason: 'page-limit', status: null });
+  });
+});
+
 describe('finding 4: a page cannot fill the capture with requests', () => {
   it('5,000 requests started and aborted: the capture stops at the limit and fails with page-limit', async () => {
     const { capture, report, wallMs } = await scan('/heavy/flood', { axeSource });
