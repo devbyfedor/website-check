@@ -1,4 +1,5 @@
 import { createDohResolver } from './doh.ts';
+import { isConnectionFailure } from './fetch-errors.ts';
 import { createUrlGuard, describeRejection, SSRF_LIMITS, type UrlGuard } from './ssrf.ts';
 import type { HttpProbe, HttpProbeHop, HttpProbeOutcome, HttpsProbe, HttpsProbeOutcome } from './types.ts';
 
@@ -341,7 +342,9 @@ export async function probeHttpRedirect(httpUrl: string, options: HttpProbeOptio
       response = await fetchFn(current.href, { method: 'GET', redirect: 'manual', headers, signal: AbortSignal.timeout(left) });
     } catch (error) {
       hops.push({ url: current.href, status: null, location: null, error: errorText(error) });
-      return done(isTimeout(error) ? 'timeout' : 'unavailable');
+      // "Unter http:// nicht erreichbar" only for a failure of the connection to the site; our own failure (the
+      // subrequest limit, an internal error) is a manual check (session fix-a5, review finding 80).
+      return done(isTimeout(error) ? 'timeout' : isConnectionFailure(errorText(error)) ? 'unavailable' : 'stopped');
     }
     const status = response.status;
     if (status >= 200 && status < 300) {
