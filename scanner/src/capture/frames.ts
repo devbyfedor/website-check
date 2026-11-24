@@ -9,7 +9,8 @@ import type { Capture, CapturedRequest } from './types.ts';
  * field existed recorded a CORS preflight, a request of a web worker and a request of an iframe whose
  * address was not known yet all the same way: not the top-level document and no iframe address. There
  * they cannot be told apart from a request of an `about:blank` iframe of the page itself, so all of
- * them count as unknown.
+ * them count as unknown. Captures of the deleted strategy (b) (`resource-timing`, saved in A2 and A3, see
+ * `CaptureStrategy`) never recorded frames and are not marked unknown, as before.
  */
 export function frameUnknown(capture: Pick<Capture, 'adapter' | 'strategy'>, request: CapturedRequest): boolean {
   if (request.frameKnown !== undefined) return !request.frameKnown;

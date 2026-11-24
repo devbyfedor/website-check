@@ -1,7 +1,6 @@
 /**
- * Constant-time comparison of two strings (no early exit on the first difference). A module of its own since
- * A5 part 4, so the lab API Worker (`e2e.ts`) can use it without the A2 lab handler, which imports the whole
- * scan core.
+ * Constant-time comparison of two strings (no early exit on the first difference). A module of its own, so the
+ * lab API Worker (`e2e.ts`) uses it without importing the scan core (a unit test follows the imports).
  */
 export function sameToken(given: string, expected: string): boolean {
   const encoder = new TextEncoder();

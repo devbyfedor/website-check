@@ -108,9 +108,11 @@ describe('API Worker import graph (A5 part 4)', () => {
     });
   }
 
-  it('control: the A2 lab handler does reach the whole scan core, so the lab API Worker must not import it', () => {
-    expect(importGraph('src/lab/handler.ts').files.has('scanner/src/index.ts')).toBe(true);
-    expect(importGraph('src/lab/e2e.ts').files.has('worker/src/lab/handler.ts')).toBe(false);
+  it('control: the queue object does reach the whole scan core, so neither API Worker may import it', () => {
+    const queue = importGraph('src/queue/object.ts');
+    expect(queue.files.has('scanner/src/index.ts')).toBe(true);
+    expect(queue.files.has('scanner/src/data.ts')).toBe(true);
+    for (const entry of ['src/index.ts', 'src/lab/e2e.ts']) expect(importGraph(entry).files.has('worker/src/queue/object.ts'), entry).toBe(false);
   });
 
   it('control: the scan Worker does reach Puppeteer, axe-core, the rules data and the Durable Object base class', () => {

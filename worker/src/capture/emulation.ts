@@ -61,11 +61,6 @@ export function viewportEmulation(): CdpCommand[] {
   ];
 }
 
-/** Everything for the top-level page: frame emulation plus viewport, screen and focus. */
-export function pageEmulation(userAgent: string): CdpCommand[] {
-  return [...viewportEmulation(), ...frameEmulation(userAgent)];
-}
-
 /** Sends the commands without waiting between them (like Playwright), errors ignored. */
 export function sendAll(send: CdpSend, commands: readonly CdpCommand[]): void {
   for (const command of commands) void send(command.method, command.params).catch(() => undefined);
@@ -84,34 +79,4 @@ export async function applyEmulation(send: CdpSend, commands: readonly CdpComman
     }
   }
   return failed;
-}
-
-/**
- * Read inside the page to check that the emulation took effect (used by the lab endpoint for
- * the location check, never for findings).
- */
-export const ENVIRONMENT_EXPRESSION = `(() => ({
-  userAgent: navigator.userAgent,
-  language: navigator.language,
-  languages: Array.from(navigator.languages || []),
-  timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  intlLocale: Intl.DateTimeFormat().resolvedOptions().locale,
-  platform: navigator.platform,
-  webdriver: navigator.webdriver === true,
-  viewport: [innerWidth, innerHeight],
-  screen: [screen.width, screen.height],
-  hasFocus: document.hasFocus(),
-}))()`;
-
-export interface EnvironmentCheck {
-  userAgent: string;
-  language: string;
-  languages: string[];
-  timeZone: string;
-  intlLocale: string;
-  platform: string;
-  webdriver: boolean;
-  viewport: [number, number];
-  screen: [number, number];
-  hasFocus: boolean;
 }
