@@ -174,3 +174,8 @@ Postponed work. Each item names the session that should pick it up, or "later" w
     - 98: the paragraph "Current state" of `docs/progress.md` contradicts itself and the code.
     - 101: the test "takes the country … when the queue does not pass one" always passes the country from the queue.
     - 102: small dead code and leftovers (an unused entry of the scanner package, an unused import, a test helper in a production module, a file with a BOM).
+- B1 (24.11.2026), open after part 1:
+  - B1 part 2: the drawing animation (`draw` from offset 1 to 0 and `pop` with the delays of the reference, the reduced-motion rule), the transitions of the notes and callouts, switching the layers with `aria-pressed`, keyboard and visible focus, the full axe-core run, the merge.
+  - B3: Barlow is self-hosted in the latin subset only; a name or text of a scanned site with letters outside it (latin-ext) falls back to the system font, while the reference would load latin-ext from Google. Add the subset if report data needs it.
+  - B3/B4 and B5: the layout check of `npm run visual` flags in `bericht.html` at 390 px four table boxes that scroll sideways (`.tw`, 640 to 726 px of content in 270 px; probably on purpose) and rows of the time section 6 px wider than their box, and in `bfsg.html` at 1440 px three lines of the scheme 2 px wider than their box. Look at them in the session that builds the page.
+  - Stage C: a German 404 page (not designed; the static export has the default page of Next.js, in English) and a description meta tag for the home page (new copy, a draft).
