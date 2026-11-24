@@ -590,7 +590,7 @@ describe('finding 61: a list that is cut says so', () => {
 });
 
 describe('backlog: a page without a declared encoding that is not UTF-8 is read as windows-1252', () => {
-  const latin1 = (text: string): Uint8Array => Uint8Array.from([...text].map((c) => (c === '€' ? 0x80 : c === '–' ? 0x96 : c.charCodeAt(0))));
+  const latin1 = (text: string) => Uint8Array.from([...text].map((c) => (c === '€' ? 0x80 : c === '–' ? 0x96 : c.charCodeAt(0))));
   const IMPRESSUM = '<!doctype html><html lang="de"><head><title>Impressum</title></head><body><main><h1>Impressum</h1><p>Angaben gemäß § 5 DDG</p><p>Müller & Söhne GmbH<br>Königstraße 12<br>87654 Musterhausen</p><p>Geschäftsführer: Jürgen Müller</p><p>E-Mail: buero@mueller-soehne-muster.de</p></main></body></html>';
 
   it('umlauts of an old ISO-8859-1 page are kept; valid UTF-8 and a declared encoding are read as before', () => {

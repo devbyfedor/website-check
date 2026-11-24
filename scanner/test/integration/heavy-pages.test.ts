@@ -16,7 +16,14 @@ import { cpuMsOf, HEAVY_BOUNDS } from './heavy-pages.ts';
  * of CPU and is valid. The same pages run through the Cloudflare adapter in `worker/test/integration`.
  */
 
-const rules = compileRules(parseRulesFile({ version: 1, updated: '2026-11-24', services: [] }));
+// One invented service: the heavy pages make no request to it.
+const rules = compileRules(
+  parseRulesFile({
+    version: 1,
+    updated: '2026-11-24',
+    services: [{ id: 'x-tracker', name: 'X Tracker', provider: 'TrackCo', category: 'analytics', riskClass: 'consent-required', dataLocation: 'unknown', hosts: ['px.trackco.test'], sources: ['test'] }],
+  }),
+);
 
 let server: FixtureServer;
 let browser: Browser;

@@ -15,7 +15,14 @@ import { startCdpFixture, type CdpFixture } from './cdp-fixture.ts';
  * browser messages of 30 MB and captures that ran far past the hard limit.
  */
 
-const rules = compileRules(parseRulesFile({ version: 1, updated: '2026-11-24', services: [] }));
+// One invented service: the heavy pages make no request to it.
+const rules = compileRules(
+  parseRulesFile({
+    version: 1,
+    updated: '2026-11-24',
+    services: [{ id: 'x-tracker', name: 'X Tracker', provider: 'TrackCo', category: 'analytics', riskClass: 'consent-required', dataLocation: 'unknown', hosts: ['px.trackco.test'], sources: ['test'] }],
+  }),
+);
 
 let fixture: CdpFixture;
 let browser: Browser;
@@ -79,12 +86,13 @@ describe('finding 4: a page cannot fill the capture with requests', () => {
   it('a flood beside an ordinary page in the same browser: the ordinary page is captured as usual', async () => {
     // As the queue object: one popup guard per browser, shared by its parallel scans.
     const ownTargets = new Set<string>();
-    const state = await installPopupGuard((await browser.target().createCDPSession()) as never, ownTargets);
+    const session = await browser.target().createCDPSession();
+    const state = await installPopupGuard(session as never, ownTargets);
     const shared = { popupGuard: { ownTargets, state } };
     const [flood, plain] = await Promise.all([
       captureWithCdpEvents(browser, page('/heavy/flood-net'), options(shared)),
       captureWithCdpEvents(browser, page('/heavy/plain'), options({ ...shared, axeSource, impressum: true })),
-    ]);
+    ]).finally(() => session.detach().catch(() => undefined));
     expect(flood.capture.failure?.reason).toBe('page-limit');
     expect(plain.capture.failure).toBeNull();
     expect(plain.capture.ok).toBe(true);

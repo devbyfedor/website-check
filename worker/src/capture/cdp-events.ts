@@ -284,6 +284,8 @@ async function runCapture(
   // further is kept and the tab is closed at once, so its events stop costing memory and CPU of the object
   // that also runs other visitors' scans. The capture then fails with `page-limit`.
   const budget = new RequestBudget();
+  // How many strings of the page were cut to their limit while recording (`Capture.limited`).
+  const cut = { strings: 0 };
   const keep = (record: CapturedRequest): boolean => {
     if (budget.add(record)) {
       records.push(record);
@@ -330,7 +332,7 @@ async function runCapture(
       isNavigation: request.isNavigationRequest(),
       initiator: cdpInitiator === undefined ? null : toInitiator(cdpInitiator),
       redirectedFrom: chain.length > 0 ? (chain[chain.length - 1]?.url() ?? null) : null,
-    });
+    }, cut);
     if (!keep(record)) return;
     frameSources.push({
       record,
@@ -396,7 +398,7 @@ async function runCapture(
       isNavigation: false,
       initiator: null,
       redirectedFrom: null,
-    });
+    }, cut);
     if (!keep(record)) return;
     sockets.set(event.requestId, record);
     lastActivity = record.startMs;
@@ -540,6 +542,7 @@ async function runCapture(
     consentBanner: bannerObservation(snapshot, toCaptureMs),
     axe,
     timings: { domContentLoadedMs, loadMs, networkQuietMs, endMs, stopReason },
+    ...(cut.strings > 0 ? { limited: { strings: cut.strings } } : {}),
   };
   return { page, capture, stats: { events, polls: 0, emulationFailed, wallMs: 0, framesPlacedLate: frames.late, framesUnknown: frames.unknown, ...(fieldPositions !== undefined ? { fieldPositions } : {}) } };
 }
