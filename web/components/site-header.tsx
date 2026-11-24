@@ -45,13 +45,13 @@ export function HeaderAction({ href, children, onClick }: { href: string; childr
   );
 }
 
-// The main navigation of the blueprint pages.
-export function SiteNav() {
+// The main navigation of the blueprint pages. The report has it without "Für Agenturen" (bericht.html).
+export function SiteNav({ agencies = true }: { agencies?: boolean }) {
   return (
     <nav className={`${s.nav} flex flex-wrap gap-7`} aria-label="Hauptnavigation">
       <a href="#methode">So prüfen wir</a>
       <a href="/bfsg">BFSG-Check</a>
-      <a href="#agenturen">Für Agenturen</a>
+      {agencies ? <a href="#agenturen">Für Agenturen</a> : null}
     </nav>
   );
 }
