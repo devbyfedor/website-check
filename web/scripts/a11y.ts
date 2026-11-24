@@ -1,20 +1,24 @@
-// Accessibility check of the built pages (B1): keyboard, visible focus and a full axe-core run.
+// Accessibility check of the built pages (B1, B2): keyboard, visible focus and a full axe-core run.
+//
+// Pages: the home page and the scan screen with the example of the reference.
 //
 // Keyboard: Tab from the top of the page until focus leaves the page; every link, button and field
-// must be reached in document order. For every stop the focus ring is measured: the screenshot of the
-// element and its surroundings with focus is compared with the one without focus, and for every changed
-// pixel the contrast between the two colours is computed (WCAG 2.2, 2.4.13 asks for at least 3:1 over an
-// area at least as large as a 2 px line around the element). Right after each Tab the whole ring must be
-// inside the window. The layer buttons are pressed with Space and Enter, the form is sent with Enter.
+// must be reached in document order, the same controls in the same order as on the reference. For
+// every stop the focus ring is measured: the screenshot of the element and its surroundings with focus
+// is compared with the one without focus, and for every changed pixel the contrast between the two
+// colours is computed (WCAG 2.2, 2.4.13 asks for at least 3:1 over an area at least as large as a 2 px
+// line around the element). Right after each Tab the whole ring must be inside the window. On the home
+// page the layer buttons are pressed with Space and Enter, the form is sent with Enter.
 //
 // axe-core: the pinned version of the scanner (node_modules/axe-core), every rule that is on by
-// default (WCAG A, AA and best practices), with reduced motion for each of the four layers and once
-// without reduced motion after the drawing has finished.
+// default (WCAG A, AA and best practices), with reduced motion (home: for each of the four layers) and
+// once without reduced motion after every animation has finished. On the scan screen also, as an
+// observation, with motion paused in the middle of the run, in the app and the reference.
 //
-//   npm run a11y                     builds web/ first
-//   node web/scripts/a11y.ts [--widths 1440,390] [--reference]
+//   npm run a11y                     builds web/ with the example pages first
+//   node web/scripts/a11y.ts [--only start,pruefung] [--widths 1440,390] [--reference]
 //
-// --reference runs axe on design/reference/start.html too, for comparison. Results: local/a11y/.
+// --reference runs axe on the reference files too, for comparison. Results: local/a11y/.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { chromium, type Browser, type Page } from 'playwright';
@@ -23,19 +27,27 @@ import { ROOT, VIEWPORT_HEIGHT, nextFrames, routeHosts, settle, startCheckServer
 
 const RESULT_DIR = join(ROOT, 'local', 'a11y');
 const AXE_FILE = join(ROOT, 'node_modules', 'axe-core', 'axe.min.js');
-const PAGES = [{ name: 'start', path: '/', reference: 'start.html' }];
+// `layers`: the home page's four layer buttons and its form. `midRun`: a moment (seconds) at which axe
+// also runs with every animation paused, as an observation that does not count.
+const PAGES: { name: string; path: string; reference: string; layers: boolean; midRun?: number }[] = [
+  { name: 'start', path: '/', reference: 'start.html', layers: true },
+  // The scan screen with the example of the reference (the example build, WC_EXAMPLES=1).
+  { name: 'pruefung', path: '/pruefung/beispiel', reference: 'pruefung.html', layers: false, midRun: 3.3 },
+];
 const RING_MARGIN = 10; // px around the element: the ring is 3 px wide at an offset of 3 px
 
 interface Args {
+  only: string[] | null;
   widths: number[];
   reference: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { widths: [1440, 390], reference: false };
+  const args: Args = { only: null, widths: [1440, 390], reference: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--widths') args.widths = (argv[++i] ?? '').split(',').map(Number).filter((n) => n > 0);
+    if (a === '--only') args.only = (argv[++i] ?? '').split(',').filter(Boolean);
+    else if (a === '--widths') args.widths = (argv[++i] ?? '').split(',').map(Number).filter((n) => n > 0);
     else if (a === '--reference') args.reference = true;
     else throw new Error(`unknown argument ${a}`);
   }
@@ -43,7 +55,7 @@ function parseArgs(argv: string[]): Args {
 }
 
 // Runs in the page: a short description of the focused element, or null when focus is on the body.
-function activeElement(): { id: string; tag: string; text: string; focusVisible: boolean; outline: string } | null {
+function activeElement(): { id: string; tag: string; text: string; key: string; focusVisible: boolean; outline: string } | null {
   const el = document.activeElement;
   if (!el || el === document.body || el === document.documentElement) return null;
   const cs = getComputedStyle(el);
@@ -52,6 +64,9 @@ function activeElement(): { id: string; tag: string; text: string; focusVisible:
     id: `${el.tagName.toLowerCase()}#${index}`,
     tag: el.tagName.toLowerCase(),
     text: (el.getAttribute('aria-label') ?? el.textContent ?? (el as HTMLInputElement).placeholder ?? '').trim().replace(/\s+/g, ' ').slice(0, 40),
+    // The whole text without white space, to compare the order with the reference: the reference has line
+    // breaks between the parts of a control, React writes none.
+    key: (el.getAttribute('aria-label') ?? el.textContent ?? '').replace(/\s+/g, ''),
     focusVisible: el.matches(':focus-visible'),
     outline: `${cs.outlineStyle} ${cs.outlineWidth} ${cs.outlineColor} offset ${cs.outlineOffset}`,
   };
@@ -129,7 +144,7 @@ async function newPage(browser: Browser, url: string, width: number, origin: str
 async function keyboard(page: Page, label: string): Promise<{ problems: string[]; stops: unknown[] }> {
   const problems: string[] = [];
   const expected = await page.evaluate(controls);
-  const stops: { id: string; text: string; focusVisible: boolean; outline: string; ring: RingMeasure; ringCut: boolean }[] = [];
+  const stops: { id: string; text: string; key: string; focusVisible: boolean; outline: string; ring: RingMeasure; ringCut: boolean }[] = [];
   // Tab from the top until focus leaves the page (back to the body or the browser).
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   for (let i = 0; i < expected.length + 3; i++) {
@@ -184,7 +199,7 @@ async function keyboard(page: Page, label: string): Promise<{ problems: string[]
     // Back to the element; Chrome keeps the keyboard modality, so the next Tab goes on from here.
     await handle.asElement()!.focus();
     await page.evaluate(([x, y]) => window.scrollTo(x, y), scroll);
-    stops.push({ id: active.id, text: active.text, focusVisible: active.focusVisible, outline: active.outline, ring, ringCut });
+    stops.push({ id: active.id, text: active.text, key: active.key, focusVisible: active.focusVisible, outline: active.outline, ring, ringCut });
     if (!active.focusVisible) problems.push(`${label}: ${active.id} "${active.text}" has focus without :focus-visible`);
     if (ring.strong < ring.required) {
       problems.push(`${label}: ${active.id} "${active.text}" focus ring ${ring.strong} px at 3:1, needs ${ring.required}`);
@@ -276,7 +291,9 @@ interface TextContrast {
 
 // axe leaves color-contrast "incomplete" where the background is an image (the blueprint grid). For those
 // elements the background is read from a screenshot with all text made transparent: every pixel behind
-// the boxes of the element's own text is compared with its text colour. Needs axe in the page.
+// the boxes of the element's own text is compared with its text colour, blended with that pixel by the
+// opacity of the element and its ancestors (a step of the scan screen that has not lit up yet is shown
+// at 0.32). Paused animations stay where they are. Needs axe in the page.
 async function contrastByPixels(page: Page): Promise<TextContrast[]> {
   const items = await page.evaluate(async () => {
     type Node = { target: string[]; any: { data?: { messageKey?: string } }[] };
@@ -294,6 +311,8 @@ async function contrastByPixels(page: Page): Promise<TextContrast[]> {
       }
       const size = parseFloat(cs.fontSize);
       const large = size >= 24 || (Number(cs.fontWeight) >= 700 && size >= 18.66);
+      let opacity = 1;
+      for (let e: Element | null = el; e; e = e.parentElement) opacity *= Number(getComputedStyle(e).opacity);
       return {
         element: n.target.join(' '),
         text: (el.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 40),
@@ -301,6 +320,7 @@ async function contrastByPixels(page: Page): Promise<TextContrast[]> {
         // SVG text is painted with fill, HTML text with color.
         color: el instanceof SVGElement ? cs.fill : cs.color,
         required: large ? 3 : 4.5,
+        opacity,
         rects,
       };
     });
@@ -311,10 +331,11 @@ async function contrastByPixels(page: Page): Promise<TextContrast[]> {
       'text, tspan { fill: transparent !important; stroke: transparent !important; }',
   });
   await nextFrames(page);
-  const shot = PNG.sync.read(await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide' }));
+  const shot = PNG.sync.read(await page.screenshot({ fullPage: true, animations: 'allow', caret: 'hide' }));
   await style.evaluate((el) => (el as HTMLStyleElement).remove());
   return items.map((item) => {
     const fg = (item.color.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+    const seen = (bg: number[]) => fg.map((v, k) => v * item.opacity + bg[k]! * (1 - item.opacity));
     const counts = new Map<string, number>();
     let lowest = Infinity;
     let below = 0;
@@ -324,7 +345,7 @@ async function contrastByPixels(page: Page): Promise<TextContrast[]> {
         for (let x = Math.floor(r.x); x < Math.ceil(r.x + r.w) && x < shot.width; x++) {
           const i = (y * shot.width + x) * 4;
           const bg = [shot.data[i]!, shot.data[i + 1]!, shot.data[i + 2]!];
-          const c = contrast(fg, bg);
+          const c = contrast(seen(bg), bg);
           pixels++;
           if (c < lowest) lowest = c;
           if (c < item.required) below++;
@@ -339,7 +360,7 @@ async function contrastByPixels(page: Page): Promise<TextContrast[]> {
       text: item.text,
       reason: item.reason,
       required: item.required,
-      typical: Number(contrast(fg, mode).toFixed(2)),
+      typical: Number(contrast(seen(mode), mode).toFixed(2)),
       lowest: Number((pixels ? lowest : 0).toFixed(2)),
       below,
       pixels,
@@ -375,20 +396,32 @@ async function main(): Promise<void> {
   let blocked = 0;
   console.log(`axe-core ${axeVersion}`);
   try {
-    for (const p of PAGES) {
+    for (const p of PAGES.filter((x) => !args.only || args.only.includes(x.name))) {
       for (const width of args.widths) {
         const label = `${p.name} ${width} px`;
         console.log(label);
-        // Keyboard and focus.
+        // Keyboard and focus, on the app and on the reference: the same controls in the same order.
         const k = await newPage(browser, `${server.origin}${p.path}`, width, server.origin, true, 'none');
         const walk = await keyboard(k.page, label);
-        const act = await activation(k.page, label);
+        const act = p.layers ? await activation(k.page, label) : { problems: [], done: [] };
         problems = problems.concat(walk.problems, act.problems);
         blocked += k.blocked.length;
         await k.context.close();
-        const stops = walk.stops as { id: string; text: string; ring: RingMeasure; ringCut: boolean }[];
+        const rk = await newPage(browser, `${server.origin}/__reference/${p.reference}`, width, server.origin, true, 'local');
+        const refWalk = await keyboard(rk.page, `reference ${label}`);
+        await rk.context.close();
+        const stops = walk.stops as { id: string; text: string; key: string; ring: RingMeasure; ringCut: boolean }[];
+        const refStops = refWalk.stops as { id: string; text: string; key: string; ringCut: boolean }[];
+        const order = stops.map((s) => s.key);
+        const refOrder = refStops.map((s) => s.key);
+        const sameOrder = order.join('\n') === refOrder.join('\n');
+        if (!sameOrder) problems.push(`${label}: Tab order differs from the reference: app ${JSON.stringify(order)}, reference ${JSON.stringify(refOrder)}`);
         const cut = stops.filter((s) => s.ringCut).map((s) => s.id);
-        console.log(`  Tab stops: ${stops.length}; ring past the edge of the window right after Tab: ${cut.length ? cut.join(', ') : 'none'}`);
+        console.log(
+          `  Tab stops: ${stops.length}, reference ${refStops.length}, ${sameOrder ? 'same controls in the same order' : 'ORDER DIFFERS'}; ` +
+            `ring past the edge of the window right after Tab: ${cut.length ? cut.join(', ') : 'none'} ` +
+            `(reference without scroll-margin: ${refStops.filter((s) => s.ringCut).map((s) => s.id).join(', ') || 'none'})`,
+        );
         for (const s of stops) {
           console.log(
             `    ${s.id.padEnd(10)} ${JSON.stringify(s.text).padEnd(44)} ring ${s.ring.strong} px at >= 3:1 ` +
@@ -397,24 +430,46 @@ async function main(): Promise<void> {
         }
         for (const d of act.done) console.log(`  ${d}`);
 
-        // axe-core: each layer with reduced motion, then once with motion after the drawing finished.
+        // axe-core with reduced motion (home: each layer and the focused field), then with motion after
+        // every animation finished.
         const runs: AxeSummary[] = [];
         let textContrast: TextContrast[] = [];
         const a = await newPage(browser, `${server.origin}${p.path}`, width, server.origin, true, 'none');
-        for (const n of [1, 2, 3, 4]) {
-          if (n > 1) await a.page.locator('button[aria-pressed]').nth(n - 1).click();
-          runs.push(await axe(a.page, `reduced motion, layer ${n}`, axeSource));
-          if (n === 1) textContrast = await contrastByPixels(a.page);
+        if (p.layers) {
+          for (const n of [1, 2, 3, 4]) {
+            if (n > 1) await a.page.locator('button[aria-pressed]').nth(n - 1).click();
+            runs.push(await axe(a.page, `reduced motion, layer ${n}`, axeSource));
+            if (n === 1) textContrast = await contrastByPixels(a.page);
+          }
+          await a.page.locator('#objekt').focus();
+          runs.push(await axe(a.page, 'reduced motion, address field focused', axeSource));
+        } else {
+          runs.push(await axe(a.page, 'reduced motion', axeSource));
+          textContrast = await contrastByPixels(a.page);
         }
-        await a.page.locator('#objekt').focus();
-        runs.push(await axe(a.page, 'reduced motion, address field focused', axeSource));
         blocked += a.blocked.length;
         await a.context.close();
         const m = await newPage(browser, `${server.origin}${p.path}`, width, server.origin, false, 'none');
         await m.page.evaluate(() => document.getAnimations().forEach((x) => x.finish()));
-        runs.push(await axe(m.page, 'motion, drawing finished', axeSource));
+        runs.push(await axe(m.page, 'motion, every animation finished', axeSource));
         blocked += m.blocked.length;
         await m.context.close();
+        // Observation, not counted: the page in the middle of its run, in the app and the reference.
+        const midRun: AxeSummary[] = [];
+        const midContrast: Record<string, TextContrast[]> = {};
+        if (p.midRun !== undefined) {
+          for (const [who, url, fonts] of [
+            ['app', `${server.origin}${p.path}`, 'none'],
+            ['reference', `${server.origin}/__reference/${p.reference}`, 'local'],
+          ] as const) {
+            const r = await newPage(browser, url, width, server.origin, false, fonts);
+            await r.page.evaluate((ms) => document.getAnimations().forEach((x) => (x.finish(), x.pause(), (x.currentTime = ms))), p.midRun * 1000);
+            midRun.push(await axe(r.page, `${who}, motion paused at ${p.midRun} s`, axeSource));
+            midContrast[who] = await contrastByPixels(r.page);
+            if (who === 'app') blocked += r.blocked.length;
+            await r.context.close();
+          }
+        }
         for (const r of runs) {
           const v = r.violations.reduce((s, x) => s + x.nodes, 0);
           if (r.violations.length) problems.push(`${label}, ${r.state}: axe violations ${r.violations.map((x) => `${x.id} (${x.nodes})`).join(', ')}`);
@@ -423,29 +478,42 @@ async function main(): Promise<void> {
               `rules passed ${r.passes} of ${r.rules}`,
           );
         }
-        printContrast('color-contrast incomplete, by pixels (layer 1)', textContrast);
+        printContrast(`color-contrast incomplete, by pixels (${p.layers ? 'layer 1' : 'reduced motion'})`, textContrast);
+        for (const r of midRun) {
+          console.log(
+            `  observation, axe ${r.state}: violations ${r.violations.map((x) => `${x.id} (${x.nodes})`).join(', ') || 0}, ` +
+              `incomplete ${r.incomplete.map((x) => `${x.id} (${x.nodes})`).join(', ') || 0}`,
+          );
+        }
+        for (const [who, list] of Object.entries(midContrast)) {
+          printContrast(`observation, ${who} at ${p.midRun} s, color-contrast incomplete by pixels`, list);
+          const dim = list.filter((t) => t.typical < t.required);
+          if (dim.length) console.log(`    under the required ratio: ${dim.map((t) => `"${t.text}" ${t.typical}:1`).join(', ')}`);
+        }
         let refRun: AxeSummary | null = null;
         let refContrast: TextContrast[] = [];
         if (args.reference) {
           const r = await newPage(browser, `${server.origin}/__reference/${p.reference}`, width, server.origin, true, 'local');
-          refRun = await axe(r.page, 'reference, reduced motion, layer 1', axeSource);
+          refRun = await axe(r.page, 'reference, reduced motion', axeSource);
           refContrast = await contrastByPixels(r.page);
           printContrast('color-contrast incomplete on the reference, by pixels', refContrast);
           await r.context.close();
-          const rk = await newPage(browser, `${server.origin}/__reference/${p.reference}`, width, server.origin, true, 'local');
-          const refWalk = await keyboard(rk.page, `reference ${label}`);
-          await rk.context.close();
-          const refStops = refWalk.stops as { id: string; ringCut: boolean }[];
-          console.log(
-            `  keyboard on the reference: Tab stops ${refStops.length}, ring partly past the edge right after Tab: ` +
-              `${refStops.filter((s) => s.ringCut).map((s) => s.id).join(', ') || 'none'}; problems ${refWalk.problems.length}`,
-          );
           console.log(
             `  axe on the reference: violations ${refRun.violations.map((x) => `${x.id} (${x.nodes})`).join(', ') || 0}, ` +
               `incomplete ${refRun.incomplete.map((x) => `${x.id} (${x.nodes})`).join(', ') || 0}`,
           );
         }
-        report[label] = { stops: walk.stops, activation: act.done, axe: runs, textContrast, reference: refRun, referenceContrast: refContrast };
+        report[label] = {
+          stops: walk.stops,
+          referenceStops: refWalk.stops,
+          activation: act.done,
+          axe: runs,
+          textContrast,
+          midRun,
+          midContrast,
+          reference: refRun,
+          referenceContrast: refContrast,
+        };
       }
     }
   } finally {

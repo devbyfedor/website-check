@@ -48,10 +48,10 @@ Read `docs/brief.md` completely before every session, together with `design/READ
 - `npm run typecheck`: TypeScript strict check of all workspaces.
 - `npm run scan:local`: capture and analyze every site in `local/sites.txt`; results go to `local/captures` and `local/results`. `-- --only 3,7` repeats single sites; `-- --reanalyze` recomputes analyses and the summary from the saved captures without visiting any site.
 - `npm run explain -- --site 07 --service google-fonts`: shows the requests, frames and initiator chain of one service from a saved capture, for manual checks.
-- `npm run visual`: builds `web/` and compares every built page with its reference file at 1440 and 390 px (reduced motion); screenshots and diffs in `local/visual`.
-- `npm run motion`: builds `web/` and compares the home page's animations and layer switch with the reference, frame by frame at fixed moments; frames in `local/motion`.
-- `npm run a11y`: builds `web/` and checks keyboard, visible focus (by pixels) and a full axe-core run; `-- --reference` runs the same on the reference. Results in `local/a11y`.
-- `npm run preview`: builds `web/` and serves the static export on http://127.0.0.1:3000/.
+- `npm run visual`: builds `web/` with the example pages (`WC_EXAMPLES=1`) and compares every built page with its reference file at 1440 and 390 px (reduced motion); the scan screen is the example at `/pruefung/beispiel`. Screenshots and diffs in `local/visual`.
+- `npm run motion`: builds `web/` with the example pages and compares the animations of the home page (with the layer switch) and of the scan screen with the reference, frame by frame at fixed moments; frames in `local/motion`.
+- `npm run a11y`: builds `web/` with the example pages and checks keyboard (the order of the reference, the whole ring in the window after Tab), visible focus (by pixels) and a full axe-core run on the home page and the scan screen; `-- --reference` runs axe on the reference too. Results in `local/a11y`.
+- `npm run preview`: the production build of `web/` (no example pages; it fails if the example data gets into `web/out`), served on http://127.0.0.1:3000/. `npm run preview:examples` serves the build with the example pages (the scan screen at http://127.0.0.1:3000/pruefung/beispiel).
 
 ## Report at the end of a session
 
