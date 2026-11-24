@@ -58,6 +58,9 @@ Decisions made later in the sessions:
 - 24.11.2026 (Fedor, message of fix-a3, answer 1): "Bilder mit Beschreibung" is counted as axe counts it: an empty alt is the mark "decorative image", not an error. The row is "erfüllt" when no image lacks a description; images marked as decoration are a separate "bitte prüfen". Reason: the brief requires that the accessibility results match axe.
 - 24.11.2026 (Fedor, message of fix-a3, answer 2): a new local run of the 30 sites is the first step of fix-a3. Reason: the saved captures do not say how the passing images split, so the row had no numbers.
 - 24.11.2026 (Fedor, message of fix-a3, answer 3): the list of services on an almost empty page stays, with the tag "manuell prüfen". Reason: it is what the scanner saw, without a judgement.
+- 24.11.2026 (Fedor, message of fix-a4, answer 1): a link "Informationen zur Barrierefreiheit" stays "Link gefunden, bitte prüfen". Reason: the text names the topic, not the statement.
+- 24.11.2026 (Fedor, message of fix-a4, answer 2): "DE" plus 9 digits under the label "Steuernummer" counts as a found USt-IdNr. Reason: a German Steuernummer does not start with "DE", and the quote is shown in the report.
+- 24.11.2026 (Fedor, message of fix-a4, answer 3): review finding 75 (system detection) is a separate step of the last polishing session.
 
 ## Technical decisions
 
