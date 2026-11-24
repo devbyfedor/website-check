@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -7,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { REPORT_SCHEMA_V1, validateReport, type Finding, type Report } from '@website-check/scanner';
 import exampleJson from '../components/report/example-report.json';
 import { ReportScreen } from '../components/report/report-screen';
+import { EXAMPLE_REPORT_FILE, exampleReportText } from '../scripts/example-report-source';
 import { fill } from '../lib/report-texts';
 import { findingTitle, headFacts, measureRows, percentOf, planLabel, planMarks, priorityItems, ratioText, timelineView } from '../lib/report-view';
 
@@ -29,9 +29,8 @@ describe('the example report', () => {
   });
 
   it('is what web/scripts/make-example-report.ts writes (the scanner builds it; the hand-set values are named there)', () => {
-    const out = execFileSync(process.execPath, [join(ROOT, 'web', 'scripts', 'make-example-report.ts'), '--check'], { encoding: 'utf8', cwd: ROOT });
-    expect(out).toContain('up to date');
-  }, 30_000);
+    expect(readFileSync(EXAMPLE_REPORT_FILE, 'utf8')).toBe(exampleReportText());
+  });
 });
 
 describe('head', () => {
