@@ -265,7 +265,8 @@ describe('analyzeLegal', () => {
     failure: ok ? null : { reason: 'timeout', message: 'Timeout' },
     finalUrl: url,
     status: ok ? 200 : null,
-    page: ok ? page([], text) : null,
+    // The tab shows an Impressum: its title says so (session fix-a3: a page without any sign of one is not searched).
+    page: ok ? { ...page([], text), title: 'Impressum' } : null,
     requestCount: 3,
     timings: { openedAtMs: 4000, domContentLoadedMs: 300, snapshotMs: 900, totalMs: 1000, stopReason: ok ? 'text-stable' : 'error' },
   });
@@ -334,7 +335,7 @@ describe('analyzeLegal', () => {
 
   it('takes the accessibility statement link from the Impressum page when the homepage has none', () => {
     const impressum = tab(`${SITE}impressum`, 'Muster GmbH');
-    impressum.page = page([{ href: `${SITE}barrierefreiheit`, text: 'Barrierefreiheitserklärung', footer: true }], 'Muster GmbH');
+    impressum.page = { ...page([{ href: `${SITE}barrierefreiheit`, text: 'Barrierefreiheitserklärung', footer: true }], 'Muster GmbH'), title: 'Impressum' };
     const legal = analyzeLegal(makeCapture({ requests: [], page: page([impressumLink]), impressum }));
     expect(legal.accessibilityStatement).toMatchObject({ href: `${SITE}barrierefreiheit`, page: 'impressum' });
   });

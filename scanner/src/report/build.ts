@@ -539,7 +539,11 @@ function legalFindings(legal: LegalAnalysis, shop: boolean | null, almostEmpty: 
       if (field.status === 'not-found') out.push(finding({ id: `legal:field:${id.toLowerCase()}`, area: 'mandatory-information', kind: 'manual', textId: 'legal-field-not-found', params: { field: id } }));
     }
   }
-  if (legal.links.datenschutz === null) out.push(finding({ id: 'legal:datenschutz', area: 'mandatory-information', kind: 'manual', textId: 'legal-datenschutz-no-link' }));
+  const privacy = legal.links.datenschutz;
+  if (privacy === null) out.push(finding({ id: 'legal:datenschutz', area: 'mandatory-information', kind: 'manual', textId: 'legal-datenschutz-no-link' }));
+  // Session fix-a3 (review finding 14): a link to another site (the policy of a captcha or payment provider)
+  // or to an anchor of the homepage (the button of a consent tool) is not "the link is there".
+  else if (!privacy.certain) out.push(finding({ id: 'legal:datenschutz', area: 'mandatory-information', kind: 'manual', textId: 'legal-datenschutz-uncertain', params: { reason: privacy.uncertain ?? 'other-site' } }));
   const statement = legal.accessibilityStatement;
   if (statement !== null && !statement.certain) {
     out.push(finding({ id: 'legal:accessibility-statement', area: 'mandatory-information', kind: 'manual', textId: 'legal-accessibility-statement-uncertain', params: { page: statement.page } }));
@@ -554,7 +558,8 @@ function reportLegal(legal: LegalAnalysis): ReportLegal {
   const statement = legal.accessibilityStatement;
   return {
     impressumLink: link(legal.links.impressum),
-    datenschutzLink: link(legal.links.datenschutz),
+    // Only a link the scan is sure of; an uncertain one is the manual check `legal-datenschutz-uncertain`.
+    datenschutzLink: link(legal.links.datenschutz?.certain === true ? legal.links.datenschutz : null),
     accessibilityStatement: statement === null ? null : { href: clipUrl(statement.href), text: clip(statement.text, 300), certain: statement.certain, page: statement.page },
     impressum: { state: legal.impressum.state, url: legal.impressum.url === null ? null : clipUrl(legal.impressum.url), crossSite: legal.impressum.crossSite },
     fields: {

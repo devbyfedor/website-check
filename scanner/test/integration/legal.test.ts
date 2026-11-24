@@ -67,6 +67,20 @@ describe('Impressum in a second tab', () => {
     expect(legal.fields.address).toEqual({ status: 'not-found', reason: 'impressum-not-checked' });
   });
 
+  it('finding 6: a soft 404 and the homepage under another address are not read as the Impressum', async () => {
+    for (const host of ['www.soft404.test', 'www.backhome.test']) {
+      const { capture } = await captureWithPlaywright(browser, server.url(host, '/'), { guard: fixtureGuard, maxWaitMs: 5_000, httpProbe: false, accessibility: false });
+      expect(capture.ok, host).toBe(true);
+      // The tab itself loaded a page with HTTP 200 and text: the adapter cannot know that it is no Impressum.
+      expect(capture.impressum?.ok, host).toBe(true);
+      expect(capture.impressum?.status, host).toBe(200);
+      expect(capture.impressum?.page?.text, host).toContain('HRB 4711');
+      const legal = analyzeLegal(capture);
+      expect(legal.impressum.state, host).toBe('failed');
+      expect(Object.values(legal.fields).map((f) => f.status), host).toEqual(['not-found', 'not-found', 'not-found', 'not-found']);
+    }
+  });
+
   it('never guesses /impressum when the homepage has no link', async () => {
     const { capture } = await captureWithPlaywright(browser, server.url('www.nolegal.test', '/'), { guard: fixtureGuard, maxWaitMs: 5_000, httpProbe: false, accessibility: false });
     expect(capture.impressum).toBeNull();
