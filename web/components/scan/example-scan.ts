@@ -28,7 +28,7 @@ export const EXAMPLE_SCAN: ScanScreenData = {
     { title: 'Barrierefreiheit geprüft', detail: 'die 6 häufigsten Fehlertypen', delay: 5.7 },
     { title: 'Verschlüsselung und Sicherheits-Header gelesen', delay: 6.5 },
   ],
-  progress: { delay: 0.2, duration: 7.2 },
+  progress: { kind: 'timed', delay: 0.2, duration: 7.2 },
   report: {
     summary: '7 Funde, davon 3 vorrangig. Zu jedem gibt es eine Anleitung für WordPress.',
     href: '/bericht',

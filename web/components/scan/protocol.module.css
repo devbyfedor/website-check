@@ -84,6 +84,40 @@
   color: var(--color-pencil-light);
 }
 
+/*
+  The real scan (session B2 part 2, Fedor's answers). A row that waits for the report is dimmed at a contrast of at
+  least 4.5:1 (opacity 0.6 of the chalk on the panel: about 5.1:1; the reference has 0.32) and has no tick. When the
+  report is there, every row lights at once from that dimmed state.
+*/
+.st.wait {
+  opacity: 0.6;
+  animation: none;
+}
+.st.now {
+  opacity: 0.6;
+}
+
+/* The time bar of the real scan: empty while the scan waits, then real time over the scale of about 30 s; without
+   the report it stops at 97 %, full once the report is there. The delay (negative) is how long the scan had run. */
+.pwait {
+  width: 0;
+}
+.prun {
+  width: 0;
+  animation-name: grow-live;
+  animation-duration: 29.1s;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes grow-live {
+  to {
+    width: 97%;
+  }
+}
+.pfull {
+  width: 100%;
+}
+
 /* Reduced motion: the final state at once, as in the reference. */
 @media (prefers-reduced-motion: reduce) {
   .ck {
@@ -97,6 +131,15 @@
   }
   .pbar {
     width: 100%;
+    animation: none;
+  }
+  /* The real scan: nothing moves (Fedor, B2 part 2). Rows of the report are lit at once; the bar stays empty until
+     the report is there. */
+  .st.now {
+    opacity: 1;
+    animation: none;
+  }
+  .prun {
     animation: none;
   }
 }

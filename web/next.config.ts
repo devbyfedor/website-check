@@ -13,6 +13,9 @@ const config: NextConfig = {
   images: { unoptimized: true },
   reactStrictMode: true,
   pageExtensions: EXAMPLES ? ['example.tsx', 'tsx', 'ts', 'jsx', 'js'] : ['tsx', 'ts', 'jsx', 'js'],
+  // Session B2 part 2: the scan screen validates the report with the scanner's own validator
+  // (`@website-check/scanner/report`, TypeScript sources of the workspace).
+  transpilePackages: ['@website-check/scanner'],
 };
 
 export default config;
