@@ -103,7 +103,10 @@ describe('finding 10: what the scripts in the page return is bounded', () => {
   it("an accessibility result of the page's own with megabyte strings, and images with an id of 1 MB", async () => {
     const fake = await scan('/heavy/fake-axe', { accessibility: true });
     expect(JSON.stringify(fake.capture.axe).length).toBeLessThan(200_000);
-    expect(fake.report.scan.axeVersion).toBeNull();
+    // Session fix-a6 (review finding 26): axe runs in an isolated world, so the page's own `window.axe` is never the
+    // one that runs: the pinned axe-core checks the page (it has no barrier) and gives its own version.
+    expect(fake.capture.axe?.status, fake.capture.axe?.error ?? '').toBe('ok');
+    expect(fake.report.scan.axeVersion).toBe('4.14.1');
     const ids = await scan('/heavy/big-ids', { accessibility: true });
     expect(ids.capture.axe?.status, ids.capture.axe?.error ?? '').toBe('ok');
     const rule = ids.capture.axe?.rules['image-alt'];
