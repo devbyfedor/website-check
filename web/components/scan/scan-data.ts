@@ -26,6 +26,8 @@ export interface ScanStep {
   title: Phrase;
   detail?: Phrase;
   finding?: boolean; // red, with "!" instead of a tick
+  /** Session B2 part 3: a part the scan did not check: lit, without a tick (the report says why). */
+  unchecked?: boolean;
   /** The row lights up after this many seconds (its tick 0.05 s later); null: the row waits for the report. */
   delay: number | null;
 }
@@ -43,13 +45,24 @@ export interface ScanScreenData {
   domain: string | null;
   /** True for an address from the API: shown in <bdi>. */
   domainFromApi?: boolean;
+  /**
+   * Session B2 part 3: the heading of a scan that ended without a report: the text after the address, and the whole
+   * heading without one. Without it: "{domain} wird nachgemessen" (reference).
+   */
+  heading?: { suffix: string; withoutHost: string };
+  /** The outlined link of the header: "Prüfung abbrechen" (reference), or "Neue Prüfung" after a scan without a report. */
+  action?: 'cancel' | 'new';
   drawingLabel: string; // the text description of the drawing (its aria-label)
   /** 1 for the example; below 1 the drawing, the pen and the carriage run faster (all within 5 s, session B2 part 2). */
   motionScale?: number;
   marks: PlotMark[];
   steps: ScanStep[];
   progress: ScanProgress;
-  report: { summary: Phrase; href: string; delay: number } | null; // "Bericht öffnen" once the report is ready
+  /**
+   * The panel at the end: "Fertig. Ihr Bericht ist gezeichnet." with "Bericht öffnen" once the report is ready (reference),
+   * or, after a scan without a report (session B2 part 3), its own heading with "Neue Prüfung".
+   */
+  report: { title?: string; summary: Phrase; href: string; label?: string; delay: number } | null;
   /** The real scan only: the status line (role="status"); undefined on the example page, which has none. */
   status?: string;
 }

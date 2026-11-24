@@ -15,6 +15,9 @@ export const isScanId = (value: string): boolean => ID.test(value);
 
 export type ScanStatusName = 'queued' | 'running' | 'done' | 'error';
 
+/** Why a scan ended without a report (session B2 part 3): its last visitor cancelled it, the day's cap, our error. */
+export type ScanErrorReason = 'cancelled' | 'daily-limit' | 'other';
+
 export interface ApiScan {
   id: string;
   status: ScanStatusName;
@@ -25,6 +28,52 @@ export interface ApiScan {
   startedAt: string | null;
   /** Only in the answer to the start: the token for "Prüfung abbrechen". */
   cancelToken: string | null;
+  /** Status `error` only: why the scan ended without a report; `other` for an unknown value. */
+  errorReason: ScanErrorReason | null;
+}
+
+/**
+ * Why the API refused a start (session B2 part 3), from its code: the address (`invalid`, `not-found`, `not-allowed`
+ * with the rule), the visitor's limits (`rate`), the day's cap of the service (`busy`), or our own failure (`ours`,
+ * also no answer at all). `retryAfter` is the `Retry-After` of the answer in seconds, else its `retryAfterSeconds`.
+ */
+export type Refusal =
+  | { kind: 'invalid' }
+  | { kind: 'not-found' }
+  | { kind: 'not-allowed'; reason: AddressRule | null }
+  | { kind: 'rate'; limit: 'hour' | 'day' | 'starts'; retryAfter: number | null }
+  | { kind: 'busy'; retryAfter: number | null }
+  | { kind: 'ours'; retryAfter: number | null };
+
+/** The rules of an address the API names with `address-not-allowed` (`UrlRejection` of the scanner, without the ones it answers otherwise). */
+export type AddressRule = 'scheme' | 'credentials' | 'port' | 'host-name' | 'address';
+const ADDRESS_RULES: readonly AddressRule[] = ['scheme', 'credentials', 'port', 'host-name', 'address'];
+const LIMITS = ['hour', 'day', 'starts'] as const;
+/** A wait longer than two days is no answer we trust. */
+const MAX_RETRY_SECONDS = 2 * 24 * 3600;
+
+/** Seconds of a `Retry-After` header (a number of seconds; a date is not sent by our API), or of the body's field. */
+function retryAfterOf(header: string | null, body: Record<string, unknown> | null): number | null {
+  const fromHeader = header !== null && /^\d{1,7}$/.test(header.trim()) ? Number(header.trim()) : null;
+  const fromBody = typeof body?.retryAfterSeconds === 'number' && Number.isInteger(body.retryAfterSeconds) ? body.retryAfterSeconds : null;
+  const seconds = fromHeader ?? fromBody;
+  return seconds !== null && seconds >= 0 && seconds <= MAX_RETRY_SECONDS ? seconds : null;
+}
+
+/** The refusal of a start from the status, the `Retry-After` header and the body of the answer. */
+export function refusalOf(status: number, retryAfterHeader: string | null, body: unknown): Refusal {
+  const b = typeof body === 'object' && body !== null && !Array.isArray(body) ? (body as Record<string, unknown>) : null;
+  const code = typeof b?.error === 'string' ? b.error : null;
+  const retryAfter = retryAfterOf(retryAfterHeader, b);
+  if (status === 400 && code === 'invalid-address') return { kind: 'invalid' };
+  if (status === 400 && code === 'address-not-found') return { kind: 'not-found' };
+  if (status === 400 && code === 'address-not-allowed') {
+    const reason = ADDRESS_RULES.find((r) => r === b?.reason) ?? null;
+    return { kind: 'not-allowed', reason };
+  }
+  if (status === 429 && code === 'rate-limited') return { kind: 'rate', limit: LIMITS.find((l) => l === b?.limit) ?? 'hour', retryAfter };
+  if (status === 503 && code === 'daily-limit') return { kind: 'busy', retryAfter };
+  return { kind: 'ours', retryAfter };
 }
 
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; status: number };
@@ -41,7 +90,9 @@ export function parseScan(value: unknown): ApiScan | null {
   const position = typeof v.queuePosition === 'number' && Number.isInteger(v.queuePosition) && v.queuePosition >= 0 && v.queuePosition <= 100_000 ? v.queuePosition : null;
   const startedAt = typeof v.startedAt === 'string' && !Number.isNaN(Date.parse(v.startedAt)) ? v.startedAt : null;
   const token = typeof v.cancelToken === 'string' && ID.test(v.cancelToken) ? v.cancelToken : null;
-  return { id: v.id, status: v.status as ScanStatusName, displayHost: host, queuePosition: position, startedAt, cancelToken: token };
+  const status = v.status as ScanStatusName;
+  const errorReason: ScanErrorReason | null = status !== 'error' ? null : v.errorReason === 'cancelled' || v.errorReason === 'daily-limit' ? v.errorReason : 'other';
+  return { id: v.id, status, displayHost: host, queuePosition: position, startedAt, cancelToken: token, errorReason };
 }
 
 async function json(response: Response): Promise<unknown> {
@@ -52,17 +103,17 @@ async function json(response: Response): Promise<unknown> {
   }
 }
 
-/** `POST /api/scans`: 202 a new scan, 200 a scan from the cache; anything else is an error for now (part 3 builds the states). */
-export async function startScan(url: string): Promise<ApiResult<ApiScan>> {
+/** `POST /api/scans`: 202 a new scan, 200 a scan from the cache; anything else is a refusal (session B2 part 3). */
+export async function startScan(url: string): Promise<{ ok: true; value: ApiScan } | { ok: false; refusal: Refusal }> {
   let response: Response;
   try {
     response = await fetch('/api/scans', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url }), signal: AbortSignal.timeout(TIMEOUT_MS) });
   } catch {
-    return { ok: false, status: 0 };
+    return { ok: false, refusal: { kind: 'ours', retryAfter: null } };
   }
-  if (response.status !== 200 && response.status !== 202) return { ok: false, status: response.status };
+  if (response.status !== 200 && response.status !== 202) return { ok: false, refusal: refusalOf(response.status, response.headers.get('retry-after'), await json(response)) };
   const scan = parseScan(await json(response));
-  return scan === null ? { ok: false, status: 0 } : { ok: true, value: scan };
+  return scan === null ? { ok: false, refusal: { kind: 'ours', retryAfter: null } } : { ok: true, value: scan };
 }
 
 /** `GET /api/scans/{id}`. Status 0: no answer, or an answer of the wrong shape. */

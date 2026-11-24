@@ -574,9 +574,58 @@ All texts of the real scan screen and of the form live in `web/lib/scan-texts.ts
 
 ### Temporary messages of part 2
 
-- Scan screen: "Das hat nicht geklappt. Bitte versuchen Sie es später noch einmal." (every answer with an error: unknown id, the scan ended with our error, the report could not be read, three status requests in a row without an answer).
-- Form of the home page: "Das hat nicht geklappt. Bitte prüfen Sie die Adresse und versuchen Sie es noch einmal." (every refused start: empty field, invalid or refused address, limits, "heute ausgelastet", our errors). Shown under "Website prüfen" in the light red of the marks, `role="alert"`.
-- Both are replaced by the states of part 3.
+- Removed in part 3 (24.11.2026): "Das hat nicht geklappt. Bitte versuchen Sie es später noch einmal." (scan screen) and "Das hat nicht geklappt. Bitte prüfen Sie die Adresse und versuchen Sie es noch einmal." (form). The states of part 3 below replace them.
+- Status: ersetzt
+
+## Session B2 part 3
+
+The states that the design does not show, built only from elements of the reference (Fedor, B2 part 3). All texts live in `web/lib/scan-texts.ts`; every one of them is a draft. Each state opens at an address of its own in `npm run preview:examples`: the scan screen at `/pruefung/beispiel/<state>`, the form at `/beispiel/formular/<state>`. "Keine Funde bei fremden Diensten" (part 2) stays a draft (Fedor, B2 part 3, answer 3).
+
+### Form of the home page: a refused start
+
+Shown under "Website prüfen" in the light red of the marks, in a region with `role="alert"` that is there from the first paint and tied to the field (`aria-describedby`; `aria-invalid` only when the address is the problem); the focus goes back to the field. `{wann}` is the moment of `Retry-After`, rounded up to the next full minute, in the visitor's own time: "ab 14:25 Uhr" (today), "morgen ab 01:00 Uhr", "am 27.11. ab 14:04 Uhr"; "später" when the answer names no time.
+
+- Empty field: Bitte geben Sie die Adresse Ihrer Website ein, zum Beispiel ihre-website.de.
+- 400 `invalid-address`: Das ist keine Web-Adresse, die wir prüfen können. Bitte geben Sie sie so ein: ihre-website.de.
+- 400 `address-not-found`: Zu dieser Adresse finden wir keinen Server. Bitte prüfen Sie die Schreibweise.
+- 400 `address-not-allowed`, by its rule: `scheme` "Wir prüfen nur Adressen, die mit http:// oder https:// beginnen."; `credentials` "Bitte geben Sie die Adresse ohne Benutzernamen und Passwort ein."; `port` "Wir prüfen nur Websites auf den üblichen Ports. Bitte geben Sie die Adresse ohne Portnummer ein."; `host-name` "Diese Adresse ist nicht öffentlich erreichbar. Wir prüfen nur öffentliche Websites."; `address` "Diese Adresse führt zu keinem öffentlichen Server. Wir prüfen nur öffentliche Websites."; any other "Diese Adresse können wir nicht prüfen. Wir prüfen nur öffentliche Websites."
+- 429 `rate-limited`, `limit` `hour`: Sie haben in dieser Stunde so viele Prüfungen gestartet, wie wir einem Besucher erlauben. Die nächste ist {wann} möglich.
+- 429 `rate-limited`, `limit` `day`: Sie haben heute so viele Prüfungen gestartet, wie wir einem Besucher an einem Tag erlauben. Die nächste ist {wann} möglich.
+- 429 `rate-limited`, `limit` `starts`: Sie haben in kurzer Zeit sehr viele Prüfungen gestartet. Die nächste ist {wann} möglich.
+- 503 `daily-limit` ("heute ausgelastet"): Heute sind alle Prüfungen vergeben. Die nächste ist {wann} möglich.
+- Our errors (503 `queue-unavailable`, `not-configured`, `dns-unavailable`, any other answer, no answer): Bei uns ist gerade ein Fehler aufgetreten. Bitte versuchen Sie es {wann} noch einmal. (without a time: "… in einigen Minuten noch einmal.")
+- The texts name no number of scans, so they stay true when the limits change (`docs/backlog.md`, stage C).
+- Status: Entwurf
+
+### Scan screen: rows of the "Messprotokoll" that the report did not check
+
+- A part the report did not check is lit, without a tick: the name of its step ("Barrierefreiheit prüfen") with the line "nicht geprüft", or "nicht geprüft, Schnellprüfung ohne Browser" (quick check), "nicht geprüft, bitte manuell prüfen" (mandatory information when the Impressum page was not read), "nicht geprüft, kein Impressum geöffnet" (no Impressum link).
+- Quick check, first row: "Quelltext der Seite gelesen" with "ohne Browser, so wie Ihr Server ihn ausliefert".
+- Blocked: "Prüfung blockiert" with "Ihre Website hat unseren Browser nicht durchgelassen" (and "(Antwort {Status})" when there was one).
+- Failed: "Seite nicht geladen" with the reason: "sie hat nicht rechtzeitig geantwortet" (timeout), "der Server war nicht erreichbar", "der Server hat mit dem Fehler {Status} geantwortet", "unter dieser Adresse gibt es keine Website", "sie stellt mehr Anfragen oder liefert mehr Daten, als die Prüfung aufzeichnet" (page limit), "unter der Adresse liegt keine Webseite, sondern eine Datei" (not HTML), "bei der Prüfung ist ein Fehler aufgetreten" (other).
+- Refused address: "Adresse nicht geprüft" with "wir prüfen nur Adressen mit http:// oder https://", "die Adresse enthält einen Benutzernamen oder ein Passwort", "wir prüfen nur die üblichen Ports 80 und 443", "die Adresse oder eine Weiterleitung führt zu keinem öffentlichen Server", "zu dieser Adresse gibt es keinen Server", "die Seite leitet mehr als fünfmal weiter", "die Adresse ist für die Prüfung nicht zugelassen".
+- Services on an almost empty page (tag "manuell prüfen"): "{n} fremde Dienste, bitte manuell prüfen" ("1 fremder Dienst, …") with their names, a tick.
+- The Impressum: "Impressum auf der Startseite" with "als Abschnitt, ohne eigene Seite" (an anchor of the homepage, one page asked for); "Impressum gefunden" with "als PDF, das wir nicht lesen", "die Seite ließ sich nicht lesen, bitte manuell prüfen" or "nicht geöffnet, bitte manuell prüfen". "Impressum-Link nicht gefunden" is red with "!" only when the report gives it a risk; on an almost empty page or in a quick check it has a tick.
+- Status: Entwurf
+
+### Scan screen: the summary, the status line and the drawing for a report that is not a plain complete check
+
+- Summary of a quick check: "{Funde}. Schnellprüfung ohne Browser. Die vollständige Prüfung ist morgen wieder möglich." (the last sentence is the brief's).
+- Almost empty page: "Die Seite hat bei unserem Besuch fast keinen Inhalt gezeigt. Deshalb zeigt der Bericht keine Funde, nur Punkte, die Sie bitte manuell prüfen."
+- Blocked: "Ihre Website hat unsere Prüfung blockiert. Deshalb zeigt der Bericht keine Funde." Failed: "Ihre Startseite ließ sich nicht prüfen. Deshalb zeigt der Bericht keine Funde." Refused: "Diese Adresse dürfen wir nicht prüfen. Deshalb zeigt der Bericht keine Funde." All of them keep "Fertig. Ihr Bericht ist gezeichnet." and "Bericht öffnen": the report (B3) explains the state.
+- Status line: "Die Schnellprüfung ist fertig. Der Bericht ist bereit."; "Die Prüfung ist beendet: Ihre Website hat sie blockiert. Der Bericht ist bereit."; "Die Prüfung ist beendet: Ihre Startseite ließ sich nicht prüfen. Der Bericht ist bereit."; "Die Prüfung ist beendet: Diese Adresse dürfen wir nicht prüfen. Der Bericht ist bereit."; while several status requests in a row get no answer (the page keeps asking): "Keine Verbindung zu unserem Server. Wir versuchen es weiter."
+- Drawing (aria-label) of a scan that measured nothing: "Der Plotter zeichnet eine Startseite ohne Markierungen, denn diese Prüfung hat sie nicht gemessen."
+- Status: Entwurf
+
+### Scan screen: a scan that ended without a report
+
+The panel of "Bericht öffnen" with its own heading and line and the button "Neue Prüfung" (to the home page); the header shows "Neue Prüfung" (the outlined link of the report's header in bericht.html) instead of "Prüfung abbrechen"; every row "nicht geprüft"; the status line says the heading of the panel. The page heading is "{Adresse} wurde nicht nachgemessen" ("Ihre Website wurde nicht nachgemessen" without an address, "Prüfung nicht gefunden" for an unknown scan).
+
+- Cancelled by its last visitor, opened later by a link: "Diese Prüfung wurde abgebrochen." / "Sie wurde aus der Warteschlange genommen, bevor sie begann. Deshalb gibt es keinen Bericht."
+- The day's cap was reached at its start: "Heute sind alle Prüfungen vergeben." / "Diese Prüfung konnte nicht mehr beginnen. Die nächste ist {wann} möglich." (the next 00:00 UTC in the visitor's time).
+- Our error: "Die Prüfung ist bei uns fehlgeschlagen." / "Das liegt nicht an Ihrer Website. Bitte starten Sie eine neue Prüfung."
+- Unknown scan (404, or a broken link): "Diese Prüfung finden wir nicht." / "Der Link ist unvollständig, oder die Prüfung ist nicht mehr gespeichert."
+- The report could not be read three times: "Den Bericht können wir gerade nicht anzeigen." / "Bitte laden Sie diese Seite in einigen Minuten neu, oder starten Sie eine neue Prüfung."
 - Status: Entwurf
 
 ## Sources

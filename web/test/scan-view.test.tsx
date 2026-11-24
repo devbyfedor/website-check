@@ -43,7 +43,7 @@ function motionEnds(screen: ScanScreenData): number[] {
 }
 
 describe('before the report: no result, no number, no mark (Fedor, answer 1)', () => {
-  for (const phase of ['loading', 'queued', 'running', 'error'] as const) {
+  for (const phase of ['loading', 'queued', 'running'] as const) {
     it(`${phase}: every row waits, with the name of its step and nothing else`, () => {
       const screen = liveScreen(state({ phase, queuePosition: 3, runningSince: 4.2 }));
       expect(screen.steps).toHaveLength(8);
@@ -80,7 +80,7 @@ describe('with the report: rows, marks, summary and the link (Fedor, answer 1)',
     expect(flat(screen.steps[1]?.detail)).toBe(SCAN_TEXTS.requestsThirdParty(r.scan.requests?.thirdParty ?? -1));
     expect(SCAN_TEXTS.requestsThirdParty(9)).toBe('davon 9 an fremde Server');
     expect(SCAN_TEXTS.requestsThirdParty(1)).toBe('davon 1 an einen fremden Server');
-    const services = r.services.filter((s) => s.severity === 'finding');
+    const services = r.services.filter((s) => s.findingId !== null && r.findings.find((f) => f.id === s.findingId)?.kind === 'finding');
     expect(screen.steps[3]?.finding).toBe(services.length > 0);
     expect(flat(screen.steps[3]?.title)).toBe(SCAN_TEXTS.servicesBefore(services.length));
     expect(flat(screen.steps[3]?.detail).startsWith(services[0]!.name)).toBe(true);
@@ -109,13 +109,6 @@ describe('with the report: rows, marks, summary and the link (Fedor, answer 1)',
     expect(summaryOf(fixture)).toBe('7 Funde, davon 3 vorrangig.');
   });
 
-  it('shows a report that is not a plain complete check without rows, numbers or marks (part 3 builds its state)', () => {
-    const quick = { ...r, state: 'quick' as const, notice: { textId: 'report-quick-incomplete', params: {} } };
-    const other = liveScreen(state({ phase: 'done', report: quick }));
-    expect(other.steps.every((s) => s.delay === null)).toBe(true);
-    expect(other.marks).toEqual([]);
-    expect(other.report?.summary).toBe(SCAN_TEXTS.summaryOther);
-  });
 });
 
 describe('the marks stand only where they show the place of the finding (Fedor, B2 part 3, answer 1)', () => {
@@ -189,7 +182,9 @@ describe('the status line: a text only at real changes', () => {
     expect(statusOf({ phase: 'queued', queuePosition: 1 })).not.toBe(statusOf({ phase: 'queued', queuePosition: 2 }));
     expect(statusOf({ phase: 'running', queuePosition: null })).toBe(SCAN_TEXTS.statusRunning);
     expect(statusOf({ phase: 'done', queuePosition: null })).toBe(SCAN_TEXTS.statusDone);
-    expect(statusOf({ phase: 'error', queuePosition: null })).toBe(SCAN_TEXTS.statusError);
+    expect(statusOf({ phase: 'error', queuePosition: null, ended: 'cancelled' })).toBe(SCAN_TEXTS.ended.cancelled.title);
+    expect(statusOf({ phase: 'error', queuePosition: null })).toBe(SCAN_TEXTS.ended.other.title);
+    expect(statusOf({ phase: 'queued', queuePosition: 2, offline: true })).toBe(SCAN_TEXTS.statusOffline);
   });
 
   it('is one region with role="status" from the start; the example page of the checks has none', () => {
@@ -213,7 +208,10 @@ describe('strings of the scanned page and of the visitor (docs/report-schema.md)
 
   it('accepts only answers of the API in the expected shape', () => {
     const good = { id: ID, status: 'queued', displayHost: 'beispiel.de', queuePosition: 2, startedAt: null, cancelToken: 'a'.repeat(26) };
-    expect(parseScan(good)).toEqual({ id: ID, status: 'queued', displayHost: 'beispiel.de', queuePosition: 2, startedAt: null, cancelToken: 'a'.repeat(26) });
+    expect(parseScan(good)).toEqual({ id: ID, status: 'queued', displayHost: 'beispiel.de', queuePosition: 2, startedAt: null, cancelToken: 'a'.repeat(26), errorReason: null });
+    expect(parseScan({ ...good, status: 'error', errorReason: 'cancelled' })?.errorReason).toBe('cancelled');
+    expect(parseScan({ ...good, status: 'error', errorReason: '<b>x</b>' })?.errorReason).toBe('other');
+    expect(parseScan({ ...good, errorReason: 'cancelled' })?.errorReason).toBeNull();
     expect(parseScan({ ...good, id: '../x' })).toBeNull();
     expect(parseScan({ ...good, status: 'fertig' })).toBeNull();
     expect(parseScan([good])).toBeNull();

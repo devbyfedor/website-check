@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { cancelScan, fetchReport, fetchStatus, isScanId, type ApiScan } from '../../lib/scan-api';
 import { forgetScan, recallScan } from '../../lib/scan-store';
-import { liveScreen, type LiveScanState } from '../../lib/scan-view';
+import { liveScreen, type EndReason, type LiveScanState } from '../../lib/scan-view';
 import { ScanScreen } from './scan-screen';
 
 // The real scan screen (session B2 part 2): the id comes from the address (`/pruefung?id=…`); the status is polled
@@ -12,10 +12,10 @@ import { ScanScreen } from './scan-screen';
 
 /** Between two status requests (at most one a second by Fedor's rule). */
 export const POLL_MS = 2_000;
-/** After a request without an answer: the next one later, and the temporary message after a few in a row. */
+/** After a request without an answer: the next one later, and "Keine Verbindung" after a few in a row. */
 const RETRY_MS = 6_000;
 const FAILURES_SHOWN = 3;
-/** A report that could not be read is asked again this often before the temporary message. */
+/** A report that could not be read is asked again this often before the page says so. */
 const REPORT_TRIES = 3;
 /** "Prüfung abbrechen" waits at most this long for the API before it goes to the home page. */
 const CANCEL_WAIT_MS = 1_500;
@@ -51,7 +51,7 @@ export function LiveScan() {
     const id = new URLSearchParams(window.location.search).get('id') ?? '';
     if (!isScanId(id)) {
       phase.current = 'error';
-      setState({ ...initial, phase: 'error' });
+      setState({ ...initial, phase: 'error', ended: 'unknown', endedAt: Date.now() });
       return;
     }
     const stored = recallScan(id);
@@ -59,13 +59,17 @@ export function LiveScan() {
     let stopped = false;
     let failures = 0;
 
+    // Several requests in a row without an answer: the status line says so, and the page keeps asking (B2 part 3).
     const fail = (): Step => {
       failures += 1;
-      if (failures >= FAILURES_SHOWN && phase.current !== 'error') {
-        phase.current = 'error';
-        setState((s) => ({ ...s, phase: 'error' }));
-      }
+      if (failures === FAILURES_SHOWN) setState((s) => ({ ...s, offline: true }));
       return { next: 'poll', wait: RETRY_MS };
+    };
+    const end = (ended: EndReason, displayHost: string | null = null): Step => {
+      forgetScan(id);
+      phase.current = 'error';
+      setState((s) => ({ ...s, phase: 'error', ended, endedAt: Date.now(), offline: false, displayHost: displayHost ?? s.displayHost }));
+      return { next: 'stop' };
     };
 
     const finish = async (scan: ApiScan): Promise<Step> => {
@@ -75,16 +79,13 @@ export function LiveScan() {
         if (report.ok) {
           forgetScan(id);
           phase.current = 'done';
-          setState((s) => ({ ...s, phase: 'done', displayHost: scan.displayHost ?? s.displayHost, report: report.value, reportShownAt: secondsSinceLoad() }));
+          setState((s) => ({ ...s, phase: 'done', offline: false, displayHost: scan.displayHost ?? s.displayHost, report: report.value, reportShownAt: secondsSinceLoad() }));
           return { next: 'stop' };
         }
         if (attempt < REPORT_TRIES) await sleep(RETRY_MS);
         if (stopped) return { next: 'stop' };
       }
-      forgetScan(id);
-      phase.current = 'error';
-      setState((s) => ({ ...s, phase: 'error' }));
-      return { next: 'stop' };
+      return end('unreadable', scan.displayHost);
     };
 
     const poll = async (): Promise<Step> => {
@@ -92,27 +93,18 @@ export function LiveScan() {
       if (stopped) return { next: 'stop' };
       if (!answer.ok) {
         // 404: the id is unknown (or the scan was deleted); other answers may pass.
-        if (answer.status === 404) {
-          phase.current = 'error';
-          setState((s) => ({ ...s, phase: 'error' }));
-          return { next: 'stop' };
-        }
+        if (answer.status === 404) return end('unknown');
         return fail();
       }
       failures = 0;
       const scan = answer.value;
-      if (scan.status === 'error') {
-        phase.current = 'error';
-        forgetScan(id);
-        setState((s) => ({ ...s, phase: 'error', displayHost: scan.displayHost ?? s.displayHost }));
-        return { next: 'stop' };
-      }
+      if (scan.status === 'error') return end(scan.errorReason ?? 'other', scan.displayHost);
       if (scan.status === 'done') return finish(scan);
       const next = scan.status;
       setState((s) => {
         // The bar starts once, with the time the scan had already run; later answers do not move it.
         const since = next === 'running' && s.phase !== 'running' ? Math.min(BAR_SECONDS, Math.max(0, scan.startedAt === null ? 0 : (Date.now() - Date.parse(scan.startedAt)) / 1000)) : s.runningSince;
-        return { ...s, phase: next, displayHost: scan.displayHost ?? s.displayHost, queuePosition: next === 'queued' ? scan.queuePosition : null, runningSince: since };
+        return { ...s, phase: next, offline: false, displayHost: scan.displayHost ?? s.displayHost, queuePosition: next === 'queued' ? scan.queuePosition : null, runningSince: since };
       });
       phase.current = next;
       return { next: 'poll', wait: POLL_MS };

@@ -8,7 +8,7 @@ const BANG = 'M11 3.5v10M11 17.5v.6';
 
 // One row. The example lights each row at its time of the reference; the real scan (`live`) shows a row that waits
 // for the report dimmed at a contrast of at least 4.5:1 without a tick (Fedor, B2 part 2), and lights every row of
-// the report at once.
+// the report at once; a part the scan did not check is lit without a tick (B2 part 3).
 function Step({ step, live }: { step: ScanStep; live: boolean }) {
   const red = step.finding ? ` ${s.red}` : '';
   if (step.delay === null) {
@@ -24,12 +24,14 @@ function Step({ step, live }: { step: ScanStep; live: boolean }) {
   return (
     <li className={`${s.st}${live ? ` ${s.now}` : ''}${red}`} style={{ animationDelay: seconds(step.delay) }}>
       <svg viewBox="0 0 22 22" aria-hidden="true">
-        <path
-          className={`${s.ck}${red}`}
-          pathLength={1}
-          d={step.finding ? BANG : TICK}
-          style={{ animationDelay: seconds(step.delay + 0.05) }}
-        />
+        {step.unchecked ? null : (
+          <path
+            className={`${s.ck}${red}`}
+            pathLength={1}
+            d={step.finding ? BANG : TICK}
+            style={{ animationDelay: seconds(step.delay + 0.05) }}
+          />
+        )}
       </svg>
       <span className={s.stt}>
         <PhraseText phrase={step.title} />

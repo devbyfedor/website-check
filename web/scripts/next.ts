@@ -23,11 +23,19 @@ const args = process.argv.slice(2);
 const examples = args.includes('--examples');
 const nextArgs = args.filter((a) => a !== '--examples');
 
+// The example pages live under a path part "beispiel" (session B2 part 3: /pruefung/beispiel, its states, and
+// /beispiel/formular/…); no file of the production build may have one.
+const EXAMPLE_PATH = /(^|[\\/])beispiel([\\/.]|$)/;
+
 async function filesWithMarker(dir: string): Promise<string[]> {
   const hits: string[] = [];
   for (const entry of await readdir(dir, { withFileTypes: true, recursive: true })) {
-    if (!entry.isFile() || !/\.(html|js|txt|json|css)$/.test(entry.name)) continue;
     const path = join(entry.parentPath, entry.name);
+    if (EXAMPLE_PATH.test(relative(OUT_DIR, path))) {
+      hits.push(`${relative(OUT_DIR, path)} (an example page)`);
+      continue;
+    }
+    if (!entry.isFile() || !/\.(html|js|txt|json|css)$/.test(entry.name)) continue;
     if ((await readFile(path, 'utf8')).includes(EXAMPLE_MARKER)) hits.push(relative(OUT_DIR, path));
   }
   return hits;
@@ -45,7 +53,7 @@ child.on('exit', async (code, signal) => {
       console.error(`The production build contains the example data ("${EXAMPLE_MARKER}") in: ${hits.join(', ')}`);
       process.exit(1);
     }
-    console.log(`Production build: no example data in web/out (searched for "${EXAMPLE_MARKER}").`);
+    console.log(`Production build: no example page and no example data in web/out (searched for "beispiel" in the paths and "${EXAMPLE_MARKER}" in the files).`);
   }
   process.exit(code ?? 1);
 });

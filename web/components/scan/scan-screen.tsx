@@ -13,12 +13,13 @@ const AUTO_GRID_520 = 'grid grid-cols-[repeat(auto-fit,minmax(min(100%,520px),1f
 // nodes are anti-aliased differently); an address from the API is a string of the visitor and stands in <bdi>.
 function Heading({ scan }: { scan: ScanScreenData }) {
   const className = 'm-0 font-head text-[length:clamp(40px,4.6vw,68px)] leading-none font-semibold wrap-anywhere';
-  if (scan.domain === null) return <h1 className={className}>{SCAN_TEXTS.headingWithoutHost}</h1>;
-  if (!scan.domainFromApi) return <h1 className={className}>{`${scan.domain}${SCAN_TEXTS.headingSuffix}`}</h1>;
+  const suffix = scan.heading?.suffix ?? SCAN_TEXTS.headingSuffix;
+  if (scan.domain === null || suffix === '') return <h1 className={className}>{scan.heading?.withoutHost ?? SCAN_TEXTS.headingWithoutHost}</h1>;
+  if (!scan.domainFromApi) return <h1 className={className}>{`${scan.domain}${suffix}`}</h1>;
   return (
     <h1 className={className}>
       <bdi>{scan.domain}</bdi>
-      {SCAN_TEXTS.headingSuffix}
+      {suffix}
     </h1>
   );
 }
@@ -31,9 +32,13 @@ export function ScanScreen({ scan, onCancel }: { scan: ScanScreenData; onCancel?
   return (
     <>
       <SiteHeader>
-        <HeaderAction href="/" {...(onCancel !== undefined ? { onClick: onCancel } : {})}>
-          Prüfung abbrechen
-        </HeaderAction>
+        {scan.action === 'new' ? (
+          <HeaderAction href="/">{SCAN_TEXTS.newScan}</HeaderAction>
+        ) : (
+          <HeaderAction href="/" {...(onCancel !== undefined ? { onClick: onCancel } : {})}>
+            Prüfung abbrechen
+          </HeaderAction>
+        )}
       </SiteHeader>
       <main className="mx-auto box-border flex w-full max-w-page flex-1 flex-col gap-10 px-8 pt-4 pb-16">
         <section className="flex flex-col gap-3">
@@ -42,7 +47,7 @@ export function ScanScreen({ scan, onCancel }: { scan: ScanScreenData; onCancel?
             Wir öffnen Ihre Seite wie ein Besucher aus Deutschland, der noch nichts angeklickt hat. Das dauert etwa 30 Sekunden.
           </p>
           {/* The real scan only (session B2 part 2): one status region from the start; its text changes only when the
-              scan does (in the queue with its place, running, ready, or the temporary message of an error). */}
+              scan does (in the queue with its place, running, ready, the end of a scan without a report, no connection). */}
           {scan.status !== undefined ? (
             <p role="status" className="m-0 min-h-[1.55em] font-head text-[19px] leading-[1.55] text-cyan">
               {scan.status}
