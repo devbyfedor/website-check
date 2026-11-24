@@ -159,6 +159,13 @@ describe('wrangler configs of the two Workers (A5 part 4)', () => {
     });
   }
 
+  it('the production API Worker serves the static site and runs only for /api/* (session B2 part 2)', () => {
+    const api = parseJsonc(resolve(WORKER_ROOT, 'wrangler.jsonc')) as Record<string, any>;
+    expect(api['assets']).toEqual({ directory: '../web/out', not_found_handling: '404-page', run_worker_first: ['/api/*'] });
+    expect(api['assets']['binding']).toBeUndefined();
+    expect((parseJsonc(resolve(WORKER_ROOT, 'wrangler.scanner.jsonc')) as Record<string, any>)['assets']).toBeUndefined();
+  });
+
   it('only the production API Worker has the hourly cleanup', () => {
     expect((parseJsonc(resolve(WORKER_ROOT, 'wrangler.jsonc')) as Record<string, any>)['triggers']).toEqual({ crons: ['0 * * * *'] });
     expect((parseJsonc(resolve(WORKER_ROOT, 'wrangler.scanner.jsonc')) as Record<string, any>)['triggers']).toBeUndefined();

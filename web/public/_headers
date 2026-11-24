@@ -1,0 +1,6 @@
+# Workers Static Assets: headers of the static pages (session B2 part 2). The page with the id of a scan is never
+# indexed (Fedor, B2 part 2); the page also carries <meta name="robots" content="noindex, nofollow">.
+/pruefung
+  X-Robots-Tag: noindex, nofollow
+/pruefung.html
+  X-Robots-Tag: noindex, nofollow

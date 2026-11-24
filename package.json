@@ -28,7 +28,8 @@
     "motion": "npm run build:examples --workspace web && node web/scripts/motion.ts",
     "a11y": "npm run build:examples --workspace web && node web/scripts/a11y.ts",
     "preview": "npm run build:web && node web/scripts/serve.ts",
-    "preview:examples": "npm run build:examples --workspace web && node web/scripts/serve.ts"
+    "preview:examples": "npm run build:examples --workspace web && node web/scripts/serve.ts",
+    "dev:local": "node web/scripts/dev-local.ts"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

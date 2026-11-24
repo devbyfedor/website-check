@@ -22,6 +22,14 @@
     "logs": { "enabled": false, "invocation_logs": false },
     "traces": { "enabled": false }
   },
+  // Session B2 part 2: the site itself (the static export of `web/`, `npm run build:web`) is served by Workers Static
+  // Assets from this Worker, so pages and API share one host; only `/api/*` runs the Worker (static requests are free
+  // and do not count as Worker requests). The scan screen `/pruefung?id=…` is the file `pruefung.html`.
+  "assets": {
+    "directory": "../web/out",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/api/*"]
+  },
   // Hourly: delete the salts of earlier days and rate-limit events older than an hour, also without traffic,
   // and end scans stuck for half an hour. Free plan; it runs only once the Worker is deployed.
   "triggers": { "crons": ["0 * * * *"] },
