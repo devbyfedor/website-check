@@ -260,6 +260,19 @@ describe('session fix-a6: the page cannot give axe a false result, and a CSP met
     });
   }
 
+  it('"Feld B2": an image without alt in A1, grey text in B2, an iframe of another host in D3', async () => {
+    const { capture } = await captureWithCdpEvents(browser, fixture.url('www.field.test', '/feld'), options({ axeSource: await loadAxeSource(), maxWaitMs: 4_000 }));
+    expect(capture.axe?.status, capture.axe?.error ?? '').toBe('ok');
+    expect(capture.axe?.rules['image-alt']?.examples[0]?.field).toBe('A1');
+    expect(capture.axe?.rules['color-contrast']?.examples[0]?.field).toBe('B2');
+    expect(capture.axe?.positions?.hosts['karte.mapco.test']).toEqual(['D3']);
+    const report = reportOf(capture);
+    const field = (id: string) => report.findings.find((f) => f.id === id)?.field;
+    expect(field('a11y:image-alt')).toBe('A1');
+    expect(field('a11y:color-contrast')).toBe('B2');
+    expect(field('third-party:unknown:mapco.test')).toBe('D3');
+  });
+
   it('finding 77: a CSP meta element in <body> is not read, one in <head> is', async () => {
     const body = await captureWithCdpEvents(browser, fixture.url('www.hostile.test', '/csp-meta-body'), options({ maxWaitMs: 3_000 }));
     expect(body.capture.page?.securityMeta).toEqual({ csp: null, referrer: null });

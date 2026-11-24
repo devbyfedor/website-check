@@ -396,6 +396,8 @@ function limitExamples(value: unknown, tally: Tally): AxeExample[] {
       target: target.slice(0, CAPTURE_LIMITS.axeTargetParts).map((part) => str(part, CAPTURE_LIMITS.axeTargetLength, tally)),
       html: str(v['html'], CAPTURE_LIMITS.axeHtmlLength, tally),
       contrast: limitContrast(v['contrast'] as AxeContrast | null, tally),
+      // Session fix-a6 ("Feld B2"): only a field of the grid.
+      ...(typeof v['field'] === 'string' && /^[A-D][1-3]$/.test(v['field']) ? { field: v['field'] } : {}),
     };
   });
 }

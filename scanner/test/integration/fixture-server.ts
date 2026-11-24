@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { resolve } from 'node:path';
 import { createLocalGuard } from '../../src/local/node-resolver.ts';
 import { heavyPage } from './heavy-pages.ts';
-import { CSP_META_PAGES, HOSTILE_AXE_PAGES } from './hostile-a6-pages.ts';
+import { CSP_META_PAGES, fieldPage, HOSTILE_AXE_PAGES } from './hostile-a6-pages.ts';
 
 /** Accessibility fixture pages of session A3, served as `www.a11y.test/<file>`. */
 const A11Y_DIR = resolve(import.meta.dirname, '../../fixtures/a11y');
@@ -362,7 +362,9 @@ export const IMAGE_PAGES: Record<string, { body: string; described: number; deco
   'hidden-only': { body: `<div style="display:none">${figure('')}</div><div aria-hidden="true">${figure('')}</div>`, described: 0, decorative: 0, without: 0 },
   'no-images': { body: '', described: 0, decorative: 0, without: 0 },
 };
-// Session fix-a6, review findings 26 and 77.
+// Session fix-a6, review findings 26 and 77, and "Feld B2".
+route('www.field.test', '/feld', (_req, res, port) => send(res, 200, 'text/html; charset=utf-8', fieldPage(`http://karte.mapco.test:${port}/embed`)));
+route('karte.mapco.test', '/embed', (_req, res) => send(res, 200, 'text/html; charset=utf-8', '<!doctype html><title>Karte</title><p>Karte</p>'));
 for (const [name, body] of Object.entries({ ...HOSTILE_AXE_PAGES, ...CSP_META_PAGES })) route('www.hostile.test', `/${name}`, (_req, res) => send(res, 200, 'text/html; charset=utf-8', body));
 for (const [name, page] of Object.entries(IMAGE_PAGES)) route('www.images.test', `/${name}`, (_req, res) => send(res, 200, 'text/html; charset=utf-8', imagePage(page.body)));
 

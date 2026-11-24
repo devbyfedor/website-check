@@ -3,7 +3,7 @@ import type { AccessibilityAnalysis, A11yCheck } from '../analyzers/accessibilit
 import type { LegalAnalysis } from '../analyzers/legal.ts';
 import type { SecurityAnalysis } from '../analyzers/security.ts';
 import type { DetectedService, ThirdPartyAnalysis } from '../analyzers/third-party.ts';
-import type { AxeExample } from '../a11y/types.ts';
+import type { AxeExample, AxePositions } from '../a11y/types.ts';
 import { limitCapture } from '../capture/limits.ts';
 import type { Capture, CapturedRequest } from '../capture/types.ts';
 import { firstPartySites, hostOf, siteOfUrl } from '../domain/site.ts';
@@ -227,7 +227,27 @@ function shownEvidence<T extends { reachedServer: boolean }>(list: readonly T[])
   return reached === undefined ? first : [...first.slice(0, max - 1), reached];
 }
 
-function thirdPartyFindings(analysis: ThirdPartyAnalysis): Finding[] {
+/**
+ * Session fix-a6 ("Feld B2"): the field of the plan where the page shows an element that loads a file of the service
+ * (an image, an iframe, a video): the first such element of its first host that has one. Null when none has a box
+ * (a script or a font loaded from the head has none) or the capture has no positions.
+ */
+function serviceField(service: DetectedService, positions: AxePositions | null): string | null {
+  if (positions === null) return null;
+  for (const host of service.hosts) {
+    const field = positions.hosts[host]?.[0];
+    if (field !== undefined) return field;
+  }
+  return null;
+}
+
+/** Session fix-a6 ("Feld B2"): the field of the first example element that has one. */
+function exampleField(examples: readonly AxeExample[]): string | null {
+  for (const e of examples) if (typeof e.field === 'string' && /^[A-D][1-3]$/.test(e.field)) return e.field;
+  return null;
+}
+
+function thirdPartyFindings(analysis: ThirdPartyAnalysis, positions: AxePositions | null = null): Finding[] {
   const out: Finding[] = [];
   for (const service of analysis.services) {
     if (service.severity === 'none') continue;
@@ -257,6 +277,7 @@ function thirdPartyFindings(analysis: ThirdPartyAnalysis): Finding[] {
           beforeBanner: service.startsBeforeBanner,
         },
         serviceKey: reportServiceKey(service.key),
+        field: serviceField(service, positions),
         // Only a request that got an answer certainly sent data to the third party (review of A5 part 2).
         beforeConsent: service.confirmed,
         evidence,
@@ -473,7 +494,7 @@ function accessibilityFindings(a11y: AccessibilityAnalysis): Finding[] {
         params.expected = a11y.lowestContrast.expected;
       }
       if (check.id === 'page-language') params.value = a11y.invalidLang === null ? null : clip(a11y.invalidLang, 100);
-      out.push(finding({ id: `a11y:${name}`, area: 'accessibility', kind: 'finding', risk: 'medium', textId: check.textId ?? `a11y-${name}`, params, evidence: elementEvidence(check.examples) }));
+      out.push(finding({ id: `a11y:${name}`, area: 'accessibility', kind: 'finding', risk: 'medium', textId: check.textId ?? `a11y-${name}`, params, field: exampleField(check.examples), evidence: elementEvidence(check.examples) }));
     }
     // Session fix-a2: images marked as decoration pass the axe rule without a description; whether the mark
     // is right is a manual check, next to whatever else the check found. It does not change the Prüfmaß
@@ -489,6 +510,7 @@ function accessibilityFindings(a11y: AccessibilityAnalysis): Finding[] {
           kind: 'manual',
           textId: check.manual.textId,
           params: { check: name, count: check.manual.count },
+          field: exampleField(check.manual.examples),
           evidence: elementEvidence(check.manual.examples),
         }),
       );
@@ -861,7 +883,7 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
 
   const tp = sections.thirdParty.status === 'checked' ? analysis.thirdParty : null;
   const all: Finding[] = [];
-  if (tp !== null) all.push(...thirdPartyFindings(tp));
+  if (tp !== null) all.push(...thirdPartyFindings(tp, capture.axe?.status === 'ok' ? (capture.axe.positions ?? null) : null));
   const almostEmpty = analysis.almostEmpty !== null;
   const linksCut = capture.page?.linksTruncated === true;
   if (loaded && sections.legal.status === 'checked' && analysis.legal !== null) all.push(...legalFindings(analysis.legal, shop, almostEmpty, options.mode, linksCut));

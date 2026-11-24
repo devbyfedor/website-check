@@ -105,8 +105,10 @@ describe('AXE_RUN_EXPRESSION in the page', () => {
       target: ['p:nth-child(1)'],
       html: '<p class="c0">Text 0</p>',
       contrast: { ratio: 2, expected: '4.5:1', fgColor: '#999999', bgColor: '#ffffff', fontSize: '12.0pt (16px)', fontWeight: 'normal', messageKey: null },
+      // Session fix-a6 ("Feld B2"): the fake nodes of this test have no element, so no field.
+      field: null,
     });
-    expect(rules['color-contrast']?.incompleteExamples).toEqual([{ target: ['.hero p'], html: '<p>', contrast: { ratio: null, expected: null, fgColor: null, bgColor: null, fontSize: null, fontWeight: null, messageKey: 'bgImage' } }]);
+    expect(rules['color-contrast']?.incompleteExamples).toEqual([{ target: ['.hero p'], html: '<p>', contrast: { ratio: null, expected: null, fgColor: null, bgColor: null, fontSize: null, fontWeight: null, messageKey: 'bgImage' }, field: null }]);
     expect(rules['image-alt']).toMatchObject({ violations: 1, passes: 2, impact: 'critical', examples: [{ target: ['img.logo'], contrast: null }] });
     expect(rules['link-name']).toEqual({ violations: 0, incomplete: 0, passes: 0, impact: null, examples: [], incompleteExamples: [] });
     expect(result['lowestContrast']).toMatchObject({ violation: { ratio: 2 }, pass: { ratio: 4.6 } });

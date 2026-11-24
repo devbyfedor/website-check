@@ -49,3 +49,17 @@ export const CSP_META_PAGES: Record<string, string> = {
   'csp-meta-body': `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Test</title></head><body>${TEXT}<meta http-equiv="Content-Security-Policy" content="img-src 'none'"><footer><a href="/impressum">Impressum</a></footer></body></html>`,
   'csp-meta-head': `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="img-src 'self'"><title>Test</title></head><body>${TEXT}<footer><a href="/impressum">Impressum</a></footer></body></html>`,
 };
+
+/**
+ * Session fix-a6 ("Feld B2"): a page of 1440 × 3000 px with three elements at known places of the 4 × 3 grid: an
+ * image without alt in A1, grey text in B2, an iframe of another host in D3 (`iframeUrl`).
+ */
+export function fieldPage(iframeUrl: string): string {
+  const at = (left: number, top: number, width: number, height: number): string => `position:absolute;left:${left}px;top:${top}px;width:${width}px;height:${height}px`;
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Feld</title></head><body style="margin:0;height:3000px;position:relative;font:16px sans-serif">
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" style="${at(40, 40, 100, 100)}">
+<p style="${at(400, 1400, 200, 40)};margin:0;color:#bbbbbb;background:#ffffff">Grauer Text</p>
+<iframe title="Karte" src="${iframeUrl}" style="${at(1200, 2700, 200, 150)};border:0"></iframe>
+<footer style="${at(0, 2950, 400, 40)}"><a href="/impressum">Impressum</a> <a href="/datenschutz">Datenschutz</a></footer>
+</body></html>`;
+}
