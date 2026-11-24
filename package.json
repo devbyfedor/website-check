@@ -8,20 +8,26 @@
   },
   "workspaces": [
     "scanner",
-    "worker"
+    "worker",
+    "web"
   ],
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --config scanner/vitest.integration.config.ts && vitest run --config worker/vitest.integration.config.ts",
-    "typecheck": "tsc -p scanner && tsc -p worker",
+    "typecheck": "tsc -p scanner && tsc -p worker && npm run typecheck --workspace web",
     "scan:local": "node scanner/src/local/run-sites.ts",
     "explain": "node scanner/src/local/explain.ts",
     "fixtures:snapshots": "node scanner/src/local/make-fixture-snapshots.ts",
     "report:check": "node scanner/src/local/report-check.ts",
     "lab:e2e": "node scanner/src/local/e2e-lab.ts",
     "lab:e2e:dev": "node scanner/src/local/lab-e2e-dev.ts",
-    "lab:cpu": "node scanner/src/local/cpu-lab.ts"
+    "lab:cpu": "node scanner/src/local/cpu-lab.ts",
+    "build:web": "npm run build --workspace web",
+    "visual": "npm run build --workspace web && node web/scripts/visual.ts",
+    "motion": "npm run build --workspace web && node web/scripts/motion.ts",
+    "a11y": "npm run build --workspace web && node web/scripts/a11y.ts",
+    "preview": "npm run build:web && node web/scripts/serve.ts"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

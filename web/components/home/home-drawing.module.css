@@ -1,0 +1,118 @@
+/*
+  The home drawing (design/reference/start.html): how its lines are drawn and its labels appear, the
+  callouts of the four layers and their notes. The line styles are shared (blueprint/drawing.module.css).
+*/
+
+/* A drawn line (pathLength="1"): one dash, its offset runs from 1 to 0. The delay of each element is inline, as in the reference. */
+.draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation-name: draw;
+  animation-duration: var(--wc-draw-duration);
+  animation-timing-function: var(--ease-draw);
+  animation-fill-mode: forwards;
+}
+/* Callouts, notes and labels: fade in and grow from 60 %. */
+.pop {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation-name: pop;
+  animation-duration: var(--wc-pop-duration);
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* The dimension label "1440 px". */
+.dimt {
+  fill: var(--color-cyan);
+  font-family: var(--font-head);
+  font-size: 13px;
+  text-anchor: middle;
+}
+
+/* Callouts 1 to 4: a leader line and a numbered circle, filled when its layer is active. */
+.lead {
+  fill: none;
+  stroke: var(--color-pencil-light);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.callc {
+  fill: var(--color-blueprint);
+  stroke: var(--color-pencil-light);
+  stroke-width: 1.8;
+  transition: fill 0.2s;
+}
+.callt {
+  fill: var(--color-pencil-light);
+  font-family: var(--font-head);
+  font-size: 15px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+  transition: fill 0.2s;
+}
+.on .callc {
+  fill: var(--color-pencil-light);
+}
+.on .callt {
+  fill: var(--color-blueprint);
+}
+
+/* The note of the active layer. */
+.nt {
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.nt.show {
+  opacity: 1;
+}
+.ntb {
+  fill: var(--color-blueprint-ink);
+  stroke: var(--color-cyan);
+  stroke-width: 1.2;
+}
+.ntt {
+  fill: var(--color-cyan);
+  font-family: var(--font-head);
+  font-size: 13px;
+  font-weight: 600;
+}
+.ntd {
+  fill: var(--color-chalk);
+  font-family: var(--font-body);
+  font-size: 11.5px;
+}
+
+/* Reduced motion: the final state at once, as in the reference. */
+@media (prefers-reduced-motion: reduce) {
+  .draw {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+  .pop {
+    opacity: 1;
+    animation: none;
+  }
+  .nt,
+  .callc,
+  .callt {
+    transition: none;
+  }
+}

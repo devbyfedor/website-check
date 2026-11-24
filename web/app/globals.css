@@ -1,0 +1,102 @@
+/*
+  What every page shares: the tokens, the reference's base rules and the blueprint sheet.
+  The styles of a component live next to it as a CSS module (web/components/**.module.css).
+
+  Tailwind CSS v4 without its preflight: the reference pages are written on top of the browser's own
+  defaults (content-box sizing, line-height normal, underlined links), and preflight would change them.
+  docs/decisions.md, 24.11.2026.
+*/
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/* The values of design/tokens.css as theme variables. */
+@theme {
+  /* Blueprint surfaces */
+  --color-blueprint: #143e91;
+  --color-blueprint-deep: #0f357f;
+  --color-blueprint-ink: #0b2a68;
+  --color-chalk: #f2f6ff;
+  --color-chalk-muted: #c4d6ff;
+  --color-cyan: #8ccbff;
+  --color-pencil-light: #ff9c8f;
+  --color-placeholder-on-blueprint: #b9ccf5;
+
+  /* Sheet surfaces */
+  --color-paper: #ffffff;
+  --color-ink: #13254f;
+  --color-ink-body: #2d3c5e;
+  --color-ink-muted: #47577a;
+  --color-line: #2c5bc4;
+  --color-link: #1f4fbf;
+  --color-pencil: #c8342b;
+  --color-rule: #c9d5ea;
+  --color-code-bg: #eef2fa;
+  --color-own-request: #dce6f8;
+
+  /* Sheet shadow */
+  --shadow-sheet: 0 40px 80px -40px rgba(3, 14, 40, 0.7);
+
+  /* Layout */
+  --container-page: 1320px;
+  --container-report: 1240px;
+  --spacing-gutter: 32px;
+
+  /* Motion */
+  --ease-draw: cubic-bezier(0.6, 0, 0.2, 1);
+}
+
+/* Fonts come from next/font (app/fonts.ts), which sets the two variables on <html>. */
+@theme inline {
+  --font-body: var(--font-barlow), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-head: var(--font-barlow-semi-condensed), var(--font-barlow), sans-serif;
+}
+
+:root {
+  /* Blueprint grid: two layers, fine 24 px and strong 120 px */
+  --wc-grid-image:
+    linear-gradient(rgba(242, 246, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(242, 246, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(rgba(242, 246, 255, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(242, 246, 255, 0.14) 1px, transparent 1px);
+  --wc-grid-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+  --wc-draw-duration: 1.2s;
+  --wc-pop-duration: 0.45s;
+}
+
+/* The reference's own base rules (design/reference/*.html). */
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--color-blueprint);
+    color: var(--color-chalk);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  a {
+    color: var(--color-chalk);
+  }
+  a:hover {
+    color: var(--color-cyan);
+  }
+  /* The focus ring on the blueprint. The white report sheet gives it its own colour (bericht.html, B3). */
+  a:focus-visible,
+  input:focus-visible,
+  button:focus-visible {
+    outline: 3px solid var(--color-cyan);
+    outline-offset: 3px;
+  }
+}
+
+@layer components {
+  /* The blueprint sheet every page lies on (app/layout.tsx). */
+  .paper {
+    background-color: var(--color-blueprint);
+    background-image: var(--wc-grid-image);
+    background-size: var(--wc-grid-size);
+  }
+}

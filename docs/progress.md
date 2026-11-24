@@ -2,6 +2,8 @@
 
 ## Current state
 
+**24.11.2026:** stage A is finished (A1 to A5 and the polishing sessions fix-a1 to fix-a6, all merged). Stage B is in progress: B1 parts 1 and 2 are done on branch `b1-home` (the home page with its animation, the layer buttons, keyboard and focus; every point of the merge condition of B1 holds) and **not merged**: Fedor looks at the animation first (session message of part 2). The paragraph below describes stage A.
+
 After stage A a review found 102 points (Fedor, 23.11.2026: the polishing by the review comes first, then B1). Session fix-a1 fixed the four most serious ones about the honesty of the report, session fix-a2 (24.11.2026) the findings 18 to 24, session fix-a3 (24.11.2026) the findings 5, 6, 7, 14, 15, 16 and 71 to 74 about the Impressum and the legal links, session fix-a4 (24.11.2026) the findings 4 and 8 to 13 about limits and heavy pages with the small findings 25, 51, 54 and 61, session fix-a5 (24.11.2026) the findings 31, 32, 42, 44, 46, 47, 49, 50, 80, 89 to 91, 93 and 100 about privacy, the browser budget and the queue; all five are merged into `main`; the others follow in the sixth and last polishing session. Stage A, sessions A1 to A5 are merged into `main` (A5 in five parts, merged after part 5 on 23.11.2026). A5 runs in three parts on branch `a5-api` (Fedor, 22.11.2026): part 1, the SSRF protection, and part 2, the report schema, D1, the API, the cache and the rate limit, are done and not merged; part 3 builds the queue in the Durable Object, the Impressum tab on Cloudflare, the quick check, the end-to-end check and the merge. A4 added the mandatory information (Impressum and Datenschutz links, the Impressum in a second tab, its fields by templates, the Erklärung zur Barrierefreiheit) and system detection, locally; the Cloudflare adapter gets the second tab in A5. Part 3 was not merged (Worker CPU above 8 ms on 3 of 50 API requests); part 4 (23.11.2026) split the API Worker from the scan Worker and measured again: still not merged, the start of a new scan costs up to 19 ms (section "A5 part 4" below); part 5 (23.11.2026) moved the whole start into the queue object (Fedor's answer (a)): every API request at most 5 ms, merged (section "A5 part 5" below). Before the first push the history of all branches was rewritten twice to remove personal details about the owner (21.11.2026 and 22.11.2026, sections "History cleanup before the first push" and "Second history cleanup" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
 - Part 1 (done): the Cloudflare capture adapter in `worker/` with both strategies, and a check on three sites of whether consent tools behave the same with the Cloudflare browser as with the local run (banner, third-party requests before consent, browser location, Worker CPU and wall time).
 - Part 2 (done): the capture moves into a Durable Object in the EU jurisdiction; the Worker only checks the token and passes the job on. The scanner recognises blocked pages (a web host's check page such as "Einen Moment bitte") and gives no findings for them. Check on Cloudflare: browser location from the Durable Object, the three sites of part 1 with both strategies, the blocked page recognised as blocked, CPU of the Worker and of the Durable Object.
@@ -771,9 +773,77 @@ Result: merged into `main` with `git merge --no-ff`.
 - The findings of the review that no session named (`docs/backlog.md`, one line each).
 - "Bilder mit Beschreibung" with "0 von 0" (finding 68, owner decision); the field of a finding about a font or a script from the head; the new report values are not designed.
 
+## B1 part 1: app skeleton, fonts, header and footer, visual check, home page (24.11.2026)
+
+Branch `b1-home`, **not merged** (the merge is part of B1 part 2, by the session message). Before the branch, a commit of its own on `main`: the status line of the brief ("Stage A: done (24.11.2026). Stage B: in progress") and two log entries. Session time: about 25 minutes (about 15:22 to 15:47). No Cloudflare, no deploy, nothing pushed, no test site visited, no helpers.
+
+Fedor's answers to the three questions of fix-a6 are in `docs/decisions.md`: "Bilder mit Beschreibung" without images stays "erfüllt" and the report shows "keine Bilder" (the text is a draft in B3); a finding without a field shows no "Feld" label, and finding the elements that use a font is stage D (`docs/backlog.md`); the brief's status line and log are updated.
+
+### What was done
+
+- `web/` as the third workspace: Next.js 16.4.6 with static export, React 19.3.1, TypeScript strict (the base config with bundler resolution), Tailwind CSS 4.3.5 without preflight, the values of `design/tokens.css` as theme variables (`web/app/globals.css`), a unit test that compares every token with its variable.
+- Fonts: Barlow 400, 500, 600 and Barlow Semi Condensed 500, 600 with `next/font/local`, latin WOFF2 files of Fontsource 5.3.0 in `web/fonts/` with the OFL license. The built page preloads them from its own host.
+- Header and footer as shared components (width 1320 or 1240 px, a slot for the right side of the header).
+- Home page in its final state as in `design/reference/start.html` with reduced motion: the drawing with every line drawn, layer 1 highlighted (`aria-pressed`), its note shown; the title block with the address field; the form sends nothing (submit button, `noValidate`). No motion and no layer switching yet.
+- Commands: `npm run build:web`, `npm run visual` (builds, then compares; `-- --only start`, `--reference-only`, `--google-fonts`), `npm run preview` (builds, then serves `web/out` on http://127.0.0.1:3000/). `npm run typecheck` includes `web/` (with `next typegen`). Next.js telemetry is off for these commands.
+- Decisions in `docs/decisions.md` (preflight, tokens, fonts, the rules of the visual check, the button, the final dash state, telemetry, header and footer), open points in `docs/backlog.md`.
+
+### The reference at 390 px (step 5)
+
+- `design/reference/start.html` at 390 px: no horizontal scrolling, no text outside the viewport, no cut-off text, no overlapping text boxes, by the layout check of `npm run visual` and by eye on the screenshot. Nothing is excluded from the comparison.
+- Observation, no fault: the drawing is scaled to 326 of 600 units, so its texts are 5.4 to 7 px high at 390 px (the same in the app, since it is the same drawing).
+
+### Numbers against the conditions of the session message
+
+- Difference from the reference: start 1440 px 0.000 % (0 of 2,095,200 pixels), 390 px 0.000 % (0 of 1,112,280); the strict count without threshold and with anti-aliasing is 0 as well; both screenshots have the same size (1440 × 1455 and 390 × 2852). Before the drawn lines got the final dash state, the share was already 0.000 %, the strict count 0.09 % and 0.25 % (the corners of the drawing). Fitting took about 5 of the allowed 45 minutes.
+- Requests of the built page to other hosts: 0 in the visual check at both widths. A separate run (5 s wait, scrolling, typing an address, Enter, hover) made 26 requests at both widths, all to 127.0.0.1; Enter left the address at "/". The built files contain no "googleapis" or "gstatic"; absolute addresses appear only as strings in code (SVG namespaces, links to documentation in the error messages of React and Next.js).
+- The font files: the reference with the files from Google and with the files in `web/fonts/` gave 0 different pixels at both widths.
+- `npm test`: 1,356 of 1,356 (1,326 before, 30 new in `web/`). `npm run build:web` passes. `npm run typecheck`: no errors. The integration tests were not run (no change in `scanner/` or `worker/`). `git ls-files local` is empty.
+
+### Not done, on purpose (part 2)
+
+- The drawing animation, the transitions, switching the layers, keyboard and focus, the full axe-core run, the merge into `main`.
+
+## B1 part 2: drawing animation, layer buttons, keyboard and focus, axe (24.11.2026)
+
+Branch `b1-home`, **not merged** (by the session message: Fedor looks at the animation first). Session time: about 25 minutes (about 15:50 to 16:15). No Cloudflare, no deploy, nothing pushed, no test site visited, no helpers.
+
+Fedor's answers to the questions of part 1 (`docs/decisions.md`, `docs/backlog.md`): the small text of the drawing stays at 390 px as in the reference; "Website prüfen" is the submit button; the German 404 page is stage C.
+
+### What was done
+
+- The drawing animation with the CSS of the reference: lines drawn in 1.2 s with cubic-bezier(.6, 0, .2, 1), labels, callouts and notes appear in 0.45 s (opacity and scale), 25 elements with the delays of start.html (0.2 s to 3.3 s; the last one ends at 3.75 s). Reduced motion: the final state at once, no animation and no transition.
+- The four layer buttons switch the filled callout and the note (transitions of 0.2 s and 0.25 s as in the reference), state in `aria-pressed`; layer 1 on load. The state is a small React context shared by the buttons and the drawing.
+- Keyboard and focus need no code of their own: native links, buttons and the field, the focus ring of the reference (3 px cyan at an offset of 3 px). They are measured (below).
+- The styles moved from one file into CSS modules next to the components (step 4 of the session message, see "How the home page is built").
+- Two new checks with their own commands: `npm run motion` (the animation against the reference) and `npm run a11y` (keyboard, focus by pixels, axe-core; `-- --reference` for the reference); they share `web/scripts/browser-setup.ts` and `image-diff.ts` with `npm run visual`. A unit test compares the 25 animated elements, their delays, shapes and texts with start.html without a browser. CLAUDE.md lists the web commands.
+
+### How the home page is built
+
+- Shared by every page: `web/app/layout.tsx` (the blueprint sheet `.paper`, `lang="de"`, the fonts) and `web/app/globals.css` (the tokens, the base rules of the reference with the focus ring). Header (`web/components/site-header.tsx` with its module: logo mark, navigation, a slot for the right side, width 1320 or 1240 px) and footer (`site-footer.tsx`, the same two widths) go to the scan screen and the report as they are; the navigation of those pages differs and gets its variants in B2 to B4 (`docs/backlog.md`).
+- The drawing frame: `web/components/blueprint/sketch-frame.tsx` draws the example web page (window, browser bar, dots, address bar, lock, hero with cross, heading, text line, three cards, footer line) that start.html and pruefung.html share, with the timing each page passes; `drawing.module.css` holds the line styles of both drawings. The scan screen (B2) uses both with its own timings and adds its plotter, red marks and footer texts. The plan in the report (bericht.html) is a different drawing (blue on white, another view box) and does not use it.
+- The title block ("Schriftfeld"): on the home page the grid of label and value with the address field (`web/components/home/scan-form.tsx` and its module). The report has a title block of its own with other measures and colours (`.stb` in bericht.html: six fields on white, B4); only the idea of label and value is shared, no styles.
+- Home only: `home-drawing.tsx` (the dimension line, the footer texts, callouts and notes, its own `draw` and `pop`), `layers.tsx` (context and buttons), `report-features.tsx` (the three cards). `web/app/page.tsx` puts them together.
+
+### Numbers against the merge condition of B1
+
+- Difference from the reference with reduced motion: start 1440 px 0.000 % (0 of 2,095,200 pixels), 390 px 0.000 % (0 of 1,112,280), the same before and after the styles moved into modules.
+- Motion (`npm run motion`, both widths): 25 animations in the app and in the reference, 0 differences in target, keyframes, duration, delay, easing and fill, all started at the same moment (spread 0.0 ms). Frames of the drawing with every animation paused at the same time: at 0.6, 1.4, 2.5 and 3.45 s 0 different pixels at 1440 px (604 × 453) and at 390 px (326 × 246), also in the strict count. Layer switch: 6 transitions in both with the same properties and timings; frames 0.08 and 0.16 s after the click 0 different pixels (strict count: 1 pixel at 390 px, 0.16 s); the drawing after each of the four layers 0 pixels; `aria-pressed` the same as in the reference. Reduced motion: 0 animations on load and 0 after a switch, in both.
+- axe-core 4.14.1 (the pinned version of the scanner), every rule on by default (91 rules: 41 passed, the others not applicable), per width in six states (layers 1 to 4, the address field focused, with motion after the drawing finished): 0 violations. Incomplete: color-contrast on 40 elements, because the background is the grid image; measured by pixels behind the text, all 40 have the required ratio against the usual background (lowest 4.89:1, callout "1"). The reference gives the same: 0 violations, the same 40 incomplete.
+- Requests of the built page to other hosts: 0 in all three checks at both widths (loading, motion, clicks, keyboard, typing, sending the form); the built HTML and CSS contain no "googleapis", no "gstatic" and no absolute address.
+- Keyboard: Tab reaches all 14 controls at both widths in document order (logo, three navigation links, four layer buttons, the field, "Website prüfen", the BFSG card, three footer links), the same 14 as in the reference. Every stop has :focus-visible; the ring covers at least 1.53 times the area of a 2 px line around the control at a contrast of at least 3:1 between focused and unfocused (median 5.69:1; on the white button "Website prüfen" 4,089 pixels at 1440 px for 2,676 needed; on the address field 6.59:1). Layer buttons by Space and Enter: `aria-pressed` and the note follow; Enter in the field and Enter or Space on the button keep the address at "/".
+- `npm test`: 1,358 of 1,358 (2 new in `web/`). `npm run build:web` passes. `npm run typecheck`: no errors. Integration tests not run (no change in `scanner/` or `worker/`). `git ls-files local` is empty.
+
+### Observations, no fault of the port (`docs/backlog.md`)
+
+- Right after Tab the browser scrolls a control only until the control itself touches the edge of the window; the part of the ring outside it is then hidden at that edge (1440 px: layer buttons 3 and 4 and "Website prüfen"; 390 px: layer button 4). The reference behaves the same. Question to Fedor in the report.
+- Where text crosses a 1 px line of the grid, the contrast at those pixels drops to 2.48:1 at the lowest, for 0.58 % (1440 px) and 0.80 % (390 px) of the background pixels behind text; the same on the reference.
+- `package-lock.json` has an uncommitted change that was there before the session (`"peer": true` on five optional packages, written by npm 11); it is in no commit.
+
 ## Next
 
-- Fedor: push `main` (fix-a6 and the brief are on it).
-- Stage A is finished. Next session: stage B, session B1 (app skeleton and home page), by the brief and `design/README.md`; every B session that shows report data follows `docs/report-schema.md`, "Strings of the scanned page".
+- Fedor: look at the animation (`npm run preview`, http://127.0.0.1:3000/ on branch `b1-home`, the reference `design/reference/start.html` beside it), then decide on the merge of `b1-home` into `main` (every point of the merge condition holds, numbers above).
+- B2 on its own branch after the merge: the scan screen with `SketchFrame` and the timings of pruefung.html, the header variant with "Prüfung abbrechen", the form starts a scan; `npm run motion` and `npm run a11y` learn the scan screen.
+- Fedor: push `main` (the commit of the brief of B1, d4a5b1f, on top of fix-a6).
 - Fedor: look at the German drafts in `docs/content-drafts.md` (also the five of fix-a6) together with the others.
 - Fedor, before the launch (stage C): create the real D1 database (all five migrations) and put its id into both configs, set `RATE_LIMIT_SECRET` on the scan Worker; deploy the scan Worker first, then the API Worker. The measurements before the launch are in `docs/backlog.md`.
