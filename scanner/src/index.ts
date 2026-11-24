@@ -23,7 +23,7 @@ export { frameUnknown } from './capture/frames.ts';
 export { CAPTURE_LIMITS, cutText, cutUrl, limitAxe, limitBanner, limitCapture, limitHeaders, limitPageSnapshot, limitRequest, limitSnapshot, pageLimitFailure, RequestBudget, requestChars, type LimitedSnapshot } from './capture/limits.ts';
 export { analyzeCapture, type CaptureAnalysis, type CaptureState } from './analyzers/capture.ts';
 export * from './a11y/types.ts';
-export { AXE_REPORTER, AXE_RUN_EXPRESSION, AXE_RUN_OPTIONS, AXE_TIME, axeBudgetMs, axeCaptureFrom, axeNotRun, type AxeRunOutput } from './a11y/axe-script.ts';
+export { AXE_REPORTER, AXE_RUN_EXPRESSION, AXE_RUN_OPTIONS, AXE_TIME, axeBudgetMs, axeCaptureFrom, axeNotRun, axeWorldOf, runAxeIsolated, type AxeRunOutput, type CdpSend } from './a11y/axe-script.ts';
 export { analyzeAccessibility, ACCESSIBILITY_ANALYSIS_VERSION, type A11yCheck, type A11yCheckId, type AccessibilityAnalysis } from './analyzers/accessibility.ts';
 export * from './security/types.ts';
 export { HTTP_PROBE_BODY_LIMIT, HTTP_PROBE_DEFAULTS, httpsVariantOf, httpVariantOf, probeHttpRedirect, probeHttps, type HttpProbeOptions } from './security/http-probe.ts';

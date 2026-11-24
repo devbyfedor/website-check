@@ -1,5 +1,5 @@
-import { chromium, type Browser, type BrowserContext, type Frame, type Page, type Request, type Response } from 'playwright';
-import { AXE_RUN_EXPRESSION, axeBudgetMs, axeCaptureFrom, axeNotRun } from '../a11y/axe-script.ts';
+import { chromium, type Browser, type BrowserContext, type CDPSession, type Frame, type Page, type Request, type Response } from 'playwright';
+import { axeBudgetMs, axeNotRun, runAxeIsolated, type CdpSend } from '../a11y/axe-script.ts';
 import type { AxeCapture } from '../a11y/types.ts';
 import { httpsVariantOf, httpVariantOf, probeHttpRedirect, probeHttps } from '../security/http-probe.ts';
 import type { HttpProbe, HttpsProbe } from '../security/types.ts';
@@ -126,21 +126,16 @@ function sleep(ms: number): Promise<void> {
  * Injects the pinned axe-core into the top-level document and runs the seven rules
  * (`AXE_RUN_EXPRESSION`). Never throws: a failure or timeout becomes the capture's axe status.
  */
-export async function runAxeInPlaywright(page: Page, axeSource: string, budgetMs: number): Promise<AxeCapture> {
-  const started = performance.now();
-  const elapsed = (): number => Math.round(performance.now() - started);
-  let injectMs: number | null = null;
+export async function runAxeInPlaywright(page: Page, axeSource: string, budgetMs: number, session?: CDPSession): Promise<AxeCapture> {
+  // Session fix-a6 (review finding 26): in an isolated world of the main frame, out of the page's reach.
+  let cdp: CDPSession;
   try {
-    await withTimeout(page.evaluate(axeSource), budgetMs);
-    injectMs = elapsed();
-    const left = budgetMs - injectMs;
-    if (left < 300) return axeNotRun('timeout', 'no time left after injecting axe-core', { injectMs, totalMs: elapsed() });
-    const output: unknown = await withTimeout(page.evaluate(AXE_RUN_EXPRESSION), left);
-    return axeCaptureFrom(output, { injectMs, totalMs: elapsed() });
+    cdp = session ?? (await page.context().newCDPSession(page));
   } catch (error) {
-    const message = errorText(error);
-    return axeNotRun(/timed out after/.test(message) ? 'timeout' : 'error', message, { injectMs, totalMs: elapsed() });
+    return axeNotRun('error', errorText(error), { injectMs: null, totalMs: 0 });
   }
+  const send: CdpSend = (method, params) => cdp.send(method as never, params as never);
+  return runAxeIsolated(send, axeSource, budgetMs, withTimeout, (message) => /timed out after/.test(message));
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -514,7 +509,7 @@ async function runCapture(
     else {
       // Session fix-a2: axe reads only a document the guard allows (see `readCheckedDocument`).
       const source = settings.axeSource;
-      const checked = await readCheckedDocument(guardSession, navigation, guard, () => runAxeInPlaywright(page, source, budget));
+      const checked = await readCheckedDocument(guardSession, navigation, guard, () => runAxeInPlaywright(page, source, budget, guardSession));
       axe = checked.ok ? checked.value : axeNotRun('error', `the accessibility check was dropped: ${READ_DROPPED[checked.reason]}`);
     }
   }

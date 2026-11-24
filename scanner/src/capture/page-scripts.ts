@@ -193,8 +193,9 @@ export const SNAPSHOT_EXPRESSION = `(() => {${TEXT_AND_LINKS}
   })();
   page.timeOrigin = N(performance.timeOrigin);
   page.securityMeta = (() => {
-    const read = (selector) => { const el = document.querySelector(selector); return el ? cut(String(el.getAttribute('content') || ''), ${CAPTURE_LIMITS.metaLength}) : null; };
-    return { csp: read('meta[http-equiv="content-security-policy" i]'), referrer: read('meta[name="referrer" i]') };
+    const read = (root, selector) => { const el = root ? root.querySelector(selector) : null; return el ? cut(String(el.getAttribute('content') || ''), ${CAPTURE_LIMITS.metaLength}) : null; };
+    // Session fix-a6 (review finding 77): browsers apply a CSP meta element only as a child of <head>.
+    return { csp: read(document.head, ':scope > meta[http-equiv="content-security-policy" i]'), referrer: read(document, 'meta[name="referrer" i]') };
   })();
   return page;
 })()`;

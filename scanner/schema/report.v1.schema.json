@@ -25,14 +25,15 @@
     "scan": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mode", "scannedAt", "durationMs", "scannerVersion", "rulesUpdated", "axeVersion"],
+      "required": ["mode", "scannedAt", "durationMs", "scannerVersion", "rulesUpdated", "axeVersion", "stopReason"],
       "properties": {
         "mode": { "enum": ["full", "quick"] },
         "scannedAt": { "anyOf": [{ "$ref": "#/$defs/dateTime" }, { "type": "null" }] },
         "durationMs": { "anyOf": [{ "$ref": "#/$defs/ms" }, { "type": "null" }] },
         "scannerVersion": { "type": "string", "maxLength": 40 },
         "rulesUpdated": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
-        "axeVersion": { "type": ["string", "null"], "maxLength": 40 }
+        "axeVersion": { "type": ["string", "null"], "maxLength": 40 },
+        "stopReason": { "enum": ["network-quiet", "max-wait", "fetched", null] }
       }
     },
     "visit": {
@@ -72,7 +73,7 @@
           "additionalProperties": false,
           "required": ["reason", "status"],
           "properties": {
-            "reason": { "enum": ["timeout", "blocked", "invalid-address", "unreachable", "http-error", "not-allowed", "page-limit", "other"] },
+            "reason": { "enum": ["timeout", "blocked", "invalid-address", "unreachable", "http-error", "not-allowed", "page-limit", "not-html", "other"] },
             "status": { "type": ["integer", "null"], "minimum": 100, "maximum": 999 }
           }
         },

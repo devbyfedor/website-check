@@ -1,9 +1,8 @@
 import { CDPSessionEvent, type Browser, type BrowserContext, type CDPSession, type Frame, type HTTPRequest, type HTTPResponse, type Page } from '@cloudflare/puppeteer';
 import {
-  AXE_RUN_EXPRESSION,
   axeBudgetMs,
-  axeCaptureFrom,
   axeNotRun,
+  runAxeIsolated,
   buildBannerProbeScript,
   CAPTURE_SCHEMA_VERSION,
   checkReadDocument,
@@ -130,25 +129,8 @@ export async function prepareVisitorPage(page: Page, client: CDPSession, userAge
  * seven rules; the page compacts the result (`AXE_RUN_EXPRESSION`). Never throws.
  */
 export async function runAxeOverCdp(client: CDPSession, axeSource: string, budgetMs: number): Promise<AxeCapture> {
-  const started = Date.now();
-  const elapsed = (): number => Date.now() - started;
-  let injectMs: number | null = null;
-  try {
-    const injected = (await withTimeout(client.send('Runtime.evaluate', { expression: axeSource, returnByValue: true }), budgetMs)) as { exceptionDetails?: { text?: string } };
-    injectMs = elapsed();
-    if (injected.exceptionDetails !== undefined) return axeNotRun('error', `injecting axe-core failed: ${injected.exceptionDetails.text ?? 'exception'}`, { injectMs, totalMs: elapsed() });
-    const left = budgetMs - injectMs;
-    if (left < 300) return axeNotRun('timeout', 'no time left after injecting axe-core', { injectMs, totalMs: elapsed() });
-    const response = (await withTimeout(client.send('Runtime.evaluate', { expression: AXE_RUN_EXPRESSION, awaitPromise: true, returnByValue: true }), left)) as {
-      result?: { value?: unknown };
-      exceptionDetails?: { text?: string };
-    };
-    if (response.exceptionDetails !== undefined) return axeNotRun('error', `axe failed: ${response.exceptionDetails.text ?? 'exception'}`, { injectMs, totalMs: elapsed() });
-    return axeCaptureFrom(response.result?.value, { injectMs, totalMs: elapsed() });
-  } catch (error) {
-    const message = errorText(error);
-    return axeNotRun(/^Timeout \d+ ms exceeded/.test(message) ? 'timeout' : 'error', message, { injectMs, totalMs: elapsed() });
-  }
+  // Session fix-a6 (review finding 26): in an isolated world of the main frame, out of the page's reach.
+  return runAxeIsolated((method, params) => client.send(method as never, params as never), axeSource, budgetMs, withTimeout, (message) => /^Timeout \d+ ms exceeded/.test(message));
 }
 
 /** Why an accessibility result was not kept (`readCheckedDocument`). */

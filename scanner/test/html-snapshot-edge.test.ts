@@ -238,7 +238,7 @@ const CASES: EdgeCase[] = [
     chromium: { title: 'T', lang: 'de', text: '1\n2\n3\n4\n6', links: [['https://edge.example/1', '1', true], ['https://edge.example/2', '2', true], ['https://edge.example/3', '3', true], ['https://edge.example/4', '4'], ['https://edge.example/5', '', true], ['https://edge.example/6', '6', true]] } },
   { name: 'platform-cases', group: 'checked',
     html: '<!doctype html><html><head><META NAME="Generator" CONTENT="TYPO3 CMS"><meta name="generator"><noscript><meta name="generator" content="NoScript"><link id="wp-block-library-css"></noscript><LINK ID="wp-block-library-css" REL=stylesheet></head><BODY CLASS="woocommerce-page"><div class="shopify-section" id="Shopify-section-x"></div><div data-cookie-permission class="cookie-permission-container"></div><meta name="referrer" content="no-referrer"><meta http-equiv="content-security-policy" content="x"></body></html>',
-    chromium: { title: '', lang: null, text: '', links: [], securityMeta: { csp: 'x', referrer: 'no-referrer' }, generators: ['TYPO3 CMS', ''], selectors: ['link#wp-block-library-css, style#wp-block-library-inline-css', 'body.woocommerce, body.woocommerce-page', 'div.cookie-permission-container[data-cookie-permission]'] } },
+    chromium: { title: '', lang: null, text: '', links: [], securityMeta: { csp: null, referrer: 'no-referrer' }, generators: ['TYPO3 CMS', ''], selectors: ['link#wp-block-library-css, style#wp-block-library-inline-css', 'body.woocommerce, body.woocommerce-page', 'div.cookie-permission-container[data-cookie-permission]'] } },
   { name: 'p-inline-flex', group: 'fixed',
     html: doc('<div>a<p style="display:inline-flex">b</p>c</div>'),
     chromium: { title: 'T', lang: 'de', text: 'a\n\nb\n\nc', links: [] } },

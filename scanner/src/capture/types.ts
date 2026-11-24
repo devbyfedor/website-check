@@ -63,6 +63,12 @@ export type CaptureFailureReason =
    * data than `CAPTURE_LIMITS`). The scan stopped watching it; nothing is concluded from the part it saw.
    */
   | 'page-limit'
+  /**
+   * Session fix-a6 (review finding 66): the main document answered with a content type that is not HTML (JSON,
+   * PDF, an image, plain text). The browser shows it inside a page of its own; nothing of that page was
+   * written by the site, so nothing is analysed.
+   */
+  | 'not-html'
   | 'other';
 
 export interface CaptureFailure {

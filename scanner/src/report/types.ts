@@ -245,6 +245,13 @@ export interface ReportV1 {
     scannerVersion: string;
     rulesUpdated: string;
     axeVersion: string | null;
+    /**
+     * Session fix-a6 (review finding 82): why the capture of the homepage stopped. `network-quiet`: the page
+     * had loaded; `max-wait`: after 15 seconds the page was still loading, so the report shows what it had
+     * loaded until then (text `report-page-still-loading`); `fetched`: the quick check read the HTML source.
+     * Null when the page was not loaded.
+     */
+    stopReason: 'network-quiet' | 'max-wait' | 'fetched' | null;
   };
   /** Where the site was visited from. The report names the country in its head and next to every finding about data sent before consent. */
   visit: {

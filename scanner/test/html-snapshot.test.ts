@@ -60,8 +60,9 @@ describe('the caps and rules of the in-page script', () => {
     expect(SNAPSHOT_EXPRESSION).toContain(`for (let i = 0; i < ${SNAPSHOT_MAX_GENERATORS} && metas`);
     expect(SNAPSHOT_EXPRESSION).toContain(`cut(String(metas[i].getAttribute('content') || ''), ${SNAPSHOT_GENERATOR_LENGTH})`);
     expect(SNAPSHOT_EXPRESSION).toContain(`cut(String(el.getAttribute('content') || ''), ${SNAPSHOT_META_LENGTH})`);
-    expect(SNAPSHOT_EXPRESSION).toContain(`read('meta[http-equiv="content-security-policy" i]')`);
-    expect(SNAPSHOT_EXPRESSION).toContain(`read('meta[name="referrer" i]')`);
+    // Session fix-a6 (review finding 77): the CSP meta element counts only as a child of <head>.
+    expect(SNAPSHOT_EXPRESSION).toContain(`read(document.head, ':scope > meta[http-equiv="content-security-policy" i]')`);
+    expect(SNAPSHOT_EXPRESSION).toContain(`read(document, 'meta[name="referrer" i]')`);
   });
 });
 

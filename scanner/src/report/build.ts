@@ -214,12 +214,25 @@ function serviceTextId(service: DetectedService): string {
   return 'third-party-unconfirmed';
 }
 
+/**
+ * The requests shown as evidence, in the order they started. Session fix-a6 (review finding 67): when the first
+ * five got no answer but a later one did, the earliest answered request takes the place of the fifth, so a
+ * confirmed finding always shows a request that reached the service.
+ */
+function shownEvidence<T extends { reachedServer: boolean }>(list: readonly T[]): T[] {
+  const max = REPORT_LIMITS.evidencePerFinding;
+  const first = list.slice(0, max);
+  if (first.some((e) => e.reachedServer)) return first;
+  const reached = list.find((e) => e.reachedServer);
+  return reached === undefined ? first : [...first.slice(0, max - 1), reached];
+}
+
 function thirdPartyFindings(analysis: ThirdPartyAnalysis): Finding[] {
   const out: Finding[] = [];
   for (const service of analysis.services) {
     if (service.severity === 'none') continue;
     const kind: FindingKind = service.severity === 'finding' ? 'finding' : 'hint';
-    const evidence: Evidence[] = service.evidence.slice(0, REPORT_LIMITS.evidencePerFinding).map((e) => ({
+    const evidence: Evidence[] = shownEvidence(service.evidence).map((e) => ({
       type: 'request',
       url: clipUrl(e.url),
       startMs: ms(e.startMs),
@@ -445,6 +458,8 @@ function accessibilityFindings(a11y: AccessibilityAnalysis): Finding[] {
     return [finding({ id: 'a11y:not-checked', area: 'accessibility', kind: 'not-checked', textId: 'a11y-not-checked', params: { reason: clip(a11y.reason ?? 'unknown', 300) } })];
   }
   const out: Finding[] = [];
+  // Session fix-a6 (review finding 83): a large iframe was not checked; say so next to what was checked.
+  if (a11y.framedContent != null) out.push(finding({ id: 'a11y:frame-content', area: 'accessibility', kind: 'manual', textId: 'a11y-frame-not-checked', params: { share: Math.round(a11y.framedContent * 100) } }));
   for (const check of a11y.checks) {
     const name = A11Y_CHECK_NAMES[check.id];
     if (check.result === 'not-checked') {
@@ -491,7 +506,8 @@ function securityFindings(security: SecurityAnalysis): Finding[] {
   if (security.https.result === 'manual') out.push(finding({ id: 'security:https', area: 'security', kind: 'manual', textId: security.https.textId }));
   const redirect = security.httpRedirect;
   if (redirect.result === 'fail') out.push(finding({ id: 'security:http-redirect', area: 'security', kind: 'finding', risk: 'medium', textId: redirect.textId ?? 'security-http-no-redirect' }));
-  else if (redirect.result === 'manual') out.push(finding({ id: 'security:http-redirect', area: 'security', kind: 'manual', textId: redirect.textId ?? 'security-http-redirect-manual' }));
+  // Session fix-a6 (review finding 69): the reason and the last status, for "(Grund: …)" of the text.
+  else if (redirect.result === 'manual') out.push(finding({ id: 'security:http-redirect', area: 'security', kind: 'manual', textId: redirect.textId ?? 'security-http-redirect-manual', params: { reason: redirect.reason ?? 'unknown', status: redirect.status ?? null } }));
   else if (redirect.result === 'info') out.push(finding({ id: 'security:http-redirect', area: 'security', kind: 'hint', textId: redirect.textId ?? 'security-http-unavailable' }));
   else if (redirect.result === 'not-checked') out.push(finding({ id: 'security:http-redirect', area: 'security', kind: 'not-checked', textId: 'security-http-redirect-not-checked' }));
   if (security.headersPresent < security.headersTotal) {
@@ -621,6 +637,8 @@ function a11yResult(a11y: AccessibilityAnalysis | null, id: A11yCheck['id']): Me
   if (a11y === null || a11y.status === 'not-checked') return 'not-checked';
   const check = a11y.checks.find((c) => c.id === id);
   if (check === undefined || check.result === 'not-checked') return 'not-checked';
+  // Session fix-a6 (review finding 83): what a large iframe shows was not checked, so nothing is "erfüllt".
+  if (check.result === 'pass' && a11y.framedContent != null) return 'manual';
   return check.result;
 }
 
@@ -656,6 +674,8 @@ function imagesMeasure(a11y: AccessibilityAnalysis | null): Measure {
   if (check === 'not-checked' || images === null) return { id: 'images-described', result: 'not-checked', target, actual: null };
   const actual: Measure['actual'] = images.described === null || images.total === null ? null : { type: 'of', count: countOf(images.described), total: countOf(images.total) };
   if (check === 'fail') return { id: 'images-described', result: 'fail', target, actual };
+  // Review finding 68 ("0 von 0" is "erfüllt") is not changed here: the row follows axe by the owner's answer of
+  // 24.11.2026, and axe passes a page without images. Question for Fedor (session fix-a6), `docs/backlog.md`.
   const sure = check === 'pass' && images.described !== null;
   return { id: 'images-described', result: sure ? 'pass' : 'manual', target, actual };
 }
@@ -681,12 +701,9 @@ function buildMeasures(analysis: CaptureAnalysis, sections: Record<SectionId, Se
 
   const contrast = a11yResult(a11y, 'color-contrast');
   const lowest = a11y?.lowestContrast ?? null;
-  measures.push({
-    id: 'lowest-contrast',
-    result: contrast,
-    target: { type: 'ratio', ratio: 4.5, expected: '4.5:1' },
-    actual: contrast === 'not-checked' || lowest === null || lowest.ratio === null || lowest.ratio < 1 ? null : { type: 'ratio', ratio: Math.min(21, lowest.ratio), expected: expectedOf(lowest.expected) },
-  });
+  const ratio: Measure['actual'] = contrast === 'not-checked' || lowest === null || lowest.ratio === null || lowest.ratio < 1 ? null : { type: 'ratio', ratio: Math.min(21, lowest.ratio), expected: expectedOf(lowest.expected) };
+  // Session fix-a6 (review finding 68): "erfüllt" needs a measured contrast; a page where axe measured no text is not checked.
+  measures.push({ id: 'lowest-contrast', result: contrast === 'pass' && ratio === null ? 'not-checked' : contrast, target: { type: 'ratio', ratio: 4.5, expected: '4.5:1' }, actual: ratio });
 
   measures.push(imagesMeasure(a11y));
 
@@ -707,7 +724,11 @@ function buildMeasures(analysis: CaptureAnalysis, sections: Record<SectionId, Se
     measures.push({ id: 'https', result: https, target: { type: 'state', state: 'https' }, actual: { type: 'state', state: https === 'pass' ? 'https' : https === 'fail' ? 'http' : 'unknown' } });
     const present = security.headersPresent;
     const total = security.headersTotal;
-    measures.push({ id: 'security-headers', result: present === total ? 'pass' : present === 0 ? 'fail' : 'partial', target: { type: 'of', count: total, total }, actual: { type: 'of', count: present, total } });
+    // Session fix-a6 (review findings 81 and 68): a header the scan could not decide (`manual`: the meta tags were
+    // not read, or the value was too long) may be there, so neither "0 von 5" nor "teilweise" is certain.
+    const undecided = security.headers.some((h) => !h.counts && h.status === 'manual');
+    const result: Measure['result'] = present === total ? 'pass' : undecided ? 'manual' : present === 0 ? 'fail' : 'partial';
+    measures.push({ id: 'security-headers', result, target: { type: 'of', count: total, total }, actual: { type: 'of', count: present, total } });
   }
   return measures;
 }
@@ -730,6 +751,21 @@ function sortFindings(findings: Finding[]): Finding[] {
         a.index - b.index,
     )
     .map((x) => x.f);
+}
+
+/**
+ * "Drei Dinge sollten Sie zuerst beheben": the first three items with a risk. Session fix-a6 (review finding 70):
+ * chosen by risk first, then findings before manual checks, then area and the order of the analysis, so a manual
+ * check with a high risk (no Impressum link found) never gives way to a finding with a lower risk. The list of
+ * findings itself keeps its order (findings before manual checks, confirmed by Fedor on 23.11.2026).
+ */
+function prioritiesOf(findings: readonly Finding[]): string[] {
+  return findings
+    .map((f, index) => ({ f, index }))
+    .filter(({ f }) => f.risk !== null && (f.kind === 'finding' || f.kind === 'manual'))
+    .sort((a, b) => RISK_RANK[a.f.risk as FindingRisk] - RISK_RANK[b.f.risk as FindingRisk] || KIND_RANK[a.f.kind] - KIND_RANK[b.f.kind] || a.index - b.index)
+    .slice(0, 3)
+    .map(({ f }) => f.id);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -839,7 +875,7 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
   const sorted = sortFindings(all);
   const findings = sorted.slice(0, REPORT_LIMITS.findings);
   const findingIds = new Set(findings.map((f) => f.id));
-  const priorities = findings.filter((f) => f.risk !== null && (f.kind === 'finding' || f.kind === 'manual')).slice(0, 3).map((f) => f.id);
+  const priorities = prioritiesOf(findings);
   const services = tp === null ? [] : reportServices(tp, findingIds, almostEmpty);
   const impressum = capture.impressum ?? null;
   const durationMs = loaded ? Math.max(capture.timings.endMs, impressum === null ? 0 : impressum.timings.openedAtMs + impressum.timings.totalMs) : null;
@@ -859,6 +895,8 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
       scannerVersion: options.scannerVersion,
       rulesUpdated: options.rulesUpdated,
       axeVersion: versionOf(capture.axe?.axeVersion),
+      // Session fix-a6 (review finding 82): a page captured at the limit of 15 seconds was still loading.
+      stopReason: loaded && capture.timings.stopReason !== 'error' ? capture.timings.stopReason : null,
     },
     visit: {
       country: countryOf((options.visit ?? capture.visit)?.country),

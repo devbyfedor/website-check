@@ -281,10 +281,62 @@ export function axeNotRun(status: Exclude<AxeStatus, 'ok'>, error: string, timin
   };
 }
 
+/** One command of the browser protocol, as both adapters can send it. */
+export type CdpSend = (method: string, params?: Record<string, unknown>) => Promise<unknown>;
+
+/**
+ * Session fix-a6 (review finding 26): axe runs in an isolated world of the main frame, not in the page's own
+ * JavaScript. The isolated world shares the document but not the page's globals, so a page cannot put its own
+ * `window.axe` (or replace `axe.run`) in place of the pinned axe-core. Returns the execution context for
+ * `Runtime.evaluate`; throws when the frame or the world is not there (the tab moved on): the caller turns that
+ * into the axe status `error`.
+ */
+export async function axeWorldOf(send: CdpSend): Promise<number> {
+  const tree = (await send('Page.getFrameTree')) as { frameTree?: { frame?: { id?: unknown } } } | undefined;
+  const frameId = tree?.frameTree?.frame?.id;
+  if (typeof frameId !== 'string') throw new Error('the main frame is not known');
+  const world = (await send('Page.createIsolatedWorld', { frameId, worldName: 'website-check-axe', grantUniveralAccess: false })) as { executionContextId?: unknown } | undefined;
+  if (typeof world?.executionContextId !== 'number') throw new Error('no isolated world for axe');
+  return world.executionContextId;
+}
+
+/**
+ * Injects axe-core and runs `AXE_RUN_EXPRESSION` in the isolated world `contextId` (session fix-a6). Never throws:
+ * a failure or timeout becomes the capture's axe status. `withTimeout` is the adapter's own timer.
+ */
+export async function runAxeIsolated(
+  send: CdpSend,
+  axeSource: string,
+  budgetMs: number,
+  withTimeout: <T>(promise: Promise<T>, ms: number) => Promise<T>,
+  isTimeout: (message: string) => boolean,
+): Promise<AxeCapture> {
+  const started = Date.now();
+  const elapsed = (): number => Date.now() - started;
+  let injectMs: number | null = null;
+  try {
+    const contextId = await withTimeout(axeWorldOf(send), budgetMs);
+    const injected = (await withTimeout(send('Runtime.evaluate', { expression: axeSource, contextId, returnByValue: true }), budgetMs - elapsed())) as { exceptionDetails?: { text?: string } } | undefined;
+    injectMs = elapsed();
+    if (injected?.exceptionDetails !== undefined) return axeNotRun('error', `injecting axe-core failed: ${String(injected.exceptionDetails.text ?? 'exception').slice(0, 200)}`, { injectMs, totalMs: elapsed() });
+    const left = budgetMs - injectMs;
+    if (left < 300) return axeNotRun('timeout', 'no time left after injecting axe-core', { injectMs, totalMs: elapsed() });
+    const response = (await withTimeout(send('Runtime.evaluate', { expression: AXE_RUN_EXPRESSION, contextId, awaitPromise: true, returnByValue: true }), left)) as
+      | { result?: { value?: unknown }; exceptionDetails?: { text?: string } }
+      | undefined;
+    if (response?.exceptionDetails !== undefined) return axeNotRun('error', `axe failed: ${String(response.exceptionDetails.text ?? 'exception').slice(0, 200)}`, { injectMs, totalMs: elapsed() });
+    return axeCaptureFrom(response?.result?.value, { injectMs, totalMs: elapsed() });
+  } catch (error) {
+    const message = (error instanceof Error ? error.message.split('\n')[0] ?? error.message : String(error)).slice(0, 200);
+    return axeNotRun(isTimeout(message) ? 'timeout' : 'error', message, { injectMs, totalMs: elapsed() });
+  }
+}
+
 /**
  * Validates what the page returned and turns it into the capture's `axe` field. Anything that
- * does not look like a complete result (a page that replaced `window.axe`, a missing rule)
- * becomes `error`, so the report says "bitte manuell prüfen" instead of showing zero problems.
+ * does not look like a complete result (a missing rule, a wrong shape) becomes `error`, so the report
+ * says "bitte manuell prüfen" instead of showing zero problems. Since session fix-a6 axe runs in an isolated
+ * world (`runAxeIsolated`), so the page's own `window.axe` is never the one that runs.
  */
 export function axeCaptureFrom(output: unknown, timing: { injectMs: number | null; totalMs: number }): AxeCapture {
   if (typeof output !== 'object' || output === null) return axeNotRun('error', 'axe returned no result', timing);

@@ -47,12 +47,15 @@ export function siteOfUrl(url: string): string | null {
 }
 
 /**
- * Sites that count as first party for a capture: the site of the final URL and of every
- * hop of the main document's redirect chain (including the requested URL), because the
- * site owner controls those redirects.
+ * Sites that count as first party for a capture: the site of the requested URL and of the final URL.
+ *
+ * Session fix-a6 (review finding 63): a hop of the main document's redirect chain on another site no longer
+ * counts. Such a hop can be a third party (a link shim of a social network, a tracking redirect), and every
+ * request to its whole registrable domain would then go unanalysed. A site that only passes through a
+ * domain of its own owner shows that domain's requests as an unknown third party (a hint without a risk).
  */
-export function firstPartySites(capture: Pick<Capture, 'requestedUrl' | 'finalUrl' | 'mainDocument'>): Set<string> {
-  const urls = [capture.requestedUrl, capture.finalUrl, ...(capture.mainDocument?.redirectChain.map((hop) => hop.url) ?? [])];
+export function firstPartySites(capture: Pick<Capture, 'requestedUrl' | 'finalUrl'> & Partial<Pick<Capture, 'mainDocument'>>): Set<string> {
+  const urls = [capture.requestedUrl, capture.finalUrl];
   const sites = new Set<string>();
   for (const url of urls) {
     if (url === null) continue;
