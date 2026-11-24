@@ -75,6 +75,20 @@ function burst() {
 burst();
 </script>`,
       );
+    case '/heavy/ws-flood':
+      // Session fix-a5 (backlog of fix-a4): WebSockets in bursts of 300 for 13 s; the server refuses the upgrade, Chromium
+      // refuses most sockets before it creates them, and each refusal is still a message of the browser.
+      return html(
+        'Fixture Shop',
+        `<a href="/impressum">Impressum</a><script>
+let k = 0;
+function burst() {
+  for (let i = 0; i < 300; i += 1) { try { const s = new WebSocket('ws://' + location.host + '/heavy/s' + (k++)); s.onerror = function () {}; s.onclose = function () {}; } catch (e) {} }
+  if (performance.now() < 13000) setTimeout(burst, 0);
+}
+burst();
+</script>`,
+      );
     case '/heavy/long-addresses':
       return html(
         'Fixture Shop',

@@ -1,7 +1,8 @@
 import { CAPTURE_SCHEMA_VERSION, type Capture, type CaptureEnvironment, type CaptureFailure, type CapturedRequest, type CaptureVisit, type ImpressumCapture, type PageSnapshot } from '../capture/types.ts';
-import { classifyMainDocument, notAllowedCapture, pageEvidenceOf } from '../capture/failure.ts';
+import { classifyMainDocument, notAllowedCapture, pageEvidenceOf, recheckLookup } from '../capture/failure.ts';
 import { limitCapture, pageLimitFailure } from '../capture/limits.ts';
 import type { FetchBudget } from '../security/fetch-budget.ts';
+import { isConnectionFailure, isLookupFailure } from '../security/fetch-errors.ts';
 import { CAPTURE_SETTINGS } from '../capture/settings.ts';
 import { chooseImpressumTarget } from '../legal/links.ts';
 import { httpsVariantOf, httpVariantOf, probeHttpRedirect, probeHttps } from '../security/http-probe.ts';
@@ -56,18 +57,26 @@ function environmentOf(userAgent: string): CaptureEnvironment {
 }
 
 /** The capture failure of a fetch that did not give a response to read. */
+function lookupFailure(message: string): CaptureFailure {
+  return { reason: 'other', message: `name lookup failed during the scan: ${message.replace(/^not allowed: /, '')}` };
+}
+
 export function fetchFailure(result: SafeFetchResult): CaptureFailure | null {
   switch (result.outcome) {
     case 'ok':
       return null;
-    case 'not-allowed':
-      return { reason: 'not-allowed', message: result.rejection !== undefined ? describeRejection(result.rejection) : 'not allowed' };
+    case 'not-allowed': {
+      const message = result.rejection !== undefined ? describeRejection(result.rejection) : 'not allowed';
+      // A failed name lookup is our failure, not a refusal of the address (session fix-a5, review finding 32).
+      return isLookupFailure(message) ? lookupFailure(message) : { reason: 'not-allowed', message };
+    }
     case 'too-many-redirects':
       return { reason: 'not-allowed', message: `not allowed: too-many-redirects (more than ${result.redirects.length - 1} redirects)` };
     case 'timeout':
       return { reason: 'timeout', message: result.error ?? 'time limit reached' };
     case 'network-error':
-      return { reason: 'unreachable', message: result.error ?? 'network error' };
+      // "Not reachable" only when the connection to the site failed, not for our subrequest limit or budget.
+      return isConnectionFailure(result.error ?? '') ? { reason: 'unreachable', message: result.error ?? 'network error' } : { reason: 'other', message: `request failed on our side: ${result.error ?? 'network error'}` };
     case 'too-large':
       return { reason: 'other', message: 'the page is larger than 2 MB' };
     case 'bad-redirect':
@@ -125,7 +134,7 @@ export async function quickCapture(url: string, input: QuickCaptureOptions): Pro
   const now = options.now ?? (() => Date.now());
   const environment = environmentOf(options.userAgent);
   const verdict = await options.guard.check(url);
-  if (!verdict.allowed) return notAllowedCapture(QUICK_ADAPTER, environment, url, describeRejection(verdict));
+  if (!verdict.allowed) return recheckLookup(notAllowedCapture(QUICK_ADAPTER, environment, url, describeRejection(verdict)));
   const startedAt = new Date(now()).toISOString();
   const t0 = now();
   // The redirect check needs no browser either; it runs while the homepage is fetched.

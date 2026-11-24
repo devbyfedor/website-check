@@ -142,6 +142,23 @@ export async function captureImpressumTabCdp(
   };
 }
 
+/**
+ * The Impressum when its tab failed before it could report anything itself (session fix-a5, review finding 100): the
+ * tab could not be created or prepared. Only the Impressum is "bitte manuell prüfen"; the homepage capture stands.
+ */
+export function failedImpressumTab(url: string, error: unknown, opened: number, homepageStartedAt: number): ImpressumCapture {
+  return {
+    url,
+    ok: false,
+    failure: { reason: 'other', message: `the Impressum tab failed: ${errorText(error)}` },
+    finalUrl: null,
+    status: null,
+    page: null,
+    requestCount: 0,
+    timings: { openedAtMs: Math.max(0, opened - homepageStartedAt), domContentLoadedMs: null, snapshotMs: null, totalMs: Math.max(0, Date.now() - opened), stopReason: 'error' },
+  };
+}
+
 function lowerCase(headers: Record<string, string>): Record<string, string> {
   const result: Record<string, string> = {};
   for (const [name, value] of Object.entries(headers)) result[name.toLowerCase()] = value;

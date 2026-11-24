@@ -10,6 +10,7 @@ import { firstPartySites, hostOf, siteOfUrl } from '../domain/site.ts';
 import type { FieldResult } from '../legal/fields.ts';
 import type { CompiledRules } from '../rules/match.ts';
 import { SEVERITY_OF_RISK_CLASS, type RiskClass } from '../rules/types.ts';
+import { pageAddress } from './page-address.ts';
 import { displayHostOf } from './site-address.ts';
 import {
   REPORT_LIMITS,
@@ -96,8 +97,9 @@ function clip(text: string, max: number = REPORT_LIMITS.textLength): string {
   return chars.length <= max ? text : `${chars.slice(0, max - 1).join('')}…`;
 }
 
-function clipUrl(url: string): string {
-  return clip(url, REPORT_LIMITS.urlLength);
+/** An address of the page as the report keeps it (fix-a5, finding 90: no query, fragment or session id), cut to the report's length. */
+function clipUrl(url: string, kind: 'request' | 'page' | 'link' = 'request'): string {
+  return clip(pageAddress(url, kind), REPORT_LIMITS.urlLength);
 }
 
 /** Finding ids allow lower-case letters, digits, dots and hyphens between colons. */
@@ -583,14 +585,14 @@ function legalFindings(legal: LegalAnalysis, shop: boolean | null, almostEmpty: 
 }
 
 function reportLegal(legal: LegalAnalysis): ReportLegal {
-  const link = (l: { href: string; text: string } | null): { href: string; text: string } | null => (l === null ? null : { href: clipUrl(l.href), text: clip(l.text, 300) });
+  const link = (l: { href: string; text: string } | null): { href: string; text: string } | null => (l === null ? null : { href: clipUrl(l.href, 'link'), text: clip(l.text, 300) });
   const statement = legal.accessibilityStatement;
   return {
     impressumLink: link(legal.links.impressum),
     // Only a link the scan is sure of; an uncertain one is the manual check `legal-datenschutz-uncertain`.
     datenschutzLink: link(legal.links.datenschutz?.certain === true ? legal.links.datenschutz : null),
-    accessibilityStatement: statement === null ? null : { href: clipUrl(statement.href), text: clip(statement.text, 300), certain: statement.certain, page: statement.page },
-    impressum: { state: legal.impressum.state, url: legal.impressum.url === null ? null : clipUrl(legal.impressum.url), crossSite: legal.impressum.crossSite },
+    accessibilityStatement: statement === null ? null : { href: clipUrl(statement.href, 'link'), text: clip(statement.text, 300), certain: statement.certain, page: statement.page },
+    impressum: { state: legal.impressum.state, url: legal.impressum.url === null ? null : clipUrl(legal.impressum.url, 'link'), crossSite: legal.impressum.crossSite },
     fields: {
       address: fieldState(legal.fields.address),
       email: fieldState(legal.fields.email),
@@ -849,7 +851,7 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
     id: options.id,
     createdAt: options.createdAt,
     state,
-    site: { url: options.siteUrl, host, displayHost: displayHostOf(host), finalUrl: loaded && capture.finalUrl !== null ? clipUrl(capture.finalUrl) : null },
+    site: { url: options.siteUrl, host, displayHost: displayHostOf(host), finalUrl: loaded && capture.finalUrl !== null ? clipUrl(capture.finalUrl, 'page') : null },
     scan: {
       mode: options.mode,
       scannedAt: capture.startedAt,

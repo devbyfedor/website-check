@@ -1,3 +1,4 @@
+import { isLookupFailure } from '../security/fetch-errors.ts';
 import { CAPTURE_SCHEMA_VERSION, type Capture, type CaptureFailure, type CaptureFailureReason } from './types.ts';
 
 /**
@@ -158,8 +159,20 @@ export function pageEvidenceOf(page: { title: string; text: string; links: reado
  * the adapter said. Returns the same object if nothing changes; never turns a failed capture into a
  * captured one.
  */
+/**
+ * Session fix-a5 (review finding 32): a capture stopped by the address rules because the name lookup failed
+ * (`dns-error`: the resolver failed, did not answer in time, or the subrequests were used up) is a failed check
+ * of our own (`other`), never `not-allowed`: the address was not refused, and a failed check is not reused by
+ * the cache, so the next start tries again. Applied by the adapters and to every saved capture.
+ */
+export function recheckLookup(capture: Capture): Capture {
+  const failure = capture.failure;
+  if (capture.ok || failure === null || failure.reason !== 'not-allowed' || !isLookupFailure(failure.message)) return capture;
+  return { ...capture, failure: { reason: 'other', message: `name lookup failed during the scan: ${failure.message.replace(/^not allowed: /, '')}` } };
+}
+
 export function recheckCapture(capture: Capture): Capture {
-  if (!capture.ok) return capture;
+  if (!capture.ok) return recheckLookup(capture);
   if (capture.timings.stopReason === 'error') return { ...capture, ok: false, failure: { reason: 'other', message: 'capture interrupted before the page was read' } };
   if (capture.mainDocument === null) return capture;
   const { status, headers } = capture.mainDocument;

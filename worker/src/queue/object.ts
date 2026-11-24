@@ -50,6 +50,8 @@ export interface QueueEnv {
 /** Idle timeout of a queue browser: closed by Browser Run if the object loses it (the object closes it at once when the queue is empty). */
 const KEEP_ALIVE_MS = 20_000;
 const METRICS_KEPT = 30;
+/** When D1 did not take a scan's error, the next try comes this much later (session fix-a5, review finding 44). */
+const UNRECORDED_RETRY_MS = 60_000;
 /** Chrome of Browser Run as measured in A2 (`@cloudflare/puppeteer` 2.0.1): the quick check's user agent until a browser of the day reported its version. */
 const KNOWN_CHROME_VERSION = '152.0.0.0';
 
@@ -161,6 +163,8 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
           check: (url) => guard.check(url),
           secret: this.env.RATE_LIMIT_SECRET,
           dailyGate: this.#dailyGate,
+          // The stored day cap (finding 46): after an eviction the gate above is empty again.
+          dayCap: (now) => this.#queue.dayCapReached(now),
           ...(exempt !== undefined ? { exempt } : {}),
           dispatch: async (scan) => {
             const result = await this.#queue.enqueue({ ...scan, ...(input.force !== undefined ? { force: input.force } : {}) }, Date.now());
@@ -216,7 +220,9 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
     }
     this.#draining = true;
     let more = false;
+    let unrecorded = 0;
     try {
+      unrecorded = await this.#recordPendingErrors();
       const result = await drain({
         queue: this.#queue,
         browser: this.#browserPort(),
@@ -232,7 +238,23 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
       this.#draining = false;
       // Jobs left (the run's cap, or one that arrived at the very end): the next run starts at once.
       if (more || (await this.#queue.waitingCount()) > 0) await this.ctx.storage.setAlarm(Date.now());
+      // Errors D1 did not take: another try in a minute, not only with the next scan (finding 44).
+      else if (unrecorded > 0 || (await this.#queue.unrecorded(Date.now())).length > 0) await this.ctx.storage.setAlarm(Date.now() + UNRECORDED_RETRY_MS);
     }
+  }
+
+  /** Writes the errors of scans that D1 did not take before; returns how many are still not written. */
+  async #recordPendingErrors(): Promise<number> {
+    let left = 0;
+    for (const entry of await this.#queue.unrecorded(Date.now())) {
+      try {
+        await markError(this.env.DB, entry.id, entry.reason, Date.now());
+        await this.#queue.clearUnrecorded(entry.id);
+      } catch {
+        left += 1;
+      }
+    }
+    return left;
   }
 
   #browserPort(): BrowserPort {
@@ -260,15 +282,33 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
       if ((limits?.timeUntilNextAllowedBrowserAcquisition ?? 0) > 0) await sleep(Math.min(limits?.timeUntilNextAllowedBrowserAcquisition ?? 0, this.#queue.limits.launchSpacingMs));
       const started = Date.now();
       await this.#queue.setLastLaunchAt(started);
-      let browser: Browser;
+      let sessionId: string;
       try {
-        browser = await puppeteer.launch(this.env.BROWSER, { keep_alive: KEEP_ALIVE_MS });
+        // `puppeteer.launch` is acquire and connect in one; apart, a session that was acquired but could not be
+        // connected is not lost (session fix-a5, review finding 50).
+        sessionId = (await puppeteer.acquire(this.env.BROWSER, { keep_alive: KEEP_ALIVE_MS })).sessionId;
       } catch (error) {
         if (!isLimitError(error)) throw error;
         // A refused launch although a new browser was allowed: the day's browser time is used up.
         const after = (await puppeteer.limits(this.env.BROWSER).catch(() => null)) as { timeUntilNextAllowedBrowserAcquisition?: number } | null;
         if ((after?.timeUntilNextAllowedBrowserAcquisition ?? 0) > 0) throw error;
         throw new BrowserTimeExhausted(error instanceof Error ? error.message.slice(0, 120) : 'launch refused');
+      }
+      let browser: Browser;
+      try {
+        browser = await puppeteer.connect(this.env.BROWSER, sessionId);
+      } catch {
+        // The session runs at Browser Run from the acquire on. One more try a moment later ("retry", says the error);
+        // with a handle it is closed like any browser of the queue.
+        await sleep(1_000);
+        try {
+          browser = await puppeteer.connect(this.env.BROWSER, sessionId);
+        } catch (error) {
+          // Without a handle the session cannot be closed: Browser Run ends it after the keep-alive without a
+          // connection. That time counts against the day like the time of any browser of the queue.
+          await this.#queue.addBrowserTime(Date.now() - started + KEEP_ALIVE_MS, Date.now());
+          throw error;
+        }
       }
       const launchMs = Date.now() - started;
       try {
@@ -298,14 +338,17 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
   async #closeBrowser(): Promise<void> {
     const browser = this.#browser;
     if (browser === null) return;
+    // Read before the first await (session fix-a5, review finding 49): while this browser closes, another job of
+    // the run may open a new one and set `#launchedAt` again.
+    const launchedAt = this.#launchedAt;
     this.#browser = null;
     this.#visit = null;
     this.#popupGuard = null;
     await browser.close().catch(() => undefined);
     const closedAt = Date.now();
-    const openMs = closedAt - this.#launchedAt;
+    const openMs = closedAt - launchedAt;
     await this.#queue.addBrowserTime(openMs, closedAt);
-    const entry = this.#browsers.findLast((b) => b.launchedAt === this.#launchedAt);
+    const entry = this.#browsers.findLast((b) => b.launchedAt === launchedAt);
     if (entry !== undefined) {
       entry.closedAt = closedAt;
       entry.openMs = openMs;
@@ -348,7 +391,8 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
   async #runJob(job: QueueJob, mode: ScanMode): Promise<void> {
     const started = Date.now();
     const metric: Partial<JobMetric> = { impressumOpened: false };
-    const result = await runScanJob(job, mode, { db: this.env.DB, now: () => Date.now(), capture: (url, m) => this.#capture(url, m, metric) });
+    const result = await runScanJob(job, mode, { db: this.env.DB, now: () => Date.now(), sleep, capture: (url, m) => this.#capture(url, m, metric) });
+    if (result.unrecorded === true) await this.#queue.addUnrecorded(job.id, result.error ?? 'save-failed', Date.now());
     const visit = mode === 'quick' ? this.#objectVisit : this.#visit;
     this.#remember(this.#metrics, {
       ...metric,

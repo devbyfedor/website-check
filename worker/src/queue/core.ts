@@ -84,6 +84,16 @@ export type EnqueueResult = { accepted: true; position: number } | { accepted: f
 const JOB_PREFIX = 'job:';
 const DAY_KEY = 'day';
 const LAUNCH_KEY = 'browser:lastLaunchAt';
+const UNRECORDED_PREFIX = 'unrecorded:';
+/** An error that could not be written for this long is left to the hourly cleanup of D1. */
+const UNRECORDED_KEPT_MS = 60 * 60_000;
+
+/** A scan that ended with our error that D1 did not take (session fix-a5, review finding 44). */
+export interface UnrecordedError {
+  id: string;
+  reason: string;
+  since: number;
+}
 
 export function utcDayOf(now: number): string {
   return new Date(now).toISOString().slice(0, 10);
@@ -163,6 +173,15 @@ export class ScanQueue {
     return { accepted: true, position: positionIn([...all, { key: jobKey(job), job }], job.id) };
   }
 
+  /**
+   * Seconds until 00:00 UTC when the day's cap of accepted scans is reached, otherwise null. Read from the stored
+   * counters, so it holds after the object was evicted from memory (session fix-a5, review finding 46).
+   */
+  async dayCapReached(now: number): Promise<number | null> {
+    const day = await this.day(now);
+    return day.accepted >= this.limits.maxScansPerDay ? secondsToNextUtcDay(now) : null;
+  }
+
   /** 0 while the job runs, 1 for the next job to start, null when the queue does not know it (finished or never queued). */
   async position(id: string): Promise<number | null> {
     const all = await this.jobs();
@@ -171,6 +190,11 @@ export class ScanQueue {
 
   async waitingCount(): Promise<number> {
     return (await this.jobs()).filter((entry) => entry.job.startedAt === undefined).length;
+  }
+
+  /** The oldest waiting job, not taken (session fix-a5: whether the browser is still needed). */
+  async peekNext(): Promise<QueueJob | null> {
+    return (await this.jobs()).find((entry) => entry.job.startedAt === undefined)?.job ?? null;
   }
 
   /** Takes the oldest waiting job and marks it started. */
@@ -218,6 +242,25 @@ export class ScanQueue {
 
   markExhausted(now: number): Promise<void> {
     return this.#updateDay(now, (day) => ({ ...day, exhausted: true }));
+  }
+
+  /** Keeps the error of a scan that D1 did not take, to be written by the next runs. */
+  async addUnrecorded(id: string, reason: string, now: number): Promise<void> {
+    await this.#store.put(`${UNRECORDED_PREFIX}${id}`, { id, reason, since: now } satisfies UnrecordedError);
+  }
+
+  /** The errors still to write; those older than an hour are dropped (the hourly cleanup of D1 ends the scan). */
+  async unrecorded(now: number): Promise<UnrecordedError[]> {
+    const out: UnrecordedError[] = [];
+    for (const [key, entry] of await this.#store.list<UnrecordedError>({ prefix: UNRECORDED_PREFIX })) {
+      if (now - entry.since > UNRECORDED_KEPT_MS) await this.#store.delete(key);
+      else out.push(entry);
+    }
+    return out;
+  }
+
+  async clearUnrecorded(id: string): Promise<void> {
+    await this.#store.delete(`${UNRECORDED_PREFIX}${id}`);
   }
 
   async lastLaunchAt(): Promise<number | null> {

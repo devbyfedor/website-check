@@ -193,3 +193,55 @@ describe('finding 23: axe reads only the document that was checked', () => {
     expect(capture.axe?.status, capture.axe?.error ?? '').toBe('ok');
   });
 });
+
+describe('finding 100 (session fix-a5): a failure of the Impressum tab leaves the homepage capture standing', () => {
+  /** The same browser, but the second tab of every context fails: `newPage` throws, or the page is already gone. */
+  function failingSecondTab(how: 'throws' | 'closed'): Browser {
+    return new Proxy(browser, {
+      get(target, prop) {
+        if (prop === 'createBrowserContext') {
+          return async (...args: unknown[]) => {
+            const context = await (target.createBrowserContext as (...a: unknown[]) => Promise<Awaited<ReturnType<Browser['createBrowserContext']>>>)(...args);
+            let pages = 0;
+            return new Proxy(context, {
+              get(ctx, key) {
+                if (key === 'newPage') {
+                  return async () => {
+                    pages += 1;
+                    if (pages < 2) return ctx.newPage();
+                    if (how === 'throws') throw new Error('Protocol error (Target.createTarget): Target closed');
+                    const page = await ctx.newPage();
+                    await page.close();
+                    return page;
+                  };
+                }
+                const value: unknown = Reflect.get(ctx, key);
+                return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(ctx) : value;
+              },
+            });
+          };
+        }
+        const value: unknown = Reflect.get(target, prop);
+        return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+      },
+    });
+  }
+
+  for (const how of ['throws', 'closed'] as const) {
+    it(`the Impressum tab ${how === 'throws' ? 'cannot be created' : 'is gone at once'}: homepage captured, Impressum failed, report complete`, async () => {
+      const { capture } = await captureWithCdpEvents(failingSecondTab(how), fixture.url('www.shop.test', '/heavy/plain'), options({ impressum: true }));
+      expect(capture.ok).toBe(true);
+      expect(capture.page).not.toBeNull();
+      expect(capture.impressum?.ok).toBe(false);
+      expect(capture.impressum?.failure?.reason).toBe('other');
+      const report = reportOf(capture);
+      expect(report.state).toBe('complete');
+      expect(report.legal?.impressum.state).toBe('failed');
+    });
+  }
+
+  it('control: the same page with a working second tab reads the Impressum', async () => {
+    const { capture } = await captureWithCdpEvents(browser, fixture.url('www.shop.test', '/heavy/plain'), options({ impressum: true }));
+    expect(capture.impressum?.ok).toBe(true);
+  });
+});

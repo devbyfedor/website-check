@@ -86,9 +86,16 @@ export async function drain(deps: DrainDeps): Promise<DrainResult> {
     } finally {
       if (holdsBrowser) runningFull -= 1;
       await queue.finish(job);
-      // Browser time counts while the browser is open, also between scans: close it as soon as nothing needs it.
-      if (runningFull === 0 && (await queue.waitingCount()) === 0) await deps.browser.closeIfOpen().catch(() => undefined);
+      // Browser time counts while the browser is open, also between scans: close it as soon as nothing needs it,
+      // also when jobs wait but the next one would get the quick check (session fix-a5, review finding 47).
+      if (runningFull === 0 && !(await nextNeedsBrowser())) await deps.browser.closeIfOpen().catch(() => undefined);
     }
+  };
+
+  /** Whether the oldest waiting job would start as a full check now (with the open browser's time counted). */
+  const nextNeedsBrowser = async (): Promise<boolean> => {
+    const next = await queue.peekNext();
+    return next !== null && chooseMode(next, await queue.day(deps.now()), limits, deps.browser.openMs()) === 'full';
   };
 
   for (;;) {
@@ -105,6 +112,6 @@ export async function drain(deps: DrainDeps): Promise<DrainResult> {
     await Promise.race([...running.values(), deps.sleep(pollMs)]);
   }
   result.more = (await queue.waitingCount()) > 0;
-  if (!result.more) await deps.browser.closeIfOpen().catch(() => undefined);
+  if (!(await nextNeedsBrowser())) await deps.browser.closeIfOpen().catch(() => undefined);
   return result;
 }

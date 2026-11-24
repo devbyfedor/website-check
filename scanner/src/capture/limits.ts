@@ -188,6 +188,18 @@ export class RequestBudget {
     else if (this.chars > CAPTURE_LIMITS.requestChars) this.exceeded = 'request-addresses';
     return this.exceeded === null;
   }
+
+  /**
+   * A request the page tried that is not recorded: a WebSocket that Chromium refused before it was created (its
+   * own limit of open sockets) still comes as protocol events, two per attempt, and a page can make hundreds of
+   * thousands (session fix-a5: the tab stayed open 38 s although the hard limit is 20 s). It counts like a request.
+   */
+  attempt(): boolean {
+    if (this.exceeded !== null) return false;
+    this.count += 1;
+    if (this.count > CAPTURE_LIMITS.maxRequests) this.exceeded = 'requests';
+    return this.exceeded === null;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------

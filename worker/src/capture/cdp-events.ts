@@ -56,7 +56,7 @@ import {
 import { applyEmulation, frameEmulation, sendAll, userAgentMetadataOf, viewportEmulation, VISITOR_PLATFORM } from './emulation.ts';
 import { measureFieldPositions } from './field-positions.ts';
 import { frameChain, resolveFrames, type FrameSource } from './frames.ts';
-import { captureImpressumTabCdp } from './impressum.ts';
+import { captureImpressumTabCdp, failedImpressumTab } from './impressum.ts';
 
 /**
  * Strategy (a): request events through the browser protocol.
@@ -214,12 +214,15 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
     if (settings.impressum && !hardLimitHit && capture.ok && capture.page !== null) {
       const target = chooseImpressumTarget(capture.page.links, capture.page.url ?? capture.finalUrl);
       if (target.action === 'open') {
+        const opened = Date.now();
+        // A tab that fails while it is created or prepared fails only the Impressum (finding 100); a lost browser still
+        // fails the whole capture below (`assertConnected`).
         capture.impressum = await captureImpressumTabCdp(context, target.url, {
           guard: settings.guard,
           ownTargets,
           userAgent: capture.environment.userAgent,
           homepageStartedAt: Date.parse(capture.startedAt),
-        });
+        }).catch((error: unknown) => failedImpressumTab(target.url, error, opened, Date.parse(capture.startedAt)));
         result.stats.impressumMs = capture.impressum.timings.totalMs;
       } else {
         capture.impressum = null;
@@ -259,6 +262,9 @@ async function runCapture(
   const environment = cloudEnvironment(chromeVersionOf(await browser.version()));
   const page = await context.newPage();
   const client = await clientOf(page);
+  // Console and browser log entries are never read; a page that fails a socket or logs in a loop would send one
+  // message each (session fix-a5: half of 668,000 messages of a WebSocket flood). Puppeteer enabled the domain.
+  await client.send('Log.disable').catch(() => undefined);
   const own = (await client.send('Target.getTargetInfo')) as { targetInfo: { targetId: string } };
   ownTargets.add(own.targetInfo.targetId);
   const emulationFailed = await prepareVisitorPage(page, client, environment.userAgent);
@@ -413,7 +419,13 @@ async function runCapture(
   });
   client.on('Network.webSocketClosed', (event: { requestId: string }) => {
     const record = sockets.get(event.requestId);
-    if (record !== undefined) record.endMs ??= rel();
+    if (record !== undefined) {
+      record.endMs ??= rel();
+      return;
+    }
+    // A socket that was never created (refused by Chromium's limit): an attempt of the page all the same.
+    events += 1;
+    if (budget.exceeded === null && !budget.attempt()) void context.close().catch(() => undefined);
   });
 
   const startedAt = new Date().toISOString();
