@@ -2,9 +2,9 @@
 //
 // 1. The list of animations in document order: target element, keyframes, duration, delay, easing,
 //    fill mode, and the spread of their start times (all must start together, as in the reference).
-// 2. Frames at fixed moments: every animation is paused and set to the same time in both pages, then
-//    the drawing (home) or the whole page (scan screen) is photographed and compared pixel by pixel; at
-//    each moment the page must not scroll sideways.
+// 2. Frames at fixed moments, on pages whose animations are paused from the first style on: every
+//    animation is set to the same time in both pages, then the drawing (home) or the whole page (scan
+//    screen) is photographed and compared pixel by pixel; at each moment the page must not scroll sideways.
 // 3. Home only, the layer switch: a click on layer 2 in both pages, the transitions paused at fixed moments.
 // 4. With reduced motion: no animation and no transition runs, on load (and, on the home page, on a switch).
 //
@@ -116,21 +116,43 @@ function describeAnimations(kind: 'CSSAnimation' | 'CSSTransition'): AnimationIn
     });
 }
 
-// Runs in the page: pauses every animation of one kind and sets it to the same time. Each is finished
-// first, so both pages reach the moment the same way: the reference loads slower, and an animation that
-// had already ended there in real time was painted in another layer than a running one of the app
-// (1 px moved borders of two steps on the scan screen at 1440 px).
+// Runs in the page: pauses every animation of one kind and sets it to the same time.
 function freeze([seconds, kind]: readonly [number, 'CSSAnimation' | 'CSSTransition']): number {
   const list = document.getAnimations().filter((a) => a.constructor.name === kind);
   for (const a of list) {
-    a.finish();
     a.pause();
     a.currentTime = seconds * 1000;
   }
   return list.length;
 }
 
-async function open(browser: Browser, url: string, width: number, origin: string, fonts: 'local' | 'none', reduced: boolean) {
+// Runs before any script of the page: pauses every CSS animation from the first style on, so that a
+// frame does not depend on how far each page has played in real time (the reference loads slower).
+function pauseFromStart(): void {
+  const add = () => {
+    const style = document.createElement('style');
+    style.textContent = '*, *::before, *::after { animation-play-state: paused !important; }';
+    document.head.appendChild(style);
+  };
+  if (document.head) add();
+  else {
+    new MutationObserver((_, observer) => {
+      if (!document.head) return;
+      observer.disconnect();
+      add();
+    }).observe(document, { childList: true, subtree: true });
+  }
+}
+
+async function open(
+  browser: Browser,
+  url: string,
+  width: number,
+  origin: string,
+  fonts: 'local' | 'none',
+  reduced: boolean,
+  paused = false,
+) {
   const context: BrowserContext = await browser.newContext({
     viewport: { width, height: VIEWPORT_HEIGHT[width] ?? 900 },
     deviceScaleFactor: 1,
@@ -138,10 +160,24 @@ async function open(browser: Browser, url: string, width: number, origin: string
     locale: 'de-DE',
     timezoneId: 'Europe/Berlin',
   });
+  if (paused) await context.addInitScript(pauseFromStart);
   const blocked = await routeHosts(context, origin, fonts);
   const page = await context.newPage();
   await page.goto(url, { waitUntil: 'networkidle' });
   await settle(page);
+  if (paused) {
+    // Lays the page out and paints it once more from scratch, now that every font is loaded. Without it
+    // the reference often painted the bottom borders of two steps of the scan screen 1 px off its own
+    // still state (0.119 % of the page at 1440 px, the app matching the still state); probably because
+    // the reference gets its fonts after the first paint, when those steps already had a layer of their
+    // own. The animations are paused and set to each moment afterwards, so starting them again changes nothing.
+    await page.evaluate(() => {
+      document.body.style.display = 'none';
+      void document.body.offsetHeight;
+      document.body.style.display = '';
+    });
+    await nextFrames(page);
+  }
   return { context, page, blocked };
 }
 
@@ -212,15 +248,18 @@ async function checkPage(browser: Browser, origin: string, spec: PageSpec, width
     console.log('    the app animations did not start together');
   }
 
-  // 2. Frames at fixed moments, and no sideways scrolling at any of them.
+  // 2. Frames at fixed moments, on a second pair of pages paused from the start, and no sideways
+  // scrolling at any of them.
   const frames: Record<string, unknown>[] = [];
   const part = spec.shot ? 'drawing' : 'page';
+  const refF = await open(browser, refUrl, width, origin, 'local', false, true);
+  const appF = await open(browser, appUrl, width, origin, 'none', false, true);
   for (const t of args.times ?? spec.times) {
-    const nRef = await ref.page.evaluate(freeze, [t, 'CSSAnimation'] as const);
-    const nApp = await app.page.evaluate(freeze, [t, 'CSSAnimation'] as const);
-    const a = await shot(ref.page, spec.shot);
-    const b = await shot(app.page, spec.shot);
-    const scroll = [await sideways(ref.page), await sideways(app.page)];
+    const nRef = await refF.page.evaluate(freeze, [t, 'CSSAnimation'] as const);
+    const nApp = await appF.page.evaluate(freeze, [t, 'CSSAnimation'] as const);
+    const a = await shot(refF.page, spec.shot);
+    const b = await shot(appF.page, spec.shot);
+    const scroll = [await sideways(refF.page), await sideways(appF.page)];
     const d = diffImages(a, b);
     const tag = `${spec.name}-${width}-t${t.toFixed(2)}`;
     await writeFile(join(RESULT_DIR, `${tag}-reference.png`), PNG.sync.write(a));
@@ -236,6 +275,9 @@ async function checkPage(browser: Browser, origin: string, spec: PageSpec, width
         `sideways scrolling reference ${scroll[0]} px, app ${scroll[1]} px`,
     );
   }
+  const framesBlocked = appF.blocked.length;
+  await refF.context.close();
+  await appF.context.close();
 
   // 3. Home: the layer switch, all reveal animations finished, then a click on layer 2.
   let layerSummary: Record<string, unknown> = {};
@@ -291,7 +333,7 @@ async function checkPage(browser: Browser, origin: string, spec: PageSpec, width
     }
     layerSummary = { refTr, appTr, trProblems, switches, layers };
   }
-  const blocked = app.blocked.length;
+  const blocked = app.blocked.length + framesBlocked;
   if (blocked) failures++;
   await ref.context.close();
   await app.context.close();
