@@ -544,9 +544,9 @@ All texts of the real scan screen and of the form live in `web/lib/scan-texts.ts
 ### Rows with the report: variants not in the reference
 
 - "1 Anfrage aufgezeichnet" (singular of "{n} Anfragen aufgezeichnet"); "Anfragen aufgezeichnet" without a number for a report made before the count existed.
-- "keine an fremde Server" (for "davon {n} an fremde Server" with 0).
+- "keine an fremde Server" (for "davon {n} an fremde Server" with 0); "davon 1 an einen fremden Server" (with 1).
 - "Kein Einwilligungsbanner erkannt" (no banner seen; never a finding by itself).
-- "1 fremder Dienst vor der Einwilligung" (singular); "Keine fremden Dienste vor der Einwilligung" (none; tick instead of "!"); after three names "und 1 weiterer" or "und {n} weitere".
+- "1 fremder Dienst vor der Einwilligung" (singular); "Keine Funde bei fremden Diensten" (no service is a finding; tick instead of "!"; requests to third parties such as public CDNs may still be counted in the row above); after three names "und 1 weiterer" or "und {n} weitere".
 - "Impressum-Link nicht gefunden" with the line "bitte manuell prüfen" (red "!", the manual check with a high risk; wording as `legal-impressum-no-link`).
 - "USt-IdNr." as the fourth name in the line of "Pflichtangaben gelesen" (the reference lists "Anschrift, E-Mail, Handelsregister"); "keine gefunden, bitte manuell prüfen" when no field was found.
 - Status: Entwurf
@@ -561,7 +561,7 @@ All texts of the real scan screen and of the form live in `web/lib/scan-texts.ts
 ### Text description of the drawing (aria-label)
 
 - While waiting: Der Plotter zeichnet die Startseite, die wir prüfen.
-- With the report: "Der Plotter zeichnet die geprüfte Startseite." (no priority), "… und markiert einen vorrangigen Fund rot." (one), "… und markiert {n} vorrangige Funde rot." (two or three). The reference names the places ("Überschrift, Quelltext am Seitenende und Unterzeile"); the real marks stand on those places in the order of the priorities, which is no measured place (see `docs/decisions.md`), so the text does not name them.
+- With the report: "Der Plotter zeichnet die geprüfte Startseite." (no priority), "… und markiert einen vorrangigen Punkt rot." (one), "… und markiert {n} vorrangige Punkte rot." (two or three). "Punkte", because a priority can be a manual check (no Impressum link found), which is no "Fund". The reference names the places ("Überschrift, Quelltext am Seitenende und Unterzeile"); the real marks stand on those places in the order of the priorities, which is no measured place (see `docs/decisions.md`), so the text does not name them.
 - Status: Entwurf
 
 ### Status line (role="status")
