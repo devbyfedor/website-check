@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import { createServer as createNetServer, type AddressInfo } from 'node:net';
 import { heavyPage } from '../../../scanner/test/integration/heavy-pages.ts';
+import { CSP_META_PAGES, HOSTILE_AXE_PAGES } from '../../../scanner/test/integration/hostile-a6-pages.ts';
 import type { Browser as PuppeteerBrowser } from '@cloudflare/puppeteer';
 import { launchLocalBrowser } from '@website-check/scanner/local';
 
@@ -104,6 +105,9 @@ export async function startCdpFixture(): Promise<CdpFixture> {
     };
     const player = (name: string): string => `<iframe title="Video" src="${u('embed.playerco.test', `/${name}`)}" width="320" height="180"></iframe>`;
     const jsonPost = (target: string): string => `fetch('${target}', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"e":1}' }).then(function (r) { return r.text(); }).catch(function () {});`;
+    // Session fix-a6, review findings 26 and 77.
+    const hostile = host === 'www.hostile.test' ? ({ ...HOSTILE_AXE_PAGES, ...CSP_META_PAGES } as Record<string, string>)[path.slice(1)] : undefined;
+    if (hostile !== undefined) return out(200, 'text/html; charset=utf-8', hostile);
     switch (`${host}${path}`) {
       // The site. Its pages embed a third-party player or two third-party widgets, or act themselves.
       case 'www.shop.test/preflight':

@@ -5,6 +5,7 @@ import { BROWSER_LOST, captureWithCdpEvents } from '../../src/capture/cdp-events
 import type { CloudCaptureOptions } from '../../src/capture/common.ts';
 import { loadAxeSource } from '../../../scanner/src/local/axe-source.ts';
 import { startCdpFixture, type CdpFixture } from './cdp-fixture.ts';
+import { HOSTILE_AXE_PAGES, HOSTILE_AXE_VIOLATIONS } from '../../../scanner/test/integration/hostile-a6-pages.ts';
 
 /**
  * Session fix-a1: the review's reproductions of findings 1, 2 and 17 as tests of the Cloudflare adapter
@@ -243,5 +244,26 @@ describe('finding 100 (session fix-a5): a failure of the Impressum tab leaves th
   it('control: the same page with a working second tab reads the Impressum', async () => {
     const { capture } = await captureWithCdpEvents(browser, fixture.url('www.shop.test', '/heavy/plain'), options({ impressum: true }));
     expect(capture.impressum?.ok).toBe(true);
+  });
+});
+
+describe('session fix-a6: the page cannot give axe a false result, and a CSP meta element counts only in <head>', () => {
+  const violations = (capture: Capture): Record<string, number> => Object.fromEntries(Object.entries(capture.axe?.rules ?? {}).filter(([, r]) => (r?.violations ?? 0) > 0).map(([id, r]) => [id, r?.violations ?? 0]));
+  for (const name of Object.keys(HOSTILE_AXE_PAGES)) {
+    it(`finding 26, ${name}: axe runs in an isolated world and finds the six barriers`, async () => {
+      const { capture } = await captureWithCdpEvents(browser, fixture.url('www.hostile.test', `/${name}`), options({ axeSource: await loadAxeSource(), maxWaitMs: 4_000 }));
+      expect(capture.ok).toBe(true);
+      expect(capture.axe?.status, capture.axe?.error ?? '').toBe('ok');
+      expect(violations(capture)).toEqual(HOSTILE_AXE_VIOLATIONS);
+      const report = reportOf(capture);
+      expect(report.findings.filter((f) => f.area === 'accessibility' && f.kind === 'finding')).toHaveLength(6);
+    });
+  }
+
+  it('finding 77: a CSP meta element in <body> is not read, one in <head> is', async () => {
+    const body = await captureWithCdpEvents(browser, fixture.url('www.hostile.test', '/csp-meta-body'), options({ maxWaitMs: 3_000 }));
+    expect(body.capture.page?.securityMeta).toEqual({ csp: null, referrer: null });
+    const head = await captureWithCdpEvents(browser, fixture.url('www.hostile.test', '/csp-meta-head'), options({ maxWaitMs: 3_000 }));
+    expect(head.capture.page?.securityMeta?.csp).toBe("img-src 'self'");
   });
 });
