@@ -549,7 +549,7 @@ Result: merged into `main` with `git merge --no-ff`.
 
 ## fix-a3: the third polishing session after the review of stage A (24.11.2026)
 
-Branch `fix-a3`, **merged into `main`**. Session time: about 50 minutes (01:00 to about 01:50). No Cloudflare, no deploy, nothing pushed. The local browser visited the 30 test sites once (homepage and Impressum, 01:00:52 to 01:06:02); everything else ran on saved captures and on pages on 127.0.0.1. Two helpers (Sonnet) did the blind manual check.
+Branch `fix-a3`, **merged into `main`**. Session time: about 45 minutes (01:00 to about 01:45). No Cloudflare, no deploy, nothing pushed. The local browser visited the 30 test sites once (homepage and Impressum, 01:00:52 to 01:06:02); everything else ran on saved captures and on pages on 127.0.0.1. Two helpers (Sonnet) did the blind manual check.
 
 Fedor's answers before the start (in `docs/decisions.md`): "Bilder mit Beschreibung" follows axe; a new local run comes first; the list of services of an almost empty page stays with the tag "manuell prüfen".
 
