@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Browser } from '@cloudflare/puppeteer';
-import { analyzeThirdParty, buildReport, compileRules, createUrlGuard, parseRulesFile, validateReport, type Capture, type Report } from '@website-check/scanner';
+import { analyzeThirdParty, AXE_RULES, AXE_VERSION, buildReport, compileRules, createUrlGuard, parseRulesFile, validateReport, type Capture, type Report } from '@website-check/scanner';
 import { BROWSER_LOST, captureWithCdpEvents } from '../../src/capture/cdp-events.ts';
 import type { CloudCaptureOptions } from '../../src/capture/common.ts';
 import { loadAxeSource } from '../../../scanner/src/local/axe-source.ts';
@@ -191,6 +193,32 @@ describe('finding 23: axe reads only the document that was checked', () => {
     const { capture } = await captureWithCdpEvents(browser, fixture.url('www.shop.test', '/own'), options({ axeSource: await loadAxeSource(), maxWaitMs: 4_000 }));
     expect(capture.ok).toBe(true);
     expect(capture.axe?.status, capture.axe?.error ?? '').toBe('ok');
+  });
+});
+
+// Session fix-a6: the check that session A3 ran with the lab driver on `wrangler dev`, now a test: the accessibility
+// fixture pages through the Cloudflare adapter (@cloudflare/puppeteer, injected axe-core) match the expected counts.
+describe('accessibility fixture pages through the Cloudflare adapter (session A3)', () => {
+  interface Expected {
+    violations: Record<string, number>;
+    incomplete: Record<string, number>;
+  }
+  const manifest = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../scanner/fixtures/a11y/expected.json'), 'utf8')) as { axeVersion: string; pages: Record<string, Expected> };
+
+  it('the manifest is for the pinned axe-core version', () => {
+    expect(manifest.axeVersion).toBe(AXE_VERSION);
+  });
+
+  it.each(Object.keys(manifest.pages))('%s: the counts are those of the manifest', async (name) => {
+    const expected = manifest.pages[name] as Expected;
+    const { capture } = await captureWithCdpEvents(browser, fixture.url('www.shop.test', `/a11y/${name}`), options({ axeSource: await loadAxeSource(), maxWaitMs: 5_000 }));
+    expect(capture.ok).toBe(true);
+    expect(capture.axe?.status, capture.axe?.error ?? '').toBe('ok');
+    expect(capture.axe?.axeVersion).toBe(AXE_VERSION);
+    for (const id of AXE_RULES) {
+      expect(capture.axe?.rules[id]?.violations, `${id} violations`).toBe(expected.violations[id]);
+      expect(capture.axe?.rules[id]?.incomplete, `${id} incomplete`).toBe(expected.incomplete[id] ?? 0);
+    }
   });
 });
 

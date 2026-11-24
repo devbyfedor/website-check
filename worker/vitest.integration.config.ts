@@ -1,7 +1,8 @@
 ﻿import { defineConfig } from 'vitest/config';
 
 // Session A5: the Cloudflare adapter on plain `wrangler dev` (local workerd and local Chrome,
-// no Cloudflare account, no browser minutes) against a local fixture site.
+// no Cloudflare account, no browser minutes) against local fixture sites: `ssrf-dev.test.ts` runs the lab
+// Workers of the end-to-end check (real API and queue object), the other files the capture function on a local Chromium.
 export default defineConfig({
   test: {
     name: 'worker-integration',

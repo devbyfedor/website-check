@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
+import { resolve } from 'node:path';
 import { createServer as createNetServer, type AddressInfo } from 'node:net';
 import { heavyPage } from '../../../scanner/test/integration/heavy-pages.ts';
 import type { Browser as PuppeteerBrowser } from '@cloudflare/puppeteer';
@@ -175,6 +177,9 @@ export async function startCdpFixture(): Promise<CdpFixture> {
       case 'css.fontco.test/font.css':
         return out(200, 'text/css', 'h1 { color: #111; }', { 'access-control-allow-origin': '*' });
       default: {
+        // Session fix-a6: the accessibility fixture pages of A3 (`scanner/fixtures/a11y/`) at `/a11y/<file>`.
+        const a11y = host === 'www.shop.test' ? /^\/a11y\/([a-z0-9-]+\.html)$/.exec(path)?.[1] : undefined;
+        if (a11y !== undefined) return out(200, 'text/html; charset=utf-8', readFileSync(resolve(import.meta.dirname, '../../../scanner/fixtures/a11y', a11y)));
         // Session fix-a4: the heavy pages of the review, shared with the tests of the local adapter.
         const heavy = host === 'www.shop.test' ? heavyPage(path) : null;
         if (heavy !== null) return out(heavy.status, heavy.type, heavy.body, heavy.headers);
