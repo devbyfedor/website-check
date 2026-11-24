@@ -1,5 +1,6 @@
 import type { PageLink } from '../capture/types.ts';
 import { siteOfUrl } from '../domain/site.ts';
+import { stripInvisible } from './text.ts';
 
 /**
  * Links to the legal pages on the homepage (session A4): Impressum, Datenschutzerklärung and the
@@ -52,18 +53,6 @@ interface KindRules {
   text: (text: string) => 'exact' | 'contains' | null;
   /** Tested against the decoded path and fragment of the address. */
   href: RegExp;
-}
-
-/**
- * Characters that take no space on the page and stand inside words: the soft hyphen (generators and
- * site builders write "Daten&shy;schutz&shy;erklärung"), zero-width space and joiners, the word joiner
- * and the byte order mark.
- */
-const INVISIBLE = /[­​-‍⁠﻿]/g;
-
-/** Text without the invisible characters; a no-op (the same string) for a text without them. */
-export function stripInvisible(text: string): string {
-  return text.replace(INVISIBLE, '');
 }
 
 /** Lower case, umlauts kept, invisible characters removed, every run of whitespace made a single space. */

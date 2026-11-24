@@ -404,6 +404,19 @@ Written in session fix-a2 (23.11.2026). Like every text in this file, a draft.
 - Used when: the report is a quick check (`state: quick`) and the HTML source of the homepage holds no link to an Impressum. A manual check without a risk, never in "Drei Dinge", unlike `legal-impressum-no-link` of the full check.
 - Status: Entwurf
 
+## Legal links (session fix-a3)
+
+Written in session fix-a3 (24.11.2026). Like every text in this file, a draft.
+
+### `legal-datenschutz-uncertain`
+
+- Title: Link zum Datenschutz gefunden, bitte prüfen, ob er zu Ihrer Datenschutzerklärung führt
+- Fact, reason `other-site`: Auf Ihrer Startseite führt ein Link mit dem Wort „Datenschutz“ auf eine andere Website. Das kann Ihre eigene Datenschutzerklärung sein, die an anderer Stelle liegt, oder die Datenschutzhinweise eines Dienstes, den Sie einbinden. Einen Link zu einer Datenschutzerklärung auf Ihrer eigenen Website haben wir nicht gefunden.
+- Fact, reason `same-page`: Auf Ihrer Startseite führt ein Link mit dem Wort „Datenschutz“ zu einer Stelle derselben Seite. Das kann ein Abschnitt mit Ihrer Datenschutzerklärung sein oder die Schaltfläche, die die Cookie-Einstellungen öffnet. Einen Link zu einer eigenen Seite mit der Datenschutzerklärung haben wir nicht gefunden.
+- Fix: Bitte manuell prüfen: Öffnen Sie den Link. Steht dort die Datenschutzerklärung Ihrer Website, ist nichts zu tun. Wenn nicht, verlinken Sie Ihre Datenschutzerklärung gut sichtbar, zum Beispiel in der Fußzeile.
+- Used when: the only link the scan finds for the Datenschutzerklärung leads to another registrable domain (`params.reason` `other-site`) or is an anchor of the homepage itself (`same-page`). A manual check without a risk. The report then shows no `datenschutzLink`. New in session fix-a3 (review finding 14).
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/

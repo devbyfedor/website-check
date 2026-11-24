@@ -1,5 +1,5 @@
 import type { PageSnapshot } from '../capture/types.ts';
-import { stripInvisible } from './links.ts';
+import { stripInvisible } from './text.ts';
 
 /**
  * Is the page behind the Impressum link really an Impressum (session fix-a3, review finding 6)?

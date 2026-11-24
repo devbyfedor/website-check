@@ -1,7 +1,8 @@
 import { parse as parseDomain } from 'tldts';
 import type { PageLink } from '../capture/types.ts';
 import { siteOfHost } from '../domain/site.ts';
-import { normalizeLinkText, stripInvisible } from './links.ts';
+import { normalizeLinkText } from './links.ts';
+import { stripInvisible } from './text.ts';
 
 /**
  * Fields of the Impressum found with templates (session A4; the owner decided on 19.11.2026 that
