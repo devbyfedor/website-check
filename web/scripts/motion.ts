@@ -151,6 +151,22 @@ async function main(): Promise<void> {
       const ref = await open(browser, refUrl, width, server.origin, 'local', false);
       const app = await open(browser, appUrl, width, server.origin, 'none', false);
 
+      // 0. In real time, right after the page is ready: how many animations run and their clock.
+      const live = async (p: Page) =>
+        p.evaluate(() => {
+          const list = document.getAnimations();
+          const running = list.filter((x) => x.playState === 'running').length;
+          const clock = Math.round(Number(list[0]?.currentTime ?? 0));
+          return { total: list.length, running, clock };
+        });
+      const liveRef = await live(ref.page);
+      const liveApp = await live(app.page);
+      console.log(
+        `  in real time after loading: reference ${liveRef.running} of ${liveRef.total} running at ${liveRef.clock} ms, ` +
+          `app ${liveApp.running} of ${liveApp.total} running at ${liveApp.clock} ms`,
+      );
+      if (liveApp.running === 0) failures++;
+
       // 1. The list of animations.
       const refList = await ref.page.evaluate(describeAnimations, 'CSSAnimation' as const);
       const appList = await app.page.evaluate(describeAnimations, 'CSSAnimation' as const);
