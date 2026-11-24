@@ -56,6 +56,25 @@ describe('status for the scan screen', () => {
     expect(status).not.toHaveProperty('cancelToken');
   });
 
+  it('a scan that ended without a report names its reason from a closed list, never the stored text (B2 part 3)', async () => {
+    const status = async (id: string) => (await (await api()(new Request(`https://website-check.test/api/scans/${id}`))).json()) as Record<string, unknown>;
+    const queued = String((await start('kaffee-beispiel.de')).id);
+    expect((await status(queued)).errorReason).toBeNull();
+    const reasons: [string, string][] = [
+      ['cancelled', 'cancelled'],
+      ['daily-limit', 'daily-limit'],
+      ['queue: Error at https://intern.example/x?token=geheim', 'other'],
+      ['stuck', 'other'],
+    ];
+    for (const [stored, shown] of reasons) {
+      const id = String((await start(`${shown}-${reasons.findIndex((r) => r[0] === stored)}-beispiel.de`)).id);
+      await markError(d1.db, id, stored, clock);
+      const body = await status(id);
+      expect(body).toMatchObject({ status: 'error', errorReason: shown });
+      expect(JSON.stringify(body)).not.toContain('geheim');
+    }
+  });
+
   it('one status request is one D1 query that reads two rows (the scan and its site)', async () => {
     const started = await start('kaffee-beispiel.de');
     const counting = countingD1(d1.db);

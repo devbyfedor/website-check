@@ -42,6 +42,8 @@ export function scanBody(scan: ScanRow, cached: boolean, queuePosition: number |
     ...(extra.cancelToken !== undefined && extra.cancelToken !== null ? { cancelToken: extra.cancelToken } : {}),
     // Only while the scan waits: its place in the queue (1 = next), shown by the scan screen (B2).
     queuePosition: scan.status === 'queued' ? queuePosition : null,
+    // Session B2 part 3: why a scan ended without a report, from a closed list (the stored reason is our own text).
+    errorReason: scan.status === 'error' ? errorReasonOf(scan.error ?? null) : null,
     createdAt: iso(scan.createdAt),
     startedAt: iso(scan.startedAt),
     finishedAt: iso(scan.finishedAt),
@@ -49,6 +51,14 @@ export function scanBody(scan: ScanRow, cached: boolean, queuePosition: number |
     statusUrl: `/api/scans/${scan.id}`,
     reportUrl: `/api/scans/${scan.id}/report`,
   };
+}
+
+/**
+ * The reason of a scan that ended without a report, for the scan screen (session B2 part 3): `cancelled` (its last
+ * visitor took it out of the queue), `daily-limit` (the day's cap was reached at its start), `other` (our error).
+ */
+export function errorReasonOf(stored: string | null): 'cancelled' | 'daily-limit' | 'other' {
+  return stored === 'cancelled' || stored === 'daily-limit' ? stored : 'other';
 }
 
 /** 400 codes for refused addresses; `reason` is the rule, never the address. */
