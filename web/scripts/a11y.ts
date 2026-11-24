@@ -4,8 +4,8 @@
 // must be reached in document order. For every stop the focus ring is measured: the screenshot of the
 // element and its surroundings with focus is compared with the one without focus, and for every changed
 // pixel the contrast between the two colours is computed (WCAG 2.2, 2.4.13 asks for at least 3:1 over an
-// area at least as large as a 2 px line around the element). The layer buttons are pressed with Space
-// and Enter, the form is sent with Enter.
+// area at least as large as a 2 px line around the element). Right after each Tab the whole ring must be
+// inside the window. The layer buttons are pressed with Space and Enter, the form is sent with Enter.
 //
 // axe-core: the pinned version of the scanner (node_modules/axe-core), every rule that is on by
 // default (WCAG A, AA and best practices), with reduced motion for each of the four layers and once
@@ -138,16 +138,27 @@ async function keyboard(page: Page, label: string): Promise<{ problems: string[]
     if (!active) break;
     if (stops.some((s) => s.id === active.id)) break;
     await nextFrames(page);
-    // Right after Tab, where the browser scrolled to: the element must be in view; the ring (3 px at an
-    // offset of 3 px) may reach past the edge of the window, which is counted apart.
+    // Right after Tab, where the browser scrolled to: the element and its whole ring must be in the
+    // window. The ring reaches outline-width plus outline-offset past the box (3 + 3 px); scroll-margin
+    // keeps 8 px to the edge (docs/decisions.md, 24.11.2026), so a ring cut by the edge is an error.
     const placed = await page.evaluate(() => {
-      const r = document.activeElement!.getBoundingClientRect();
-      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: innerHeight, width: innerWidth };
+      const el = document.activeElement!;
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      const ring = cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset);
+      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: innerHeight, width: innerWidth, ring };
     });
     if (placed.top < -0.5 || placed.bottom > placed.height + 0.5 || placed.left < -0.5 || placed.right > placed.width + 0.5) {
       problems.push(`${label}: ${active.id} "${active.text}" is not fully in view after Tab`);
     }
-    const ringCut = placed.top < 6 || placed.bottom > placed.height - 6 || placed.left < 6 || placed.right > placed.width - 6;
+    const e = placed.ring - 0.5;
+    const ringCut = placed.top < e || placed.bottom > placed.height - e || placed.left < e || placed.right > placed.width - e;
+    if (ringCut) {
+      problems.push(
+        `${label}: ${active.id} "${active.text}" focus ring past the edge of the window right after Tab ` +
+          `(box ${Math.round(placed.left)}, ${Math.round(placed.top)} to ${Math.round(placed.right)}, ${Math.round(placed.bottom)}; ring ${placed.ring} px)`,
+      );
+    }
     // The ring itself is measured with the element in the middle of the window; the scroll position
     // of the browser is restored afterwards, so the next Tab starts from where a visitor would be.
     const scroll = await page.evaluate(() => [scrollX, scrollY] as const);
@@ -377,7 +388,7 @@ async function main(): Promise<void> {
         await k.context.close();
         const stops = walk.stops as { id: string; text: string; ring: RingMeasure; ringCut: boolean }[];
         const cut = stops.filter((s) => s.ringCut).map((s) => s.id);
-        console.log(`  Tab stops: ${stops.length}; ring partly past the edge of the window right after Tab: ${cut.length ? cut.join(', ') : 'none'}`);
+        console.log(`  Tab stops: ${stops.length}; ring past the edge of the window right after Tab: ${cut.length ? cut.join(', ') : 'none'}`);
         for (const s of stops) {
           console.log(
             `    ${s.id.padEnd(10)} ${JSON.stringify(s.text).padEnd(44)} ring ${s.ring.strong} px at >= 3:1 ` +
