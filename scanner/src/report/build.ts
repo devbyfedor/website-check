@@ -434,7 +434,8 @@ function accessibilityFindings(a11y: AccessibilityAnalysis): Finding[] {
       out.push(finding({ id: `a11y:${name}`, area: 'accessibility', kind: 'finding', risk: 'medium', textId: check.textId ?? `a11y-${name}`, params, evidence: elementEvidence(check.examples) }));
     }
     // Session fix-a2: images marked as decoration pass the axe rule without a description; whether the mark
-    // is right is a manual check, next to whatever else the check found.
+    // is right is a manual check, next to whatever else the check found. It does not change the Prüfmaß
+    // (session fix-a3: the row follows axe, where an empty alt is no error).
     if (check.id === 'image-alt' && (a11y.images?.decorative ?? 0) > 0) {
       out.push(finding({ id: 'a11y:image-alt:decorative', area: 'accessibility', kind: 'manual', textId: 'a11y-image-alt-decorative', params: { check: name, count: a11y.images?.decorative ?? 0 } }));
     }
@@ -592,10 +593,13 @@ function withoutFindings(findings: Finding[]): Finding[] {
 
 /**
  * "Bilder mit Beschreibung" (session fix-a2): `actual` counts only images with a text alternative, of the
- * images that have one, lack one or are undecided. Images marked as decoration are in neither number. The
- * row is "nicht erfüllt" when an image lacks a description, "erfüllt" only when every image the rule checked
- * is described, and "bitte manuell prüfen" otherwise: an undecided image, an image marked as decoration
- * (the scan cannot tell whether rightly), or a capture that does not say how the passing images split.
+ * images that have one, lack one or are undecided. Images marked as decoration are in neither number.
+ *
+ * The result follows axe (the owner's answer of 24.11.2026, session fix-a3): an empty alt marks a
+ * decorative image and is no error. The row is "nicht erfüllt" when an image lacks a description,
+ * "erfüllt" when none does, and "bitte manuell prüfen" for an image axe could not decide or a capture
+ * that does not say how the passing images split. Images marked as decoration do not change the row:
+ * they are the separate manual check `a11y:image-alt:decorative` with their count.
  */
 function imagesMeasure(a11y: AccessibilityAnalysis | null): Measure {
   const target: Measure['target'] = { type: 'all' };
@@ -604,7 +608,7 @@ function imagesMeasure(a11y: AccessibilityAnalysis | null): Measure {
   if (check === 'not-checked' || images === null) return { id: 'images-described', result: 'not-checked', target, actual: null };
   const actual: Measure['actual'] = images.described === null || images.total === null ? null : { type: 'of', count: images.described, total: images.total };
   if (check === 'fail') return { id: 'images-described', result: 'fail', target, actual };
-  const sure = check === 'pass' && images.described !== null && images.decorative === 0;
+  const sure = check === 'pass' && images.described !== null;
   return { id: 'images-described', result: sure ? 'pass' : 'manual', target, actual };
 }
 
