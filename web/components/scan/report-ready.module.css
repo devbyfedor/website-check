@@ -1,0 +1,42 @@
+/* "Fertig. Ihr Bericht ist gezeichnet." of the scan screen (design/reference/pruefung.html): it rises into place when the report is ready. */
+.done {
+  opacity: 0;
+  transform: translateY(8px);
+  animation-name: rise;
+  animation-duration: 0.4s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+@keyframes rise {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* "Bericht öffnen": the white button of the scan screen (56 px; the home page's is 60 px). */
+.btnb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  padding: 0 28px;
+  background: var(--color-chalk);
+  color: var(--color-blueprint);
+  text-decoration: none;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 21px;
+}
+.btnb:hover {
+  background: #ffffff;
+  color: #0f2f73;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .done {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}

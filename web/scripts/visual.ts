@@ -3,7 +3,7 @@
 // reducedMotion 'reduce'. Writes both screenshots and a diff image per page and width to local/visual/
 // and prints the share of different pixels.
 //
-//   npm run visual                      builds web/ first, then compares every built page
+//   npm run visual                      builds web/ with the example pages first, then compares every built page
 //   node web/scripts/visual.ts [--only start] [--widths 1440,390] [--reference-only] [--google-fonts]
 //
 // Fonts: the reference files load Barlow from Google Fonts. Unless --google-fonts is given, that
@@ -22,10 +22,11 @@ import { OUT_DIR, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer, t
 
 const RESULT_DIR = join(ROOT, 'local', 'visual');
 
-// Reference file and app path of each page. `app: null` until a session builds the page.
+// Reference file and app path of each page. `app: null` until a session builds the page. The scan
+// screen is compared with the example of the reference, a page of the example build only (WC_EXAMPLES=1).
 const PAGES: { name: string; reference: string; app: string | null }[] = [
   { name: 'start', reference: 'start.html', app: '/' },
-  { name: 'pruefung', reference: 'pruefung.html', app: null }, // B2
+  { name: 'pruefung', reference: 'pruefung.html', app: '/pruefung/beispiel' }, // B2
   { name: 'bericht', reference: 'bericht.html', app: null }, // B3, B4
   { name: 'bfsg', reference: 'bfsg.html', app: null }, // B5
 ];

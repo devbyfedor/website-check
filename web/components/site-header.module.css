@@ -1,4 +1,4 @@
-/* Header of every page (design/reference/*.html): the logo mark and the main navigation. */
+/* Header of every page (design/reference/*.html): the logo mark, the main navigation and the outlined link on the right. */
 .mark path {
   fill: none;
   stroke: var(--color-chalk);
@@ -15,4 +15,22 @@
 }
 .nav a:hover {
   color: var(--color-cyan);
+}
+
+/* The outlined link on the right ("Prüfung abbrechen", "Neue Prüfung"). */
+.newb {
+  display: inline-flex;
+  align-items: center;
+  height: 42px;
+  padding: 0 18px;
+  border: 1.5px solid var(--color-chalk);
+  color: var(--color-chalk);
+  text-decoration: none;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 18px;
+}
+.newb:hover {
+  background: var(--color-chalk);
+  color: var(--color-blueprint);
 }

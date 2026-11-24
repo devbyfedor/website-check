@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "node scripts/next.ts dev",
     "build": "node scripts/next.ts build",
+    "build:examples": "node scripts/next.ts build --examples",
     "typecheck": "node scripts/next.ts typegen && tsc -p ."
   },
   "dependencies": {

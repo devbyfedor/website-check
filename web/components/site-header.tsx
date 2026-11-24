@@ -35,6 +35,16 @@ export function SiteHeader({ width = 'page', children }: { width?: SheetWidth; c
   );
 }
 
+// The outlined link on the right of the header: "Prüfung abbrechen" on the scan screen, "Neue Prüfung"
+// on the report (`.newb` in pruefung.html and bericht.html).
+export function HeaderAction({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a className={s.newb} href={href}>
+      {children}
+    </a>
+  );
+}
+
 // The main navigation of the blueprint pages.
 export function SiteNav() {
   return (

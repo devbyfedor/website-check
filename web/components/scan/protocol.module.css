@@ -1,0 +1,102 @@
+/*
+  "Messprotokoll" of the scan screen (design/reference/pruefung.html): the panel, the time bar and the
+  list of steps. The delay of each row and tick is inline, as in the reference.
+*/
+.panel {
+  border: 1.5px solid rgba(242, 246, 255, 0.6);
+  background: rgba(11, 42, 104, 0.72);
+  padding: 24px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* The time bar: it grows from 0 to the full width. */
+.pbar {
+  width: 0;
+  animation-name: grow;
+  animation-duration: 7.2s;
+  animation-timing-function: linear;
+  animation-delay: 0.2s;
+  animation-fill-mode: forwards;
+}
+@keyframes grow {
+  to {
+    width: 100%;
+  }
+}
+
+/* A step: dimmed until it lights up, then its tick (or "!") is drawn. */
+.st {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 11px 0;
+  border-bottom: 1px solid rgba(242, 246, 255, 0.18);
+  opacity: 0.32;
+  animation-name: lit;
+  animation-duration: 0.3s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+@keyframes lit {
+  to {
+    opacity: 1;
+  }
+}
+.st svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+}
+.ck {
+  fill: none;
+  stroke: var(--color-cyan);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation-name: draw;
+  animation-duration: 0.35s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.ck.red {
+  stroke: var(--color-pencil-light);
+}
+.stt {
+  font-size: 16px;
+  line-height: 1.4;
+}
+.stt small {
+  display: block;
+  font-size: 13.5px;
+  color: var(--color-chalk-muted);
+}
+.st.red .stt {
+  color: var(--color-pencil-light);
+}
+
+/* Reduced motion: the final state at once, as in the reference. */
+@media (prefers-reduced-motion: reduce) {
+  .ck {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+  .st {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+  .pbar {
+    width: 100%;
+    animation: none;
+  }
+}

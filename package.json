@@ -24,10 +24,11 @@
     "lab:e2e:dev": "node scanner/src/local/lab-e2e-dev.ts",
     "lab:cpu": "node scanner/src/local/cpu-lab.ts",
     "build:web": "npm run build --workspace web",
-    "visual": "npm run build --workspace web && node web/scripts/visual.ts",
-    "motion": "npm run build --workspace web && node web/scripts/motion.ts",
-    "a11y": "npm run build --workspace web && node web/scripts/a11y.ts",
-    "preview": "npm run build:web && node web/scripts/serve.ts"
+    "visual": "npm run build:examples --workspace web && node web/scripts/visual.ts",
+    "motion": "npm run build:examples --workspace web && node web/scripts/motion.ts",
+    "a11y": "npm run build:examples --workspace web && node web/scripts/a11y.ts",
+    "preview": "npm run build:web && node web/scripts/serve.ts",
+    "preview:examples": "npm run build:examples --workspace web && node web/scripts/serve.ts"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

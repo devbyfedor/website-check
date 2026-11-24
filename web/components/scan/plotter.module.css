@@ -1,0 +1,183 @@
+/*
+  The plotter of the scan screen (design/reference/pruefung.html): how its lines are drawn and its labels
+  appear, the red marks, the carriage on the rail and the pen. The line styles are shared
+  (blueprint/drawing.module.css). The delay and duration of each element are inline, as in the reference.
+*/
+
+/* A drawn line (pathLength="1"): one dash, its offset runs from 1 to 0. */
+.draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation-name: draw;
+  animation-duration: 0.9s;
+  animation-timing-function: var(--ease-draw);
+  animation-fill-mode: forwards;
+}
+/* Dots, labels and the numbers of the marks: fade in. */
+.pop {
+  opacity: 0;
+  animation-name: pop;
+  animation-duration: 0.35s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes pop {
+  to {
+    opacity: 1;
+  }
+}
+
+/* The red marks around a finding and their numbers. */
+.rp {
+  fill: none;
+  stroke: var(--color-pencil-light);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rpt {
+  fill: var(--color-pencil-light);
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 17px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* The pen follows the lines of the drawing and parks at the top right; the carriage on the rail follows it. */
+.pen {
+  transform: translate(40px, 50px);
+  animation-name: pen;
+  animation-duration: 7s;
+  animation-timing-function: linear;
+  animation-delay: 0.3s;
+  animation-fill-mode: forwards;
+}
+@keyframes pen {
+  0% {
+    transform: translate(40px, 50px);
+  }
+  14% {
+    transform: translate(560px, 50px);
+  }
+  20% {
+    transform: translate(560px, 400px);
+  }
+  26% {
+    transform: translate(40px, 400px);
+  }
+  31% {
+    transform: translate(64px, 104px);
+  }
+  39% {
+    transform: translate(536px, 214px);
+  }
+  44% {
+    transform: translate(64px, 246px);
+  }
+  49% {
+    transform: translate(368px, 246px);
+  }
+  54% {
+    transform: translate(64px, 280px);
+  }
+  62% {
+    transform: translate(536px, 370px);
+  }
+  70% {
+    transform: translate(40px, 382px);
+  }
+  78% {
+    transform: translate(380px, 246px);
+  }
+  86% {
+    transform: translate(58px, 391px);
+  }
+  94% {
+    transform: translate(244px, 289px);
+  }
+  100% {
+    transform: translate(580px, 22px);
+  }
+}
+.car {
+  transform: translateX(40px);
+  animation-name: car;
+  animation-duration: 7s;
+  animation-timing-function: linear;
+  animation-delay: 0.3s;
+  animation-fill-mode: forwards;
+}
+@keyframes car {
+  0% {
+    transform: translateX(40px);
+  }
+  14% {
+    transform: translateX(560px);
+  }
+  20% {
+    transform: translateX(560px);
+  }
+  26% {
+    transform: translateX(40px);
+  }
+  31% {
+    transform: translateX(64px);
+  }
+  39% {
+    transform: translateX(536px);
+  }
+  44% {
+    transform: translateX(64px);
+  }
+  49% {
+    transform: translateX(368px);
+  }
+  54% {
+    transform: translateX(64px);
+  }
+  62% {
+    transform: translateX(536px);
+  }
+  70% {
+    transform: translateX(40px);
+  }
+  78% {
+    transform: translateX(380px);
+  }
+  86% {
+    transform: translateX(58px);
+  }
+  94% {
+    transform: translateX(244px);
+  }
+  100% {
+    transform: translateX(580px);
+  }
+}
+
+/* Reduced motion: the final state at once, as in the reference. */
+@media (prefers-reduced-motion: reduce) {
+  .draw {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+  .pop {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+  .pen {
+    transform: translate(580px, 22px);
+    animation: none;
+  }
+  .car {
+    transform: translateX(580px);
+    animation: none;
+  }
+}
