@@ -68,7 +68,7 @@ describe('finding 89: the cache is no free oracle of what others checked', () =>
     let answered = 0;
     for (let i = 0; i < 50; i += 1) if ((await post(handler, 'friseur-muster-beispiel.de', '198.51.100.9')).status === 200) answered += 1;
     // Six starts were used above; the rest of the hour's 20 starts are the only answers.
-    expect(answered).toBe(START_LIMIT.hour - 6);
+    expect(answered).toBe(20 - 6);
     const hit = await post(handler, 'friseur-muster-beispiel.de', '198.51.100.9');
     const miss = await post(handler, 'nie-geprueft-2-beispiel.de', '198.51.100.9');
     expect(hit).toEqual(miss);
@@ -82,15 +82,19 @@ describe('finding 89: the cache is no free oracle of what others checked', () =>
     await finishAll();
     let answered = 0;
     for (let hour = 0; hour < 4; hour += 1) {
-      for (let i = 0; i < START_LIMIT.hour; i += 1) if ((await post(handler, 'friseur-muster-beispiel.de', '198.51.100.9')).status === 200) answered += 1;
+      for (let i = 0; i < 20; i += 1) if ((await post(handler, 'friseur-muster-beispiel.de', '198.51.100.9')).status === 200) answered += 1;
       clock += 3_600_000 + 1;
     }
-    expect(answered).toBe(START_LIMIT.day);
+    expect(answered).toBe(60);
     const refused = await post(handler, 'friseur-muster-beispiel.de', '198.51.100.9');
     expect(refused.status).toBe(429);
     expect(refused.body.limit).toBe('starts');
     clock = Date.UTC(2026, 10, 24, 0, 0, 1);
     expect((await post(handler, 'friseur-muster-beispiel.de', '198.51.100.9')).status).toBe(200);
+  });
+
+  it('the start budget is 20 per hour and 60 per UTC day', () => {
+    expect(START_LIMIT).toEqual({ hour: 20, day: 60 });
   });
 
   it('control: an ordinary visitor still gets the cached report without using a scan', async () => {
