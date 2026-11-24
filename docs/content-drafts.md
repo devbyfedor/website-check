@@ -199,7 +199,7 @@ Shared note for all header texts: they describe a common protective measure and 
 - Title: Weiterleitung auf https://: bitte manuell prüfen
 - Fact and risk: Wir konnten nicht feststellen, ob Ihre Adresse mit http:// auf https:// weiterleitet (Grund: {reason}). Das ist kein Fund, sondern eine offene Frage.
 - Fix: Bitte manuell prüfen: Sehen Sie in den Einstellungen Ihres Hosters nach oder fragen Sie ihn, ob eine Weiterleitung auf https:// eingerichtet ist. Ein Test im eigenen Browser sagt wenig, weil manche Browser von sich aus auf https:// wechseln.
-- Used when: the http:// check gives no clear answer; `{reason}` is one of "keine Antwort innerhalb von 10 Sekunden", "Fehlerseite mit Status {status}", "mehr als 5 Weiterleitungen", "Weiterleitung auf eine Adresse, die wir aus Sicherheitsgründen nicht aufrufen", "Weiterleitung ohne Zieladresse", and since session fix-a2 "die Seite unter http:// enthält ein Skript, das die Adresse auf https:// umstellen kann; ob es das tut, zeigt nur ein Browser" "die Seite unter http:// leitet auf eine weitere Adresse mit http:// weiter, die wir nicht geprüft haben" and "die Seite unter http:// wurde nicht vollständig übertragen oder ihr Kopfbereich ist länger als der geprüfte Anfang".
+- Used when: the http:// check gives no clear answer; `{reason}` is one of "keine Antwort innerhalb von 10 Sekunden", "Fehlerseite mit Status {status}", "mehr als 5 Weiterleitungen", "Weiterleitung auf eine Adresse, die wir aus Sicherheitsgründen nicht aufrufen", "Weiterleitung ohne Zieladresse", and since session fix-a2 "die Seite unter http:// enthält ein Skript, das die Adresse auf https:// umstellen kann; ob es das tut, zeigt nur ein Browser" "die Seite unter http:// leitet auf eine weitere Adresse mit http:// weiter, die wir nicht geprüft haben" and "die Seite unter http:// wurde nicht vollständig übertragen oder ihr Kopfbereich ist länger als der geprüfte Anfang". Since session fix-a6 the report carries `params.reason` and `params.status`; the phrases by code: `timeout` "keine Antwort innerhalb von 10 Sekunden", `http-error` "Fehlerseite mit Status {status}", `too-many-redirects` "mehr als 5 Weiterleitungen", `not-allowed` "Weiterleitung auf eine Adresse, die wir aus Sicherheitsgründen nicht aufrufen", `no-location` "Weiterleitung ohne Zieladresse", `script-may-redirect`, `refresh-to-http` and `page-not-read` the three phrases of fix-a2 above, new `final-http` "die Adresse mit http:// leitet auf https:// weiter, die Seite endete im Browser aber wieder unter http://", `unknown` "das Ergebnis der Prüfung war nicht eindeutig".
 - Status: Entwurf
 
 ### `security-http-unavailable`
@@ -247,7 +247,7 @@ Shared note for all header texts: they describe a common protective measure and 
 - Title: Content-Security-Policy mit Fehlern
 - Fact and risk: Ihre Seite legt eine Content-Security-Policy fest, aber diese Teile verstehen aktuelle Browser nicht: „{value}“. Sie werden ignoriert und schützen daher nicht.
 - Fix: Prüfen Sie die Schreibweise, zum Beispiel script-src statt script-scr, und trennen Sie die Anweisungen mit Semikolon. Die Konsole in den Entwicklerwerkzeugen des Browsers zeigt, was er nicht versteht.
-- Used when: Not used yet: the analyzer has no invalid state for CSP. Meant for a policy (header or meta) that contains directives or source values that browsers do not recognise; `{value}` would list those parts. An empty value counts as missing.
+- Used when: since session fix-a6 for a policy (header or meta) without any directive, only separators such as ";" (`{value}` is the value as received); not yet for directives or source values that browsers do not recognise. An empty value counts as missing.
 - Status: Entwurf
 
 ### `security-header-csp-report-only`
@@ -468,6 +468,53 @@ German drafts for what the report says when a limit of the scan was reached. All
 - Text (`impressum-links`): Das Impressum hat Links, die die Prüfung nicht gelesen hat.
 - Text (`headers`): Ein Header der Startseite hat einen Wert, der für die Prüfung zu lang ist. Er wurde nicht ausgewertet.
 - Used when: `truncated.page` names the part.
+- Status: Entwurf
+
+## Session fix-a6
+
+### `security-header-referrer-policy-weak`
+
+- Title: Referrer-Policy schwächer als die Voreinstellung
+- Fact and risk: Ihre Seite legt die Referrer-Policy „{value}“ fest. Damit erfahren andere Server beim Laden von Inhalten und beim Klick auf einen Link die vollständige Adresse der Seite, mehr als mit der Voreinstellung aktueller Browser (strict-origin-when-cross-origin), bei der sie höchstens Ihre Domain sehen. Wir werten den Header deshalb nicht als vorhanden. Das Risiko ist gering.
+- Fix: Setzen Sie Referrer-Policy: strict-origin-when-cross-origin oder einen strengeren Wert wie same-origin oder no-referrer. Prüfen Sie auch ein meta-Element name="referrer" im Quelltext: Es gilt nach dem Header.
+- Used when: the effective policy (the last known token of the header, or a meta element with a known value, which is applied after the header) is `unsafe-url` (also the old meta value `always`) or `no-referrer-when-downgrade`; does not count in "{n} von 5"; low priority.
+- Status: Entwurf
+
+### `security-header-permissions-policy-open`
+
+- Title: Permissions-Policy erlaubt alles
+- Fact and risk: Ihre Seite sendet den Header Permissions-Policy, erlaubt darin aber jede genannte Funktion für alle Herkunften: „{value}“. So schränkt der Header nichts ein. Wir werten ihn deshalb nicht als vorhanden.
+- Fix: Schalten Sie ab, was Ihre Seite nicht nutzt, zum Beispiel Permissions-Policy: camera=(), microphone=(), geolocation=(). Erlauben Sie eine Funktion nur dort, wo sie gebraucht wird, etwa geolocation=(self).
+- Used when: every feature of the header that browsers still know has an allowlist with `*` (`camera=*` or `camera=(*)`); does not count in "{n} von 5".
+- Status: Entwurf
+
+### `security-header-hsts-duplicate`
+
+- Title: Strict-Transport-Security mit doppelter Angabe
+- Fact and risk: Im Header Strict-Transport-Security steht eine Angabe zweimal: „{value}“. Browser ignorieren einen solchen Header ganz, der Schutz wirkt also nicht.
+- Fix: Nennen Sie jede Angabe nur einmal, zum Beispiel Strict-Transport-Security: max-age=31536000; includeSubDomains.
+- Used when: the page is delivered over HTTPS and the first header value repeats a directive (RFC 6797 allows each only once); does not count in "{n} von 5".
+- Status: Entwurf
+
+### `a11y-frame-not-checked`
+
+- Title: Inhalt im Frame nicht geprüft
+- Fact and risk: Ein eingebetteter Bereich (iframe) nimmt {share} % des ersten Bildschirms Ihrer Startseite ein. Was darin angezeigt wird, haben wir nicht geprüft; die Prüfung der Barrierefreiheit gilt nur für den Rest der Seite.
+- Fix: Bitte manuell prüfen: Öffnen Sie die Adresse des eingebetteten Bereichs direkt oder prüfen Sie ihn mit einem Werkzeug wie WAVE oder Lighthouse. Stammt er von einem Anbieter (Buchung, Karte, Shop), fragen Sie dort nach seiner Barrierefreiheit.
+- Used when: the largest iframe covers at least half of the first screen (`a11y:frame-content`); the rows "Kleinster Textkontrast" and "Bilder mit Beschreibung" are then "bitte manuell prüfen" instead of "erfüllt".
+- Status: Entwurf
+
+### `report-page-still-loading`
+
+- Title: (a line of the head, no title)
+- Text: Ihre Startseite lud nach 15 Sekunden noch weitere Inhalte. Der Bericht zeigt, was bis dahin geladen war; später geladene Inhalte und Dienste sind nicht enthalten.
+- Used when: `scan.stopReason` is `max-wait` on a `complete` report.
+- Status: Entwurf
+
+### Reason `not-html` of `report-failed`
+
+- Phrase: "Unter der Adresse liegt keine Webseite, sondern eine Datei (zum Beispiel PDF, Bild oder Daten)."
+- Used when: `failure.reason` is `not-html` (the main document has a content type other than HTML); the text `report-failed` itself is written in B3.
 - Status: Entwurf
 
 ## Sources
