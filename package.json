@@ -26,6 +26,7 @@
     "build:web": "npm run build --workspace web",
     "visual": "npm run build --workspace web && node web/scripts/visual.ts",
     "motion": "npm run build --workspace web && node web/scripts/motion.ts",
+    "a11y": "npm run build --workspace web && node web/scripts/a11y.ts",
     "preview": "npm run build:web && node web/scripts/serve.ts"
   },
   "devDependencies": {
