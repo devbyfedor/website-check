@@ -2,6 +2,7 @@ import type { Report } from '@website-check/scanner/report';
 import { REPORT_TEXTS as T } from '../../lib/report-texts';
 import { measureRows, type MeasureRow } from '../../lib/report-view';
 import s from './report.module.css';
+import { ScrollBox } from './scroll-box';
 
 const TONE = { bad: s.rBad, ok: s.rOk, mid: s.rMid } as const;
 // The marks of "Ergebnis" (bericht.html): a cross, a tick, a dash.
@@ -24,10 +25,12 @@ export function Measures({ report }: { report: Report }) {
   return (
     <section className={s.sec}>
       <div className={s.sech}>
-        <h2 className={s.h2s}>{T.measuresHeading}</h2>
+        <h2 id="pruefmasse" className={s.h2s}>
+          {T.measuresHeading}
+        </h2>
         <span className={`${s.mut} text-[15px]`}>{T.measuresLead}</span>
       </div>
-      <div className={s.tw}>
+      <ScrollBox labelledBy="pruefmasse">
         <table className={s.mt}>
           <thead>
             <tr>
@@ -51,7 +54,7 @@ export function Measures({ report }: { report: Report }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollBox>
       <p className={`${s.mut} m-0 text-[15px]`}>
         {T.bfsgBefore}
         <a href="/bfsg">{T.bfsgLink}</a>

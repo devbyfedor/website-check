@@ -3,6 +3,7 @@ import { PhraseText } from '../scan/phrase';
 import { REPORT_TEXTS as T } from '../../lib/report-texts';
 import { timelineView } from '../../lib/report-view';
 import s from './report.module.css';
+import { ScrollBox } from './scroll-box';
 
 // "Zeitschnitt A–A: die ersten drei Sekunden" (bericht.html): one row per host of the first three seconds with its
 // bar, the cut A–A at the moment the banner became visible, the axis and the legend. Hosts and providers are strings
@@ -14,10 +15,12 @@ export function Timeline({ report }: { report: Report }) {
   return (
     <section className={s.sec}>
       <div className={s.sech}>
-        <h2 className={s.h2s}>{T.timelineHeading}</h2>
+        <h2 id="zeitschnitt" className={s.h2s}>
+          {T.timelineHeading}
+        </h2>
       </div>
       <p className={`${s.bodys} max-w-[46em]`}>{T.timelineLead}</p>
-      <div className={s.tw}>
+      <ScrollBox labelledBy="zeitschnitt">
         <div className="min-w-[720px]">
           <div className={`${s.trow} ${s.trowShort}`}>
             <span className={`${s.tlab} ${s.mut}`}>{T.timelineAxis}</span>
@@ -72,7 +75,7 @@ export function Timeline({ report }: { report: Report }) {
             </div>
           )}
         </div>
-      </div>
+      </ScrollBox>
       <div className="flex flex-wrap gap-x-7 gap-y-2.5 text-[14px] text-ink-muted">
         <span className="inline-flex items-center gap-2">
           <span className={`${s.ext} box-border h-3 w-[22px]`} />

@@ -179,6 +179,11 @@
 .tw {
   overflow-x: auto;
 }
+/* Not in the reference: the box that scrolls takes focus (scroll-box.tsx); its ring is the ring of the sheet. */
+.tw:focus-visible {
+  outline: 3px solid var(--color-link);
+  outline-offset: 3px;
+}
 .mt {
   width: 100%;
   border-collapse: collapse;
