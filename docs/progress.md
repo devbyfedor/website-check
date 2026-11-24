@@ -2,7 +2,7 @@
 
 ## Current state
 
-After stage A a review found 102 points (Fedor, 23.11.2026: the polishing by the review comes first, then B1). Session fix-a1 fixed the four most serious ones about the honesty of the report, session fix-a2 (24.11.2026) the findings 18 to 24; both are merged into `main`; the others follow in later sessions. Stage A, sessions A1 to A5 are merged into `main` (A5 in five parts, merged after part 5 on 23.11.2026). A5 runs in three parts on branch `a5-api` (Fedor, 22.11.2026): part 1, the SSRF protection, and part 2, the report schema, D1, the API, the cache and the rate limit, are done and not merged; part 3 builds the queue in the Durable Object, the Impressum tab on Cloudflare, the quick check, the end-to-end check and the merge. A4 added the mandatory information (Impressum and Datenschutz links, the Impressum in a second tab, its fields by templates, the Erklärung zur Barrierefreiheit) and system detection, locally; the Cloudflare adapter gets the second tab in A5. Part 3 was not merged (Worker CPU above 8 ms on 3 of 50 API requests); part 4 (23.11.2026) split the API Worker from the scan Worker and measured again: still not merged, the start of a new scan costs up to 19 ms (section "A5 part 4" below); part 5 (23.11.2026) moved the whole start into the queue object (Fedor's answer (a)): every API request at most 5 ms, merged (section "A5 part 5" below). Before the first push the history of all branches was rewritten twice to remove personal details about the owner (21.11.2026 and 22.11.2026, sections "History cleanup before the first push" and "Second history cleanup" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
+After stage A a review found 102 points (Fedor, 23.11.2026: the polishing by the review comes first, then B1). Session fix-a1 fixed the four most serious ones about the honesty of the report, session fix-a2 (24.11.2026) the findings 18 to 24, session fix-a3 (24.11.2026) the findings 5, 6, 7, 14, 15, 16 and 71 to 74 about the Impressum and the legal links; all three are merged into `main`; the others follow in later sessions. Stage A, sessions A1 to A5 are merged into `main` (A5 in five parts, merged after part 5 on 23.11.2026). A5 runs in three parts on branch `a5-api` (Fedor, 22.11.2026): part 1, the SSRF protection, and part 2, the report schema, D1, the API, the cache and the rate limit, are done and not merged; part 3 builds the queue in the Durable Object, the Impressum tab on Cloudflare, the quick check, the end-to-end check and the merge. A4 added the mandatory information (Impressum and Datenschutz links, the Impressum in a second tab, its fields by templates, the Erklärung zur Barrierefreiheit) and system detection, locally; the Cloudflare adapter gets the second tab in A5. Part 3 was not merged (Worker CPU above 8 ms on 3 of 50 API requests); part 4 (23.11.2026) split the API Worker from the scan Worker and measured again: still not merged, the start of a new scan costs up to 19 ms (section "A5 part 4" below); part 5 (23.11.2026) moved the whole start into the queue object (Fedor's answer (a)): every API request at most 5 ms, merged (section "A5 part 5" below). Before the first push the history of all branches was rewritten twice to remove personal details about the owner (21.11.2026 and 22.11.2026, sections "History cleanup before the first push" and "Second history cleanup" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
 - Part 1 (done): the Cloudflare capture adapter in `worker/` with both strategies, and a check on three sites of whether consent tools behave the same with the Cloudflare browser as with the local run (banner, third-party requests before consent, browser location, Worker CPU and wall time).
 - Part 2 (done): the capture moves into a Durable Object in the EU jurisdiction; the Worker only checks the token and passes the job on. The scanner recognises blocked pages (a web host's check page such as "Einen Moment bitte") and gives no findings for them. Check on Cloudflare: browser location from the Durable Object, the three sites of part 1 with both strategies, Site 06 recognised as blocked, CPU of the Worker and of the Durable Object.
 - Part 3 (done): banner probe fixes, the measurement on 12 sites, `docs/measurements/a2.md` with the plan recommendation, the merge into `main`, and deleting the lab Worker.
@@ -547,10 +547,68 @@ Result: merged into `main` with `git merge --no-ff`.
 - A redirect to https:// made by an external script, and the request of a speculation-rules prefetch itself (`docs/backlog.md`).
 - The new report values are not designed (`docs/backlog.md`, `docs/report-schema.md`).
 
+## fix-a3: the third polishing session after the review of stage A (24.11.2026)
+
+Branch `fix-a3`, **merged into `main`**. Session time: about 50 minutes (01:00 to about 01:50). No Cloudflare, no deploy, nothing pushed. The local browser visited the 30 test sites once (homepage and Impressum, 01:00:52 to 01:06:02); everything else ran on saved captures and on pages on 127.0.0.1. Two helpers (Sonnet) did the blind manual check.
+
+Fedor's answers before the start (in `docs/decisions.md`): "Bilder mit Beschreibung" follows axe; a new local run comes first; the list of services of an almost empty page stays with the tag "manuell prüfen".
+
+### What was done
+
+- Local run of the 30 sites into `local/fix-a3/` (git-ignored): 30 of 30 captured, the Impressum tab opened 30 times and read 30 times. Fields found: address 29, e-mail 30, Handelsregister 13, USt-IdNr 25 of 30, the same as in A4. For the first time the captures say how the images split: 407 of 437 images that the rule checked have a description; 111 images on 17 sites are marked as decoration.
+- Answer 1: the row "Bilder mit Beschreibung" is "erfüllt" when no image lacks a description; images marked as decoration stay a separate manual check with their count and stay out of the numbers. On the new run: "erfüllt" on 27 sites, "nicht erfüllt" on 3.
+- Finding 5, Impressum fields: every postcode with a town counts as an address, also when the template does not read its street. The first address without a label of someone else is the operator's; a later address in another place is not reported, and register entry, VAT id and e-mail count only up to the next address of another firm (an e-mail after it only on the site's own domain). The address of a court, a chamber, an authority or an insurer does not end the operator's part. More labels of third parties.
+- Finding 6: the page behind the Impressum link is searched only with a sign of an Impressum (title, a sentence of a legal notice, the word outside the link texts); an error page with HTTP 200 and the homepage under another address are the state `failed`, "bitte manuell prüfen".
+- Finding 7: a label that only contains "Impressum" counts only as a combined label of legal pages; a link of the site itself comes before a link to another site.
+- Finding 14: a Datenschutz link to another site or to an anchor of the homepage is the manual check `legal-datenschutz-uncertain` (draft text), never "vorhanden"; compound words only from a list.
+- Finding 15: an accessibility link is certain only as the name of the statement; "Informationen zur Barrierefreiheit", texts with more words and links to other sites are "Link gefunden, bitte prüfen".
+- Finding 16: soft hyphens and zero-width characters are removed from the Impressum text and the link texts before anything is matched.
+- Small findings 71 to 74, each within 15 minutes with tests: mailto links with a common text, quantities and sentences after five digits, register numbers and their quote, the label of a VAT id.
+- Small finding 75 (system detection) is not done: the proposed rule turned 55 saved captures of correctly detected sites into "unbekannt". It was taken back and is in `docs/backlog.md` with what it needs.
+- Decisions in `docs/decisions.md`, open points in `docs/backlog.md`, the new report value in `docs/report-schema.md`, the draft text in `docs/content-drafts.md`.
+
+### Tests
+
+- Each finding and the answer have tests built from the review's reproductions: `scanner/test/impressum-owner.test.ts` (68: findings 5, 16 and 71 to 74), `legal-links-honest.test.ts` (20: findings 7, 14, 15, 16), `impressum-page.test.ts` (8: finding 6), four new or changed cases in `images-described.test.ts` (answer 1), and in Chromium one case in `test/integration/legal.test.ts` (finding 6 through the local adapter) and the image pages of `a11y-security.test.ts`.
+- Run against the code before the fix (sources of `main`, the new tests): 65 of these 104 unit tests failed, at least one for every finding (finding 5: 18, 6: 3, 7: 7, 14: 4, 15: 4, 16: 6, 71: 1, 72: 7, 73: 3, 74: 9, answer 1: 3) and 4 tests in Chromium (finding 6: 1, answer 1: 3); the other 39 are controls that must pass before and after. With the fix all pass.
+- Three older tests were changed on purpose: two Impressum tabs of `legal.test.ts` got the title "Impressum" (a page without any sign of an Impressum is no longer searched), and the fixture with a mailto link under the text "E-Mail schreiben" is read with the firm's own domain (finding 71).
+
+### Saved captures analysed again (no site visited)
+
+- All 287 saved captures under `local/` (219 of real sites, among them the 30 new ones; 68 of our own fixture pages), reports built with the code of `main` and with the code of the branch; a script assigned every single change to its cause: 0 unexplained, no state changed.
+- Reports of real sites that changed: 29 of 219. Reports of fixture pages: 0 of 68.
+- Answer 1: 16 reports, all of the new run: the row of the images goes from "bitte manuell prüfen" to "erfüllt" with the same numbers.
+- Finding 14: 8 captures of one site: the Datenschutz link was a link to another domain in a note of the newsletter form; now it is the site's own link.
+- Finding 15: 5 captures of one site: a link "Informationen zur Barrierefreiheit" goes from "vorhanden" to "Link gefunden, bitte prüfen" (the row from `pass` to `manual`, one more manual check).
+- Findings 5, 6, 7, 16 and 71 to 74 change no saved report: on the 60 saved Impressum pages every field and every link is the same as before, and all 60 pages still count as an Impressum.
+- `npm run scan:local -- --reanalyze` on the new run: the result files differ from those before only by the new field of the links and by the one site of finding 15. `npm run report:check`: 30 of 30 reports valid.
+
+### Blind manual check (new captures of the same 20 sites as in A4)
+
+- Two helpers saw only the saved pages of 10 sites each (text, links, HTML, screenshots), never a result of the scanner, and wrote down the links and the operator's fields. Compared by a script with the scanner's result of the branch.
+- Fields: 64 found by the scanner, 0 wrong (63 the same as the reviewer; 1 is the same address in the form of another line of the page, without the floor that the Impressum block adds, judged right). Links: 40 found (Impressum 20, Datenschutz 20), 40 the same, 0 wrong; no link to a statement on accessibility found by either side, and the 2 links that name only the topic are "bitte prüfen" for both. The second tab is the site's Impressum on 20 of 20 for both.
+- Not found although on the page as text: 2 of 66 fields, both Handelsregister entries, the same two as in A4 (one without "HRA"/"HRB", one under a heading that names an authority).
+
+### Merge condition of fix-a3 (session message)
+
+- Findings 5, 6, 7, 14, 15 and 16 fixed, each with a test: yes (above).
+- Manual check, 0 wrong fields and links: yes, 64 fields and 40 links, 0 wrong.
+- `npm test` and the integration tests pass completely: yes. `npm test` 1,196 of 1,196 (1,096 before); `npm run test:integration` 76 of 76 in Chromium (75 before) and 31 of 31 in the worker project. `npm run typecheck`: no errors. One earlier run of `npm test` at the same time as the integration tests stopped two test files of the worker at their start (50 tests skipped, no test failed); alone it passed three times.
+- Every change in the reports is explained: yes, 29 changed reports, 0 unexplained changes.
+- No secrets, addresses or names of sites, no data of real Impressum pages, no review file and no reproduction scripts in git: yes. 180 search strings (hosts and names of `local/sites.txt` and `local/sites-v1.txt`, the Impressum values of the 30 sites from A4 and from the new run, the reviewers' values) and the value in `worker/.dev.vars`: 0 hits in the 334 tracked files, in the added lines of the branch's commits and in their messages. No tracked path and no tracked line names the review folder. `git ls-files local` is empty. The check found one real register number that had got into a control test of this session; it was replaced by an invented one and removed from the branch's history before the merge (the branch was never pushed).
+
+Result: merged into `main` with `git merge --no-ff`.
+
+### Not done, on purpose
+
+- The other findings of the review, and finding 75 (`docs/backlog.md`).
+- Forms of an operator address the template does not read (`docs/backlog.md`): such a page now gives "nicht gefunden, bitte manuell prüfen" for the address, not another address.
+- The new report value `legal-datenschutz-uncertain` is not designed.
+
 ## Next
 
-- Fedor: push `main` (fix-a2 is merged).
-- Fedor: look at the new German drafts of fix-a1 and fix-a2 in `docs/content-drafts.md` together with the others.
-- Next session: the next polishing session by the review (Fedor names the findings), then stage B, session B1. A new local run of the 30 sites gives the numbers of "Bilder mit Beschreibung" (the saved captures do not have them).
+- Fedor: push `main` (fix-a3 is merged).
+- Fedor: look at the new German drafts of fix-a1, fix-a2 and fix-a3 in `docs/content-drafts.md` together with the others.
+- Next session: the next polishing session by the review (Fedor names the findings), then stage B, session B1. Finding 75 (system detection) is open and needs more than a rule change (`docs/backlog.md`).
 - Fedor, before the launch of the site (stage C): create the real D1 database (both migrations, `wrangler d1 migrations apply`) and put its id into both configs, set `RATE_LIMIT_SECRET` on the scan Worker (`npx wrangler secret put RATE_LIMIT_SECRET -c worker/wrangler.scanner.jsonc`); deploy the scan Worker first, then the API Worker.
 - Polishing after the review, already noted before it: "Feld B2" and the windows-1252 fallback of the quick check (`docs/backlog.md`).
