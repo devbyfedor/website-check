@@ -629,7 +629,7 @@ Fedor's answers before the start (in `docs/decisions.md`): "Informationen zur Ba
 
 ### The heavy pages, measured (step 8 of the session)
 
-- One harness (git-ignored, `local/tools/hostile-pages-fix-a4.ts`) took every page and every synthetic input of the reproduction scripts of these findings, with the review's headline numbers and with variants of its own, through the adapter the reproduction used: 743 cases, among them 172 pages through both browser adapters, 46 pages in parallel mixes, 33 quick checks and 491 synthetic captures or direct calls; 253 are the helper's own variants (pages that replace the methods the scripts use, floods from an iframe or a web worker, inputs exactly at the limits). Run twice on the code of the branch; 716 of 743 cases gave the same result both times.
+- One harness (git-ignored, under `local/`) took every page and every synthetic input of the reproduction scripts of these findings, with the review's headline numbers and with variants of its own, through the adapter the reproduction used: 743 cases, among them 172 pages through both browser adapters, 46 pages in parallel mixes, 33 quick checks and 491 synthetic captures or direct calls; 253 are the helper's own variants (pages that replace the methods the scripts use, floods from an iframe or a web worker, inputs exactly at the limits). Run twice on the code of the branch; 716 of 743 cases gave the same result both times.
 - Capture as JSON over 2 MB: 0 in both runs. The largest capture an adapter produced: 969,774 characters (a page that failed with `page-limit`).
 - Building and checking the report over 1 s of CPU, on the path of the product (page, capture, report): 0 in both runs. The slowest: 438 ms (1,802 requests to 1,800 unknown hosts).
 - Reports with schema problems: 0. The crafted site of finding 25: 45 requests with the trace request (53 without the budget), an ordinary site 6.
@@ -649,7 +649,7 @@ Fedor's answers before the start (in `docs/decisions.md`): "Informationen zur Ba
 - Step 8 on every heavy page: yes, 0 captures over 2 MB and 0 reports over 1 s of CPU on the path of the product, in both runs of 743 cases.
 - `npm test` and the integration tests pass completely, one after the other: yes. `npm test` 1,258 of 1,258 (1,196 before); `npm run test:integration` 83 of 83 in Chromium (76 before) and 41 of 41 in the worker project (31 before). `npm run typecheck`: no errors.
 - Every change in the reports is explained: yes, 287 changed reports, all by the new field, 0 unexplained.
-- No secrets, addresses or names of sites, no data of real Impressum pages, no review file and no reproduction scripts in git: yes (numbers of the last check below the list).
+- No secrets, addresses or names of sites, no data of real Impressum pages, no review file and no reproduction scripts in git: yes. 180 search strings (hosts and names of `local/sites.txt` and `local/sites-v1.txt`, the Impressum values of the 30 sites, the reviewers' values) and the value in `worker/.dev.vars`: 0 hits in the 342 tracked files, in the added lines of the branch's commits and in their messages. No tracked path and no tracked line names the review folder or its scripts. `git ls-files local` is empty.
 
 Result: merged into `main` with `git merge --no-ff`.
 
