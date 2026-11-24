@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import type { Browser } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -149,7 +150,17 @@ describe('security checks', () => {
   it('recognises an http page without redirect, a redirect loop and a closed port', async () => {
     expect((await probeHttpRedirect(`http://127.0.0.1:${server.port}/plain`, anyPort)).outcome).toBe('no-redirect');
     expect((await probeHttpRedirect(`http://127.0.0.1:${server.port}/loop`, anyPort)).outcome).toBe('too-many-redirects');
-    expect((await probeHttpRedirect('http://127.0.0.1:1/', anyPort)).outcome).toBe('unavailable');
+    // A port that was just closed: the connection is refused (ECONNREFUSED), a fact about the server.
+    const closed = await new Promise<number>((resolve) => {
+      const listener = createServer().listen(0, '127.0.0.1', () => {
+        const port = (listener.address() as { port: number }).port;
+        listener.close(() => resolve(port));
+      });
+    });
+    expect((await probeHttpRedirect(`http://127.0.0.1:${closed}/`, anyPort)).outcome).toBe('unavailable');
+    // Session fix-a5 (finding 80): port 1 is on fetch's own list of bad ports, so the client refuses it before any
+    // connection ("fetch failed: bad port"). That is no fact about a site: a manual check, not "nicht erreichbar".
+    expect((await probeHttpRedirect('http://127.0.0.1:1/', anyPort)).outcome).toBe('stopped');
   });
 
   it('A5: does not follow a redirect to localhost (SSRF guard on every hop)', async () => {
