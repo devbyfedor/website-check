@@ -30,10 +30,15 @@ const RESULT_DIR = join(ROOT, 'local', 'a11y');
 const AXE_FILE = join(ROOT, 'node_modules', 'axe-core', 'axe.min.js');
 // `layers`: the home page's four layer buttons and its form. `midRun`: a moment (seconds) at which axe
 // also runs with every animation paused, as an observation that does not count.
-const PAGES: { name: string; path: string; reference: string; layers: boolean; midRun?: number }[] = [
+// `notBuilt`: the parts of the reference the app does not have yet; their controls are left out of the reference's Tab
+// order before the orders are compared (the report of B3 part 1 has its upper part only; B4 builds the rest).
+const PAGES: { name: string; path: string; reference: string; layers: boolean; midRun?: number; notBuilt?: string }[] = [
   { name: 'start', path: '/', reference: 'start.html', layers: true },
   // The scan screen with the example of the reference (the example build, WC_EXAMPLES=1).
   { name: 'pruefung', path: '/pruefung/beispiel', reference: 'pruefung.html', layers: false, midRun: 3.3 },
+  // B3 part 1: the report with the example, its upper part; the Stückliste, the finding, the revisions, the help
+  // block and the title block of bericht.html are B4.
+  { name: 'bericht', path: '/bericht/beispiel', reference: 'bericht.html', layers: false, notBuilt: 'article section:nth-of-type(n+5), article .stb' },
 ];
 const RING_MARGIN = 10; // px around the element: the ring is 3 px wide at an offset of 3 px
 
@@ -66,16 +71,37 @@ function activeElement(): { id: string; tag: string; text: string; key: string; 
     tag: el.tagName.toLowerCase(),
     text: (el.getAttribute('aria-label') ?? el.textContent ?? (el as HTMLInputElement).placeholder ?? '').trim().replace(/\s+/g, ' ').slice(0, 40),
     // The whole text without white space, to compare the order with the reference: the reference has line
-    // breaks between the parts of a control, React writes none.
-    key: (el.getAttribute('aria-label') ?? el.textContent ?? '').replace(/\s+/g, ''),
+    // breaks between the parts of a control, React writes none. A box that scrolls sideways (Chrome puts it in the Tab
+    // order by itself when nothing in it can take focus) is compared by what it is, not by the whole text inside it.
+    key:
+      el.matches('a[href], button, input, select, textarea') || !(['auto', 'scroll'].includes(cs.overflowX) && el.scrollWidth > el.clientWidth + 1)
+        ? (el.getAttribute('aria-label') ?? el.textContent ?? '').replace(/\s+/g, '')
+        : `[scroll box ${el.tagName.toLowerCase()}]`,
     focusVisible: el.matches(':focus-visible'),
     outline: `${cs.outlineStyle} ${cs.outlineWidth} ${cs.outlineColor} offset ${cs.outlineOffset}`,
   };
 }
 
-// Runs in the page: every element a keyboard user must reach, in document order.
+// Runs in the page: the ids (as `activeElement` names them) of every element inside the parts a page does not have yet.
+function idsInside(selector: string): string[] {
+  const out: string[] = [];
+  for (const root of Array.from(document.querySelectorAll(selector))) {
+    for (const el of [root, ...Array.from(root.querySelectorAll('*'))]) {
+      out.push(`${el.tagName.toLowerCase()}#${Array.from(document.querySelectorAll(el.tagName)).indexOf(el)}`);
+    }
+  }
+  return out;
+}
+
+// Runs in the page: every element a keyboard user must reach, in document order. A box that scrolls sideways with
+// nothing in it that can take focus is one too: Chrome makes it focusable, so its content can be scrolled by keyboard.
 export function controls(): string[] {
-  const list = Array.from(document.querySelectorAll('a[href], button, input, select, textarea, [tabindex]'));
+  const focusable = 'a[href], button, input, select, textarea, [tabindex]';
+  const list = Array.from(document.querySelectorAll('*')).filter((el) => {
+    if (el.matches(focusable)) return true;
+    const ox = getComputedStyle(el).overflowX;
+    return (ox === 'auto' || ox === 'scroll') && el.scrollWidth > el.clientWidth + 1 && el.querySelector(focusable) === null;
+  });
   return list
     .filter((el) => !(el as HTMLButtonElement).disabled && el.getAttribute('tabindex') !== '-1')
     .filter((el) => {
@@ -295,21 +321,26 @@ export interface TextContrast {
 // the boxes of the element's own text is compared with its text colour, blended with that pixel by the
 // opacity of the element and its ancestors (a step of the scan screen that has not lit up yet is shown
 // at 0.32). Paused animations stay where they are. Needs axe in the page.
+// Text that axe could not decide ("incomplete"), measured by pixels: its colour against every pixel behind it, with the
+// text itself made transparent. A text inside a box that scrolls sideways (the tables and the Zeitschnitt of the report
+// at 390 px) is measured with the box scrolled so that the text is whole in view (session B3 part 1): the boxes are
+// scrolled by their own width, step by step, and each text is measured at the first step that shows all of it; before,
+// a text past the edge of its box was measured against what lay there on the page.
 export async function contrastByPixels(page: Page): Promise<TextContrast[]> {
-  const items = await page.evaluate(async () => {
+  const { items, steps } = await page.evaluate(async () => {
     type Node = { target: string[]; any: { data?: { messageKey?: string } }[] };
-    const w = window as unknown as { axe: { run: (ctx: Document, opts: object) => Promise<{ incomplete: { nodes: Node[] }[] }> } };
+    const w = window as unknown as { axe: { run: (ctx: Document, opts: object) => Promise<{ incomplete: { nodes: Node[] }[] }> }; __wcText: Element[]; __wcBoxes: Element[] };
     const r = await w.axe.run(document, { runOnly: ['color-contrast'], resultTypes: ['incomplete'] });
-    return (r.incomplete[0]?.nodes ?? []).map((n) => {
-      const el = document.querySelector(n.target[0]!)!;
+    const nodes = r.incomplete[0]?.nodes ?? [];
+    w.__wcText = nodes.map((n) => document.querySelector(n.target[0]!)!);
+    w.__wcBoxes = Array.from(document.querySelectorAll('*')).filter((e) => {
+      const ox = getComputedStyle(e).overflowX;
+      return (ox === 'auto' || ox === 'scroll') && e.scrollWidth > e.clientWidth + 1;
+    });
+    const steps = Math.max(1, ...w.__wcBoxes.map((b) => Math.ceil(b.scrollWidth / b.clientWidth)));
+    const items = nodes.map((n, i) => {
+      const el = w.__wcText[i]!;
       const cs = getComputedStyle(el);
-      const rects: { x: number; y: number; w: number; h: number }[] = [];
-      for (const child of Array.from(el.childNodes)) {
-        if (child.nodeType !== Node.TEXT_NODE || !child.textContent?.trim()) continue;
-        const range = document.createRange();
-        range.selectNodeContents(child);
-        for (const q of Array.from(range.getClientRects())) rects.push({ x: q.left + scrollX, y: q.top + scrollY, w: q.width, h: q.height });
-      }
       const size = parseFloat(cs.fontSize);
       const large = size >= 24 || (Number(cs.fontWeight) >= 700 && size >= 18.66);
       let opacity = 1;
@@ -322,51 +353,88 @@ export async function contrastByPixels(page: Page): Promise<TextContrast[]> {
         color: el instanceof SVGElement ? cs.fill : cs.color,
         required: large ? 3 : 4.5,
         opacity,
-        rects,
       };
     });
+    return { items, steps };
   });
-  const style = await page.addStyleTag({
-    content:
-      '*, *::placeholder { color: transparent !important; -webkit-text-fill-color: transparent !important; text-decoration-color: transparent !important; } ' +
-      'text, tspan { fill: transparent !important; stroke: transparent !important; }',
-  });
-  await nextFrames(page);
-  const shot = PNG.sync.read(await page.screenshot({ fullPage: true, animations: 'allow', caret: 'hide' }));
-  await style.evaluate((el) => (el as HTMLStyleElement).remove());
-  return items.map((item) => {
-    const fg = (item.color.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
-    const seen = (bg: number[]) => fg.map((v, k) => v * item.opacity + bg[k]! * (1 - item.opacity));
-    const counts = new Map<string, number>();
-    let lowest = Infinity;
-    let below = 0;
-    let pixels = 0;
-    for (const r of item.rects) {
-      for (let y = Math.floor(r.y); y < Math.ceil(r.y + r.h) && y < shot.height; y++) {
-        for (let x = Math.floor(r.x); x < Math.ceil(r.x + r.w) && x < shot.width; x++) {
-          const i = (y * shot.width + x) * 4;
-          const bg = [shot.data[i]!, shot.data[i + 1]!, shot.data[i + 2]!];
-          const c = contrast(seen(bg), bg);
-          pixels++;
-          if (c < lowest) lowest = c;
-          if (c < item.required) below++;
-          const key = bg.join(',');
-          counts.set(key, (counts.get(key) ?? 0) + 1);
+  const measured: (TextContrast | null)[] = items.map(() => null);
+  for (let step = 0; step < steps; step++) {
+    const placed = await page.evaluate((k) => {
+      const w = window as unknown as { __wcText: Element[]; __wcBoxes: Element[] };
+      for (const b of w.__wcBoxes) b.scrollLeft = Math.min(k * b.clientWidth, b.scrollWidth - b.clientWidth);
+      return w.__wcText.map((el) => {
+        const rects: { x: number; y: number; w: number; h: number }[] = [];
+        let whole = true;
+        const box = w.__wcBoxes.find((b) => b.contains(el))?.getBoundingClientRect();
+        for (const child of Array.from(el.childNodes)) {
+          if (child.nodeType !== Node.TEXT_NODE || !child.textContent?.trim()) continue;
+          const range = document.createRange();
+          range.selectNodeContents(child);
+          for (const q of Array.from(range.getClientRects())) {
+            rects.push({ x: q.left + scrollX, y: q.top + scrollY, w: q.width, h: q.height });
+            if (box && (q.left < box.left - 0.5 || q.right > box.right + 0.5)) whole = false;
+          }
         }
+        return { rects, whole };
+      });
+    }, step);
+    const style = await page.addStyleTag({
+      content:
+        '*, *::placeholder { color: transparent !important; -webkit-text-fill-color: transparent !important; text-decoration-color: transparent !important; } ' +
+        'text, tspan { fill: transparent !important; stroke: transparent !important; }',
+    });
+    await nextFrames(page);
+    const shot = PNG.sync.read(await page.screenshot({ fullPage: true, animations: 'allow', caret: 'hide' }));
+    await style.evaluate((el) => (el as HTMLStyleElement).remove());
+    items.forEach((item, i) => {
+      if (measured[i] !== null || !placed[i]!.whole) return;
+      measured[i] = measure(item, placed[i]!.rects, shot);
+    });
+    // A text no step shows whole (wider than its box) is measured where the last step left it.
+    if (step === steps - 1) items.forEach((item, i) => (measured[i] ??= measure(item, placed[i]!.rects, shot)));
+  }
+  await page.evaluate(() => {
+    for (const b of (window as unknown as { __wcBoxes: Element[] }).__wcBoxes) b.scrollLeft = 0;
+  });
+  return measured.filter((m): m is TextContrast => m !== null);
+}
+
+function measure(
+  item: { element: string; text: string; reason: string; color: string; required: number; opacity: number },
+  rects: { x: number; y: number; w: number; h: number }[],
+  shot: PNG,
+): TextContrast {
+  const fg = (item.color.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+  const seen = (bg: number[]) => fg.map((v, k) => v * item.opacity + bg[k]! * (1 - item.opacity));
+  const counts = new Map<string, number>();
+  let lowest = Infinity;
+  let below = 0;
+  let pixels = 0;
+  for (const r of rects) {
+    for (let y = Math.floor(r.y); y < Math.ceil(r.y + r.h) && y < shot.height; y++) {
+      for (let x = Math.floor(r.x); x < Math.ceil(r.x + r.w) && x < shot.width; x++) {
+        const i = (y * shot.width + x) * 4;
+        const bg = [shot.data[i]!, shot.data[i + 1]!, shot.data[i + 2]!];
+        const c = contrast(seen(bg), bg);
+        pixels++;
+        if (c < lowest) lowest = c;
+        if (c < item.required) below++;
+        const key = bg.join(',');
+        counts.set(key, (counts.get(key) ?? 0) + 1);
       }
     }
-    const mode = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0].split(',').map(Number) ?? [0, 0, 0];
-    return {
-      element: item.element,
-      text: item.text,
-      reason: item.reason,
-      required: item.required,
-      typical: Number(contrast(seen(mode), mode).toFixed(2)),
-      lowest: Number((pixels ? lowest : 0).toFixed(2)),
-      below,
-      pixels,
-    };
-  });
+  }
+  const mode = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0].split(',').map(Number) ?? [0, 0, 0];
+  return {
+    element: item.element,
+    text: item.text,
+    reason: item.reason,
+    required: item.required,
+    typical: Number(contrast(seen(mode), mode).toFixed(2)),
+    lowest: Number((pixels ? lowest : 0).toFixed(2)),
+    below,
+    pixels,
+  };
 }
 
 export function printContrast(prefix: string, list: TextContrast[]): void {
@@ -410,9 +478,14 @@ async function main(): Promise<void> {
         await k.context.close();
         const rk = await newPage(browser, `${server.origin}/__reference/${p.reference}`, width, server.origin, true, 'local');
         const refWalk = await keyboard(rk.page, `reference ${label}`);
+        const notBuilt = p.notBuilt === undefined ? [] : await rk.page.evaluate(idsInside, p.notBuilt);
         await rk.context.close();
         const stops = walk.stops as { id: string; text: string; key: string; ring: RingMeasure; ringCut: boolean }[];
-        const refStops = refWalk.stops as { id: string; text: string; key: string; ringCut: boolean }[];
+        const allRefStops = refWalk.stops as { id: string; text: string; key: string; ringCut: boolean }[];
+        const refStops = allRefStops.filter((s) => !notBuilt.includes(s.id));
+        if (p.notBuilt !== undefined) {
+          console.log(`  reference: ${allRefStops.length - refStops.length} of ${allRefStops.length} Tab stops are in parts not built yet (${p.notBuilt}), left out of the comparison`);
+        }
         const order = stops.map((s) => s.key);
         const refOrder = refStops.map((s) => s.key);
         const sameOrder = order.join('\n') === refOrder.join('\n');

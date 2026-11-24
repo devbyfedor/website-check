@@ -17,17 +17,21 @@ import { mkdir, writeFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { chromium, type Browser } from 'playwright';
 import { PNG } from 'pngjs';
-import { diffImages } from './image-diff.ts';
+import { cropTop, decidedWording, diffImages, regionBottom, REPORT_REGION } from './image-diff.ts';
 import { OUT_DIR, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer, type FontRouting } from './browser-setup.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'visual');
 
 // Reference file and app path of each page. `app: null` until a session builds the page. The scan
-// screen is compared with the example of the reference, a page of the example build only (WC_EXAMPLES=1).
-const PAGES: { name: string; reference: string; app: string | null }[] = [
+// screen and the report are compared with the example of the reference, pages of the example build only
+// (WC_EXAMPLES=1). `region`: the page is built only in part, and the comparison counts the area from the top of the
+// page to the bottom of this block (the same selector in both pages); everything below it is left out. `decided`: the
+// reference gets the wording a product rule decides (image-diff.ts, decidedWording) before it is compared; the
+// difference against the unchanged reference is printed too.
+const PAGES: { name: string; reference: string; app: string | null; region?: string; decided?: boolean }[] = [
   { name: 'start', reference: 'start.html', app: '/' },
   { name: 'pruefung', reference: 'pruefung.html', app: '/pruefung/beispiel' }, // B2
-  { name: 'bericht', reference: 'bericht.html', app: null }, // B3, B4
+  { name: 'bericht', reference: 'bericht.html', app: '/bericht/beispiel', region: REPORT_REGION, decided: true }, // B3 part 1; B4 the rest
   { name: 'bfsg', reference: 'bfsg.html', app: null }, // B5
 ];
 
@@ -146,6 +150,8 @@ interface Shot {
   png: PNG;
   layout: LayoutReport;
   blocked: string[];
+  /** The height of the compared area, when the page has a region; the full page otherwise. */
+  regionHeight: number | null;
 }
 
 async function shoot(
@@ -153,7 +159,7 @@ async function shoot(
   url: string,
   width: number,
   origin: string,
-  opts: { fonts: FontRouting; mask: string[]; file: string },
+  opts: { fonts: FontRouting; mask: string[]; file: string; region?: string | undefined; decided?: boolean | undefined },
 ): Promise<Shot> {
   const context = await browser.newContext({
     viewport: { width, height: VIEWPORT_HEIGHT[width] ?? 900 },
@@ -166,15 +172,20 @@ async function shoot(
   const page = await context.newPage();
   await page.goto(url, { waitUntil: 'networkidle' });
   await settle(page);
+  if (opts.decided && (await page.evaluate(decidedWording)) !== 1) throw new Error(`${url}: the row of the decided wording was not found`);
+  if (opts.decided) await settle(page);
   const layout = await page.evaluate(layoutCheck);
+  const bottom = opts.region === undefined ? null : await page.evaluate(regionBottom, opts.region);
+  if (opts.region !== undefined && bottom === null) throw new Error(`${url}: no element ${opts.region}`);
   const buffer = await page.screenshot({
     fullPage: true,
     mask: opts.mask.map((s) => page.locator(s)),
     maskColor: '#FF00FF',
   });
-  await writeFile(opts.file, buffer);
   await context.close();
-  return { png: PNG.sync.read(buffer), layout, blocked };
+  const png = bottom === null ? PNG.sync.read(buffer) : cropTop(PNG.sync.read(buffer), bottom);
+  await writeFile(opts.file, PNG.sync.write(png));
+  return { png, layout, blocked, regionHeight: bottom === null ? null : png.height };
 }
 
 interface Result {
@@ -188,6 +199,8 @@ interface Result {
   percent: number;
   strictPercent: number;
   excluded: string[];
+  /** Pages with `decided`: the share of different pixels against the reference as it is, without the decided wording. */
+  asIsPercent?: number;
 }
 
 function compare(name: string, width: number, ref: PNG, app: PNG, excluded: string[]): { result: Result; diff: PNG } {
@@ -239,8 +252,19 @@ async function main(): Promise<void> {
           fonts: args.googleFonts ? 'google' : 'local',
           mask: excluded,
           file: join(RESULT_DIR, `${tag}-reference.png`),
+          region: args.referenceOnly ? undefined : p.region,
+          decided: !args.referenceOnly && p.decided === true,
         });
         printLayout('reference', ref.layout);
+        // The unchanged reference as well, for the number against the file as it is.
+        const asIs = p.decided && !args.referenceOnly && p.app
+          ? await shoot(browser, `${server.origin}/__reference/${p.reference}`, width, server.origin, {
+              fonts: args.googleFonts ? 'google' : 'local',
+              mask: excluded,
+              file: join(RESULT_DIR, `${tag}-reference-as-is.png`),
+              region: p.region,
+            })
+          : null;
         if (ref.blocked.length) console.log(`  reference: ${ref.blocked.length} requests to other hosts blocked`);
         layouts[`${tag}-reference`] = ref.layout;
         if (args.referenceOnly || !p.app) {
@@ -251,6 +275,7 @@ async function main(): Promise<void> {
           fonts: 'none',
           mask: excluded,
           file: join(RESULT_DIR, `${tag}-app.png`),
+          region: p.region,
         });
         printLayout('app', app.layout);
         layouts[`${tag}-app`] = app.layout;
@@ -259,7 +284,18 @@ async function main(): Promise<void> {
         const diffFile = join(RESULT_DIR, `${tag}-diff.png`);
         const { result, diff } = compare(p.name, width, ref.png, app.png, excluded);
         await writeFile(diffFile, PNG.sync.write(diff));
+        if (asIs !== null) {
+          const plain = compare(p.name, width, asIs.png, app.png, excluded);
+          await writeFile(join(RESULT_DIR, `${tag}-diff-as-is.png`), PNG.sync.write(plain.diff));
+          result.asIsPercent = plain.result.percent;
+          console.log(
+            `  against the reference as it is (without the decided wording): reference ${plain.result.referenceSize.join(' x ')}, ` +
+              `different pixels ${plain.result.percent.toFixed(3)} % (${plain.result.differentPixels} of ${plain.result.totalPixels})`,
+          );
+          console.log('  against the reference with the decided wording of the row "Erklärung zur Barrierefreiheit" (product rule 3):');
+        }
         results.push(result);
+        if (p.region !== undefined) console.log(`  compared area: from the top of the page to the bottom of ${p.region} (reference ${ref.regionHeight} px, app ${app.regionHeight} px high)`);
         console.log(
           `  size reference ${result.referenceSize.join(' x ')}, app ${result.appSize.join(' x ')}; ` +
             `different pixels ${result.percent.toFixed(3)} % (${result.differentPixels} of ${result.totalPixels}), ` +
@@ -275,7 +311,9 @@ async function main(): Promise<void> {
   console.log(`\nScreenshots and diff images: ${RESULT_DIR}`);
   if (results.length) {
     console.log('Different pixels (threshold 0.1, anti-aliasing not counted):');
-    for (const r of results) console.log(`  ${r.page} ${r.width} px: ${r.percent.toFixed(3)} %`);
+    for (const r of results) {
+      console.log(`  ${r.page} ${r.width} px: ${r.percent.toFixed(3)} %${r.asIsPercent === undefined ? '' : ` (against the reference as it is ${r.asIsPercent.toFixed(3)} %)`}`);
+    }
   }
   if (!args.referenceOnly) console.log(`Requests of the app to other hosts: ${appBlocked}`);
   if (appBlocked > 0) process.exitCode = 1;
