@@ -189,7 +189,8 @@ describe('probeHttpRedirect', () => {
   });
 
   it('no connection at all is unavailable; a timeout is a timeout', async () => {
-    const refused = await probe('http://www.example.de/', { fetch: fakeFetch({ 'http://www.example.de/': new TypeError('fetch failed') }).fetch });
+    // Session fix-a5 (finding 80): the error as Node's fetch gives it for a refused connection, with its cause.
+    const refused = await probe('http://www.example.de/', { fetch: fakeFetch({ 'http://www.example.de/': Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('connect ECONNREFUSED 192.0.2.1:80'), { code: 'ECONNREFUSED' }) }) }).fetch });
     expect(refused.outcome).toBe('unavailable');
     expect(refused.hops[0]?.error).toContain('fetch failed');
     const slow = Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });

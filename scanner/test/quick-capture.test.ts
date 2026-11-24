@@ -126,7 +126,8 @@ describe('quick check without a browser', () => {
       [() => new Response('x'.repeat(2 * 1024 * 1024 + 10), { status: 200, headers: { 'content-type': 'text/html' } }), 'other'],
       [
         () => {
-          throw new TypeError('fetch failed');
+          // Session fix-a5 (finding 32): the error as Node's fetch gives it for a refused connection, with its cause.
+          throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('connect ECONNREFUSED 192.0.2.1:80'), { code: 'ECONNREFUSED' }) });
         },
         'unreachable',
       ],

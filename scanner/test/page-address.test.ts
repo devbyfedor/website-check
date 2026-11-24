@@ -64,7 +64,7 @@ describe('finding 90: the stored report keeps no query, fragment or session id o
     const urls = report.findings.flatMap((f) => f.evidence.flatMap((e) => (e.type === 'request' ? [e.url, e.via] : [])));
     expect(urls).toContain('https://region1.google-analytics.com/g/collect');
     expect(urls).toContain('https://www.googletagmanager.com/gtag/js');
-    expect(urls).toContain('https://fonts.googleapis.com/css2?family=Lato%3Awght%40400%3B700');
+    expect(urls).toContain('https://fonts.googleapis.com/css2?family=Lato:wght@400;700');
   });
 });
 
@@ -82,7 +82,7 @@ describe('pageAddress', () => {
   it('a legal link on "/" or a script keeps only page selectors with a plain value', () => {
     expect(pageAddress(`https://beispiel.example/?page_id=7&PHPSESSID=${SESSION}`, 'link')).toBe('https://beispiel.example/?page_id=7');
     expect(pageAddress('https://beispiel.example/index.php?id=12&L=0&cHash=abcdef0123456789', 'link')).toBe('https://beispiel.example/index.php?id=12&L=0');
-    expect(pageAddress('https://beispiel.example/index.php?route=information/information&information_id=4', 'link')).toBe('https://beispiel.example/index.php?route=information%2Finformation&information_id=4');
+    expect(pageAddress('https://beispiel.example/index.php?route=information/information&information_id=4', 'link')).toBe('https://beispiel.example/index.php?route=information/information&information_id=4');
     expect(pageAddress(`https://beispiel.example/?id=${'x'.repeat(41)}`, 'link')).toBe('https://beispiel.example/');
     expect(pageAddress('https://beispiel.example/impressum/?page_id=7', 'link')).toBe('https://beispiel.example/impressum/');
     // A request is never a link: the same address loses its query.

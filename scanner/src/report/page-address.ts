@@ -26,11 +26,24 @@ const FONT_PARAMETERS = new Set(['family', 'display']);
 /** `;jsessionid=…` and the like: a session id in a path segment (servers add it when the visitor has no cookie). */
 const PATH_SESSION = /;(jsessionid|phpsessid|sessionid|sid)=[^/;]*/gi;
 
+/** The parameters that pass `keep`, in their original spelling (decoded only to decide). */
 function keptQuery(url: URL, keep: (name: string, value: string) => boolean): string {
-  const kept = new URLSearchParams();
-  for (const [name, value] of url.searchParams) if (keep(name, value)) kept.append(name, value);
-  const text = kept.toString();
-  return text === '' ? '' : `?${text}`;
+  const decode = (text: string): string => {
+    try {
+      return decodeURIComponent(text.split('+').join(' '));
+    } catch {
+      return text;
+    }
+  };
+  const kept = url.search
+    .slice(1)
+    .split('&')
+    .filter((part) => {
+      if (part === '') return false;
+      const at = part.indexOf('=');
+      return keep(decode(at === -1 ? part : part.slice(0, at)), decode(at === -1 ? '' : part.slice(at + 1)));
+    });
+  return kept.length === 0 ? '' : `?${kept.join('&')}`;
 }
 
 function cutAtQuery(text: string): string {
