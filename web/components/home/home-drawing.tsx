@@ -1,12 +1,20 @@
+'use client';
+
 import type { CSSProperties } from 'react';
+import { useLayer, type Layer } from './layers';
 
 // The start of each element's animation, written as in the reference (an inline animation-delay).
 const delay = (animationDelay: string): CSSProperties => ({ animationDelay });
 
 // The technical drawing of the home page (design/reference/start.html). Lines are drawn (`draw`),
 // labels, callouts and the notes appear (`pop`) in the order and with the delays of the reference;
-// with reduced motion the final state shows at once (web/app/globals.css).
+// with reduced motion the final state shows at once (web/app/globals.css). The active layer
+// (layers.tsx) fills its callout and shows its note.
 export function HomeDrawing() {
+  const layer = useLayer();
+  // The callout of the active layer is filled, and only its note is shown.
+  const callout = (n: Layer) => (n === layer ? 'cg on' : 'cg');
+  const note = (n: Layer) => (n === layer ? 'nt show' : 'nt');
   return (
     <svg
       viewBox="0 0 600 450"
@@ -41,7 +49,7 @@ export function HomeDrawing() {
         Datenschutz
       </text>
       <g className="pop" style={delay('2.4s')}>
-        <g className="cg on">
+        <g className={callout(1)}>
           <path className="lead" d="M372 246H450" />
           <circle className="callc" cx="466" cy="246" r="15" />
           <text className="callt" x="466" y="246">
@@ -50,7 +58,7 @@ export function HomeDrawing() {
         </g>
       </g>
       <g className="pop" style={delay('2.6s')}>
-        <g className="cg">
+        <g className={callout(2)}>
           <path className="lead" d="M92 401L124 424" />
           <circle className="callc" cx="136" cy="432" r="15" />
           <text className="callt" x="136" y="432">
@@ -59,7 +67,7 @@ export function HomeDrawing() {
         </g>
       </g>
       <g className="pop" style={delay('2.8s')}>
-        <g className="cg">
+        <g className={callout(3)}>
           <circle className="callc" cx="300" cy="159" r="15" />
           <text className="callt" x="300" y="159">
             3
@@ -67,7 +75,7 @@ export function HomeDrawing() {
         </g>
       </g>
       <g className="pop" style={delay('3s')}>
-        <g className="cg">
+        <g className={callout(4)}>
           <path className="lead" d="M441 67H480" />
           <circle className="callc" cx="496" cy="67" r="15" />
           <text className="callt" x="496" y="67">
@@ -76,7 +84,7 @@ export function HomeDrawing() {
         </g>
       </g>
       <g className="pop" style={delay('3.3s')}>
-        <g className="nt show">
+        <g className={note(1)}>
           <rect className="ntb" x="372" y="264" width="214" height="38" rx="3" />
           <text className="ntt" x="384" y="280">
             Google Fonts
@@ -85,7 +93,7 @@ export function HomeDrawing() {
             lädt vor der Einwilligung
           </text>
         </g>
-        <g className="nt">
+        <g className={note(2)}>
           <rect className="ntb" x="160" y="412" width="214" height="37" rx="3" />
           <text className="ntt" x="172" y="428">
             Impressum gefunden
@@ -94,7 +102,7 @@ export function HomeDrawing() {
             Anschrift, E-Mail, Register
           </text>
         </g>
-        <g className="nt">
+        <g className={note(3)}>
           <rect className="ntb" x="322" y="141" width="200" height="37" rx="3" />
           <text className="ntt" x="334" y="157">
             Bild ohne Beschreibung
@@ -103,7 +111,7 @@ export function HomeDrawing() {
             Alternativtext fehlt
           </text>
         </g>
-        <g className="nt">
+        <g className={note(4)}>
           <rect className="ntb" x="330" y="90" width="214" height="37" rx="3" />
           <text className="ntt" x="342" y="106">
             Verschlüsselung aktiv

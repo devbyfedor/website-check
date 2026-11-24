@@ -214,6 +214,28 @@ async function main(): Promise<void> {
             `strict ${percent(d.strictDifferentPixels, d.totalPixels)} % (${d.strictDifferentPixels})`,
         );
       }
+      // Every layer in turn: the drawing after the transitions and the aria-pressed states.
+      const layers: Record<string, unknown>[] = [];
+      for (const n of [2, 3, 4, 1]) {
+        const pressed: string[] = [];
+        for (const p of [ref.page, app.page]) {
+          await p.locator('button[aria-pressed]').nth(n - 1).click();
+          await p.evaluate(() => document.getAnimations().forEach((a) => a.finish()));
+          pressed.push(await p.evaluate(() => Array.from(document.querySelectorAll('button[aria-pressed]'), (b) => b.getAttribute('aria-pressed')).join(' ')));
+        }
+        const a = await drawingShot(ref.page);
+        const b = await drawingShot(app.page);
+        const d = diffImages(a, b);
+        await writeFile(join(RESULT_DIR, `layer-${width}-${n}-diff.png`), PNG.sync.write(d.diff));
+        const expected = [1, 2, 3, 4].map((k) => String(k === n)).join(' ');
+        if (pressed[0] !== expected || pressed[1] !== expected) failures++;
+        if (d.differentPixels > 0) failures++;
+        layers.push({ layer: n, pressed, ...d, diff: undefined });
+        console.log(
+          `  layer ${n} after its transitions: different pixels ${percent(d.differentPixels, d.totalPixels)} % (${d.differentPixels}), ` +
+            `strict ${percent(d.strictDifferentPixels, d.totalPixels)} %; aria-pressed reference "${pressed[0]}", app "${pressed[1]}"`,
+        );
+      }
       const blocked = app.blocked.length;
       if (blocked) failures++;
       await ref.context.close();
@@ -239,7 +261,7 @@ async function main(): Promise<void> {
           `after a switch reference ${still.referenceOnSwitch}, app ${still.appOnSwitch}`,
       );
       console.log(`  app requests to other hosts: ${blocked}`);
-      summary[width] = { refList, appList, listProblems, frames, refTr, appTr, trProblems, switches, still, blocked };
+      summary[width] = { refList, appList, listProblems, frames, refTr, appTr, trProblems, switches, layers, still, blocked };
     }
   } finally {
     await browser.close();
