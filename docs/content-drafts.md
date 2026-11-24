@@ -34,10 +34,10 @@ Every German text in this file is a DRAFT. The agent wrote these texts in sessio
 ### `a11y-image-alt-decorative`
 
 - Title: {count} Bilder sind als Schmuckbilder markiert, bitte manuell prüfen. Singular: Ein Bild ist als Schmuckbild markiert, bitte manuell prüfen
-- Fact and risk: {count} Bilder haben ein leeres Attribut alt="" oder die Rolle „presentation“. Ein Screenreader überspringt solche Bilder. Das ist richtig, wenn ein Bild nur schmückt. Zeigt es dagegen etwas Wichtiges, etwa ein Produkt oder Ihr Team, fehlt an dieser Stelle die Beschreibung. Das kann die automatische Prüfung nicht unterscheiden, deshalb zählen diese Bilder im Prüfmaß „Bilder mit Beschreibung“ weder als beschrieben noch als unbeschrieben.
+- Fact and risk: {count} Bilder haben ein leeres Attribut alt="" oder die Rolle „presentation“. Ein Screenreader überspringt solche Bilder. Das ist richtig, wenn ein Bild nur schmückt. Zeigt es dagegen etwas Wichtiges, etwa ein Produkt oder Ihr Team, fehlt an dieser Stelle die Beschreibung. Das kann die automatische Prüfung nicht unterscheiden. Diese Bilder gelten deshalb nicht als Fehler: Im Prüfmaß „Bilder mit Beschreibung“ zählen sie weder als beschrieben noch als unbeschrieben, und das Prüfmaß bleibt „erfüllt“, solange keinem Bild die Beschreibung fehlt.
 - Singular variant of the first sentence: Ein Bild hat ein leeres Attribut alt="" oder die Rolle „presentation“.
 - Fix: Bitte manuell prüfen: Sehen Sie diese Bilder durch. Wo ein Bild Inhalt trägt, tragen Sie einen kurzen Alternativtext ein. Viele Systeme setzen alt="" von selbst, wenn beim Hochladen kein Text eingegeben wurde. Reine Schmuckbilder bleiben, wie sie sind.
-- Used when: at least one image passes axe `image-alt` without a text alternative, because it is marked as decoration (`alt=""`, `role="presentation"` or `role="none"`). A manual check without a risk, shown next to `a11y-image-alt` when both apply. New in session fix-a2.
+- Used when: at least one image passes axe `image-alt` without a text alternative, because it is marked as decoration (`alt=""`, `role="presentation"` or `role="none"`). A manual check without a risk, shown next to `a11y-image-alt` when both apply. New in session fix-a2. Changed in session fix-a3 (the owner's answer of 24.11.2026): the Prüfmaß follows axe, so these images no longer turn the row into "bitte manuell prüfen"; the sentence about the Prüfmaß was rewritten.
 - WCAG: 2.2 SC 1.1.1 Non-text Content, level A (decoration is to be marked so that assistive technology can ignore it; whether an image is decoration is a judgement).
 - Status: Entwurf
 
@@ -402,6 +402,19 @@ Written in session fix-a2 (23.11.2026). Like every text in this file, a draft.
 - Fact: Die Schnellprüfung liest nur den HTML-Quelltext Ihrer Startseite, ohne Browser. Darin steht kein Link zum Impressum. Baut erst ein Skript das Menü oder die Fußzeile im Browser auf, kann die Schnellprüfung den Link nicht sehen. Das sagt deshalb nichts darüber aus, ob der Link auf Ihrer Website vorhanden ist.
 - Fix: Bitte manuell prüfen: Öffnen Sie Ihre Startseite in einem Browser und sehen Sie nach, ob der Link „Impressum“ ohne weiteren Klick sichtbar ist. Die vollständige Prüfung mit Browser ist morgen wieder möglich.
 - Used when: the report is a quick check (`state: quick`) and the HTML source of the homepage holds no link to an Impressum. A manual check without a risk, never in "Drei Dinge", unlike `legal-impressum-no-link` of the full check.
+- Status: Entwurf
+
+## Legal links (session fix-a3)
+
+Written in session fix-a3 (24.11.2026). Like every text in this file, a draft.
+
+### `legal-datenschutz-uncertain`
+
+- Title: Link zum Datenschutz gefunden, bitte prüfen, ob er zu Ihrer Datenschutzerklärung führt
+- Fact, reason `other-site`: Auf Ihrer Startseite führt ein Link mit dem Wort „Datenschutz“ auf eine andere Website. Das kann Ihre eigene Datenschutzerklärung sein, die an anderer Stelle liegt, oder die Datenschutzhinweise eines Dienstes, den Sie einbinden. Einen Link zu einer Datenschutzerklärung auf Ihrer eigenen Website haben wir nicht gefunden.
+- Fact, reason `same-page`: Auf Ihrer Startseite führt ein Link mit dem Wort „Datenschutz“ zu einer Stelle derselben Seite. Das kann ein Abschnitt mit Ihrer Datenschutzerklärung sein oder die Schaltfläche, die die Cookie-Einstellungen öffnet. Einen Link zu einer eigenen Seite mit der Datenschutzerklärung haben wir nicht gefunden.
+- Fix: Bitte manuell prüfen: Öffnen Sie den Link. Steht dort die Datenschutzerklärung Ihrer Website, ist nichts zu tun. Wenn nicht, verlinken Sie Ihre Datenschutzerklärung gut sichtbar, zum Beispiel in der Fußzeile.
+- Used when: the only link the scan finds for the Datenschutzerklärung leads to another registrable domain (`params.reason` `other-site`) or is an anchor of the homepage itself (`same-page`). A manual check without a risk. The report then shows no `datenschutzLink`. New in session fix-a3 (review finding 14).
 - Status: Entwurf
 
 ## Sources

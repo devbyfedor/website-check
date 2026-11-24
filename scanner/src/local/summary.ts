@@ -398,7 +398,7 @@ export function renderSummaryMarkdown(summary: RunSummary): string {
     `- Header states: ${SECURITY_HEADERS.map((h) => `${h.key} (${Object.entries(sec.headerStatus[h.key]).map(([k, v]) => `${k} ${v}`).join(', ')})`).join('; ')}.`,
   );
   const l = summary.legal;
-  const linkLine = (k: keyof typeof l.links): string => `${l.links[k].found} (footer ${l.links[k].footer}, by address only ${l.links[k].byHref})`;
+  const linkLine = (k: keyof typeof l.links): string => `${l.links[k].found} (footer ${l.links[k].footer}, by address only ${l.links[k].byHref}${k === 'datenschutz' && l.links[k].unsure > 0 ? `, not certain ${l.links[k].unsure}` : ''})`;
   lines.push(`- Links on the homepage (of ${summary.captured}): Impressum ${linkLine('impressum')}, Datenschutz ${linkLine('datenschutz')}, Erklärung zur Barrierefreiheit ${linkLine('accessibilityStatement')}, plus ${l.links.accessibilityStatement.unsure} links that name only the topic (manual check) (homepage or Impressum page).`);
   lines.push(`- Impressum: ${Object.entries(l.impressumStates).map(([k, v]) => `${k} ${v}`).join(', ')}; on another site: ${l.crossSite}. Second tab opened ${l.impressumMs.opened} times, browser time per tab median ${seconds(l.impressumMs.median)}, mean ${seconds(l.impressumMs.mean)}, max ${seconds(l.impressumMs.max)} (stop: ${Object.entries(l.impressumStop).map(([k, v]) => `${k} ${v}`).join(', ') || 'none'}).`);
   lines.push(`- Impressum fields found (of ${l.searched} texts searched): address ${l.fieldsFound.address}, e-mail ${l.fieldsFound.email} (${Object.entries(l.emailForms).map(([k, v]) => `${k} ${v}`).join(', ') || 'none'}), Handelsregister ${l.fieldsFound.handelsregister} (without court ${l.courtMissing}), USt-IdNr ${l.fieldsFound.ustId}.`);

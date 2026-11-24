@@ -1,6 +1,8 @@
 import { parse as parseDomain } from 'tldts';
 import type { PageLink } from '../capture/types.ts';
 import { siteOfHost } from '../domain/site.ts';
+import { normalizeLinkText } from './links.ts';
+import { stripInvisible } from './text.ts';
 
 /**
  * Fields of the Impressum found with templates (session A4; the owner decided on 19.11.2026 that
@@ -14,6 +16,15 @@ import { siteOfHost } from '../domain/site.ts';
  * The operator's data comes first in reading order. Data that the text marks as belonging to someone
  * else is skipped: web agency and hosting credits, photo credits, the consumer arbitration board, the
  * chamber, the supervisory authority, the liability insurer, an external data protection officer.
+ *
+ * Session fix-a3 (review findings 5 and 16, and 71 to 74): the list of labels can never be complete, so a
+ * value also needs a tie to the operator. The first address on the page that carries no such label is
+ * taken for the operator's. A field counts only up to the next address of someone else (a second firm with
+ * its own register entry, VAT id and e-mail usually follows its address); an address counts only when it
+ * is that first address; an e-mail after that point counts only on the site's own domain. When the
+ * operator's own value is on the page in a form the templates do not read, the result is "nicht
+ * gefunden, bitte manuell prüfen", not the value of the next block. Invisible characters (soft hyphen,
+ * zero-width characters) are removed first, so a quote is a part of the text without them.
  */
 
 export interface AddressValue {
@@ -70,13 +81,19 @@ export function fieldsNotChecked(): ImpressumFields {
 }
 
 /** `ownSites`: registrable domains of the site; a mailto link whose text is not on the page counts only for them. */
-export function extractImpressumFields(text: string, links: readonly PageLink[] = [], ownSites: ReadonlySet<string> = new Set()): ImpressumFields {
-  const email = findEmail(text, links, ownSites);
+export function extractImpressumFields(rawText: string, rawLinks: readonly PageLink[] = [], ownSites: ReadonlySet<string> = new Set()): ImpressumFields {
+  // Generators write "Aufsichts&shy;behörde": without the invisible characters a label is a word again.
+  const text = stripInvisible(rawText);
+  const links = rawLinks.map((link) => ({ ...link, text: stripInvisible(link.text) }));
+  const doc: Doc = { text, lines: linesOf(text), nav: new Set(links.map((link) => normalizeLinkText(link.text)).filter((t) => t !== '')) };
+  const addresses = addressCandidates(doc);
+  const first = addresses.find((c) => c.foreign === null);
+  const regionEnd = operatorRegionEnd(doc, addresses, first);
   return {
-    address: findAddress(text),
-    email,
-    handelsregister: findRegister(text),
-    ustId: findVatId(text),
+    address: findAddress(doc, addresses, first, regionEnd),
+    email: findEmail(doc, links, ownSites, regionEnd),
+    handelsregister: findRegister(doc, regionEnd),
+    ustId: findVatId(doc, regionEnd),
   };
 }
 
@@ -90,6 +107,13 @@ interface Line {
   start: number;
   end: number;
   text: string;
+}
+
+/** The page text without invisible characters, its lines, and the texts of the page's links (menu items). */
+interface Doc {
+  text: string;
+  lines: Line[];
+  nav: ReadonlySet<string>;
 }
 
 function linesOf(text: string): Line[] {
@@ -122,34 +146,62 @@ function lineIndexAt(lines: readonly Line[], position: number): number {
  * (so a company called "Webdesign Huber GmbH" is not taken for a credit line).
  */
 const THIRD_PARTY_ANYWHERE =
-  /schlichtungsstelle|verbraucherschlichtung|streitbeilegung|streitschlichtung|universalschlichtung|aufsichtsbeh(?:ö|oe)rde|zust(?:ä|ae)ndige (?:kammer|beh(?:ö|oe)rde)|datenschutzbeauftragte|data protection officer|berufshaftpflicht|haftpflichtversicher|versicherer|arbitration board|dispute resolution|supervisory authority|webdesign (?:by|von|durch)|website (?:by|von|erstellt|realisiert)|realisiert (?:von|durch)|erstellt (?:von|durch)|umgesetzt (?:von|durch)|gestaltet (?:von|durch)|design(?:ed)? by|made by|powered by|hosted by|gehostet (?:von|bei)|(?:zahn|tier)?(?:ä|ae)rztekammer|psychotherapeutenkammer|apothekerkammer|steuerberaterkammer|rechtsanwaltskammer|notarkammer|architektenkammer|ingenieurkammer|handwerkskammer|wirtschaftspr(?:ü|ue)ferkammer|landwirtschaftskammer|industrie- und handelskammer|handelskammer|kammerzugeh(?:ö|oe)rigkeit|berufsst(?:ä|ae)ndische kammer|kassen(?:zahn)?(?:ä|ae)rztliche vereinigung|zust(?:ä|ae)ndige aufsicht|(?:^|[^\p{L}])(?:ihk|hwk)(?![\p{L}])/iu;
+  /schlichtungsstelle|verbraucherschlichtung|streitbeilegung|streitschlichtung|universalschlichtung|aufsichtsbeh(?:ö|oe)rde|zust(?:ä|ae)ndige (?:kammer|beh(?:ö|oe)rde)|datenschutzbeauftragte|data protection officer|berufshaftpflicht|betriebshaftpflicht|haftpflichtversicher|versicherer|gewerbeaufsicht|(?:ü|ue)berwachungsbeh(?:ö|oe)rde|genehmigungsbeh(?:ö|oe)rde|landesbeauftragte|hosting-?provider|hosting-?partner|web-?hoster|hoster ist|wir hosten|zahlungsabwicklung|zahlungsdienstleister|r(?:ü|ue)cksendung|bildmaterial|(?:website|webseite|homepage|internetseite) wurde|unsere?[rn]? (?:web-?)?(?:hoster|hosting-?anbieter|provider)|online-?beilegung|os-plattform|fotos (?:stammen )?von|arbitration board|dispute resolution|supervisory authority|webdesign (?:by|von|durch)|website (?:by|von|erstellt|realisiert)|realisiert (?:von|durch)|erstellt (?:von|durch)|umgesetzt (?:von|durch)|gestaltet (?:von|durch)|design(?:ed)? by|made by|powered by|hosted by|gehostet (?:von|bei)|(?:zahn|tier)?(?:ä|ae)rztekammer|psychotherapeutenkammer|apothekerkammer|steuerberaterkammer|rechtsanwaltskammer|notarkammer|architektenkammer|ingenieurkammer|handwerkskammer|wirtschaftspr(?:ü|ue)ferkammer|landwirtschaftskammer|industrie- und handelskammer|handelskammer|kammerzugeh(?:ö|oe)rigkeit|berufsst(?:ä|ae)ndische kammer|kassen(?:zahn)?(?:ä|ae)rztliche vereinigung|zust(?:ä|ae)ndige aufsicht|(?:^|[^\p{L}])(?:ihk|hwk)(?![\p{L}])/iu;
 /** For the register field: the general partner of a GmbH & Co. KG is another company with its own register entry. */
 const GENERAL_PARTNER = /pers(?:ö|oe)nlich haftende|komplement(?:ä|ae)r(?:in)?|general partner/iu;
 /** How far back a label is read on one line; a longer line is cut, so a page with one huge line stays fast. */
 const LINE_WINDOW = 300;
 const THIRD_PARTY_LINE_START =
-  /^[\s ]*(?:web-?design|web design|design|gestaltung|grafik|layout|konzept(?:ion)?|umsetzung|technische umsetzung|realisierung|programmierung|entwicklung|technik|webentwicklung|hosting|webhosting|hoster|provider|serverstandort|bildnachweise?|bildquellen?|bildrechte|bilder|fotos?|fotografie|fotonachweise?|fotograf(?:in)?|quellen?(?:angaben)?|credits|copyright (?:der )?(?:bilder|fotos)|agentur|seo|betreuung|kammer|berufskammer|handwerkskammer|ihk|aufsicht|versicherung|haftpflicht|schlichtung|datenschutzbeauftragte[rn]?|external dpo|wo|wann|veranstaltungsort|kursort|kursraum|treffpunkt|location|venue)(?:[\s ]*(?::|&|\+|\/|,|–|-[\s ]|\(|und\b|by\b|von\b|durch\b|bei\b)|[\s ]*$)/iu;
+  /^[\s ]*(?:web-?design|web design|design|gestaltung|grafik|layout|konzept(?:ion)?|umsetzung|technische umsetzung|realisierung|programmierung|entwicklung|technik|webentwicklung|hosting|webhosting|hoster|provider|serverstandort|bildnachweise?|bildquellen?|bildrechte|bilder|fotos?|fotografie|fotonachweise?|fotograf(?:in)?|quellen?(?:angaben)?|credits|copyright (?:der )?(?:bilder|fotos)|agentur|internetagentur|werbeagentur|webagentur|onlineagentur|seo|betreuung|kammer|berufskammer|handwerkskammer|ihk|aufsicht|versicherung|haftpflicht|schlichtung|datenschutzbeauftragte[rn]?|external dpo|wo|wann|veranstaltungsort|kursort|kursraum|treffpunkt|location|venue)(?:[\s ]*(?::|&|\+|\/|,|–|-[\s ]|\(|und\b|by\b|von\b|durch\b|bei\b)|[\s ]*$)/iu;
+
+/**
+ * Headings that mark someone else's block only as a whole line ("Datenschutz" above the external data
+ * protection officer, "Unsere Partner"). The same words are menu items on most pages, so a line that is
+ * also the text of a link of the page does not count.
+ */
+const THIRD_PARTY_HEADING = /^[\s\u00a0]*(?:datenschutz|unsere partner|partner|kooperationspartner|partnerunternehmen)[\s\u00a0]*:?[\s\u00a0]*$/iu;
+
+/**
+ * Labels of bodies that have no register entry, VAT id or e-mail of their own on an Impressum page: a
+ * court, a chamber, an authority, the arbitration board, the insurer, the venue of a course. Their address
+ * is skipped, but the operator's data may follow below it.
+ */
+const AUTHORITY_LABEL =
+  /schlichtung|streitbeilegung|streitschlichtung|dispute|arbitration|aufsicht|beh(?:ö|oe)rde|authority|kammer|(?:^|[^\p{L}])(?:ihk|hwk)(?![\p{L}])|versicher|haftpflicht|vereinigung|amtsgericht|registergericht|handelsregister|court|landesbeauftragte|landratsamt|^[\s\u00a0]*(?:wo|wann|veranstaltungsort|kursort|kursraum|treffpunkt|location|venue)(?![\p{L}])/iu;
+
+/** A line that starts with the word for another place of the operator's own ("Filiale Nord", "Hausanschrift:"). */
+const OWN_LOCATION =
+  /^[\s\u00a0]*(?:(?:unsere?|zweite[rs]?|weitere[rs]?)[\s\u00a0]+)?(?:filialen?|niederlassung(?:en)?|zweigstellen?|zweigniederlassung|zweigpraxis|zweigkanzlei|standorte?|b(?:ü|ue)ro|werk|hauptsitz|firmensitz|stammsitz|sitz|betriebsst(?:ä|ae)tte|ladengesch(?:ä|ae)ft|laden|showroom|ausstellung|werkstatt|postanschrift|hausanschrift|besucheradresse|besuchsadresse|besucheranschrift|lieferanschrift|lieferadresse|verwaltung|zentrale|gesch(?:ä|ae)ftsstelle|praxis|kanzlei|studio|atelier)(?![\p{L}])/iu;
 
 /** A line that names a court or a register: an address right below it is the court's, not the operator's. */
 const COURT_LINE = /^[\s ]*(?:amtsgerichts?|registergericht|handelsregister(?:gericht)?|local court|district court|regist(?:ry|er) court)(?![\p{L}])/iu;
 /** Lines that start the operator's own data: the search for a third-party label stops there. */
 const OPERATOR_LINE = /angaben gem(?:ä|ae)(?:ß|ss)|^[\s ]*(?:impressum|kontakt|inhaber(?:in)?|betreiber(?:in)?|anbieter(?:in)?|herausgeber(?:in)?|diensteanbieter|verantwortlich|vertreten durch|gesch(?:ä|ae)ftsf(?:ü|ue)hr|website operator|operator|provider|owner)(?![\p{L}])/iu;
 
+/** Does a line (or the part of a line before a match) carry a label of someone else's data? */
+function foreignLabel(doc: Doc, part: string, fromLineStart: boolean, extra?: RegExp): boolean {
+  if (THIRD_PARTY_ANYWHERE.test(part) || (extra !== undefined && extra.test(part))) return true;
+  if (!fromLineStart) return false;
+  if (THIRD_PARTY_LINE_START.test(part)) return true;
+  return THIRD_PARTY_HEADING.test(part) && !doc.nav.has(normalizeLinkText(part).replace(/[\s:]+$/u, ''));
+}
+
 /**
  * For addresses (site builders put every line in its own paragraph, so a label can sit two blocks
  * above): up to two non-empty lines above the block, across empty lines, that name a third party or a
- * court. Stops at a line that starts the operator's data.
+ * court. Stops at a line that starts the operator's data. Returns the label line, or null.
  */
-function thirdPartyAbove(lines: readonly Line[], firstLine: number): boolean {
+function thirdPartyAbove(doc: Doc, firstLine: number): string | null {
+  const { lines } = doc;
   let seen = 0;
   for (let i = firstLine - 1; i >= 0 && seen < 2; i -= 1) {
     const line = (lines[i] as Line).text.slice(0, LINE_WINDOW);
     if (line.trim() === '') continue;
-    if (OPERATOR_LINE.test(line)) return false;
-    if (THIRD_PARTY_ANYWHERE.test(line) || THIRD_PARTY_LINE_START.test(line) || COURT_LINE.test(line)) return true;
+    if (OPERATOR_LINE.test(line)) return null;
+    if (THIRD_PARTY_ANYWHERE.test(line) || THIRD_PARTY_LINE_START.test(line) || COURT_LINE.test(line)) return line;
     seen += 1;
   }
-  return false;
+  return null;
 }
 
 /** The first line of the block that holds `lineIndex` (the block ends at an empty line). */
@@ -159,31 +211,45 @@ function blockStart(lines: readonly Line[], lineIndex: number): number {
   return i;
 }
 
-/** Is the match at `position` inside a block that the text marks as someone else's? */
-function inThirdPartyContext(text: string, lines: readonly Line[], position: number, firstLineOfMatch?: number, extra?: RegExp): boolean {
+/**
+ * The lines that can carry a label for a match at `position`: the part of its own line before it, up to
+ * three lines before it within the same block (a blank line ends the block), and the short heading line
+ * right above the block, if the block starts within those lines.
+ */
+function labelParts(doc: Doc, position: number, firstLineOfMatch?: number): { part: string; fromLineStart: boolean }[] {
+  const { text, lines } = doc;
   const index = firstLineOfMatch ?? lineIndexAt(lines, position);
   const current = lines[index] as Line;
-  const near = text.slice(Math.max(current.start, position - LINE_WINDOW), position);
-  const lineStart = position - current.start <= LINE_WINDOW ? near : '';
-  if (THIRD_PARTY_ANYWHERE.test(near) || (lineStart !== '' && THIRD_PARTY_LINE_START.test(lineStart)) || (extra !== undefined && extra.test(near))) return true;
-  // Up to three lines before, within the same block (a blank line ends the block) …
+  const parts = [{ part: text.slice(Math.max(current.start, position - LINE_WINDOW), position), fromLineStart: position - current.start <= LINE_WINDOW }];
   let i = index - 1;
   let seen = 0;
   while (i >= 0 && seen < 3) {
     const line = (lines[i] as Line).text.slice(0, LINE_WINDOW);
     if (line.trim() === '') break;
-    if (THIRD_PARTY_ANYWHERE.test(line) || THIRD_PARTY_LINE_START.test(line) || (extra !== undefined && extra.test(line))) return true;
+    parts.push({ part: line, fromLineStart: true });
     seen += 1;
     i -= 1;
   }
-  // … and the short heading line right above the block, if the block starts within those lines.
   if (i >= 0 && (lines[i] as Line).text.trim() === '') {
     let j = i - 1;
     while (j >= 0 && (lines[j] as Line).text.trim() === '') j -= 1;
     const heading = j >= 0 ? (lines[j] as Line).text.trim() : '';
-    if (heading !== '' && heading.length <= 60 && (THIRD_PARTY_ANYWHERE.test(heading) || THIRD_PARTY_LINE_START.test(heading))) return true;
+    if (heading !== '' && heading.length <= 60) parts.push({ part: heading, fromLineStart: true });
   }
-  return false;
+  return parts;
+}
+
+/** The label that marks the block of the match at `position` as someone else's, or null. */
+function thirdPartyLabel(doc: Doc, position: number, firstLineOfMatch?: number, extra?: RegExp): string | null {
+  for (const { part, fromLineStart } of labelParts(doc, position, firstLineOfMatch)) {
+    if (foreignLabel(doc, part, fromLineStart, extra)) return part;
+  }
+  return null;
+}
+
+/** Is the match at `position` inside a block that the text marks as someone else's? */
+function inThirdPartyContext(doc: Doc, position: number, firstLineOfMatch?: number, extra?: RegExp): boolean {
+  return thirdPartyLabel(doc, position, firstLineOfMatch, extra) !== null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -213,8 +279,18 @@ const TOWN_STOP = new Set(
     'umsatzsteuer', 'steuernummer', 'steuer-nr', 'registergericht', 'amtsgericht', 'handelsregister', 'registernummer', 'hrb', 'hra',
     'geschäftsführer', 'geschäftsführerin', 'geschäftsführung', 'inhaber', 'inhaberin', 'vertreten', 'vertretungsberechtigt', 'kontakt',
     'öffnungszeiten', 'sitz', 'tel:', 'fax:', 'telefon:',
+    // Session fix-a3 (review finding 72): labels and weekdays that follow a town in flat text.
+    'rechtsform', 'gesellschaftsform', 'eingetragen', 'gesellschafter', 'vorstand', 'aufsichtsrat', 'vertretungsberechtigter', 'vertretungsberechtigte',
+    'ansprechpartner', 'verantwortlich', 'ust-id', 'steuer-nr', 'steuer-nr.', 'montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag', 'sonntag',
   ],
 );
+
+/** Words after five digits that are a quantity, not a town ("10000 Quadratmeter", "25000 Besucher", "12500 Euro"). */
+const NOT_A_TOWN = new Set([
+  'euro', 'eur', 'stück', 'stk', 'stk.', 'besucher', 'besucherinnen', 'gäste', 'mitarbeiter', 'mitarbeiterinnen', 'mitarbeitende', 'beschäftigte', 'quadratmeter', 'qm',
+  'artikel', 'produkte', 'kunden', 'kundinnen', 'durchwahl', 'einwohner', 'jahre', 'kilometer', 'km', 'meter', 'liter', 'tonnen', 'teilnehmer', 'mitglieder',
+  'follower', 'abonnenten', 'bewertungen', 'exemplare', 'stunden', 'bücher', 'titel', 'projekte', 'aufträge', 'pakete', 'sendungen',
+]);
 
 /**
  * Reads a town from the start of `raw`, word by word: the first word capitalised, then capitalised
@@ -223,6 +299,7 @@ const TOWN_STOP = new Set(
  */
 function readTown(raw: string): { town: string; length: number } | null {
   const kept: { word: string; end: number; particle: boolean }[] = [];
+  let sentence = false;
   for (const token of raw.matchAll(/[^ \t\u00a0\u2009\u202f]+/gu)) {
     const word = token[0];
     const key = word.toLowerCase().replace(/[:,;]+$/, '');
@@ -230,13 +307,23 @@ function readTown(raw: string): { town: string; length: number } | null {
     // A label ("Tel:", "T.", "F.") ends the town.
     if (word.endsWith(':') || /^\p{Lu}\.$/u.test(word)) break;
     const particle = TOWN_PARTICLE_RE.test(word);
-    if (kept.length === 0 ? !TOWN_WORD_RE.test(word) : !(TOWN_WORD_RE.test(word) || particle)) break;
+    if (kept.length === 0 ? !TOWN_WORD_RE.test(word) : !(TOWN_WORD_RE.test(word) || particle)) {
+      // A lower-case word that is no part of a town name: the sentence goes on ("… in der Nähe von …").
+      sentence = kept.length > 0 && /^\p{Ll}/u.test(word);
+      break;
+    }
     // A second capitalised word right after the first only after a prefix such as "Bad" or "Sankt"
     // ("Bad T\u00f6lz", "Sankt Englmar"); otherwise it is the next word of the sentence ("Musterhausen Eingetragen").
     const previous = kept[kept.length - 1];
     if (previous !== undefined && !particle && !previous.particle && !(kept.length === 1 && TOWN_PREFIX.has(previous.word))) break;
     kept.push({ word, end: (token.index ?? 0) + word.length, particle });
     if (kept.length >= 6) break;
+  }
+  // In a running sentence the words after the first small word are the sentence, not the town
+  // ("Musterhausen in der Nähe von …"); at the end of a line they are the name ("Neustadt an der Aisch").
+  if (sentence) {
+    const firstParticle = kept.findIndex((k) => k.particle);
+    if (firstParticle > 0) kept.length = firstParticle;
   }
   while (kept.length > 1 && PLAIN_PARTICLE_RE.test(kept[kept.length - 1]?.word ?? '')) kept.pop();
   const last = kept[kept.length - 1];
@@ -267,7 +354,7 @@ const STREET = new RegExp(
 /** A label of one to three words with a colon in front of the street ("Anschrift:", "Hauptsitz:", "Straße:"). */
 const ADDRESS_LABEL = new RegExp(`^\\p{L}[\\p{L}.\\-]*(?:${H}\\p{L}[\\p{L}.\\-]*){0,2}${H}*:${H}*`, 'u');
 const NOT_A_STREET =
-  /^(?:postfach|postf\.|pf\.?|p\.\s?o\.\s?box|po box|tel|telefon|fax|telefax|mobil|handy|phone|fon|hrb|hra|hr|nr|ust|umsatzsteuer|steuer|steuernummer|amtsgericht|registergericht|handelsregister|registernummer|kundennummer|stammkapital|grundkapital|gegründet|gründung|seit|copyright|version|stand|öffnungszeiten|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|mo|di|mi|do|fr|sa|so|mitglied|ausgabe|baujahr)(?![\p{L}\p{N}])/iu;
+  /^(?:postfach|postf\.|pf\.?|p\.\s?o\.\s?box|po box|tel|telefon|fax|telefax|mobil|handy|phone|fon|hrb|hra|hr|nr|ust|umsatzsteuer|steuer|steuernummer|amtsgericht|registergericht|handelsregister|registernummer|kundennummer|stammkapital|grundkapital|gegründet|gründung|seit|copyright|version|stand|öffnungszeiten|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|mo|di|mi|do|fr|sa|so|mitglied|ausgabe|baujahr|artikel|art\.?-?nr|preis|bestseller|gebäude|halle|chronik|raum|etage)(?![\p{L}\p{N}])/iu;
 const PHONE_BEFORE = /(?:tel|telefon|telephone|phone|fon|fax|telefax|mobil|mobile|handy|hotline|hrb|hra|nr|nummer|postfach|ust|steuer|kto|konto|blz|iban)\.?:?[\s ]*\(?[\d\s /()+-]*$/iu;
 
 /** Splits a line part into segments at the separators people use between street and postcode. */
@@ -307,15 +394,37 @@ function streetOf(segment: string): { street: string; skip: number } | null {
   return { street: rest.trimEnd(), skip };
 }
 
-function findAddress(text: string): FieldResult<AddressValue> {
-  const lines = linesOf(text);
+interface AddressCandidate {
+  /** Position of the postcode and end of the town. */
+  at: number;
+  end: number;
+  lineIndex: number;
+  postcode: string;
+  town: string;
+  /** Null when no street was read: the address stands in a form the template does not take. */
+  street: { street: string; start: number; lineIndex: number } | null;
+  /** The label line that marks the address as someone else's, or null. */
+  foreign: string | null;
+}
+
+/** At most this many postcodes are read: a page with more is no Impressum, and the work stays bounded. */
+const MAX_ADDRESSES = 300;
+
+/**
+ * Every postcode with a town on the page, in reading order, with the street when the template reads it.
+ * A postcode without a readable street still counts as an address (session fix-a3): it shows that an
+ * address stands there, so a later address is not the first one on the page.
+ */
+function addressCandidates(doc: Doc): AddressCandidate[] {
+  const { text, lines } = doc;
+  const out: AddressCandidate[] = [];
   for (const match of text.matchAll(PLZ_TOWN)) {
     const at = match.index ?? 0;
     const postcode = match[2] ?? '';
     if (postcode.startsWith('00')) continue;
     const read = readTown(match[3] ?? '');
     if (read === null) continue;
-    const town = read.town;
+    if (NOT_A_TOWN.has((read.town.split(' ')[0] ?? '').toLowerCase())) continue;
     const lineIndex = lineIndexAt(lines, at);
     const line = lines[lineIndex] as Line;
     // Only a bounded window before the postcode is read, so a page with one huge line stays fast.
@@ -323,12 +432,15 @@ function findAddress(text: string): FieldResult<AddressValue> {
     const before = text.slice(windowStart, at);
     if (PHONE_BEFORE.test(before)) continue;
     // The street sits on the same line before the postcode, or alone at the end of the line above.
-    let street: { street: string; start: number; lineIndex: number } | null = null;
+    let street: AddressCandidate['street'] = null;
     const sameLine = lastSegment(before);
     if (sameLine !== null) {
       const found = streetOf(sameLine.text);
       if (found !== null) street = { street: found.street, start: windowStart + sameLine.offset + found.skip, lineIndex };
-      else continue; // something else stands right before the postcode on this line
+      // Something else stands right before the postcode on this line. A label ("PLZ / Ort") or a street in
+      // a form the template does not read still makes it an address; other digits (a phone number, an
+      // amount) do not.
+      else if (!/^\D*(?:\d{1,3}[\s\u00a0]?[a-zA-Z]?(?![\p{L}\p{N}])\D*)?$/u.test(sameLine.text)) continue;
     } else {
       // The line above; site builders put empty paragraphs between the lines, so up to four lines of
       // only whitespace may stand in between.
@@ -345,14 +457,65 @@ function findAddress(text: string): FieldResult<AddressValue> {
         if (found !== null) street = { street: found.street, start: above.start + segment.offset + found.skip, lineIndex: index };
       }
     }
-    if (street === null) continue;
-    if (inThirdPartyContext(text, lines, street.start, street.lineIndex)) continue;
-    if (thirdPartyAbove(lines, blockStart(lines, street.lineIndex))) continue;
+    const streetLine = street?.lineIndex ?? lineIndex;
+    const foreign = thirdPartyLabel(doc, street?.start ?? at, streetLine) ?? thirdPartyAbove(doc, blockStart(lines, streetLine));
     const townStart = at + match[0].length - (match[3] ?? '').length;
-    const end = townStart + read.length;
-    return { status: 'found', quote: text.slice(street.start, end), source: 'text', value: { street: street.street, postcode, town } };
+    out.push({ at, end: townStart + read.length, lineIndex, postcode, town: read.town, street, foreign });
+    if (out.length >= MAX_ADDRESSES) break;
   }
-  return NOT_ON_PAGE;
+  return out;
+}
+
+/** The same place: the same postcode or the same town (a post box and the street address of one firm). */
+function samePlace(a: AddressCandidate, b: AddressCandidate): boolean {
+  return a.postcode === b.postcode || a.town.toLowerCase() === b.town.toLowerCase();
+}
+
+/** Does a label say that the address is another place of the operator ("Filiale", "Hausanschrift")? */
+function ownLocation(doc: Doc, candidate: AddressCandidate): boolean {
+  return labelParts(doc, candidate.street?.start ?? candidate.at, candidate.street?.lineIndex ?? candidate.lineIndex).some(({ part, fromLineStart }) => fromLineStart && OWN_LOCATION.test(part));
+}
+
+/** The address of the register court, written below or behind the court's name. */
+function belowCourt(doc: Doc, candidate: AddressCandidate): boolean {
+  return labelParts(doc, candidate.street?.start ?? candidate.at, candidate.street?.lineIndex ?? candidate.lineIndex).some(({ part, fromLineStart }) => fromLineStart && COURT_LINE.test(part));
+}
+
+/**
+ * Where the operator's part of the page ends (session fix-a3, review finding 5): at the first address
+ * after the operator's that belongs to someone else. That is an address in another place without a label
+ * of the operator's own, or an address under a credit label (web agency, hoster, photographer). The
+ * address of a court, a chamber, an authority or an insurer does not end it: such a block has no register
+ * entry or VAT id that could be taken for the operator's, and the operator's data often follows below.
+ */
+function operatorRegionEnd(doc: Doc, candidates: readonly AddressCandidate[], first: AddressCandidate | undefined): number {
+  const { text, lines } = doc;
+  for (const c of candidates) {
+    if (first !== undefined && c.at <= first.at) continue;
+    if (c.foreign !== null) {
+      if (AUTHORITY_LABEL.test(c.foreign)) continue;
+    } else if (first === undefined || samePlace(c, first) || ownLocation(doc, c) || belowCourt(doc, c)) continue;
+    const start = c.street?.start ?? c.at;
+    let index = c.street?.lineIndex ?? c.lineIndex;
+    // An address inside a line: the part of the line before it may still be the operator's.
+    if (text.slice((lines[index] as Line).start, start).trim() !== '') return start;
+    // The name line right above the street belongs to the block.
+    const above = index > 0 ? (lines[index - 1] as Line).text : '';
+    if (above.trim() !== '' && !/[\d@]/.test(above) && (first === undefined || index - 1 > first.lineIndex)) index -= 1;
+    return (lines[index] as Line).start;
+  }
+  return Number.POSITIVE_INFINITY;
+}
+
+function findAddress(doc: Doc, candidates: readonly AddressCandidate[], first: AddressCandidate | undefined, regionEnd: number): FieldResult<AddressValue> {
+  if (first === undefined) return NOT_ON_PAGE;
+  // The operator's address is the first address on the page. When the template does not read its street,
+  // a later address counts only in the same place (the footer repeats it in another form) or as another
+  // place of the operator's own; an address in another place is the address of the next block (a hoster,
+  // an agency, an authority without a known label).
+  const found = candidates.find((c) => c.foreign === null && c.street !== null && (c === first || samePlace(c, first) || (c.at < regionEnd && ownLocation(doc, c))));
+  if (found === undefined || found.street === null) return NOT_ON_PAGE;
+  return { status: 'found', quote: doc.text.slice(found.street.start, found.end), source: 'text', value: { street: found.street.street, postcode: found.postcode, town: found.town } };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -479,31 +642,35 @@ function findLoose(text: string, needle: string, from: number): { index: number;
   return match === null ? null : { index: match.index, end: match.index + match[0].length };
 }
 
-function findEmail(text: string, links: readonly PageLink[], ownSites: ReadonlySet<string>): FieldResult<EmailValue> {
-  const lines = linesOf(text);
+function findEmail(doc: Doc, links: readonly PageLink[], ownSites: ReadonlySet<string>, regionEnd: number): FieldResult<EmailValue> {
+  const { text } = doc;
+  const own = (address: string): boolean => ownSites.has(siteOfHost(address.split('@')[1] ?? ''));
   const skipped = new Set<string>();
   for (const candidate of textEmails(text)) {
-    if (inThirdPartyContext(text, lines, candidate.index)) {
+    // After the operator's part of the page an address counts only on the site's own domain.
+    if (inThirdPartyContext(doc, candidate.index) || (candidate.index >= regionEnd && !own(candidate.value))) {
       skipped.add(candidate.value);
       continue;
     }
     return { status: 'found', quote: candidate.quote, source: 'text', value: { value: candidate.value, form: candidate.form } };
   }
-  // A link counts only where the page shows it: its text is found in the page text in reading order
-  // and does not stand in someone else's block. A link without a findable text counts only for an
+  // A link counts where the page shows it: its text is found in the page text in reading order and does
+  // not stand in someone else's block. That place is known only for a text that is the address itself
+  // (or the placeholder of Cloudflare's protection): a text such as "E-Mail" or "Kontakt" also stands in
+  // menus and labels (session fix-a3, review finding 71). A link without a known place counts only for an
   // address on the site's own domain.
   let searchFrom = 0;
   for (const candidate of linkEmails(links)) {
     if (skipped.has(candidate.value)) continue;
     const linkText = (candidate.linkText ?? '').trim();
-    const place = linkText === '' ? null : findLoose(text, linkText, searchFrom);
-    const position = place === null ? -1 : place.index;
+    const showsAddress = candidate.form === 'cloudflare' || linkText.toLowerCase().replace(/[\s\u00a0]+/g, '').includes(candidate.value);
+    const place = linkText === '' || !showsAddress ? null : findLoose(text, linkText, searchFrom);
     if (place === null) {
-      const domain = candidate.value.split('@')[1] ?? '';
-      if (!ownSites.has(siteOfHost(domain))) continue;
+      if (!own(candidate.value)) continue;
     } else {
       searchFrom = place.end;
-      if (inThirdPartyContext(text, lines, position)) continue;
+      if (inThirdPartyContext(doc, place.index)) continue;
+      if (place.index >= regionEnd && !own(candidate.value)) continue;
     }
     return { status: 'found', quote: candidate.quote, source: 'link', value: { value: candidate.value, form: candidate.form } };
   }
@@ -514,7 +681,9 @@ function findEmail(text: string, links: readonly PageLink[], ownSites: ReadonlyS
 // Handelsregister
 
 const REGISTER = new RegExp(
-  `(?<![\\p{L}\\p{N}])HR${H}?([AB])(?![\\p{L}])(?:${H}*[-–]?${H}*(?:Nr\\.?|Nummer)?)?${H}*[:.]?${H}*(\\d{1,3}(?:\\.\\d{3})+|\\d{1,7})(?![.,]?\\p{N})`,
+  // Groups of three digits may be divided by a dot or a space ("HRB 12.345", "HRB 12 345"). A number that
+  // goes on after a space or a hyphen ("HRB 2024-01", "HRB 5 80331 …") is not read at all (review finding 73).
+  `(?<![\\p{L}\\p{N}])HR${H}?([AB])(?![\\p{L}])(?:${H}*[-–]?${H}*(?:Nr\\.?|Nummer)?)?${H}*[:.]?${H}*(\\d{1,3}(?:[. \\u00a0]\\d{3})+|\\d{1,7})(?![.,]?\\p{N})(?!${H}?[-–]${H}?\\d)(?!${H}\\d)`,
   'gu',
 );
 const COURT_TOWN = `(${TOWN})`;
@@ -565,28 +734,65 @@ function blockAround(text: string, start: number, end: number, reach: number): {
   return { from, to };
 }
 
-function findRegister(text: string): FieldResult<RegisterValue> {
-  const lines = linesOf(text);
+/** A number written as an example of the form ("z. B. HRB 12345", "Format: DE123456789"), not as the firm's own. */
+const EXAMPLE_BEFORE = /(?:^|[^\p{L}])(?:z\.\s?b\.|zum beispiel|beispielsweise|bspw\.|e\.g\.|for example|beispiel:|format(?: der nummer)?:)[\s\u00a0]*["„“”'‚‘»(]?[\s\u00a0]*$/iu;
+
+/** A register number written without "HRA" or "HRB" ("Handelsregister A, Registernummer 1234"). */
+const REGISTER_LOOSE = new RegExp(`(?:registernummer|register-?nr\\.?|handelsregisternummer|hr-?nr\\.?)${H}*[:.]?${H}*(\\d[\\d .]{0,10})`, 'giu');
+
+/** What may stand between court and number in one quote: register labels, punctuation, line breaks. */
+const REGISTER_GAP = /handelsregister(?:nummer)?|registernummer|registergericht|register-?nr\.?|registereintrag|eingetragen|nummer|unter|beim|im|nr\.?|[\s :,;.()\-–|·]+/giu;
+
+/** A court phrase belongs to the number on the same line, or on a line that is about the register. */
+function courtLineFits(text: string, courtStart: number, numberAt: number): boolean {
+  const lineStart = text.lastIndexOf('\n', courtStart - 1) + 1;
+  if (numberAt >= lineStart && text.indexOf('\n', courtStart) > numberAt) return true;
+  if (text.lastIndexOf('\n', numberAt - 1) + 1 === lineStart) return true;
+  const prefix = text.slice(Math.max(lineStart, courtStart - LINE_WINDOW), courtStart);
+  return prefix.trim() === '' || /(?:register|gericht|eingetragen|eintrag|sitz der gesellschaft)[^\n]{0,60}$/iu.test(prefix);
+}
+
+function findRegister(doc: Doc, regionEnd: number): FieldResult<RegisterValue> {
+  const { text, lines } = doc;
   for (const match of text.matchAll(REGISTER)) {
     const at = match.index ?? 0;
     const end = at + match[0].length;
-    if (inThirdPartyContext(text, lines, at)) continue;
-    // The general partner of a GmbH & Co. KG is another company with its own register entry: on the
-    // same line, or on the line above when the number stands alone below it.
+    // After the operator's part of the page a register entry belongs to the firm of that block.
+    if (at >= regionEnd) break;
+    if (inThirdPartyContext(doc, at)) continue;
     const ownLineStart = text.lastIndexOf('\n', at - 1) + 1;
     const ownPrefix = text.slice(Math.max(ownLineStart, at - LINE_WINDOW), at);
+    if (EXAMPLE_BEFORE.test(ownPrefix)) continue;
+    // The general partner of a GmbH & Co. KG is another company with its own register entry: on the
+    // same line, or on the line above when the number stands alone below it.
     if (GENERAL_PARTNER.test(ownPrefix)) continue;
-    if (/^[\s ]*(?:[\p{L}.\-]+[\s ]*){0,2}:?[\s ]*$/u.test(ownPrefix)) {
-      const lineIndex = lineIndexAt(lines, at);
+    const lineIndex = lineIndexAt(lines, at);
+    if (/^[\s\u00a0]*(?:[\p{L}.\-]+[\s\u00a0]*){0,2}:?[\s\u00a0]*$/u.test(ownPrefix)) {
       let i = lineIndex - 1;
       while (i >= 0 && (lines[i] as Line).text.trim() === '') i -= 1;
       if (i >= 0 && i >= lineIndex - 2 && GENERAL_PARTNER.test((lines[i] as Line).text.slice(0, LINE_WINDOW))) continue;
     }
     const register = match[1] === 'A' ? 'HRA' : 'HRB';
-    const number = (match[2] ?? '').replace(/\./g, '');
+    // The general partner is a GmbH (HRB); its data can fill several lines below its label.
+    if (register === 'HRB') {
+      let partner = false;
+      for (let i = lineIndex - 1; i >= 0 && i >= lineIndex - 6 && (lines[i] as Line).text.trim() !== ''; i -= 1) {
+        if (GENERAL_PARTNER.test((lines[i] as Line).text.slice(0, LINE_WINDOW))) partner = true;
+      }
+      if (partner) continue;
+    }
+    const number = (match[2] ?? '').replace(/[^\d]/g, '');
+    // An earlier register number without "HRA"/"HRB" that differs is the operator's own entry: this one
+    // then belongs to another company (the general partner, a parent).
+    let otherNumber = false;
+    for (const loose of text.slice(0, at).matchAll(REGISTER_LOOSE)) {
+      const digits = (loose[1] ?? '').replace(/[^\d]/g, '');
+      if (digits !== '' && digits !== number && !inThirdPartyContext(doc, loose.index ?? 0)) otherNumber = true;
+    }
+    if (otherNumber) return NOT_ON_PAGE;
     // The court: "AG Town" right next to the number, else the nearest court phrase in the block.
     let court: { town: string; start: number; end: number } | null = null;
-    const lineStart = text.lastIndexOf('\n', at - 1) + 1;
+    const lineStart = ownLineStart;
     const lineEnd = text.indexOf('\n', end) === -1 ? text.length : text.indexOf('\n', end);
     const before = AG_BEFORE.exec(text.slice(lineStart, at));
     const after = AG_AFTER.exec(text.slice(end, lineEnd));
@@ -606,6 +812,8 @@ function findRegister(text: string): FieldResult<RegisterValue> {
       for (const phrase of text.slice(block.from, block.to).matchAll(COURT)) {
         const start = block.from + (phrase.index ?? 0);
         if (jurisdictionClause(text, start)) continue;
+        // The court of another firm named in the same block is not the operator's register court.
+        if (!courtLineFits(text, start, at)) continue;
         const read = readCourt(phrase[1] ?? '');
         if (read === null) continue;
         const town = read.town;
@@ -624,6 +832,7 @@ function findRegister(text: string): FieldResult<RegisterValue> {
       for (const phrase of text.slice(from, to).matchAll(COURT)) {
         if (!/^(?:Registergericht|Handelsregistergericht|Regist(?:ry|er)|Court)/u.test(phrase[0])) continue;
         const start = from + (phrase.index ?? 0);
+        if (!courtLineFits(text, start, at)) continue;
         const read = readCourt(phrase[1] ?? '');
         if (read === null) continue;
         const town = read.town;
@@ -634,8 +843,18 @@ function findRegister(text: string): FieldResult<RegisterValue> {
       }
       if (best !== null) court = best;
     }
-    const from = court === null ? at : Math.min(at, court.start);
-    const to = court === null ? end : Math.max(end, court.end);
+    // The quote: number and court together when nothing but a register label stands between them
+    // ("Amtsgericht X", then "Registernummer:", then "HRB 1"); otherwise only the number, so no line of
+    // other data (a manager's name, a tax number) gets into the quote.
+    let from = at;
+    let to = end;
+    if (court !== null) {
+      const gap = court.start > at ? text.slice(end, court.start) : text.slice(court.end, at);
+      if (gap.length <= 80 && gap.replace(REGISTER_GAP, '').trim() === '') {
+        from = Math.min(at, court.start);
+        to = Math.max(end, court.end);
+      }
+    }
     return { status: 'found', quote: text.slice(from, to), source: 'text', value: { register, number, court: court?.town ?? null } };
   }
   return NOT_ON_PAGE;
@@ -644,15 +863,53 @@ function findRegister(text: string): FieldResult<RegisterValue> {
 // ---------------------------------------------------------------------------------------------
 // USt-IdNr
 
-const VAT_ID = new RegExp(`(?<![\\p{L}\\p{N}])DE${H}?-?${H}?(\\d(?:[ \\u00a0.]?\\d){8})(?![ \\u00a0.]?\\d)(?![\\p{L}])`, 'gu');
+// Not followed by more digits, also not after a hyphen or a slash: "DE123456789-00001" is a W-IdNr.
+const VAT_ID = new RegExp(`(?<![\\p{L}\\p{N}])DE${H}?-?${H}?(\\d(?:[ \\u00a0.]?\\d){8})(?![ \\u00a0.]?\\d)(?!${H}?[-–/]${H}?\\d)(?![\\p{L}])`, 'gu');
+/** The label of a VAT id: "USt-IdNr.", "USt-ID", "UStID", "Umsatzsteuer-Identifikationsnummer", "VAT ID", "UID". */
+const VAT_LABEL = /umsatzsteuer|mehrwertsteuer|turnover tax|sales tax|steuer-?(?:nummer|nr|id)|(?:^|[^\p{L}])(?:u\.?[\s\u00a0]?st|vat|uid|mwst)(?:[^\p{L}]|id|ident|nr|$)/giu;
+/** Labels of other numbers of the form "DE" plus digits, and of numbers that are no id at all. */
+const NOT_VAT = /iban|bic|swift|konto|bankverbindung|blz|w-?idnr|wirtschafts-?id|eori|zertifi|hotline|telefon|(?:^|[^\p{L}])(?:tel|fon|fax)(?![\p{L}])|mobil|handy|art\.?-?nr|artikel|weee|lucid|(?:ö|oe)ko|gl(?:ä|ae)ubiger/iu;
 
-function findVatId(text: string): FieldResult<string> {
-  const lines = linesOf(text);
+/**
+ * Is the number at `at` named as a VAT id (session fix-a3, review finding 74)? The label stands before it
+ * on the same line, with no label of another number between, or on one of the two lines above ("Umsatz-
+ * steuer-ID" as a heading, then the legal sentence, then the number). "DE" plus nine digits alone can be a
+ * W-IdNr, an EORI number, a certificate, a phone number or an example of the form. "Steuernummer" counts
+ * as a label too: a German tax number never starts with "DE", so "Steuernummer: DE123456789" is a VAT id
+ * under the wrong name.
+ */
+function namedVatId(doc: Doc, at: number): boolean {
+  const { text, lines } = doc;
+  const lineIndex = lineIndexAt(lines, at);
+  const line = lines[lineIndex] as Line;
+  const prefix = text.slice(Math.max(line.start, at - LINE_WINDOW), at);
+  if (EXAMPLE_BEFORE.test(prefix)) return false;
+  let lastLabelEnd = -1;
+  for (const label of prefix.matchAll(VAT_LABEL)) lastLabelEnd = (label.index ?? 0) + label[0].length;
+  if (lastLabelEnd !== -1) return !NOT_VAT.test(prefix.slice(lastLabelEnd));
+  if (NOT_VAT.test(prefix.slice(-60))) return false;
+  let seen = 0;
+  for (let i = lineIndex - 1; i >= 0 && i >= lineIndex - 4 && seen < 2; i -= 1) {
+    const above = (lines[i] as Line).text.slice(-LINE_WINDOW);
+    if (above.trim() === '') continue;
+    VAT_LABEL.lastIndex = 0;
+    if (VAT_LABEL.test(above)) {
+      VAT_LABEL.lastIndex = 0;
+      return true;
+    }
+    seen += 1;
+  }
+  return false;
+}
+
+function findVatId(doc: Doc, regionEnd: number): FieldResult<string> {
+  const { text } = doc;
   for (const match of text.matchAll(VAT_ID)) {
     const at = match.index ?? 0;
-    const lead = text.slice(Math.max(0, at - 40), at);
-    if (/iban|bic|swift|konto|bankverbindung|blz/i.test(lead)) continue;
-    if (inThirdPartyContext(text, lines, at)) continue;
+    // After the operator's part of the page a VAT id belongs to the firm of that block.
+    if (at >= regionEnd) break;
+    if (!namedVatId(doc, at)) continue;
+    if (inThirdPartyContext(doc, at)) continue;
     const digits = (match[1] ?? '').replace(/\D/g, '');
     return { status: 'found', quote: match[0], source: 'text', value: `DE${digits}` };
   }

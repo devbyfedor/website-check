@@ -10,6 +10,10 @@ import { axeResult, SHOP_URL, shopCapture } from './report-helpers.ts';
  * Session fix-a2, review finding 20: the Prüfmaß "Bilder mit Beschreibung" counts only images that have a
  * text alternative. The pages are the ones of the review's reproduction, as the axe part of a capture
  * (the same pages run through Chromium in `test/integration/a11y-security.test.ts`).
+ *
+ * Session fix-a3 (the owner's answer of 24.11.2026): the result of the row follows axe. An empty alt marks
+ * a decorative image and is no error, so the row is "erfüllt" when no image lacks a description; the
+ * images marked as decoration stay a separate "bitte prüfen" with their count, and stay out of the numbers.
  */
 
 function report(imageAlt: { violations?: number; incomplete?: number; passes: number }, images: AxeCapture['images'] | undefined): Report {
@@ -25,9 +29,9 @@ const row = (r: Report) => r.measures.find((m) => m.id === 'images-described');
 const imageFindings = (r: Report) => r.findings.filter((f) => f.id.startsWith('a11y:image-alt')).map((f) => [f.id, f.kind, f.risk, f.textId, f.params['count']]);
 
 describe('finding 20: "Bilder mit Beschreibung" counts only described images', () => {
-  it('three images with alt="" are no "3 von 3" and no "erfüllt": none has a description', () => {
+  it('three images with alt="" are no "3 von 3": none has a description; the row is "erfüllt" as with axe, the mark is a separate check', () => {
     const r = report({ passes: 3 }, { described: 0, decorative: 3 });
-    expect(row(r)).toEqual({ id: 'images-described', result: 'manual', target: { type: 'all' }, actual: { type: 'of', count: 0, total: 0 } });
+    expect(row(r)).toEqual({ id: 'images-described', result: 'pass', target: { type: 'all' }, actual: { type: 'of', count: 0, total: 0 } });
     expect(imageFindings(r)).toEqual([['a11y:image-alt:decorative', 'manual', null, 'a11y-image-alt-decorative', 3]]);
   });
 
@@ -41,7 +45,20 @@ describe('finding 20: "Bilder mit Beschreibung" counts only described images', (
   });
 
   it('images with role="presentation" or "none" count as marked decoration too', () => {
-    expect(row(report({ passes: 3 }, { described: 0, decorative: 3 }))?.result).toBe('manual');
+    const r = report({ passes: 3 }, { described: 0, decorative: 3 });
+    expect(row(r)?.result).toBe('pass');
+    expect(imageFindings(r)).toEqual([['a11y:image-alt:decorative', 'manual', null, 'a11y-image-alt-decorative', 3]]);
+  });
+
+  it('the answer of 24.11.2026: 8 described and 4 decorative images, none without a description: "erfüllt, 8 von 8" and one "bitte prüfen" for the 4', () => {
+    const r = report({ passes: 12 }, { described: 8, decorative: 4 });
+    expect(row(r)).toEqual({ id: 'images-described', result: 'pass', target: { type: 'all' }, actual: { type: 'of', count: 8, total: 8 } });
+    expect(imageFindings(r)).toEqual([['a11y:image-alt:decorative', 'manual', null, 'a11y-image-alt-decorative', 4]]);
+  });
+
+  it('decorative images never turn "nicht erfüllt" or an undecided image into "erfüllt"', () => {
+    expect(row(report({ violations: 1, passes: 5 }, { described: 1, decorative: 4 }))).toMatchObject({ result: 'fail', actual: { type: 'of', count: 1, total: 2 } });
+    expect(row(report({ incomplete: 1, passes: 5 }, { described: 1, decorative: 4 }))).toMatchObject({ result: 'manual', actual: { type: 'of', count: 1, total: 2 } });
   });
 
   it('controls: three described images are "3 von 3" and "erfüllt"; a page without images is "erfüllt"', () => {

@@ -85,7 +85,9 @@ describe('e-mail', () => {
     expect(found(extractImpressumFields('info(at)muster.example').email)).toEqual({ value: 'info@muster.example', form: 'obfuscated' });
     expect(found(extractImpressumFields('E-Mail: info at muster dot example').email)).toEqual({ value: 'info@muster.example', form: 'obfuscated' });
     const links: PageLink[] = [{ href: 'mailto:Kontakt@Muster.example?subject=Hallo', text: 'Schreiben Sie uns' }];
-    expect(found(extractImpressumFields('Kontakt: Schreiben Sie uns', links).email)).toEqual({ value: 'kontakt@muster.example', form: 'mailto' });
+    // A link whose text is not the address counts on the site's own domain (session fix-a3, review finding 71).
+    expect(found(extractImpressumFields('Kontakt: Schreiben Sie uns', links, new Set(['muster.example'])).email)).toEqual({ value: 'kontakt@muster.example', form: 'mailto' });
+    expect(found(extractImpressumFields('Kontakt: Schreiben Sie uns', links).email)).toBeNull();
   });
 
   it('takes " at " words only with an e-mail label on the line', () => {
@@ -265,7 +267,8 @@ describe('analyzeLegal', () => {
     failure: ok ? null : { reason: 'timeout', message: 'Timeout' },
     finalUrl: url,
     status: ok ? 200 : null,
-    page: ok ? page([], text) : null,
+    // The tab shows an Impressum: its title says so (session fix-a3: a page without any sign of one is not searched).
+    page: ok ? { ...page([], text), title: 'Impressum' } : null,
     requestCount: 3,
     timings: { openedAtMs: 4000, domContentLoadedMs: 300, snapshotMs: 900, totalMs: 1000, stopReason: ok ? 'text-stable' : 'error' },
   });
@@ -334,7 +337,7 @@ describe('analyzeLegal', () => {
 
   it('takes the accessibility statement link from the Impressum page when the homepage has none', () => {
     const impressum = tab(`${SITE}impressum`, 'Muster GmbH');
-    impressum.page = page([{ href: `${SITE}barrierefreiheit`, text: 'Barrierefreiheitserklärung', footer: true }], 'Muster GmbH');
+    impressum.page = { ...page([{ href: `${SITE}barrierefreiheit`, text: 'Barrierefreiheitserklärung', footer: true }], 'Muster GmbH'), title: 'Impressum' };
     const legal = analyzeLegal(makeCapture({ requests: [], page: page([impressumLink]), impressum }));
     expect(legal.accessibilityStatement).toMatchObject({ href: `${SITE}barrierefreiheit`, page: 'impressum' });
   });

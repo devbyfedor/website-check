@@ -1,6 +1,7 @@
 import type { Capture, PageSnapshot } from '../capture/types.ts';
 import { firstPartySites, siteOfUrl } from '../domain/site.ts';
 import { extractImpressumFields, fieldsNotChecked, type ImpressumFields } from '../legal/fields.ts';
+import { checkImpressumPage } from '../legal/impressum-page.ts';
 import { chooseImpressumTarget, findLegalLinks, findLink, sameDocument, type LegalLinkMatch, type LegalLinks } from '../legal/links.ts';
 
 /**
@@ -26,7 +27,10 @@ export type ImpressumState =
   | 'no-link'
   /** The link leads to a PDF, which the scan does not read. */
   | 'pdf'
-  /** The second tab did not load the Impressum (timeout, HTTP error, check page, or it led back to the homepage). */
+  /**
+   * The second tab did not load the Impressum: timeout, HTTP error, check page, it led back to the
+   * homepage, or (session fix-a3) the page says that it does not exist or shows no sign of an Impressum.
+   */
   | 'failed'
   /** The capture has no Impressum part (made before A4, the adapter did not open it, or the homepage text and links could not be read). */
   | 'not-captured';
@@ -107,6 +111,14 @@ export function analyzeLegal(capture: Capture): LegalAnalysis {
       if (finalUrl !== null && pageUrl !== null && (sameDocument(finalUrl, pageUrl) || (capture.finalUrl !== null && sameDocument(finalUrl, capture.finalUrl)))) {
         state = 'failed';
         reason = 'the Impressum link led back to the homepage';
+        break;
+      }
+      // Session fix-a3 (review finding 6): HTTP 200 alone is no Impressum. A soft 404, the homepage under
+      // another address, a contact page or a login wall is not searched for fields.
+      const verdict = checkImpressumPage(impressum.page, homepage);
+      if (!verdict.impressum) {
+        state = 'failed';
+        reason = verdict.message;
         break;
       }
       state = 'analyzed';

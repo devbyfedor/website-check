@@ -190,6 +190,22 @@ route('www.onepager.test', '/', (_req, res) =>
 route('www.nolegal.test', '/', (_req, res) => send(res, 200, 'text/html; charset=utf-8', legalHome('<a href="/kontakt">Kontakt</a>')));
 route('www.nolegal.test', '/impressum', (_req, res) => send(res, 200, 'text/html; charset=utf-8', html('Impressum')));
 
+// Session fix-a3 (review finding 6): pages with HTTP 200 behind the Impressum link that are no Impressum.
+// The footer of every page carries the firm's data, as many real footers do.
+const SOFT_FOOT =
+  '<p>Muster Werkstatt GmbH<br>Erlenweg 12<br>12345 Musterhausen</p><p>E-Mail: info@muster-werkstatt.example</p><p>Amtsgericht Musterhausen, HRB 4711 · USt-IdNr. DE123456788</p><p><a href="/impressum">Impressum</a> <a href="/datenschutz">Datenschutz</a></p>';
+const softPage = (title: string, main: string): string =>
+  `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${title}</title></head><body><header><nav><a href="/">Start</a></nav></header><main>${main}</main><footer>${SOFT_FOOT}</footer></body></html>`;
+const softHome = softPage('Muster Werkstatt – Reparaturen in Musterhausen', '<h1>Muster Werkstatt</h1><p>Ihre Werkstatt in Musterhausen.</p>');
+for (const host of ['www.soft404.test', 'www.backhome.test']) route(host, '/', (_req, res) => send(res, 200, 'text/html; charset=utf-8', softHome));
+route('www.soft404.test', '/impressum', (_req, res) =>
+  send(res, 200, 'text/html; charset=utf-8', softPage('Seite nicht gefunden – Muster Werkstatt', '<h1>Seite nicht gefunden</h1><p>Die angeforderte Seite existiert leider nicht.</p>')),
+);
+route('www.backhome.test', '/impressum', (_req, res, port) => {
+  res.writeHead(302, { location: `http://www.backhome.test:${port}/?lang=de` });
+  res.end();
+});
+
 // 7. Session A5, SSRF protection. Fixture hosts (*.test) are exempt from the guard in these tests,
 //    the internal targets (127.0.0.1 in several notations) are not. `/ssrf/secret` on 127.0.0.1 or
 //    localhost counts every request that reaches it: with the guard in place it must stay 0.

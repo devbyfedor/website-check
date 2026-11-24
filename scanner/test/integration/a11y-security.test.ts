@@ -90,7 +90,8 @@ describe('accessibility fixture pages', () => {
     const { report } = buildReport({ id: 'a'.repeat(26), createdAt: capture.startedAt, siteUrl: 'https://beispiel-erfunden.example/', mode: 'full', capture, rules: DEFAULT_RULES, scannerVersion: '0', rulesUpdated: RULES_FILE.updated });
     const row = report.measures.find((m) => m.id === 'images-described');
     expect(row?.actual).toEqual({ type: 'of', count: expected.described, total: expected.described + expected.without });
-    expect(row?.result).toBe(expected.without > 0 ? 'fail' : expected.decorative > 0 ? 'manual' : 'pass');
+    // Session fix-a3: as with axe, an image marked as decoration is no error; it is a separate manual check.
+    expect(row?.result).toBe(expected.without > 0 ? 'fail' : 'pass');
     const decorative = report.findings.find((f) => f.id === 'a11y:image-alt:decorative');
     if (expected.decorative === 0) expect(decorative).toBeUndefined();
     else expect(decorative).toMatchObject({ kind: 'manual', risk: null, textId: 'a11y-image-alt-decorative', params: { count: expected.decorative } });
