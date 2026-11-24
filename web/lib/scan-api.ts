@@ -8,6 +8,15 @@ const ID = /^[a-z2-7]{26}$/;
 /** A request without an answer after this long counts as no answer (review of B2 part 2). */
 const TIMEOUT_MS = 10_000;
 
+/** A signal that aborts after `ms`; browsers without `AbortSignal.timeout` (Safari before 16) get a controller (review of B2 part 3). */
+function timeout(ms: number): { signal?: AbortSignal } {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') return { signal: AbortSignal.timeout(ms) };
+  if (typeof AbortController !== 'function') return {};
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return { signal: controller.signal };
+}
+
 /** Well formed for display; browsers without `toWellFormed` (before 2023) show the string as it is (a text node). */
 const wellFormed = (s: string): string => (typeof s.toWellFormed === 'function' ? s.toWellFormed() : s);
 
@@ -107,7 +116,7 @@ async function json(response: Response): Promise<unknown> {
 export async function startScan(url: string): Promise<{ ok: true; value: ApiScan } | { ok: false; refusal: Refusal }> {
   let response: Response;
   try {
-    response = await fetch('/api/scans', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url }), signal: AbortSignal.timeout(TIMEOUT_MS) });
+    response = await fetch('/api/scans', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url }), ...timeout(TIMEOUT_MS) });
   } catch {
     return { ok: false, refusal: { kind: 'ours', retryAfter: null } };
   }
@@ -120,7 +129,7 @@ export async function startScan(url: string): Promise<{ ok: true; value: ApiScan
 export async function fetchStatus(id: string): Promise<ApiResult<ApiScan>> {
   let response: Response;
   try {
-    response = await fetch(`/api/scans/${id}`, { cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS) });
+    response = await fetch(`/api/scans/${id}`, { cache: 'no-store', ...timeout(TIMEOUT_MS) });
   } catch {
     return { ok: false, status: 0 };
   }
@@ -133,7 +142,7 @@ export async function fetchStatus(id: string): Promise<ApiResult<ApiScan>> {
 export async function fetchReport(id: string): Promise<ApiResult<Report>> {
   let response: Response;
   try {
-    response = await fetch(`/api/scans/${id}/report`, { cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS) });
+    response = await fetch(`/api/scans/${id}/report`, { cache: 'no-store', ...timeout(TIMEOUT_MS) });
   } catch {
     return { ok: false, status: 0 };
   }

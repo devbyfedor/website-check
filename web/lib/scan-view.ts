@@ -68,6 +68,9 @@ export const waitingSteps = (): ScanStep[] => T.waiting.map((title) => ({ title,
 /** Every row of a scan that ended without a report: lit, no tick, "nicht geprüft". */
 const uncheckedSteps = (): ScanStep[] => T.waiting.map((title) => ({ title, detail: T.notChecked(null), unchecked: true, delay: 0 }));
 
+/** The host without a leading "www.": a host equal to it or below it belongs to the site itself. */
+const baseHost = (host: string): string => host.toLowerCase().replace(/^www\./, '');
+
 /** "1,4" for 1,400 ms. */
 const secondsText = (ms: number): string => (Math.round(ms / 100) / 10).toFixed(1).replace('.', ',');
 
@@ -80,12 +83,16 @@ function parsed(href: string | null): URL | null {
   }
 }
 
-/** Where the Impressum is: its path on the site's own host, otherwise host and path (a string of the page). */
+/**
+ * Where the Impressum is: its path and query on the site's own host (with or without "www."), otherwise host, path and
+ * query (a string of the page).
+ */
 function impressumPlace(report: Report): string | null {
   const url = parsed(report.legal?.impressum.url ?? report.legal?.impressumLink?.href ?? null);
   if (url === null) return null;
-  const own = [report.site.host, parsed(report.site.finalUrl)?.hostname];
-  return own.includes(url.hostname) ? url.pathname : `${url.hostname}${url.pathname}`;
+  const own = [report.site.host, parsed(report.site.finalUrl)?.hostname].filter((h): h is string => typeof h === 'string').map((h) => baseHost(h));
+  const path = `${url.pathname}${url.search}`;
+  return own.includes(baseHost(url.hostname)) ? path : `${url.hostname}${path}`;
 }
 
 /** "Google Fonts, Google Tag Manager, Google Analytics", after three "und 2 weitere"; unknown names are strings of the page. */
@@ -102,7 +109,7 @@ function serviceNames(services: readonly Report['services'][number][]): Phrase {
 
 /** The first row for a report whose homepage was not checked: blocked, refused or failed, with the reason. */
 function notLoadedRow(report: Report): Omit<ScanStep, 'delay'> {
-  if (report.state === 'blocked') return { title: T.blockedPage, detail: T.blockedPageDetail(report.failure?.status ?? null), unchecked: true };
+  if (report.state === 'blocked') return { title: T.blockedPage, detail: T.blockedPageDetail(report.failure?.status ?? null, report.scan.mode === 'quick'), unchecked: true };
   if (report.state === 'not-allowed') {
     const rejection = typeof report.notice?.params.rejection === 'string' ? report.notice.params.rejection : 'other';
     return { title: T.notAllowedPage, detail: T.notAllowedReason[rejection] ?? T.notAllowedReason.other!, unchecked: true };
@@ -134,8 +141,14 @@ export function reportSteps(report: Report): ScanStep[] {
     set(1, requests === null ? { title: T.requestsWithoutCount } : { title: T.requests(requests.total), detail: T.requestsThirdParty(requests.thirdParty) });
     const banner = report.timeline?.bannerVisibleAtMs ?? null;
     set(2, banner === null ? { title: T.bannerNotSeen } : { title: T.bannerSeen, detail: T.bannerSeenAfter(secondsText(banner)) });
-    // A service is a finding when the report lists it as one; on an almost empty page they are "manuell prüfen".
-    const findings = report.services.filter((s) => s.findingId !== null && byId.get(s.findingId)?.kind === 'finding');
+    // A service is a finding when the report lists it as one (or, cut from a long list of findings, by its tag "fehlt");
+    // on an almost empty page they are "manuell prüfen".
+    const isFinding = (s: Report['services'][number]): boolean => {
+      if (s.findingId === null) return false;
+      const finding = byId.get(s.findingId);
+      return finding === undefined ? report.truncated.findings && s.consent === 'missing' : finding.kind === 'finding';
+    };
+    const findings = report.services.filter(isFinding);
     const manual = report.services.filter((s) => s.consent === 'manual');
     if (findings.length > 0) set(3, { title: T.servicesBefore(findings.length), detail: serviceNames(findings), finding: true });
     else if (manual.length > 0) set(3, { title: T.servicesManual(manual.length), detail: serviceNames(manual) });
@@ -162,7 +175,11 @@ export function reportSteps(report: Report): ScanStep[] {
     } else set(5, { title: T.waiting[5], detail: T.notChecked(legal.impressumLink === null ? T.whyNoImpressum : T.whyManual), unchecked: true });
   }
 
-  if (checked('accessibility')) set(6, { title: T.accessibility, detail: T.accessibilityDetail });
+  if (checked('accessibility')) {
+    // A type whose rule failed is a finding of kind "not-checked": then not all six types were checked.
+    const partly = report.findings.some((f) => f.area === 'accessibility' && f.kind === 'not-checked');
+    set(6, partly ? { title: T.waiting[6], detail: T.notChecked(T.whyNotAllTypes), unchecked: true } : { title: T.accessibility, detail: T.accessibilityDetail });
+  }
   if (checked('security') && report.security !== null) set(7, { title: T.security });
   return steps;
 }
@@ -205,8 +222,6 @@ export function summaryOf(report: Report): Phrase {
 /** Where a priority stands on the drawing, and why: its measured field, or the page's source code. */
 export type MarkWhere = { place: MarkPlace; field: string } | { place: 'source'; field: null };
 
-/** The host without a leading "www.": a host equal to it or below it belongs to the site itself. */
-const baseHost = (host: string): string => host.toLowerCase().replace(/^www\./, '');
 
 /** True when a request of the finding was made by the page's own code: the homepage or a file of the site's hosts. */
 function fromPageCode(finding: Finding, report: Report): boolean {
@@ -320,6 +335,20 @@ export function liveScreen(state: LiveScanState): ScanScreenData {
     motionScale: LIVE_MOTION_SCALE,
     status: statusOf(state),
   };
+  if (state.phase === 'error' && state.ended === 'unreadable') {
+    // The scan is done, but its report could not be read (review of B2 part 3): nothing on the screen says that
+    // nothing was measured; the rows wait for the report, the panel offers to load this page again.
+    const panel = endedPanel(state);
+    return {
+      ...base,
+      action: 'new',
+      drawingLabel: T.drawingDone([]),
+      marks: [],
+      steps: waitingSteps(),
+      progress: { kind: 'live', phase: 'done', since: 0 },
+      report: { title: panel.title, summary: panel.text, href: `/pruefung?id=${state.id}`, label: T.reload, delay: 0 },
+    };
+  }
   if (state.phase === 'error') {
     // Ended without a report (session B2 part 3): nothing was measured; "Neue Prüfung" in the header and the panel.
     const panel = endedPanel(state);

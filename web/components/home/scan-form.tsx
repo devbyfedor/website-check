@@ -59,7 +59,9 @@ export function ScanForm({ initialValue, initialProblem, timeZone }: ScanFormPro
     void startScan(url).then((answer) => {
       if (!answer.ok) {
         setBusy(false);
-        show(answer.refusal);
+        // A refusal of the address no longer fits a field the visitor has changed meanwhile (review of B2 part 3).
+        const changed = (field.current?.value.trim() ?? url) !== url;
+        if (!(changed && isAddressProblem(answer.refusal))) show(answer.refusal);
         return;
       }
       const scan = answer.value;
@@ -89,7 +91,10 @@ export function ScanForm({ initialValue, initialProblem, timeZone }: ScanFormPro
             {...(initialValue !== undefined ? { defaultValue: initialValue } : {})}
             {...(shown !== null ? { 'aria-describedby': 'objekt-fehler' } : {})}
             {...(shown !== null && isAddressProblem(shown.problem) ? { 'aria-invalid': true } : {})}
-            onInput={() => setShown(null)}
+            onInput={() => {
+              window.clearTimeout(timer.current);
+              setShown(null);
+            }}
           />
         </div>
         <div className={s.tbl}>Prüfumfang</div>

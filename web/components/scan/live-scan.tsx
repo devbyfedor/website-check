@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { cancelScan, fetchReport, fetchStatus, isScanId, type ApiScan } from '../../lib/scan-api';
 import { forgetScan, recallScan } from '../../lib/scan-store';
+import { SCAN_TEXTS } from '../../lib/scan-texts';
 import { liveScreen, type EndReason, type LiveScanState } from '../../lib/scan-view';
 import { ScanScreen } from './scan-screen';
 
@@ -15,6 +16,8 @@ export const POLL_MS = 2_000;
 /** After a request without an answer: the next one later, and "Keine Verbindung" after a few in a row. */
 const RETRY_MS = 6_000;
 const FAILURES_SHOWN = 3;
+/** A scan this tab started itself is "unknown" only after this many 404 answers in a row (review of B2 part 3). */
+const NOT_FOUND_OWN = 3;
 /** A report that could not be read is asked again this often before the page says so. */
 const REPORT_TRIES = 3;
 /** "Prüfung abbrechen" waits at most this long for the API before it goes to the home page. */
@@ -58,6 +61,7 @@ export function LiveScan() {
     setState({ ...initial, id, displayHost: stored?.displayHost ?? null });
     let stopped = false;
     let failures = 0;
+    let notFound = 0;
 
     // Several requests in a row without an answer: the status line says so, and the page keeps asking (B2 part 3).
     const fail = (): Step => {
@@ -93,10 +97,14 @@ export function LiveScan() {
       if (stopped) return { next: 'stop' };
       if (!answer.ok) {
         // 404: the id is unknown (or the scan was deleted); other answers may pass.
-        if (answer.status === 404) return end('unknown');
+        if (answer.status === 404) {
+          notFound += 1;
+          if (stored === null || notFound >= NOT_FOUND_OWN) return end('unknown');
+        }
         return fail();
       }
       failures = 0;
+      notFound = 0;
       const scan = answer.value;
       if (scan.status === 'error') return end(scan.errorReason ?? 'other', scan.displayHost);
       if (scan.status === 'done') return finish(scan);
@@ -151,6 +159,11 @@ export function LiveScan() {
     },
     [state.id],
   );
+
+  // The title of the tab says whether the scan still runs (review of B2 part 3; drafts).
+  useEffect(() => {
+    document.title = state.phase === 'done' ? SCAN_TEXTS.titleDone : state.phase === 'error' ? SCAN_TEXTS.titleEnded : SCAN_TEXTS.title;
+  }, [state.phase]);
 
   return <ScanScreen scan={liveScreen(state)} onCancel={onCancel} />;
 }

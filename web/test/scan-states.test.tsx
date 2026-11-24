@@ -134,6 +134,52 @@ describe('the example states of the scan screen', () => {
   });
 });
 
+describe('findings of the review of B2 part 3', () => {
+  const complete = () => structuredClone(byslug('ohne-funde').report!);
+
+  it('an unreadable report says the scan is done and offers to load the page again, not "nicht nachgemessen"', () => {
+    const screen = liveScreen(byslug('bericht-unlesbar'));
+    expect(screen.heading).toBeUndefined();
+    expect(screen.steps.every((s) => s.delay === null)).toBe(true);
+    expect(screen.drawingLabel).not.toBe(SCAN_TEXTS.drawingUnmeasured);
+    expect(screen.report).toMatchObject({ href: '/pruefung?id=beispielbeispielbeispielaa', label: 'Neu laden' });
+    expect(flat(screen.report?.summary)).toContain('Die Prüfung ist fertig.');
+  });
+
+  it('accessibility with a type axe could not check is "nicht geprüft", not "die 6 häufigsten Fehlertypen"', () => {
+    const r = complete();
+    r.findings = [...r.findings, { ...r.findings[0]!, id: 'a11y:color-contrast', area: 'accessibility', kind: 'not-checked', risk: null, textId: 'a11y-check-not-checked', serviceKey: null }];
+    const row = liveScreen({ ...byslug('ohne-funde'), report: r }).steps[6]!;
+    expect(row).toMatchObject({ title: 'Barrierefreiheit prüfen', unchecked: true });
+    expect(flat(row.detail)).toBe('nicht geprüft, nicht alle Fehlertypen, bitte manuell prüfen');
+  });
+
+  it('a block met by the quick check names no browser', () => {
+    const r = structuredClone(byslug('blockiert').report!);
+    expect(flat(liveScreen({ ...byslug('blockiert'), report: r }).steps[0]!.detail)).toContain('unseren Browser');
+    r.scan = { ...r.scan, mode: 'quick' };
+    expect(flat(liveScreen({ ...byslug('blockiert'), report: r }).steps[0]!.detail)).toBe('Ihre Website hat unsere Abfrage nicht durchgelassen (Antwort 403)');
+  });
+
+  it('the place of the Impressum keeps its query and treats "www." as the same host', () => {
+    const r = complete();
+    r.legal = { ...r.legal!, impressum: { ...r.legal!.impressum, url: 'https://www.roesterei-muster.de/?page_id=12' } };
+    expect(flat(liveScreen({ ...byslug('ohne-funde'), report: r }).steps[4]!.detail)).toBe('unter /?page_id=12');
+  });
+
+  it('a service whose finding was cut from a long report still counts as a finding by its tag "fehlt"', () => {
+    const r = structuredClone(byslug('ohne-impressum').report!);
+    const service = r.services.find((s) => s.findingId !== null)!;
+    r.findings = r.findings.filter((f) => f.id !== service.findingId);
+    r.truncated = { ...r.truncated, findings: true };
+    expect(liveScreen({ ...byslug('ohne-impressum'), report: r }).steps[3]).toMatchObject({ title: '1 fremder Dienst vor der Einwilligung', finding: true });
+  });
+
+  it('our error does not claim anything about the visitor\'s site', () => {
+    expect(SCAN_TEXTS.ended.other.text).not.toContain('Ihrer Website');
+  });
+});
+
 describe('the form: refusals of the API and when to try again', () => {
   it('reads code, rule, limit and Retry-After from the answer (the header first)', () => {
     expect(refusalOf(400, null, { error: 'invalid-address' })).toEqual({ kind: 'invalid' });

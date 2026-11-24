@@ -601,7 +601,8 @@ Shown under "Website prüfen" in the light red of the marks, in a region with `r
 
 - A part the report did not check is lit, without a tick: the name of its step ("Barrierefreiheit prüfen") with the line "nicht geprüft", or "nicht geprüft, Schnellprüfung ohne Browser" (quick check), "nicht geprüft, bitte manuell prüfen" (mandatory information when the Impressum page was not read), "nicht geprüft, kein Impressum geöffnet" (no Impressum link).
 - Quick check, first row: "Quelltext der Seite gelesen" with "ohne Browser, so wie Ihr Server ihn ausliefert".
-- Blocked: "Prüfung blockiert" with "Ihre Website hat unseren Browser nicht durchgelassen" (and "(Antwort {Status})" when there was one).
+- Blocked: "Prüfung blockiert" with "Ihre Website hat unseren Browser nicht durchgelassen" (and "(Antwort {Status})" when there was one); a block met by the quick check without a browser: "Ihre Website hat unsere Abfrage nicht durchgelassen".
+- Accessibility when axe could not check one of the six types: "Barrierefreiheit prüfen" with "nicht geprüft, nicht alle Fehlertypen, bitte manuell prüfen".
 - Failed: "Seite nicht geladen" with the reason: "sie hat nicht rechtzeitig geantwortet" (timeout), "der Server war nicht erreichbar", "der Server hat mit dem Fehler {Status} geantwortet", "unter dieser Adresse gibt es keine Website", "sie stellt mehr Anfragen oder liefert mehr Daten, als die Prüfung aufzeichnet" (page limit), "unter der Adresse liegt keine Webseite, sondern eine Datei" (not HTML), "bei der Prüfung ist ein Fehler aufgetreten" (other).
 - Refused address: "Adresse nicht geprüft" with "wir prüfen nur Adressen mit http:// oder https://", "die Adresse enthält einen Benutzernamen oder ein Passwort", "wir prüfen nur die üblichen Ports 80 und 443", "die Adresse oder eine Weiterleitung führt zu keinem öffentlichen Server", "zu dieser Adresse gibt es keinen Server", "die Seite leitet mehr als fünfmal weiter", "die Adresse ist für die Prüfung nicht zugelassen".
 - Services on an almost empty page (tag "manuell prüfen"): "{n} fremde Dienste, bitte manuell prüfen" ("1 fremder Dienst, …") with their names, a tick.
@@ -623,9 +624,10 @@ The panel of "Bericht öffnen" with its own heading and line and the button "Neu
 
 - Cancelled by its last visitor, opened later by a link: "Diese Prüfung wurde abgebrochen." / "Sie wurde aus der Warteschlange genommen, bevor sie begann. Deshalb gibt es keinen Bericht."
 - The day's cap was reached at its start: "Heute sind alle Prüfungen vergeben." / "Diese Prüfung konnte nicht mehr beginnen. Die nächste ist {wann} möglich." (the next 00:00 UTC in the visitor's time).
-- Our error: "Die Prüfung ist bei uns fehlgeschlagen." / "Das liegt nicht an Ihrer Website. Bitte starten Sie eine neue Prüfung."
+- Our error: "Die Prüfung ist bei uns fehlgeschlagen." / "Deshalb gibt es keinen Bericht. Bitte starten Sie eine neue Prüfung." (the review of part 3: "Das liegt nicht an Ihrer Website." claimed more than we know).
 - Unknown scan (404, or a broken link): "Diese Prüfung finden wir nicht." / "Der Link ist unvollständig, oder die Prüfung ist nicht mehr gespeichert."
-- The report could not be read three times: "Den Bericht können wir gerade nicht anzeigen." / "Bitte laden Sie diese Seite in einigen Minuten neu, oder starten Sie eine neue Prüfung."
+- The report could not be read three times (the scan is done): "Den Bericht können wir gerade nicht anzeigen." / "Die Prüfung ist fertig. Bitte laden Sie diese Seite in einigen Minuten neu." with the button "Neu laden" (this page again); the heading stays "{Adresse} wird nachgemessen" and the rows wait, because the scan did measure.
+- Title of the tab (`<title>`): "Prüfung läuft, Website-Check DE" while the scan waits or runs (part 1), "Bericht bereit, Website-Check DE" with the report, "Prüfung beendet, Website-Check DE" after a scan without a report.
 - Status: Entwurf
 
 ## Sources

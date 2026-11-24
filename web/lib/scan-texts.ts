@@ -91,11 +91,13 @@ export const SCAN_TEXTS = {
   whyQuick: 'Schnellprüfung ohne Browser',
   whyManual: 'bitte manuell prüfen',
   whyNoImpressum: 'kein Impressum geöffnet',
+  whyNotAllTypes: 'nicht alle Fehlertypen, bitte manuell prüfen',
   quickPage: 'Quelltext der Seite gelesen',
   quickPageDetail: 'ohne Browser, so wie Ihr Server ihn ausliefert',
   blockedPage: 'Prüfung blockiert',
-  blockedPageDetail: (status: number | null) =>
-    status === null ? 'Ihre Website hat unseren Browser nicht durchgelassen' : `Ihre Website hat unseren Browser nicht durchgelassen (Antwort ${status})`,
+  /** `quick`: the quick check met the block without a browser (review of B2 part 3). */
+  blockedPageDetail: (status: number | null, quick = false) =>
+    `Ihre Website hat ${quick ? 'unsere Abfrage' : 'unseren Browser'} nicht durchgelassen${status === null ? '' : ` (Antwort ${status})`}`,
   failedPage: 'Seite nicht geladen',
   failedReason: {
     timeout: 'sie hat nicht rechtzeitig geantwortet',
@@ -130,11 +132,15 @@ export const SCAN_TEXTS = {
   headingEndedWithoutHost: 'Ihre Website wurde nicht nachgemessen',
   headingUnknown: 'Prüfung nicht gefunden',
   newScan: 'Neue Prüfung', // reference (bericht.html)
+  reload: 'Neu laden',
+  // The <title> of the scan screen once the scan has ended (review of B2 part 3); "Prüfung läuft" while it waits or runs.
+  titleDone: 'Bericht bereit, Website-Check DE',
+  titleEnded: 'Prüfung beendet, Website-Check DE',
   ended: {
     cancelled: { title: 'Diese Prüfung wurde abgebrochen.', text: 'Sie wurde aus der Warteschlange genommen, bevor sie begann. Deshalb gibt es keinen Bericht.' },
-    other: { title: 'Die Prüfung ist bei uns fehlgeschlagen.', text: 'Das liegt nicht an Ihrer Website. Bitte starten Sie eine neue Prüfung.' },
+    other: { title: 'Die Prüfung ist bei uns fehlgeschlagen.', text: 'Deshalb gibt es keinen Bericht. Bitte starten Sie eine neue Prüfung.' },
     unknown: { title: 'Diese Prüfung finden wir nicht.', text: 'Der Link ist unvollständig, oder die Prüfung ist nicht mehr gespeichert.' },
-    unreadable: { title: 'Den Bericht können wir gerade nicht anzeigen.', text: 'Bitte laden Sie diese Seite in einigen Minuten neu, oder starten Sie eine neue Prüfung.' },
+    unreadable: { title: 'Den Bericht können wir gerade nicht anzeigen.', text: 'Die Prüfung ist fertig. Bitte laden Sie diese Seite in einigen Minuten neu.' },
   },
   endedDailyLimit: { title: 'Heute sind alle Prüfungen vergeben.', text: (when: string) => `Diese Prüfung konnte nicht mehr beginnen. Die nächste ist ${when} möglich.` },
 

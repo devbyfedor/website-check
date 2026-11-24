@@ -308,7 +308,7 @@ interface ScreenState {
   report: Answering;
   text: string;
   /** The link of the panel at the end: "Bericht öffnen" (a report), "Neue Prüfung" (ended without one), none. */
-  panel: 'Bericht öffnen' | 'Neue Prüfung' | null;
+  panel: 'Bericht öffnen' | 'Neue Prüfung' | 'Neu laden' | null;
   /** The outlined link of the header. */
   header: 'Prüfung abbrechen' | 'Neue Prüfung';
   /** A state that needs several requests without an answer waits longer. */
@@ -348,7 +348,7 @@ function screenStates(): ScreenState[] {
     status: () => json(200, scanBody('done', { state: 'complete' })),
     report: () => ({ status: 200, body: '{"schemaVersion":1,"kaputt":true}' }),
     text: 'Den Bericht können wir gerade nicht anzeigen.',
-    panel: 'Neue Prüfung',
+    panel: 'Neu laden',
     header: 'Neue Prüfung',
     timeout: 30_000,
   });
