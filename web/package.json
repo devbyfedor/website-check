@@ -9,7 +9,8 @@
   },
   "scripts": {
     "dev": "node scripts/next.ts dev",
-    "build": "node scripts/next.ts build"
+    "build": "node scripts/next.ts build",
+    "typecheck": "node scripts/next.ts typegen && tsc -p ."
   },
   "dependencies": {
     "next": "16.4.6",

@@ -1,0 +1,369 @@
+/*
+  Tailwind CSS v4 without its preflight: the reference pages are written on top of the browser's own
+  defaults (content-box sizing, line-height normal, underlined links), and preflight would change them.
+  docs/decisions.md, 24.11.2026.
+*/
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/* The values of design/tokens.css as theme variables. */
+@theme {
+  /* Blueprint surfaces */
+  --color-blueprint: #143e91;
+  --color-blueprint-deep: #0f357f;
+  --color-blueprint-ink: #0b2a68;
+  --color-chalk: #f2f6ff;
+  --color-chalk-muted: #c4d6ff;
+  --color-cyan: #8ccbff;
+  --color-pencil-light: #ff9c8f;
+  --color-placeholder-on-blueprint: #b9ccf5;
+
+  /* Sheet surfaces */
+  --color-paper: #ffffff;
+  --color-ink: #13254f;
+  --color-ink-body: #2d3c5e;
+  --color-ink-muted: #47577a;
+  --color-line: #2c5bc4;
+  --color-link: #1f4fbf;
+  --color-pencil: #c8342b;
+  --color-rule: #c9d5ea;
+  --color-code-bg: #eef2fa;
+  --color-own-request: #dce6f8;
+
+  /* Sheet shadow */
+  --shadow-sheet: 0 40px 80px -40px rgba(3, 14, 40, 0.7);
+
+  /* Layout */
+  --container-page: 1320px;
+  --container-report: 1240px;
+  --spacing-gutter: 32px;
+
+  /* Motion */
+  --ease-draw: cubic-bezier(0.6, 0, 0.2, 1);
+}
+
+/* Fonts come from next/font (app/fonts.ts), which sets the two variables on <html>. */
+@theme inline {
+  --font-body: var(--font-barlow), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-head: var(--font-barlow-semi-condensed), var(--font-barlow), sans-serif;
+}
+
+:root {
+  /* Blueprint grid: two layers, fine 24 px and strong 120 px */
+  --wc-grid-image:
+    linear-gradient(rgba(242, 246, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(242, 246, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(rgba(242, 246, 255, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(242, 246, 255, 0.14) 1px, transparent 1px);
+  --wc-grid-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+  --wc-draw-duration: 1.2s;
+  --wc-pop-duration: 0.45s;
+}
+
+/* The reference's own base rules (design/reference/*.html). */
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--color-blueprint);
+    color: var(--color-chalk);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  a {
+    color: var(--color-chalk);
+  }
+  a:hover {
+    color: var(--color-cyan);
+  }
+  a:focus-visible,
+  input:focus-visible,
+  button:focus-visible {
+    outline: 3px solid var(--color-cyan);
+    outline-offset: 3px;
+  }
+}
+
+/* Classes of the reference, with the token values. */
+@layer components {
+  .paper {
+    background-color: var(--color-blueprint);
+    background-image: var(--wc-grid-image);
+    background-size: var(--wc-grid-size);
+  }
+
+  /* Header and footer */
+  .nav a {
+    text-decoration: none;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--color-chalk);
+  }
+  .nav a:hover {
+    color: var(--color-cyan);
+  }
+  .mk path {
+    fill: none;
+    stroke: var(--color-chalk);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* Home: the drawing */
+  .ln {
+    fill: none;
+    stroke: var(--color-chalk);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .lt {
+    fill: none;
+    stroke: var(--color-chalk);
+    stroke-width: 1;
+    stroke-opacity: 0.55;
+  }
+  .hd {
+    fill: none;
+    stroke: var(--color-chalk);
+    stroke-width: 6;
+    stroke-linecap: round;
+  }
+  /* The final state of a drawn line (pathLength="1"); the animation from offset 1 to 0 is added with the motion. */
+  .draw {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+  .dim {
+    fill: none;
+    stroke: var(--color-cyan);
+    stroke-width: 1.2;
+  }
+  .lead {
+    fill: none;
+    stroke: var(--color-pencil-light);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+  }
+  .callc {
+    fill: var(--color-blueprint);
+    stroke: var(--color-pencil-light);
+    stroke-width: 1.8;
+  }
+  .callt {
+    fill: var(--color-pencil-light);
+    font-family: var(--font-head);
+    font-size: 15px;
+    font-weight: 600;
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .cg.on .callc {
+    fill: var(--color-pencil-light);
+  }
+  .cg.on .callt {
+    fill: var(--color-blueprint);
+  }
+  .dimt {
+    fill: var(--color-cyan);
+    font-family: var(--font-head);
+    font-size: 13px;
+    text-anchor: middle;
+  }
+  .svt {
+    fill: var(--color-chalk);
+    font-family: var(--font-body);
+    font-size: 10px;
+  }
+  .nt {
+    opacity: 0;
+  }
+  .nt.show {
+    opacity: 1;
+  }
+  .ntb {
+    fill: var(--color-blueprint-ink);
+    stroke: var(--color-cyan);
+    stroke-width: 1.2;
+  }
+  .ntt {
+    fill: var(--color-cyan);
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .ntd {
+    fill: var(--color-chalk);
+    font-family: var(--font-body);
+    font-size: 11.5px;
+  }
+
+  /* Home: "Was wir messen" */
+  .callnum {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1.8px solid var(--color-pencil-light);
+    color: var(--color-pencil-light);
+    background: transparent;
+    font-family: var(--font-head);
+    font-weight: 600;
+    font-size: 16px;
+    box-sizing: border-box;
+  }
+  .lg {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    text-align: left;
+    padding: 14px 16px;
+    margin: 0;
+    background: transparent;
+    border: 1.5px solid rgba(242, 246, 255, 0.2);
+    color: var(--color-chalk);
+    font: inherit;
+    cursor: pointer;
+  }
+  .lg:hover {
+    border-color: rgba(140, 203, 255, 0.75);
+  }
+  .lg.on {
+    border-color: var(--color-cyan);
+    background: rgba(140, 203, 255, 0.1);
+  }
+  .lg.on .callnum {
+    background: var(--color-pencil-light);
+    color: var(--color-blueprint);
+  }
+  .lgt {
+    display: block;
+    font-family: var(--font-head);
+    font-size: 21px;
+    font-weight: 600;
+  }
+  .lgd {
+    display: block;
+    margin-top: 4px;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--color-chalk-muted);
+  }
+
+  /* Home: the title block with the address field */
+  .tb {
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr);
+    border: 1.5px solid var(--color-chalk);
+    background: var(--color-blueprint-deep);
+  }
+  .tb > * {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(242, 246, 255, 0.45);
+    min-width: 0;
+  }
+  .tbl {
+    border-right: 1px solid rgba(242, 246, 255, 0.45);
+    font-size: 14px;
+    color: var(--color-chalk-muted);
+    display: flex;
+    align-items: center;
+  }
+  .tbv {
+    font-size: 17px;
+    color: var(--color-chalk);
+    display: flex;
+    align-items: center;
+  }
+  .fieldb {
+    width: 100%;
+    box-sizing: border-box;
+    height: 40px;
+    padding: 0 4px;
+    border: 0;
+    border-bottom: 1.5px solid var(--color-chalk);
+    background: transparent;
+    color: var(--color-chalk);
+    font: inherit;
+    font-size: 19px;
+  }
+  .fieldb::placeholder {
+    color: var(--color-placeholder-on-blueprint);
+  }
+  /* In the reference a link; here the submit button of the form, so the box model is set to match. */
+  .btnb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: content-box;
+    height: 60px;
+    margin: 0;
+    padding: 0;
+    background: var(--color-chalk);
+    color: var(--color-blueprint);
+    text-decoration: none;
+    font-family: var(--font-head);
+    font-weight: 600;
+    font-size: 21px;
+    line-height: normal;
+    border: 1.5px solid var(--color-chalk);
+    border-top: 0;
+    cursor: pointer;
+  }
+  .btnb:hover {
+    background: #ffffff;
+    color: #0f2f73;
+  }
+
+  /* Home: "Was Ihr Bericht zusätzlich zeigt" */
+  .det {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 22px 24px;
+    border: 1.5px solid rgba(242, 246, 255, 0.45);
+    background: rgba(11, 42, 104, 0.6);
+    text-decoration: none;
+    color: var(--color-chalk);
+  }
+  a.det:hover {
+    border-color: var(--color-cyan);
+    color: var(--color-chalk);
+  }
+  .ic path {
+    fill: none;
+    stroke: var(--color-cyan);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .dett {
+    font-family: var(--font-head);
+    font-size: 22px;
+    font-weight: 600;
+  }
+  .detd {
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--color-chalk-muted);
+  }
+  .detl {
+    font-family: var(--font-head);
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--color-cyan);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+}

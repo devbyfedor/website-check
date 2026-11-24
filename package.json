@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --config scanner/vitest.integration.config.ts && vitest run --config worker/vitest.integration.config.ts",
-    "typecheck": "tsc -p scanner && tsc -p worker",
+    "typecheck": "tsc -p scanner && tsc -p worker && npm run typecheck --workspace web",
     "scan:local": "node scanner/src/local/run-sites.ts",
     "explain": "node scanner/src/local/explain.ts",
     "fixtures:snapshots": "node scanner/src/local/make-fixture-snapshots.ts",
