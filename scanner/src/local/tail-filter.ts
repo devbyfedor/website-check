@@ -1,9 +1,10 @@
 import { appendFileSync } from 'node:fs';
 
 /**
- * Filter for `wrangler tail --format json` of the lab Worker (session A2):
+ * Filter for `wrangler tail --format json` of a lab Worker (written for session A2, used since A5 for the lab API Worker
+ * of `worker/wrangler.lab-e2e.jsonc`):
  *
- *   npx wrangler tail -c worker/wrangler.lab.jsonc --format json | node scanner/src/local/tail-filter.ts local/a2/<run>/tail.jsonl
+ *   npx wrangler tail -c worker/wrangler.lab-e2e.local.jsonc --format json | node scanner/src/local/tail-filter.ts local/a5/<run>/tail.jsonl
  *
  * Wrangler prints every tail event as indented JSON, one object after the other. This keeps only
  * what the measurement needs (time, outcome, CPU and wall time, path and `label` query, and since

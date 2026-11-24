@@ -58,7 +58,8 @@ import { frameChain, resolveFrames, type FrameSource } from './frames.ts';
 import { captureImpressumTabCdp, failedImpressumTab } from './impressum.ts';
 
 /**
- * Strategy (a): request events through the browser protocol.
+ * Request events through the browser protocol (strategy (a) of session A2, chosen on 21.11.2026; the other one, Resource
+ * Timing read inside the page, was deleted in session fix-a6).
  *
  * Mirrors the local Playwright adapter with Puppeteer on Cloudflare Browser Run: a fresh
  * browser context per page (no cookies, no stored consent), no interaction, every request
@@ -148,7 +149,7 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
   if (!verdict.allowed) {
     const environment = cloudEnvironment(chromeVersionOf(await browser.version()));
     const capture = notAllowedCapture('cloudflare-browser-run', environment, url, describeRejection(verdict), 'cdp-events');
-    return { capture, stats: { events: 0, polls: 0, emulationFailed: [], wallMs: Date.now() - startedWall } };
+    return { capture, stats: { events: 0, emulationFailed: [], wallMs: Date.now() - startedWall } };
   }
   // The redirect check needs no browser: it runs with fetch while the page loads.
   const httpUrl = settings.httpProbe ? httpVariantOf(url) : null;
@@ -538,7 +539,7 @@ async function runCapture(
     timings: { domContentLoadedMs, loadMs, networkQuietMs, endMs, stopReason },
     ...(cut.strings > 0 ? { limited: { strings: cut.strings } } : {}),
   };
-  return { page, capture, stats: { events, polls: 0, emulationFailed, wallMs: 0, framesPlacedLate: frames.late, framesUnknown: frames.unknown, ...(fieldPositions !== undefined ? { fieldPositions } : {}) } };
+  return { page, capture, stats: { events, emulationFailed, wallMs: 0, framesPlacedLate: frames.late, framesUnknown: frames.unknown, ...(fieldPositions !== undefined ? { fieldPositions } : {}) } };
 }
 
 function lowerCase(headers: Record<string, string>): Record<string, string> {

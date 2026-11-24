@@ -12,8 +12,8 @@ import { fixtureGuard, PRIVATE_MARK, ssrfPrivateNavigations, ssrfSecretHits, sta
  * Session A5: the SSRF guard in the local Playwright adapter. The fixture pages live on the
  * exempt host `www.ssrf.test` and lead the browser to 127.0.0.1 in several ways; the guard must
  * refuse every one before the request is sent, so the internal page never gets a request.
- * The same cases run against the Cloudflare adapter on plain `wrangler dev` in
- * `worker/test/integration/ssrf-dev.test.ts`.
+ * The same cases run against the Cloudflare adapter on plain `wrangler dev`, through the real queue object
+ * and the API, in `worker/test/integration/ssrf-dev.test.ts`.
  */
 
 const HOST_RULES = '--host-resolver-rules=MAP *.test 127.0.0.1';
