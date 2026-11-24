@@ -1,6 +1,11 @@
-// The technical drawing of the home page (design/reference/start.html), in its final state:
-// every line drawn, layer 1 highlighted. The class `draw` gives the drawn lines their final dash state;
-// the drawing animation and the switching of the layers follow in the second part of B1.
+import type { CSSProperties } from 'react';
+
+// The start of each element's animation, written as in the reference (an inline animation-delay).
+const delay = (animationDelay: string): CSSProperties => ({ animationDelay });
+
+// The technical drawing of the home page (design/reference/start.html). Lines are drawn (`draw`),
+// labels, callouts and the notes appear (`pop`) in the order and with the delays of the reference;
+// with reduced motion the final state shows at once (web/app/globals.css).
 export function HomeDrawing() {
   return (
     <svg
@@ -9,33 +14,33 @@ export function HomeDrawing() {
       aria-label="Technische Zeichnung einer Beispiel-Website mit vier markierten Prüfstellen: Schrift, Impressum, Bild und Verschlüsselung."
       className="block h-auto w-full overflow-visible"
     >
-      <path className="dim draw" pathLength={1} d="M40 26H560" />
-      <path className="dim draw" pathLength={1} d="M40 19V33M560 19V33" />
-      <text className="dimt" x="300" y="15">
+      <path className="dim draw" pathLength={1} d="M40 26H560" style={delay('1.9s')} />
+      <path className="dim draw" pathLength={1} d="M40 19V33M560 19V33" style={delay('1.9s')} />
+      <text className="dimt pop" x="300" y="15" style={delay('2.3s')}>
         1440 px
       </text>
-      <path className="ln draw" pathLength={1} d="M40 50H560V400H40Z" />
-      <path className="ln draw" pathLength={1} d="M40 84H560" />
-      <circle className="lt" cx="58" cy="67" r="4" />
-      <circle className="lt" cx="72" cy="67" r="4" />
-      <circle className="lt" cx="86" cy="67" r="4" />
-      <path className="lt draw" pathLength={1} d="M118 59H438V75H118Z" />
-      <path className="ln draw" pathLength={1} d="M418 67v-2.5a3.5 3.5 0 0 1 7 0V67M416 67H427V73H416Z" />
-      <path className="ln draw" pathLength={1} d="M64 104H536V214H64Z" />
-      <path className="lt draw" pathLength={1} d="M64 104L536 214M536 104L64 214" />
-      <path className="hd draw" pathLength={1} d="M64 246H368" />
-      <path className="lt draw" pathLength={1} d="M64 280H246" />
-      <path className="ln draw" pathLength={1} d="M64 302H212V370H64Z" />
-      <path className="ln draw" pathLength={1} d="M226 302H374V370H226Z" />
-      <path className="ln draw" pathLength={1} d="M388 302H536V370H388Z" />
-      <path className="lt draw" pathLength={1} d="M40 382H560" />
-      <text className="svt" x="64" y="395">
+      <path className="ln draw" pathLength={1} d="M40 50H560V400H40Z" style={delay('.2s')} />
+      <path className="ln draw" pathLength={1} d="M40 84H560" style={delay('.5s')} />
+      <circle className="lt pop" cx="58" cy="67" r="4" style={delay('.7s')} />
+      <circle className="lt pop" cx="72" cy="67" r="4" style={delay('.75s')} />
+      <circle className="lt pop" cx="86" cy="67" r="4" style={delay('.8s')} />
+      <path className="lt draw" pathLength={1} d="M118 59H438V75H118Z" style={delay('.6s')} />
+      <path className="ln draw" pathLength={1} d="M418 67v-2.5a3.5 3.5 0 0 1 7 0V67M416 67H427V73H416Z" style={delay('.9s')} />
+      <path className="ln draw" pathLength={1} d="M64 104H536V214H64Z" style={delay('.8s')} />
+      <path className="lt draw" pathLength={1} d="M64 104L536 214M536 104L64 214" style={delay('1s')} />
+      <path className="hd draw" pathLength={1} d="M64 246H368" style={delay('1.1s')} />
+      <path className="lt draw" pathLength={1} d="M64 280H246" style={delay('1.2s')} />
+      <path className="ln draw" pathLength={1} d="M64 302H212V370H64Z" style={delay('1.3s')} />
+      <path className="ln draw" pathLength={1} d="M226 302H374V370H226Z" style={delay('1.4s')} />
+      <path className="ln draw" pathLength={1} d="M388 302H536V370H388Z" style={delay('1.5s')} />
+      <path className="lt draw" pathLength={1} d="M40 382H560" style={delay('1.6s')} />
+      <text className="svt pop" x="64" y="395" style={delay('1.8s')}>
         Impressum
       </text>
-      <text className="svt" x="124" y="395">
+      <text className="svt pop" x="124" y="395" style={delay('1.85s')}>
         Datenschutz
       </text>
-      <g>
+      <g className="pop" style={delay('2.4s')}>
         <g className="cg on">
           <path className="lead" d="M372 246H450" />
           <circle className="callc" cx="466" cy="246" r="15" />
@@ -44,7 +49,7 @@ export function HomeDrawing() {
           </text>
         </g>
       </g>
-      <g>
+      <g className="pop" style={delay('2.6s')}>
         <g className="cg">
           <path className="lead" d="M92 401L124 424" />
           <circle className="callc" cx="136" cy="432" r="15" />
@@ -53,7 +58,7 @@ export function HomeDrawing() {
           </text>
         </g>
       </g>
-      <g>
+      <g className="pop" style={delay('2.8s')}>
         <g className="cg">
           <circle className="callc" cx="300" cy="159" r="15" />
           <text className="callt" x="300" y="159">
@@ -61,7 +66,7 @@ export function HomeDrawing() {
           </text>
         </g>
       </g>
-      <g>
+      <g className="pop" style={delay('3s')}>
         <g className="cg">
           <path className="lead" d="M441 67H480" />
           <circle className="callc" cx="496" cy="67" r="15" />
@@ -70,7 +75,7 @@ export function HomeDrawing() {
           </text>
         </g>
       </g>
-      <g>
+      <g className="pop" style={delay('3.3s')}>
         <g className="nt show">
           <rect className="ntb" x="372" y="264" width="214" height="38" rx="3" />
           <text className="ntt" x="384" y="280">

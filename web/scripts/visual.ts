@@ -14,17 +14,12 @@
 // Besides the pixels the script records, per screenshot, horizontal scrolling, text outside the
 // viewport, text cut off by its box and text boxes that overlap (local/visual/summary.json).
 import { mkdir, writeFile, stat } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium, type Browser, type Page } from 'playwright';
+import { join } from 'node:path';
+import { chromium, type Browser } from 'playwright';
 import { PNG } from 'pngjs';
-import pixelmatch from 'pixelmatch';
-import { startStaticServer } from './static-server.ts';
+import { diffImages } from './image-diff.ts';
+import { OUT_DIR, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer, type FontRouting } from './browser-setup.ts';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const OUT_DIR = join(ROOT, 'web', 'out');
-const REFERENCE_DIR = join(ROOT, 'design', 'reference');
-const FONT_DIR = join(ROOT, 'web', 'fonts');
 const RESULT_DIR = join(ROOT, 'local', 'visual');
 
 // Reference file and app path of each page. `app: null` until a session builds the page.
@@ -38,19 +33,6 @@ const PAGES: { name: string; reference: string; app: string | null }[] = [
 // Places of the reference that Fedor decides (layout faults of the reference itself). They are painted
 // over in both screenshots and do not count. Each entry: page, width, CSS selectors valid in both pages.
 const EXCLUDED: { page: string; width: number; selectors: string[]; why: string }[] = [];
-
-const VIEWPORT_HEIGHT: Record<number, number> = { 1440: 900, 390: 844 };
-
-// The latin subset as Google Fonts declares it; the same files as in web/fonts.
-const LATIN =
-  'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD';
-const FONT_FACES: { family: string; weight: number; file: string }[] = [
-  { family: 'Barlow', weight: 400, file: 'barlow-latin-400-normal.woff2' },
-  { family: 'Barlow', weight: 500, file: 'barlow-latin-500-normal.woff2' },
-  { family: 'Barlow', weight: 600, file: 'barlow-latin-600-normal.woff2' },
-  { family: 'Barlow Semi Condensed', weight: 500, file: 'barlow-semi-condensed-latin-500-normal.woff2' },
-  { family: 'Barlow Semi Condensed', weight: 600, file: 'barlow-semi-condensed-latin-600-normal.woff2' },
-];
 
 interface Args {
   only: string[] | null;
@@ -159,27 +141,10 @@ function layoutCheck(): LayoutReport {
   return report;
 }
 
-function fontCss(origin: string): string {
-  return FONT_FACES.map(
-    (f) =>
-      `@font-face { font-family: '${f.family}'; font-style: normal; font-weight: ${f.weight}; font-display: swap; ` +
-      `src: url(${origin}/__fonts/${f.file}) format('woff2'); unicode-range: ${LATIN}; }`,
-  ).join('\n');
-}
-
 interface Shot {
   png: PNG;
   layout: LayoutReport;
   blocked: string[];
-}
-
-async function settle(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    await document.fonts.ready;
-    await Promise.all(Array.from(document.fonts).filter((f) => f.status === 'loading').map((f) => f.loaded));
-  });
-  // Two frames, so that layout after the font swap is painted.
-  await page.evaluate(() => new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok))));
 }
 
 async function shoot(
@@ -187,7 +152,7 @@ async function shoot(
   url: string,
   width: number,
   origin: string,
-  opts: { routeGoogleFonts: boolean; mask: string[]; file: string },
+  opts: { fonts: FontRouting; mask: string[]; file: string },
 ): Promise<Shot> {
   const context = await browser.newContext({
     viewport: { width, height: VIEWPORT_HEIGHT[width] ?? 900 },
@@ -196,20 +161,7 @@ async function shoot(
     locale: 'de-DE',
     timezoneId: 'Europe/Berlin',
   });
-  const blocked: string[] = [];
-  const css = fontCss(origin);
-  await context.route('**/*', async (route) => {
-    const reqUrl = new URL(route.request().url());
-    if (`${reqUrl.protocol}//${reqUrl.host}` === origin || reqUrl.protocol === 'data:') return route.continue();
-    if (opts.routeGoogleFonts && reqUrl.host === 'fonts.googleapis.com') {
-      return route.fulfill({ status: 200, contentType: 'text/css; charset=utf-8', body: css });
-    }
-    if (!opts.routeGoogleFonts && (reqUrl.host === 'fonts.googleapis.com' || reqUrl.host === 'fonts.gstatic.com')) {
-      return route.continue();
-    }
-    blocked.push(reqUrl.href);
-    return route.abort('blockedbyclient');
-  });
+  const blocked = await routeHosts(context, origin, opts.fonts);
   const page = await context.newPage();
   await page.goto(url, { waitUntil: 'networkidle' });
   await settle(page);
@@ -222,21 +174,6 @@ async function shoot(
   await writeFile(opts.file, buffer);
   await context.close();
   return { png: PNG.sync.read(buffer), layout, blocked };
-}
-
-function pad(img: PNG, width: number, height: number, fill: [number, number, number]): Buffer {
-  if (img.width === width && img.height === height) return img.data;
-  const out = Buffer.alloc(width * height * 4);
-  for (let i = 0; i < width * height; i++) {
-    out[i * 4] = fill[0];
-    out[i * 4 + 1] = fill[1];
-    out[i * 4 + 2] = fill[2];
-    out[i * 4 + 3] = 255;
-  }
-  for (let y = 0; y < img.height; y++) {
-    img.data.copy(out, y * width * 4, y * img.width * 4, (y + 1) * img.width * 4);
-  }
-  return out;
 }
 
 interface Result {
@@ -253,27 +190,19 @@ interface Result {
 }
 
 function compare(name: string, width: number, ref: PNG, app: PNG, excluded: string[]): { result: Result; diff: PNG } {
-  const w = Math.max(ref.width, app.width);
-  const h = Math.max(ref.height, app.height);
-  const a = pad(ref, w, h, [255, 0, 255]);
-  const b = pad(app, w, h, [0, 255, 0]);
-  const diff = new PNG({ width: w, height: h });
-  // pixelmatch defaults: threshold 0.1 in YIQ space, anti-aliased pixels detected and not counted.
-  const differentPixels = pixelmatch(a, b, diff.data, w, h, { threshold: 0.1 });
-  const strictDifferentPixels = pixelmatch(a, b, null, w, h, { threshold: 0, includeAA: true });
-  const totalPixels = w * h;
+  const d = diffImages(ref, app);
   return {
-    diff,
+    diff: d.diff,
     result: {
       page: name,
       width,
       referenceSize: [ref.width, ref.height],
       appSize: [app.width, app.height],
-      differentPixels,
-      strictDifferentPixels,
-      totalPixels,
-      percent: (100 * differentPixels) / totalPixels,
-      strictPercent: (100 * strictDifferentPixels) / totalPixels,
+      differentPixels: d.differentPixels,
+      strictDifferentPixels: d.strictDifferentPixels,
+      totalPixels: d.totalPixels,
+      percent: (100 * d.differentPixels) / d.totalPixels,
+      strictPercent: (100 * d.strictDifferentPixels) / d.totalPixels,
       excluded,
     },
   };
@@ -294,11 +223,7 @@ async function main(): Promise<void> {
   if (!args.referenceOnly && !(await exists(join(OUT_DIR, 'index.html')))) {
     throw new Error('web/out is missing: run `npm run build -w web` first (or `npm run visual`, which builds)');
   }
-  const server = await startStaticServer([
-    { prefix: '/', dir: OUT_DIR },
-    { prefix: '/__reference/', dir: REFERENCE_DIR },
-    { prefix: '/__fonts/', dir: FONT_DIR },
-  ]);
+  const server = await startCheckServer();
   const browser = await chromium.launch({ channel: 'chromium', headless: true });
   const results: Result[] = [];
   const layouts: Record<string, unknown> = {};
@@ -310,7 +235,7 @@ async function main(): Promise<void> {
         const excluded = EXCLUDED.filter((e) => e.page === p.name && e.width === width).flatMap((e) => e.selectors);
         console.log(`${tag}`);
         const ref = await shoot(browser, `${server.origin}/__reference/${p.reference}`, width, server.origin, {
-          routeGoogleFonts: !args.googleFonts,
+          fonts: args.googleFonts ? 'google' : 'local',
           mask: excluded,
           file: join(RESULT_DIR, `${tag}-reference.png`),
         });
@@ -322,7 +247,7 @@ async function main(): Promise<void> {
           continue;
         }
         const app = await shoot(browser, `${server.origin}${p.app}`, width, server.origin, {
-          routeGoogleFonts: false,
+          fonts: 'none',
           mask: excluded,
           file: join(RESULT_DIR, `${tag}-app.png`),
         });

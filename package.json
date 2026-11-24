@@ -25,6 +25,7 @@
     "lab:cpu": "node scanner/src/local/cpu-lab.ts",
     "build:web": "npm run build --workspace web",
     "visual": "npm run build --workspace web && node web/scripts/visual.ts",
+    "motion": "npm run build --workspace web && node web/scripts/motion.ts",
     "preview": "npm run build:web && node web/scripts/serve.ts"
   },
   "devDependencies": {
