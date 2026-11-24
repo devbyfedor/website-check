@@ -1,10 +1,13 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Browser } from '@cloudflare/puppeteer';
-import { analyzeThirdParty, buildReport, compileRules, createUrlGuard, parseRulesFile, validateReport, type Capture, type Report } from '@website-check/scanner';
+import { analyzeThirdParty, AXE_RULES, AXE_VERSION, buildReport, compileRules, createUrlGuard, parseRulesFile, validateReport, type Capture, type Report } from '@website-check/scanner';
 import { BROWSER_LOST, captureWithCdpEvents } from '../../src/capture/cdp-events.ts';
 import type { CloudCaptureOptions } from '../../src/capture/common.ts';
 import { loadAxeSource } from '../../../scanner/src/local/axe-source.ts';
 import { startCdpFixture, type CdpFixture } from './cdp-fixture.ts';
+import { HOSTILE_AXE_PAGES, HOSTILE_AXE_VIOLATIONS } from '../../../scanner/test/integration/hostile-a6-pages.ts';
 
 /**
  * Session fix-a1: the review's reproductions of findings 1, 2 and 17 as tests of the Cloudflare adapter
@@ -194,6 +197,32 @@ describe('finding 23: axe reads only the document that was checked', () => {
   });
 });
 
+// Session fix-a6: the check that session A3 ran with the lab driver on `wrangler dev`, now a test: the accessibility
+// fixture pages through the Cloudflare adapter (@cloudflare/puppeteer, injected axe-core) match the expected counts.
+describe('accessibility fixture pages through the Cloudflare adapter (session A3)', () => {
+  interface Expected {
+    violations: Record<string, number>;
+    incomplete: Record<string, number>;
+  }
+  const manifest = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../scanner/fixtures/a11y/expected.json'), 'utf8')) as { axeVersion: string; pages: Record<string, Expected> };
+
+  it('the manifest is for the pinned axe-core version', () => {
+    expect(manifest.axeVersion).toBe(AXE_VERSION);
+  });
+
+  it.each(Object.keys(manifest.pages))('%s: the counts are those of the manifest', async (name) => {
+    const expected = manifest.pages[name] as Expected;
+    const { capture } = await captureWithCdpEvents(browser, fixture.url('www.shop.test', `/a11y/${name}`), options({ axeSource: await loadAxeSource(), maxWaitMs: 5_000 }));
+    expect(capture.ok).toBe(true);
+    expect(capture.axe?.status, capture.axe?.error ?? '').toBe('ok');
+    expect(capture.axe?.axeVersion).toBe(AXE_VERSION);
+    for (const id of AXE_RULES) {
+      expect(capture.axe?.rules[id]?.violations, `${id} violations`).toBe(expected.violations[id]);
+      expect(capture.axe?.rules[id]?.incomplete, `${id} incomplete`).toBe(expected.incomplete[id] ?? 0);
+    }
+  });
+});
+
 describe('finding 100 (session fix-a5): a failure of the Impressum tab leaves the homepage capture standing', () => {
   /** The same browser, but the second tab of every context fails: `newPage` throws, or the page is already gone. */
   function failingSecondTab(how: 'throws' | 'closed'): Browser {
@@ -243,5 +272,39 @@ describe('finding 100 (session fix-a5): a failure of the Impressum tab leaves th
   it('control: the same page with a working second tab reads the Impressum', async () => {
     const { capture } = await captureWithCdpEvents(browser, fixture.url('www.shop.test', '/heavy/plain'), options({ impressum: true }));
     expect(capture.impressum?.ok).toBe(true);
+  });
+});
+
+describe('session fix-a6: the page cannot give axe a false result, and a CSP meta element counts only in <head>', () => {
+  const violations = (capture: Capture): Record<string, number> => Object.fromEntries(Object.entries(capture.axe?.rules ?? {}).filter(([, r]) => (r?.violations ?? 0) > 0).map(([id, r]) => [id, r?.violations ?? 0]));
+  for (const name of Object.keys(HOSTILE_AXE_PAGES)) {
+    it(`finding 26, ${name}: axe runs in an isolated world and finds the six barriers`, async () => {
+      const { capture } = await captureWithCdpEvents(browser, fixture.url('www.hostile.test', `/${name}`), options({ axeSource: await loadAxeSource(), maxWaitMs: 4_000 }));
+      expect(capture.ok).toBe(true);
+      expect(capture.axe?.status, capture.axe?.error ?? '').toBe('ok');
+      expect(violations(capture)).toEqual(HOSTILE_AXE_VIOLATIONS);
+      const report = reportOf(capture);
+      expect(report.findings.filter((f) => f.area === 'accessibility' && f.kind === 'finding')).toHaveLength(6);
+    });
+  }
+
+  it('"Feld B2": an image without alt in A1, grey text in B2, an iframe of another host in D3', async () => {
+    const { capture } = await captureWithCdpEvents(browser, fixture.url('www.field.test', '/feld'), options({ axeSource: await loadAxeSource(), maxWaitMs: 4_000 }));
+    expect(capture.axe?.status, capture.axe?.error ?? '').toBe('ok');
+    expect(capture.axe?.rules['image-alt']?.examples[0]?.field).toBe('A1');
+    expect(capture.axe?.rules['color-contrast']?.examples[0]?.field).toBe('B2');
+    expect(capture.axe?.positions?.hosts['karte.mapco.test']).toEqual(['D3']);
+    const report = reportOf(capture);
+    const field = (id: string) => report.findings.find((f) => f.id === id)?.field;
+    expect(field('a11y:image-alt')).toBe('A1');
+    expect(field('a11y:color-contrast')).toBe('B2');
+    expect(field('third-party:unknown:mapco.test')).toBe('D3');
+  });
+
+  it('finding 77: a CSP meta element in <body> is not read, one in <head> is', async () => {
+    const body = await captureWithCdpEvents(browser, fixture.url('www.hostile.test', '/csp-meta-body'), options({ maxWaitMs: 3_000 }));
+    expect(body.capture.page?.securityMeta).toEqual({ csp: null, referrer: null });
+    const head = await captureWithCdpEvents(browser, fixture.url('www.hostile.test', '/csp-meta-head'), options({ maxWaitMs: 3_000 }));
+    expect(head.capture.page?.securityMeta?.csp).toBe("img-src 'self'");
   });
 });

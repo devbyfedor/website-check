@@ -23,7 +23,7 @@ export { frameUnknown } from './capture/frames.ts';
 export { CAPTURE_LIMITS, cutText, cutUrl, limitAxe, limitBanner, limitCapture, limitHeaders, limitPageSnapshot, limitRequest, limitSnapshot, pageLimitFailure, RequestBudget, requestChars, type LimitedSnapshot } from './capture/limits.ts';
 export { analyzeCapture, type CaptureAnalysis, type CaptureState } from './analyzers/capture.ts';
 export * from './a11y/types.ts';
-export { AXE_REPORTER, AXE_RUN_EXPRESSION, AXE_RUN_OPTIONS, AXE_TIME, axeBudgetMs, axeCaptureFrom, axeNotRun, type AxeRunOutput } from './a11y/axe-script.ts';
+export { AXE_REPORTER, AXE_RUN_EXPRESSION, AXE_RUN_OPTIONS, AXE_TIME, axeBudgetMs, axeCaptureFrom, axeNotRun, axeWorldOf, runAxeIsolated, type AxeRunOutput, type CdpSend } from './a11y/axe-script.ts';
 export { analyzeAccessibility, ACCESSIBILITY_ANALYSIS_VERSION, type A11yCheck, type A11yCheckId, type AccessibilityAnalysis } from './analyzers/accessibility.ts';
 export * from './security/types.ts';
 export { HTTP_PROBE_BODY_LIMIT, HTTP_PROBE_DEFAULTS, httpsVariantOf, httpVariantOf, probeHttpRedirect, probeHttps, type HttpProbeOptions } from './security/http-probe.ts';
@@ -51,26 +51,12 @@ export {
 export { CAPTURE_SETTINGS, chromeVersionOf, desktopChromeUserAgent, LONG_LIVED_RESOURCE_TYPES } from './capture/settings.ts';
 export { lowerCaseHeaders, toInitiator, type CdpInitiator, type CdpStack } from './capture/cdp.ts';
 export {
-  IN_PAGE_COLLECT_EXPRESSION,
-  RESOURCE_TIMING_GLOBAL,
-  RESOURCE_TIMING_INIT_SCRIPT,
-  RESOURCE_TIMING_POLL_EXPRESSION,
   SNAPSHOT_EXPRESSION,
   IMPRESSUM_SNAPSHOT_EXPRESSION,
   TEXT_PROGRESS_EXPRESSION,
   type TextProgress,
-  type InPageCollectResult,
-  type ResourceTimingPoll,
   type SnapshotResult,
 } from './capture/page-scripts.ts';
-export {
-  requestsFromResourceTiming,
-  resourceTypeOf,
-  type DocumentResponse,
-  type NavigationTimingEntry,
-  type ResourceTimingData,
-  type ResourceTimingEntry,
-} from './capture/resource-timing.ts';
 export { analyzeLegal, LEGAL_ANALYSIS_VERSION, type ImpressumState, type LegalAnalysis } from './analyzers/legal.ts';
 export { analyzePlatform, PLATFORM_ANALYSIS_VERSION, type DetectedSystem, type PlatformAnalysis, type PlatformSignal } from './analyzers/platform.ts';
 export * from './legal/fields.ts';

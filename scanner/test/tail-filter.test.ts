@@ -11,7 +11,7 @@ const event = {
   logs: [],
   event: {
     request: {
-      url: 'https://website-check-lab.example.workers.dev/lab/capture?label=site-07-b',
+      url: 'https://website-check-lab.example.workers.dev/api/scans?label=site-07-b',
       method: 'POST',
       headers: { authorization: 'Bearer secret-token-value' },
     },
@@ -21,14 +21,14 @@ const event = {
 describe('tail filter', () => {
   it('keeps time, outcome, CPU, wall time, path and label, and drops the headers', () => {
     const record = toTailRecord(event);
-    expect(record).toMatchObject({ outcome: 'ok', cpuTime: 7, wallTime: 5123, method: 'POST', path: '/lab/capture', label: 'site-07-b', exceptions: 0 });
+    expect(record).toMatchObject({ outcome: 'ok', cpuTime: 7, wallTime: 5123, method: 'POST', path: '/api/scans', label: 'site-07-b', exceptions: 0 });
     expect(JSON.stringify(record)).not.toContain('secret-token-value');
     expect(record).toMatchObject({ executionModel: null, entrypoint: null, status: null });
   });
 
   it('tells the Durable Object from the Worker', () => {
-    const record = toTailRecord({ ...event, executionModel: 'durableObject', entrypoint: 'LabBrowser', event: { ...event.event, response: { status: 200 } } });
-    expect(record).toMatchObject({ executionModel: 'durableObject', entrypoint: 'LabBrowser', status: 200, label: 'site-07-b' });
+    const record = toTailRecord({ ...event, executionModel: 'durableObject', entrypoint: 'ScanQueueObject', event: { ...event.event, response: { status: 200 } } });
+    expect(record).toMatchObject({ executionModel: 'durableObject', entrypoint: 'ScanQueueObject', status: 200, label: 'site-07-b' });
     expect(toTailRecord({ ...event, executionModel: 'stateless', event: null })).toMatchObject({ executionModel: 'stateless', path: null, label: null });
   });
 

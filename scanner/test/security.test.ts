@@ -40,7 +40,8 @@ describe('header checks', () => {
     expect(checkReferrerPolicy(undefined, 'same-origin')).toMatchObject({ status: 'meta', counts: true, textId: 'security-header-referrer-policy-meta' });
     expect(checkReferrerPolicy(undefined, 'whatever').status).toBe('missing');
     // Old meta values of the HTML standard, and a valid meta tag next to an unusable header.
-    expect(checkReferrerPolicy(undefined, 'always')).toMatchObject({ status: 'meta', detail: 'effective: unsafe-url' });
+    // Session fix-a6 (review finding 77): `always` is the old name of unsafe-url, which weakens the default: it does not count.
+    expect(checkReferrerPolicy(undefined, 'always')).toMatchObject({ status: 'invalid', counts: false, detail: 'weaker-than-default: unsafe-url (meta)' });
     expect(checkReferrerPolicy(undefined, 'never')).toMatchObject({ status: 'meta', detail: 'effective: no-referrer' });
     expect(checkReferrerPolicy('always', null).status).toBe('invalid');
     expect(checkReferrerPolicy('bogus', 'same-origin')).toMatchObject({ status: 'meta', detail: 'effective: same-origin' });
@@ -75,7 +76,7 @@ describe('analyzeSecurity', () => {
     });
     const result = analyzeSecurity(capture);
     expect(result.https).toEqual({ result: 'pass', finalUrl: 'https://www.example.de/', textId: 'security-https-ok' });
-    expect(result.httpRedirect).toEqual({ result: 'pass', outcome: 'redirects-to-https', httpsTarget: 'https://www.example.de/', textId: 'security-http-redirect-ok' });
+    expect(result.httpRedirect).toEqual({ result: 'pass', outcome: 'redirects-to-https', httpsTarget: 'https://www.example.de/', textId: 'security-http-redirect-ok', reason: null, status: null });
     expect(result.headers.map((h) => [h.key, h.status])).toEqual([
       ['hsts', 'present'],
       ['csp', 'missing'],

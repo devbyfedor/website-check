@@ -7,13 +7,21 @@ import { FINGERPRINTS, PLATFORM_IDS, type Fingerprint, type FingerprintSystem, t
  * Which system the site runs on (session A4): WordPress (with or without WooCommerce), Shopify,
  * Shopware, Wix, Jimdo, otherwise "unbekannt". Pure function of a capture.
  *
- * A system is named only when at least one strong signal of it was seen (signals and sources in
- * `docs/cms-fingerprints.md`). Weak signals alone (an embedded Shopify button, a hotlinked image)
- * never name a system. If strong signals of two systems are seen, the one with more strong signals
- * wins; a tie gives "unbekannt", with all signals listed for the manual check.
+ * A system is named only on strong signals of it (signals and sources in `docs/cms-fingerprints.md`).
+ * Weak signals alone (an embedded Shopify button, a hotlinked image) never name a system.
+ *
+ * Session fix-a6 (review finding 75): one strong signal is enough only when it is decisive, a header of the
+ * main document, the generator meta tag or the final host. Otherwise the system needs two pieces of strong
+ * evidence: two different strong signals, or two different files of the system that the site served (each
+ * answered request to a file path of the system counts once). A request that got no answer or an error status
+ * (a leftover link to a file of an old system) is no evidence. If two systems are named, the one with more
+ * evidence wins; a tie gives "unbekannt", with all signals listed for the manual check.
  */
 
-export const PLATFORM_ANALYSIS_VERSION = 1;
+export const PLATFORM_ANALYSIS_VERSION = 2;
+
+/** Kinds of signals that decide alone: the server or the platform says it about the page itself. */
+const DECISIVE: ReadonlySet<Fingerprint['match']['kind']> = new Set(['header', 'generator', 'final-host']);
 
 export type DetectedSystem = PlatformId | 'unknown';
 
@@ -49,7 +57,20 @@ function pathOf(url: string): string | null {
   }
 }
 
-function matches(fingerprint: Fingerprint, capture: Capture, ownHosts: ReadonlySet<string>): string | null {
+/** A request the site answered: a file path seen only in a failed request (404, no answer) proves nothing. */
+function answered(status: number | null): boolean {
+  return status !== null && status >= 200 && status < 400;
+}
+
+/**
+ * What a fingerprint matched: one evidence, or for request signals every different answered request (session
+ * fix-a6: several files of a system are several pieces of evidence). Empty when it did not match.
+ */
+function matches(fingerprint: Fingerprint, capture: Capture, ownHosts: ReadonlySet<string>): string[] {
+  return matchOne(fingerprint, capture, ownHosts) ?? [];
+}
+
+function matchOne(fingerprint: Fingerprint, capture: Capture, ownHosts: ReadonlySet<string>): string[] | null {
   const match = fingerprint.match;
   const page = capture.page;
   switch (match.kind) {
@@ -57,37 +78,40 @@ function matches(fingerprint: Fingerprint, capture: Capture, ownHosts: ReadonlyS
       const value = capture.mainDocument?.headers[match.name];
       if (value === undefined) return null;
       if (match.value !== undefined && !match.value.test(value)) return null;
-      return `${match.name}: ${value.slice(0, 120)}`;
+      return [`${match.name}: ${value.slice(0, 120)}`];
     }
     case 'generator': {
       const hit = page?.platform?.generators.find((g) => match.content.test(g));
-      return hit === undefined ? null : `generator: ${hit}`;
+      return hit === undefined ? null : [`generator: ${hit}`];
     }
     case 'global':
-      return page?.platform?.globals.includes(match.path) === true ? `window.${match.path}` : null;
+      return page?.platform?.globals.includes(match.path) === true ? [`window.${match.path}`] : null;
     case 'selector':
-      return page?.platform?.selectors.includes(match.selector) === true ? `selector ${match.selector}` : null;
+      return page?.platform?.selectors.includes(match.selector) === true ? [`selector ${match.selector}`] : null;
     case 'final-host': {
       const host = capture.finalUrl === null ? null : hostOf(capture.finalUrl);
-      return host !== null && match.host.test(host) ? `final host ${host}` : null;
+      return host !== null && match.host.test(host) ? [`final host ${host}`] : null;
     }
     case 'request-host':
     case 'request-path': {
+      const seen = new Set<string>();
       for (const request of capture.requests) {
         // Only requests of the page itself: not those of an iframe, and not those whose document is unknown.
         if (!request.isMainFrame && (request.frameUrls.length > 0 || frameUnknown(capture, request))) continue;
+        if (!answered(request.status)) continue;
         const host = hostOf(request.url);
         if (host === null) continue;
         if (match.kind === 'request-host') {
-          if (match.host.test(host)) return shorten(request.url);
+          if (match.host.test(host)) seen.add(shorten(request.url));
           continue;
         }
         if (match.firstParty && !ownHosts.has(host.replace(/^www\./, ''))) continue;
         if (match.host !== undefined && !match.host.test(host)) continue;
         const path = pathOf(request.url);
-        if (path !== null && match.path.test(path)) return shorten(request.url);
+        // Different files only: the same address requested twice is one piece of evidence.
+        if (path !== null && match.path.test(path)) seen.add(shorten(request.url.split(/[?#]/)[0] ?? request.url));
       }
-      return null;
+      return seen.size === 0 ? null : [...seen].slice(0, 20);
     }
   }
 }
@@ -105,11 +129,25 @@ function ownHostsOf(capture: Capture): Set<string> {
 export function analyzePlatform(capture: Capture): PlatformAnalysis {
   const signals: PlatformSignal[] = [];
   const own = ownHostsOf(capture);
+  // Session fix-a6: the pieces of strong evidence of each system, and whether one of them decides alone.
+  const evidence = new Map<FingerprintSystem, { pieces: Set<string>; decisive: boolean }>();
   for (const fingerprint of FINGERPRINTS) {
-    const evidence = matches(fingerprint, capture, own);
-    if (evidence !== null) signals.push({ id: fingerprint.id, system: fingerprint.system, strength: fingerprint.strength, evidence });
+    const found = matches(fingerprint, capture, own);
+    if (found.length === 0) continue;
+    signals.push({ id: fingerprint.id, system: fingerprint.system, strength: fingerprint.strength, evidence: found[0] as string });
+    if (fingerprint.strength !== 'strong') continue;
+    const entry = evidence.get(fingerprint.system) ?? { pieces: new Set<string>(), decisive: false };
+    // A file counts once even when two fingerprints of the system match it.
+    const isFile = fingerprint.match.kind === 'request-path' || fingerprint.match.kind === 'request-host';
+    for (const piece of found) entry.pieces.add(isFile ? `file ${piece}` : fingerprint.id);
+    if (DECISIVE.has(fingerprint.match.kind)) entry.decisive = true;
+    evidence.set(fingerprint.system, entry);
   }
-  const strongCount = (system: PlatformId): number => signals.filter((s) => s.system === system && s.strength === 'strong').length;
+  const strongCount = (system: PlatformId): number => {
+    const entry = evidence.get(system);
+    if (entry === undefined) return 0;
+    return entry.decisive || entry.pieces.size >= 2 ? entry.pieces.size : 0;
+  };
   const ranked = PLATFORM_IDS.map((system) => ({ system, strong: strongCount(system) }))
     .filter((r) => r.strong > 0)
     .sort((a, b) => b.strong - a.strong);

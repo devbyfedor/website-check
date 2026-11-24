@@ -34,9 +34,12 @@ export interface CaptureVisit {
 }
 
 /**
- * How the Cloudflare adapter collected the requests (session A2 measures both):
- * `cdp-events`: request events through the browser protocol, like the local adapter;
- * `resource-timing`: one call into the page that reads the Resource Timing API.
+ * How the Cloudflare adapter collected the requests:
+ * `cdp-events`: request events through the browser protocol, like the local adapter (the only strategy since
+ * 21.11.2026);
+ * `resource-timing`: legacy value. One call into the page that read the Resource Timing API, tried in session A2 and
+ * deleted in session fix-a6. No code writes it any more; it stays in the type because captures saved in A2 and A3 carry
+ * it and the analyzers and the report must keep reading them (`frameUnknown` treats them as before).
  */
 export type CaptureStrategy = 'cdp-events' | 'resource-timing';
 
@@ -63,6 +66,12 @@ export type CaptureFailureReason =
    * data than `CAPTURE_LIMITS`). The scan stopped watching it; nothing is concluded from the part it saw.
    */
   | 'page-limit'
+  /**
+   * Session fix-a6 (review finding 66): the main document answered with a content type that is not HTML (JSON,
+   * PDF, an image, plain text). The browser shows it inside a page of its own; nothing of that page was
+   * written by the site, so nothing is analysed.
+   */
+  | 'not-html'
   | 'other';
 
 export interface CaptureFailure {

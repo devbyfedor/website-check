@@ -54,6 +54,12 @@ export interface AccessibilityAnalysis {
   lowestContrast: (AxeContrast & { result: 'fail' | 'pass' }) | null;
   /** Value of `<html lang>` when the language is invalid, for the text. */
   invalidLang: string | null;
+  /**
+   * Session fix-a6 (review finding 83): the share of the first screen covered by the largest iframe, when it is at
+   * least half of it. What the frame shows is not checked, so no row of the report says "erfüllt" for it; null
+   * otherwise (and in captures without the scope).
+   */
+  framedContent?: number | null;
 }
 
 const TYPES: { id: A11yCheckId; rules: AxeRuleId[] }[] = [
@@ -69,9 +75,14 @@ function sum(rules: AxeRuleResult[], key: 'violations' | 'incomplete' | 'passes'
   return rules.reduce((total, rule) => total + rule[key], 0);
 }
 
-/** Below this many checked nodes of the content rules, a page that is mostly one iframe was not really checked. */
+/**
+ * Below this many checked nodes of the content rules, a page with a noticeable iframe was not really checked.
+ * Session fix-a6 (review finding 83): a frame counts from a quarter of the first screen (before: 80 %).
+ */
 const FRAME_PAGE_MAX_NODES = 2;
-const FRAME_PAGE_MIN_SHARE = 0.8;
+const FRAME_PAGE_MIN_SHARE = 0.25;
+/** Session fix-a6: from half of the first screen an iframe is large; its content is marked as not checked. */
+const FRAME_LARGE_SHARE = 0.5;
 
 function manualTextId(id: A11yCheckId): 'a11y-manual-check' | 'a11y-manual-check-contrast' {
   return id === 'color-contrast' ? 'a11y-manual-check-contrast' : 'a11y-manual-check';
@@ -158,5 +169,6 @@ export function analyzeAccessibility(capture: Capture): AccessibilityAnalysis {
     images: image === undefined ? null : imagesOf(image, axe.images ?? null),
     lowestContrast: lowest,
     invalidLang: langInvalid ? (capture.page?.lang ?? null) : null,
+    framedContent: (axe.scope?.largestFrameShare ?? 0) >= FRAME_LARGE_SHARE ? (axe.scope?.largestFrameShare ?? null) : null,
   };
 }

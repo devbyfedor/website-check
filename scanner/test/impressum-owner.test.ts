@@ -173,7 +173,7 @@ describe('finding 71: a mailto link whose text is a common word has no known pla
   });
 
   it('controls: a link on the site\'s own domain, and a link whose text is the address', () => {
-    expect(all('Impressum\nMax Muster\nE-Mail', [{ href: 'mailto:info@muster.example', text: 'E-Mail' }], ['muster.example']).email).toBe('mailto:info@muster.example');
+    expect(all('Impressum\nMax Muster\nE-Mail', [{ href: 'mailto:info@muster.example', text: 'E-Mail' }], ['muster.example']).email).toBe('info@muster.example');
     expect(all('Impressum\nMax Muster\nINFO@MUSTER.EXAMPLE'.toLowerCase(), [{ href: 'mailto:info@muster.example', text: 'info@muster.example' }]).email).toBe('info@muster.example');
   });
 });

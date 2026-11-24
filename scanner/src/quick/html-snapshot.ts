@@ -2319,7 +2319,8 @@ export function snapshotFromHtml(html: string, documentUrl: string, options: { p
     return el === undefined ? null : (attr(el, 'content') || '').slice(0, max);
   };
   const securityMeta: SecurityMeta = {
-    csp: metaContent((el) => asciiLower(attr(el, 'http-equiv') ?? '') === 'content-security-policy', SNAPSHOT_META_LENGTH),
+    // Session fix-a6 (review finding 77): browsers apply a CSP meta element only as a child of <head>.
+    csp: metaContent((el) => el.parent?.name === 'head' && asciiLower(attr(el, 'http-equiv') ?? '') === 'content-security-policy', SNAPSHOT_META_LENGTH),
     referrer: metaContent((el) => asciiLower(attr(el, 'name') ?? '') === 'referrer', SNAPSHOT_META_LENGTH),
   };
 

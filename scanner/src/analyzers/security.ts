@@ -1,5 +1,5 @@
 import type { Capture } from '../capture/types.ts';
-import type { HttpProbeOutcome } from '../security/types.ts';
+import type { HttpProbe, HttpProbeOutcome } from '../security/types.ts';
 
 /**
  * Basic security (session A3): HTTPS, the redirect from http to https, and five headers of the
@@ -60,7 +60,12 @@ export type CheckResult = 'pass' | 'fail' | 'manual' | 'info' | 'not-checked';
 export interface SecurityAnalysis {
   version: typeof SECURITY_ANALYSIS_VERSION;
   https: { result: 'pass' | 'fail' | 'manual'; finalUrl: string | null; textId: string };
-  httpRedirect: { result: CheckResult; outcome: HttpProbeOutcome | null; httpsTarget: string | null; textId: string | null };
+  /**
+   * Session fix-a6 (review finding 69): `reason` says why the result is `manual`, for the text
+   * `security-http-redirect-manual` (`REDIRECT_MANUAL_REASONS`); `status` is the HTTP status of the last answer
+   * of the http:// check, or null. Both null for every other result.
+   */
+  httpRedirect: { result: CheckResult; outcome: HttpProbeOutcome | null; httpsTarget: string | null; textId: string | null; reason: RedirectManualReason | null; status: number | null };
   headers: HeaderCheck[];
   headersPresent: number;
   headersTotal: number;
@@ -124,6 +129,11 @@ export function checkHsts(value: string | undefined, isHttps: boolean): HeaderCh
   const first = set ? (firstValue(value).split(',')[0] ?? '').trim() : null;
   if (!isHttps) return check('hsts', 'strict-transport-security', set ? 'invalid' : 'missing', first, 'not-https', null);
   if (first === null) return check('hsts', 'strict-transport-security', 'missing', null);
+  // Session fix-a6 (review finding 77): every directive may appear only once (RFC 6797, 6.1); browsers ignore a
+  // header that repeats one, so `max-age=31536000; max-age=0` protects nothing.
+  const names = first.split(';').map((part) => (part.split('=')[0] ?? '').trim().toLowerCase()).filter((name) => name !== '');
+  const repeated = names.find((name, index) => names.indexOf(name) !== index);
+  if (repeated !== undefined) return check('hsts', 'strict-transport-security', 'invalid', first, `duplicate-directive: ${repeated.slice(0, 40)}`, 'security-header-hsts-duplicate');
   const match = /(?:^|;)\s*max-age\s*=\s*"?(\d+)"?\s*(?:;|$)/i.exec(first);
   if (match === null) return check('hsts', 'strict-transport-security', 'invalid', first, 'no-max-age', 'security-header-hsts-no-max-age');
   const maxAge = Number(match[1]);
@@ -138,15 +148,30 @@ function directivesOf(policy: string): string[] {
     .filter((name) => name !== '');
 }
 
-/** `meta`: the content of the meta tag, null if there is none, undefined if the page's meta tags were not read. */
+/**
+ * `meta`: the content of the meta tag, null if there is none, undefined if the page's meta tags were not read.
+ * Since session fix-a6 the page scripts read only a meta element that is a child of `<head>`: browsers ignore one
+ * anywhere else (review finding 77).
+ *
+ * Session fix-a6 (review finding 77): a policy without any directive (only `;` or `,`) restricts nothing and does
+ * not count; a meta element with directives then still does.
+ */
 export function checkCsp(value: string | undefined, reportOnly: string | undefined, meta: string | null | undefined): HeaderCheck {
+  let empty: string | null = null;
   if (value !== undefined && value.trim() !== '') {
     const policy = value.replace(/\n/g, ', ').trim();
-    return check('csp', 'content-security-policy', 'present', policy, `directives: ${[...new Set(directivesOf(policy))].join(', ')}`);
+    const directives = [...new Set(directivesOf(policy))];
+    if (directives.length > 0) return check('csp', 'content-security-policy', 'present', policy, `directives: ${directives.join(', ')}`);
+    empty = policy;
   }
-  if (meta !== null && meta !== undefined && meta.trim() !== '') return check('csp', 'content-security-policy', 'meta', meta.trim(), `directives: ${[...new Set(directivesOf(meta))].join(', ')}`);
+  if (meta !== null && meta !== undefined && meta.trim() !== '') {
+    const directives = [...new Set(directivesOf(meta))];
+    if (directives.length > 0) return check('csp', 'content-security-policy', 'meta', meta.trim(), `directives: ${directives.join(', ')}`);
+    empty ??= meta.trim();
+  }
   // Unknown meta tags: a meta CSP would count, so neither report-only nor missing is certain.
-  if (meta === undefined) return check('csp', 'content-security-policy', 'manual', reportOnly?.trim() || null, 'meta-not-read');
+  if (meta === undefined) return check('csp', 'content-security-policy', 'manual', empty ?? (reportOnly?.trim() || null), 'meta-not-read');
+  if (empty !== null) return check('csp', 'content-security-policy', 'invalid', empty, 'no-directives');
   if (reportOnly !== undefined && reportOnly.trim() !== '') return check('csp', 'content-security-policy', 'report-only', reportOnly.trim());
   return check('csp', 'content-security-policy', 'missing', null);
 }
@@ -168,7 +193,16 @@ const LEGACY_META_REFERRER: Record<string, string> = {
   'origin-when-crossorigin': 'origin-when-cross-origin',
 };
 
-/** The browser uses the last token it knows; unknown tokens are skipped. A valid meta tag wins over an unusable header. */
+/**
+ * Session fix-a6 (review finding 77): policies that send the full address of the page to other sites, more than the
+ * browser's default `strict-origin-when-cross-origin` does. Such a header weakens the protection and does not count.
+ */
+const WEAK_REFERRER = new Set(['unsafe-url', 'no-referrer-when-downgrade']);
+
+/**
+ * The browser uses the last token it knows; unknown tokens are skipped. A meta tag with a known value is applied
+ * after the header, so it decides (session fix-a6; before, it decided only over an unusable header).
+ */
 export function checkReferrerPolicy(value: string | undefined, meta: string | null | undefined): HeaderCheck {
   const known = (raw: string): string[] => raw.split(/[,\n]/).map((t) => t.trim().toLowerCase()).filter((t) => REFERRER_TOKENS.has(t));
   const metaPolicy = ((): string | null => {
@@ -177,13 +211,26 @@ export function checkReferrerPolicy(value: string | undefined, meta: string | nu
     return REFERRER_TOKENS.has(token) ? token : (LEGACY_META_REFERRER[token] ?? null);
   })();
   let invalidHeader: string | null = null;
+  let headerPolicy: string | null = null;
+  let header: string | null = null;
   if (value !== undefined && value.trim() !== '') {
     const tokens = known(value);
-    const policy = value.replace(/\n/g, ', ').trim();
-    if (tokens.length > 0) return check('referrer-policy', 'referrer-policy', 'present', policy, `effective: ${tokens.at(-1)}`);
-    invalidHeader = policy;
+    header = value.replace(/\n/g, ', ').trim();
+    if (tokens.length > 0) headerPolicy = tokens.at(-1) ?? null;
+    else invalidHeader = header;
   }
-  if (meta !== null && meta !== undefined && metaPolicy !== null) return check('referrer-policy', 'referrer-policy', 'meta', meta.trim(), `effective: ${metaPolicy}`);
+  if (metaPolicy !== null && meta !== null && meta !== undefined) {
+    if (WEAK_REFERRER.has(metaPolicy)) return check('referrer-policy', 'referrer-policy', 'invalid', meta.trim(), `weaker-than-default: ${metaPolicy} (meta)`, 'security-header-referrer-policy-weak');
+    return headerPolicy !== null && header !== null
+      ? check('referrer-policy', 'referrer-policy', 'present', header, `effective: ${metaPolicy} (meta)`)
+      : check('referrer-policy', 'referrer-policy', 'meta', meta.trim(), `effective: ${metaPolicy}`);
+  }
+  if (headerPolicy !== null && header !== null) {
+    if (!WEAK_REFERRER.has(headerPolicy)) return check('referrer-policy', 'referrer-policy', 'present', header, `effective: ${headerPolicy}`);
+    // Unknown meta tags: a meta element could set a stronger policy after the header.
+    if (meta === undefined) return check('referrer-policy', 'referrer-policy', 'manual', header, `meta-not-read, header weaker-than-default: ${headerPolicy}`);
+    return check('referrer-policy', 'referrer-policy', 'invalid', header, `weaker-than-default: ${headerPolicy}`, 'security-header-referrer-policy-weak');
+  }
   // Unknown meta tags: a valid meta tag would win over an unusable or missing header.
   if (meta === undefined) return check('referrer-policy', 'referrer-policy', 'manual', invalidHeader, 'meta-not-read');
   if (invalidHeader !== null) return check('referrer-policy', 'referrer-policy', 'invalid', invalidHeader, 'no-known-token');
@@ -204,7 +251,7 @@ const SF_NUMBER = /^-?\d{1,15}(?:\.\d{1,3})?/;
  * string, number, boolean) or inner lists of them, each with optional parameters. A member without
  * `=` is a boolean and gives no allowlist, so it is listed in `bare`.
  */
-export function parseSfDictionaryKeys(input: string): { keys: string[]; bare: string[] } | null {
+export function parseSfDictionaryKeys(input: string): { keys: string[]; bare: string[]; open: string[] } | null {
   // Spaces and tabs at both ends, cut by index: a pattern that ends in `[ \t]+$` tries every run of spaces
   // inside the value again and again (session fix-a4, review finding 13).
   let from = 0;
@@ -214,16 +261,21 @@ export function parseSfDictionaryKeys(input: string): { keys: string[]; bare: st
   let s = input.slice(from, to);
   const keys: string[] = [];
   const bare: string[] = [];
+  // Session fix-a6 (review finding 77): whether the last allowlist of a key names `*` (every origin).
+  const star = new Map<string, boolean>();
+  let item = '';
   const bareItem = (): boolean => {
     for (const re of [SF_STRING, SF_TOKEN, SF_NUMBER, /^\?[01]/]) {
       const m = re.exec(s);
       if (m !== null) {
+        item = m[0];
         s = s.slice(m[0].length);
         return true;
       }
     }
     return false;
   };
+  const result = (): { keys: string[]; bare: string[]; open: string[] } => ({ keys, bare, open: [...star].filter(([, all]) => all).map(([k]) => k) });
   const params = (): boolean => {
     while (s.startsWith(';')) {
       s = s.slice(1).replace(/^ +/, '');
@@ -237,7 +289,7 @@ export function parseSfDictionaryKeys(input: string): { keys: string[]; bare: st
     }
     return true;
   };
-  if (s === '') return { keys, bare };
+  if (s === '') return result();
   for (;;) {
     const key = SF_KEY.exec(s);
     if (key === null) return null;
@@ -246,6 +298,7 @@ export function parseSfDictionaryKeys(input: string): { keys: string[]; bare: st
     else bare.push(key[0]);
     if (s.startsWith('=')) {
       s = s.slice(1);
+      let all = false;
       if (s.startsWith('(')) {
         s = s.slice(1);
         for (;;) {
@@ -254,14 +307,21 @@ export function parseSfDictionaryKeys(input: string): { keys: string[]; bare: st
             s = s.slice(1);
             break;
           }
-          if (!bareItem() || !params()) return null;
+          if (!bareItem()) return null;
+          if (item === '*') all = true;
+          if (!params()) return null;
           if (!s.startsWith(' ') && !s.startsWith(')')) return null;
         }
         if (!params()) return null;
-      } else if (!bareItem() || !params()) return null;
+      } else {
+        if (!bareItem()) return null;
+        if (item === '*') all = true;
+        if (!params()) return null;
+      }
+      star.set(key[0], all);
     } else if (!params()) return null;
     s = s.replace(/^[ \t]+/, '');
-    if (s === '') return { keys, bare };
+    if (s === '') return result();
     if (!s.startsWith(',')) return null;
     s = s.slice(1).replace(/^[ \t]+/, '');
     if (s === '') return null;
@@ -278,6 +338,11 @@ export function checkPermissionsPolicy(value: string | undefined, featurePolicy:
     const ignored = [...keys.filter((k) => RETIRED_FEATURES.has(k)), ...parsed.bare];
     if (keys.every((k) => RETIRED_FEATURES.has(k)))
       return check('permissions-policy', 'permissions-policy', 'invalid', policy, keys.length === 0 ? 'no-feature' : `only retired features: ${ignored.join(', ')}`);
+    // Session fix-a6 (review finding 77): a policy that allows every feature it names to every origin (`camera=*`)
+    // restricts nothing and does not count.
+    const open = new Set(parsed.open);
+    if (keys.filter((k) => !RETIRED_FEATURES.has(k)).every((k) => open.has(k)))
+      return check('permissions-policy', 'permissions-policy', 'invalid', policy, 'allows-all', 'security-header-permissions-policy-open');
     return check('permissions-policy', 'permissions-policy', 'present', policy, ignored.length > 0 ? `ignored: ${ignored.join(', ')}` : null);
   }
   if (featurePolicy !== undefined && featurePolicy.trim() !== '') return check('permissions-policy', 'permissions-policy', 'legacy', featurePolicy.trim());
@@ -311,6 +376,38 @@ function redirectResult(outcome: HttpProbeOutcome | null): { result: CheckResult
     // An outcome this version does not know (a capture of a later version) is never a finding.
     default:
       return { result: 'manual', textId: 'security-http-redirect-manual' };
+  }
+}
+
+/** Session fix-a6 (review finding 69): why the redirect check is "bitte manuell prüfen"; one fixed phrase each in `docs/content-drafts.md`. */
+export const REDIRECT_MANUAL_REASONS = [
+  'timeout',
+  'http-error',
+  'too-many-redirects',
+  'no-location',
+  'not-allowed',
+  'script-may-redirect',
+  'refresh-to-http',
+  'page-not-read',
+  'final-http',
+  'unknown',
+] as const;
+export type RedirectManualReason = (typeof REDIRECT_MANUAL_REASONS)[number];
+
+function manualReasonOf(probe: HttpProbe): RedirectManualReason {
+  switch (probe.outcome) {
+    case 'timeout':
+    case 'http-error':
+    case 'too-many-redirects':
+    case 'script-may-redirect':
+    case 'refresh-to-http':
+    case 'page-not-read':
+      return probe.outcome;
+    case 'stopped':
+      // A redirect without a usable Location, or to an address the scanner must not open.
+      return probe.hops.at(-1)?.location == null ? 'no-location' : 'not-allowed';
+    default:
+      return 'unknown';
   }
 }
 
@@ -365,7 +462,15 @@ export function analyzeSecurity(capture: Capture): SecurityAnalysis {
   const isHttps = protocol === 'https:';
   const https = httpsCheck(capture, protocol);
   const probe = capture.httpProbe ?? null;
-  const redirect = redirectResult(probe?.outcome ?? null);
+  let redirect = redirectResult(probe?.outcome ?? null);
+  let reason: RedirectManualReason | null = redirect.result === 'manual' && probe !== null ? manualReasonOf(probe) : null;
+  // Session fix-a6 (review finding 79): the plain requests reached https://, but the browser ended on an http://
+  // page (https:// sent it back to http://). The redirect is then not "erfüllt": bitte manuell prüfen.
+  if (redirect.result === 'pass' && protocol === 'http:') {
+    redirect = { result: 'manual', textId: 'security-http-redirect-manual' };
+    reason = 'final-http';
+  }
+  const lastStatus = probe?.hops.at(-1)?.status ?? null;
   const h = capture.mainDocument?.headers ?? {};
   // undefined: the page's meta tags were not read (no snapshot, or a capture made before A3).
   const meta = capture.page?.securityMeta;
@@ -387,7 +492,7 @@ export function analyzeSecurity(capture: Capture): SecurityAnalysis {
   return {
     version: SECURITY_ANALYSIS_VERSION,
     https,
-    httpRedirect: { ...redirect, outcome: probe?.outcome ?? null, httpsTarget: probe?.httpsTarget ?? null },
+    httpRedirect: { ...redirect, outcome: probe?.outcome ?? null, httpsTarget: probe?.httpsTarget ?? null, reason, status: reason === null ? null : lastStatus },
     headers,
     headersPresent: headers.filter((c) => c.counts).length,
     headersTotal: headers.length,

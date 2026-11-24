@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
+import { resolve } from 'node:path';
 import { createServer as createNetServer, type AddressInfo } from 'node:net';
 import { heavyPage } from '../../../scanner/test/integration/heavy-pages.ts';
+import { CSP_META_PAGES, fieldPage, HOSTILE_AXE_PAGES } from '../../../scanner/test/integration/hostile-a6-pages.ts';
 import type { Browser as PuppeteerBrowser } from '@cloudflare/puppeteer';
 import { launchLocalBrowser } from '@website-check/scanner/local';
 
@@ -104,6 +107,11 @@ export async function startCdpFixture(): Promise<CdpFixture> {
     };
     const player = (name: string): string => `<iframe title="Video" src="${u('embed.playerco.test', `/${name}`)}" width="320" height="180"></iframe>`;
     const jsonPost = (target: string): string => `fetch('${target}', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"e":1}' }).then(function (r) { return r.text(); }).catch(function () {});`;
+    // Session fix-a6, review findings 26 and 77.
+    const hostile = host === 'www.hostile.test' ? ({ ...HOSTILE_AXE_PAGES, ...CSP_META_PAGES } as Record<string, string>)[path.slice(1)] : undefined;
+    if (hostile !== undefined) return out(200, 'text/html; charset=utf-8', hostile);
+    if (`${host}${path}` === 'www.field.test/feld') return out(200, 'text/html; charset=utf-8', fieldPage(u('karte.mapco.test', '/embed')));
+    if (`${host}${path}` === 'karte.mapco.test/embed') return out(200, 'text/html; charset=utf-8', '<!doctype html><title>Karte</title><p>Karte</p>');
     switch (`${host}${path}`) {
       // The site. Its pages embed a third-party player or two third-party widgets, or act themselves.
       case 'www.shop.test/preflight':
@@ -175,6 +183,9 @@ export async function startCdpFixture(): Promise<CdpFixture> {
       case 'css.fontco.test/font.css':
         return out(200, 'text/css', 'h1 { color: #111; }', { 'access-control-allow-origin': '*' });
       default: {
+        // Session fix-a6: the accessibility fixture pages of A3 (`scanner/fixtures/a11y/`) at `/a11y/<file>`.
+        const a11y = host === 'www.shop.test' ? /^\/a11y\/([a-z0-9-]+\.html)$/.exec(path)?.[1] : undefined;
+        if (a11y !== undefined) return out(200, 'text/html; charset=utf-8', readFileSync(resolve(import.meta.dirname, '../../../scanner/fixtures/a11y', a11y)));
         // Session fix-a4: the heavy pages of the review, shared with the tests of the local adapter.
         const heavy = host === 'www.shop.test' ? heavyPage(path) : null;
         if (heavy !== null) return out(heavy.status, heavy.type, heavy.body, heavy.headers);

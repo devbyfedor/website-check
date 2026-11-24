@@ -10,7 +10,7 @@ Only what a normal visit without interaction gives: the headers of the main docu
 
 - `strong`: produced by the platform's own page rendering; a site on another system does not show it.
 - `weak`: can also appear on another system (a Shopify Buy Button, a hotlinked Wix image, a Wix or WordPress headless setup, a theme ported from another system). Weak signals are listed in the result but never name a system on their own.
-- The system is the one with strong signals. If two systems have strong signals, the one with more strong signals wins and the result is marked `conflict`; a tie gives "unbekannt". No strong signal at all gives "unbekannt".
+- The system is the one with strong evidence. Since session fix-a6 (review finding 75), one strong signal names the system alone only when it is decisive: a header of the main document, the generator meta tag or the final host. Otherwise the system needs two pieces of strong evidence: two different strong signals, or two different files of the system that the site served (each answered request to a file path of the system counts once; the same address twice counts once). A path or host signal counts only for a request answered with a status from 200 to 399: a leftover link that gives 404 proves nothing. If two systems have such evidence, the one with more pieces wins and the result is marked `conflict`; a tie gives "unbekannt". Otherwise "unbekannt".
 - WooCommerce is reported only together with WordPress. Shopware gets a major version (5 or 6) when its strong signals agree.
 - Path signals marked "on the site's own host" count only on the host of the requested address, of the final URL or of a redirect hop, with or without "www." (changed after the code review of 22.11.2026: another subdomain of the same domain can be a blog or a shop on another system).
 
@@ -68,9 +68,9 @@ After the research, the signals were compared with the saved captures of the 30 
 ## Shopware 6
 
 - `sw6-theme-asset-path` (strong): requests to `/theme/<32 hex>/css|js|assets/` on the site's own hosts. Source: `ThemeCompiler` in https://github.com/shopware/shopware/blob/trunk/src/Storefront/Theme/ThemeCompiler.php.
-- `sw6-storefront-bundle-path` (strong): requests to `/bundles/storefront/`. Source: https://github.com/shopware/shopware/blob/6.7.16.x/src/Storefront/Theme/ThemeCompiler.php.
+- `sw6-storefront-bundle-path` (weak since fix-a6: any Symfony application can have a bundle of that name): requests to `/bundles/storefront/`. Source: https://github.com/shopware/shopware/blob/6.7.16.x/src/Storefront/Theme/ThemeCompiler.php.
 - `sw6-plugin-manager-global` (weak): global `PluginManager`. Weak because the reviewer found the name generic: a script on another system could define it. Source: https://github.com/shopware/shopware/blob/trunk/src/Storefront/Resources/app/storefront/src/plugin-system/plugin.manager.js.
-- `sw6-sales-channel-global`, `sw6-theme-js-path-global`, `sw6-theme-assets-path-global` (strong): globals `salesChannelId`, `themeJsPublicPath`, `themeAssetsPublicPath`. Source: https://github.com/shopware/shopware/blob/trunk/src/Storefront/Resources/views/storefront/layout/meta.html.twig (and the 6.6.x branch for `themeAssetsPublicPath`).
+- `sw6-theme-js-path-global`, `sw6-theme-assets-path-global` (strong): globals `themeJsPublicPath`, `themeAssetsPublicPath`; `sw6-sales-channel-global` (weak since fix-a6, a generic name): global `salesChannelId`. Source: https://github.com/shopware/shopware/blob/trunk/src/Storefront/Resources/views/storefront/layout/meta.html.twig (and the 6.6.x branch for `themeAssetsPublicPath`).
 - `sw6-language-id-header` (strong): header `sw-language-id` with 32 hex digits. Source: https://github.com/shopware/shopware/blob/trunk/src/Storefront/Framework/Routing/RequestTransformer.php.
 - `sw6-invalidation-states-header` (strong): header `sw-invalidation-states`. Source: https://github.com/shopware/shopware/blob/trunk/src/Core/Framework/Adapter/Cache/Http/HttpCacheKeyGenerator.php.
 - `sw6-cookie-permission` (strong): `div.cookie-permission-container[data-cookie-permission]`. Source: https://github.com/shopware/shopware/blob/trunk/src/Storefront/Resources/views/storefront/layout/cookie/cookie-permission.html.twig.
@@ -83,7 +83,7 @@ After the research, the signals were compared with the saved captures of the 30 
 - `sw5-engine-path` (strong): `/engine/Shopware/`. Source: dataset, webappanalyzer `s.json`.
 - `sw5-statistic-path` (strong): `/widgets/index/refreshStatistic`. Source: https://github.com/shopware5/shopware/blob/5.7/themes/Frontend/Bare/widgets/index/statistic_include.tpl.
 - `sw5-state-manager-global` (weak): global `StateManager`. Weak for the same reason (a generic name). Source: https://github.com/shopware5/shopware/blob/5.7/themes/Frontend/Responsive/frontend/_public/src/js/jquery.state-manager.js.
-- `sw5-csrf-config-global` (strong): global `csrfConfig`. Source: https://github.com/shopware5/shopware/blob/5.7/themes/Frontend/Bare/frontend/index/index.tpl.
+- `sw5-csrf-config-global` (weak since fix-a6, a generic name that other frameworks use): global `csrfConfig`. Source: https://github.com/shopware5/shopware/blob/5.7/themes/Frontend/Bare/frontend/index/index.tpl.
 - `sw5-route-body-class` (strong): a body class `is--ctl-…`. Source: the same `index.tpl`.
 - `sw5-cookie-permission` (strong): `div.page-wrap--cookie-permission[data-cookie-permission]`. Source: https://github.com/shopware5/shopware/blob/5.7/themes/Frontend/Bare/frontend/_includes/cookie_permission_note.tpl.
 

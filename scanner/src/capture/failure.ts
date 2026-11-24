@@ -142,7 +142,19 @@ export function classifyMainDocument(status: number, headers: Record<string, str
   }
   if (status < 200 || status >= 300) return { reason: 'other', message: `unexpected HTTP status ${status}`, status };
   if (checkPage !== null) return { reason: 'blocked', message: `${checkPage}, HTTP ${status}`, status };
+  const type = mediaTypeOf(headers['content-type']);
+  if (type !== null && !HTML_TYPES.has(type)) return { reason: 'not-html', message: `main document is not HTML (content type ${type.slice(0, 80)})`, status };
   return null;
+}
+
+/** Session fix-a6 (review finding 66): the content types a browser renders as the site's own page. */
+const HTML_TYPES = new Set(['text/html', 'application/xhtml+xml']);
+
+/** The media type of a `Content-Type` value, lower case without parameters; null when there is none (the browser then sniffs). */
+export function mediaTypeOf(value: string | undefined): string | null {
+  if (value === undefined) return null;
+  const type = (value.split(/[\n,]/)[0] ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
+  return type === '' ? null : type;
 }
 
 /** Page evidence of a capture, or undefined if the capture has no page snapshot. */

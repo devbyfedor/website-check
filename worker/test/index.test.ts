@@ -29,4 +29,22 @@ describe('worker entry point', () => {
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ error: 'misconfigured' });
   });
+
+  it('lets only the exact fixture origin through in local dev mode, nothing else on the loopback (session fix-a6)', async () => {
+    const start = async (env: Record<string, unknown>, url: string) => {
+      const response = await worker.fetch(
+        new Request('http://127.0.0.1:8788/api/scans', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url }) }),
+        { DB: d1.db, ...env },
+      );
+      return response.status;
+    };
+    const dev = { DEV_MODE: '1', DEV_ORIGINS: 'http://localhost:4000' };
+    // Past the address rules the start reaches the queue, which these unit tests do not bind: 503, not 400.
+    expect(await start(dev, 'http://localhost:4000/')).toBe(503);
+    for (const url of ['http://127.0.0.1:4000/', 'http://localhost:4001/', 'http://[::1]/', 'http://169.254.169.254/latest/meta-data/', 'http://2130706433:4000/']) {
+      expect(await start(dev, url), url).toBe(400);
+    }
+    // Without the dev switch the origins are ignored, also for a request to the loopback.
+    expect(await start({ DEV_ORIGINS: 'http://localhost:4000' }, 'http://localhost:4000/')).toBe(400);
+  });
 });

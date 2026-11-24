@@ -3,7 +3,7 @@ import type { AccessibilityAnalysis, A11yCheck } from '../analyzers/accessibilit
 import type { LegalAnalysis } from '../analyzers/legal.ts';
 import type { SecurityAnalysis } from '../analyzers/security.ts';
 import type { DetectedService, ThirdPartyAnalysis } from '../analyzers/third-party.ts';
-import type { AxeExample } from '../a11y/types.ts';
+import type { AxeExample, AxePositions } from '../a11y/types.ts';
 import { limitCapture } from '../capture/limits.ts';
 import type { Capture, CapturedRequest } from '../capture/types.ts';
 import { firstPartySites, hostOf, siteOfUrl } from '../domain/site.ts';
@@ -92,9 +92,40 @@ export interface BuiltReport {
 // ---------------------------------------------------------------------------------------------
 // Small helpers
 
+/**
+ * Session fix-a6 (review finding 58): every string of the page goes into the report well formed and without invisible
+ * controls. A surrogate that the page script cut in half becomes U+FFFD; C0 and C1 controls (except tab and line
+ * break), bidi controls (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069), U+200B and U+FEFF are removed.
+ */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+const INVISIBLE = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u061C\u200B\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g;
+
+export function cleanText(text: string): string {
+  return text.replace(LONE_SURROGATE, '\uFFFD').replace(INVISIBLE, '');
+}
+
+/** A string of the page within `max` code points, cut with "…" (never inside a surrogate pair). */
 function clip(text: string, max: number = REPORT_LIMITS.textLength): string {
-  const chars = [...text];
-  return chars.length <= max ? text : `${chars.slice(0, max - 1).join('')}…`;
+  const clean = cleanText(text);
+  const chars = [...clean];
+  return chars.length <= max ? clean : `${chars.slice(0, max - 1).join('')}…`;
+}
+
+/**
+ * Session fix-a6 (review findings 28 and 53): an address of the page that the report keeps as an address. Only http
+ * and https (and ws, wss for requests), without user name and password (`pageAddress`), and never cut: an address
+ * longer than the report keeps is null, so no shortened address can lead to another page.
+ */
+function webAddress(url: string, kind: 'request' | 'page' | 'link', schemes: RegExp): string | null {
+  const address = cleanText(pageAddress(url, kind));
+  return schemes.test(address) && [...address].length <= REPORT_LIMITS.urlLength ? address : null;
+}
+
+const HTTP = /^https?:\/\/[^/?#\s]/i;
+
+/** A link of the page (Impressum, Datenschutz, accessibility statement): http or https only, or null. */
+function linkAddress(url: string): string | null {
+  return webAddress(url, 'link', HTTP);
 }
 
 /** An address of the page as the report keeps it (fix-a5, finding 90: no query, fragment or session id), cut to the report's length. */
@@ -214,19 +245,58 @@ function serviceTextId(service: DetectedService): string {
   return 'third-party-unconfirmed';
 }
 
-function thirdPartyFindings(analysis: ThirdPartyAnalysis): Finding[] {
+/**
+ * The requests shown as evidence, in the order they started. Session fix-a6 (review finding 67): when the first
+ * five got no answer but a later one did, the earliest answered request takes the place of the fifth, so a
+ * confirmed finding always shows a request that reached the service.
+ */
+function shownEvidence<T extends { reachedServer: boolean }>(list: readonly T[]): T[] {
+  const max = REPORT_LIMITS.evidencePerFinding;
+  const first = list.slice(0, max);
+  if (first.some((e) => e.reachedServer)) return first;
+  const reached = list.find((e) => e.reachedServer);
+  return reached === undefined ? first : [...first.slice(0, max - 1), reached];
+}
+
+/**
+ * Session fix-a6 ("Feld B2"): the field of the plan where the page shows an element that loads a file of the service
+ * (an image, an iframe, a video): the first such element of its first host that has one. Null when none has a box
+ * (a script or a font loaded from the head has none) or the capture has no positions.
+ */
+function serviceField(service: DetectedService, positions: AxePositions | null): string | null {
+  if (positions === null) return null;
+  for (const host of service.hosts) {
+    const field = positions.hosts[host]?.[0];
+    if (field !== undefined) return field;
+  }
+  return null;
+}
+
+/** Session fix-a6 ("Feld B2"): the field of the first example element that has one. */
+function exampleField(examples: readonly AxeExample[]): string | null {
+  for (const e of examples) if (typeof e.field === 'string' && /^[A-D][1-3]$/.test(e.field)) return e.field;
+  return null;
+}
+
+function viaOf(url: string | null): string | null {
+  if (url === null || hostOf(url) === null) return null;
+  return clipUrl(url);
+}
+
+function thirdPartyFindings(analysis: ThirdPartyAnalysis, positions: AxePositions | null = null): Finding[] {
   const out: Finding[] = [];
   for (const service of analysis.services) {
     if (service.severity === 'none') continue;
     const kind: FindingKind = service.severity === 'finding' ? 'finding' : 'hint';
-    const evidence: Evidence[] = service.evidence.slice(0, REPORT_LIMITS.evidencePerFinding).map((e) => ({
+    const evidence: Evidence[] = shownEvidence(service.evidence).map((e) => ({
       type: 'request',
       url: clipUrl(e.url),
       startMs: ms(e.startMs),
       status: e.status,
       reachedServer: e.reachedServer,
       beforeBanner: analysis.bannerVisibleAtMs === null ? null : e.startMs < analysis.bannerVisibleAtMs,
-      via: e.via === null ? (e.initiatorUrl === null ? null : clipUrl(e.initiatorUrl)) : clipUrl(e.via.url),
+      // Session fix-a6 (review finding 28): the initiator is a string the page can choose (`//# sourceURL=`); only a web address stays.
+      via: viaOf(e.via === null ? e.initiatorUrl : e.via.url),
     }));
     out.push(
       finding({
@@ -244,6 +314,7 @@ function thirdPartyFindings(analysis: ThirdPartyAnalysis): Finding[] {
           beforeBanner: service.startsBeforeBanner,
         },
         serviceKey: reportServiceKey(service.key),
+        field: serviceField(service, positions),
         // Only a request that got an answer certainly sent data to the third party (review of A5 part 2).
         beforeConsent: service.confirmed,
         evidence,
@@ -445,6 +516,8 @@ function accessibilityFindings(a11y: AccessibilityAnalysis): Finding[] {
     return [finding({ id: 'a11y:not-checked', area: 'accessibility', kind: 'not-checked', textId: 'a11y-not-checked', params: { reason: clip(a11y.reason ?? 'unknown', 300) } })];
   }
   const out: Finding[] = [];
+  // Session fix-a6 (review finding 83): a large iframe was not checked; say so next to what was checked.
+  if (a11y.framedContent != null) out.push(finding({ id: 'a11y:frame-content', area: 'accessibility', kind: 'manual', textId: 'a11y-frame-not-checked', params: { share: Math.round(a11y.framedContent * 100) } }));
   for (const check of a11y.checks) {
     const name = A11Y_CHECK_NAMES[check.id];
     if (check.result === 'not-checked') {
@@ -458,7 +531,7 @@ function accessibilityFindings(a11y: AccessibilityAnalysis): Finding[] {
         params.expected = a11y.lowestContrast.expected;
       }
       if (check.id === 'page-language') params.value = a11y.invalidLang === null ? null : clip(a11y.invalidLang, 100);
-      out.push(finding({ id: `a11y:${name}`, area: 'accessibility', kind: 'finding', risk: 'medium', textId: check.textId ?? `a11y-${name}`, params, evidence: elementEvidence(check.examples) }));
+      out.push(finding({ id: `a11y:${name}`, area: 'accessibility', kind: 'finding', risk: 'medium', textId: check.textId ?? `a11y-${name}`, params, field: exampleField(check.examples), evidence: elementEvidence(check.examples) }));
     }
     // Session fix-a2: images marked as decoration pass the axe rule without a description; whether the mark
     // is right is a manual check, next to whatever else the check found. It does not change the Prüfmaß
@@ -474,6 +547,7 @@ function accessibilityFindings(a11y: AccessibilityAnalysis): Finding[] {
           kind: 'manual',
           textId: check.manual.textId,
           params: { check: name, count: check.manual.count },
+          field: exampleField(check.manual.examples),
           evidence: elementEvidence(check.manual.examples),
         }),
       );
@@ -491,7 +565,8 @@ function securityFindings(security: SecurityAnalysis): Finding[] {
   if (security.https.result === 'manual') out.push(finding({ id: 'security:https', area: 'security', kind: 'manual', textId: security.https.textId }));
   const redirect = security.httpRedirect;
   if (redirect.result === 'fail') out.push(finding({ id: 'security:http-redirect', area: 'security', kind: 'finding', risk: 'medium', textId: redirect.textId ?? 'security-http-no-redirect' }));
-  else if (redirect.result === 'manual') out.push(finding({ id: 'security:http-redirect', area: 'security', kind: 'manual', textId: redirect.textId ?? 'security-http-redirect-manual' }));
+  // Session fix-a6 (review finding 69): the reason and the last status, for "(Grund: …)" of the text.
+  else if (redirect.result === 'manual') out.push(finding({ id: 'security:http-redirect', area: 'security', kind: 'manual', textId: redirect.textId ?? 'security-http-redirect-manual', params: { reason: redirect.reason ?? 'unknown', status: redirect.status ?? null } }));
   else if (redirect.result === 'info') out.push(finding({ id: 'security:http-redirect', area: 'security', kind: 'hint', textId: redirect.textId ?? 'security-http-unavailable' }));
   else if (redirect.result === 'not-checked') out.push(finding({ id: 'security:http-redirect', area: 'security', kind: 'not-checked', textId: 'security-http-redirect-not-checked' }));
   if (security.headersPresent < security.headersTotal) {
@@ -527,8 +602,12 @@ function reportSecurity(security: SecurityAnalysis): ReportSecurity {
 
 const FIELD_IDS = ['address', 'email', 'handelsregister', 'ustId'] as const;
 
+/**
+ * Session fix-a6 (review finding 52): `source` says whether the quote is a part of the page text or the address of a
+ * link (for a link the quote is the e-mail address the link names, never the link itself).
+ */
 function fieldState(field: FieldResult<unknown>): FieldState {
-  return field.status === 'found' ? { status: 'found', quote: clip(field.quote, 300) } : { status: 'not-found', reason: field.reason };
+  return field.status === 'found' ? { status: 'found', quote: clip(field.quote, 300), source: field.source } : { status: 'not-found', reason: field.reason };
 }
 
 function isShop(analysis: CaptureAnalysis): boolean | null {
@@ -585,14 +664,14 @@ function legalFindings(legal: LegalAnalysis, shop: boolean | null, almostEmpty: 
 }
 
 function reportLegal(legal: LegalAnalysis): ReportLegal {
-  const link = (l: { href: string; text: string } | null): { href: string; text: string } | null => (l === null ? null : { href: clipUrl(l.href, 'link'), text: clip(l.text, 300) });
+  const link = (l: { href: string; text: string } | null): { href: string | null; text: string } | null => (l === null ? null : { href: linkAddress(l.href), text: clip(l.text, 300) });
   const statement = legal.accessibilityStatement;
   return {
     impressumLink: link(legal.links.impressum),
     // Only a link the scan is sure of; an uncertain one is the manual check `legal-datenschutz-uncertain`.
     datenschutzLink: link(legal.links.datenschutz?.certain === true ? legal.links.datenschutz : null),
-    accessibilityStatement: statement === null ? null : { href: clipUrl(statement.href, 'link'), text: clip(statement.text, 300), certain: statement.certain, page: statement.page },
-    impressum: { state: legal.impressum.state, url: legal.impressum.url === null ? null : clipUrl(legal.impressum.url, 'link'), crossSite: legal.impressum.crossSite },
+    accessibilityStatement: statement === null ? null : { href: linkAddress(statement.href), text: clip(statement.text, 300), certain: statement.certain, page: statement.page },
+    impressum: { state: legal.impressum.state, url: legal.impressum.url === null ? null : linkAddress(legal.impressum.url), crossSite: legal.impressum.crossSite },
     fields: {
       address: fieldState(legal.fields.address),
       email: fieldState(legal.fields.email),
@@ -621,6 +700,8 @@ function a11yResult(a11y: AccessibilityAnalysis | null, id: A11yCheck['id']): Me
   if (a11y === null || a11y.status === 'not-checked') return 'not-checked';
   const check = a11y.checks.find((c) => c.id === id);
   if (check === undefined || check.result === 'not-checked') return 'not-checked';
+  // Session fix-a6 (review finding 83): what a large iframe shows was not checked, so nothing is "erfüllt".
+  if (check.result === 'pass' && a11y.framedContent != null) return 'manual';
   return check.result;
 }
 
@@ -656,6 +737,8 @@ function imagesMeasure(a11y: AccessibilityAnalysis | null): Measure {
   if (check === 'not-checked' || images === null) return { id: 'images-described', result: 'not-checked', target, actual: null };
   const actual: Measure['actual'] = images.described === null || images.total === null ? null : { type: 'of', count: countOf(images.described), total: countOf(images.total) };
   if (check === 'fail') return { id: 'images-described', result: 'fail', target, actual };
+  // Review finding 68 ("0 von 0" is "erfüllt") is not changed here: the row follows axe by the owner's answer of
+  // 24.11.2026, and axe passes a page without images. Question for Fedor (session fix-a6), `docs/backlog.md`.
   const sure = check === 'pass' && images.described !== null;
   return { id: 'images-described', result: sure ? 'pass' : 'manual', target, actual };
 }
@@ -681,12 +764,9 @@ function buildMeasures(analysis: CaptureAnalysis, sections: Record<SectionId, Se
 
   const contrast = a11yResult(a11y, 'color-contrast');
   const lowest = a11y?.lowestContrast ?? null;
-  measures.push({
-    id: 'lowest-contrast',
-    result: contrast,
-    target: { type: 'ratio', ratio: 4.5, expected: '4.5:1' },
-    actual: contrast === 'not-checked' || lowest === null || lowest.ratio === null || lowest.ratio < 1 ? null : { type: 'ratio', ratio: Math.min(21, lowest.ratio), expected: expectedOf(lowest.expected) },
-  });
+  const ratio: Measure['actual'] = contrast === 'not-checked' || lowest === null || lowest.ratio === null || lowest.ratio < 1 ? null : { type: 'ratio', ratio: Math.min(21, lowest.ratio), expected: expectedOf(lowest.expected) };
+  // Session fix-a6 (review finding 68): "erfüllt" needs a measured contrast; a page where axe measured no text is not checked.
+  measures.push({ id: 'lowest-contrast', result: contrast === 'pass' && ratio === null ? 'not-checked' : contrast, target: { type: 'ratio', ratio: 4.5, expected: '4.5:1' }, actual: ratio });
 
   measures.push(imagesMeasure(a11y));
 
@@ -707,7 +787,11 @@ function buildMeasures(analysis: CaptureAnalysis, sections: Record<SectionId, Se
     measures.push({ id: 'https', result: https, target: { type: 'state', state: 'https' }, actual: { type: 'state', state: https === 'pass' ? 'https' : https === 'fail' ? 'http' : 'unknown' } });
     const present = security.headersPresent;
     const total = security.headersTotal;
-    measures.push({ id: 'security-headers', result: present === total ? 'pass' : present === 0 ? 'fail' : 'partial', target: { type: 'of', count: total, total }, actual: { type: 'of', count: present, total } });
+    // Session fix-a6 (review findings 81 and 68): a header the scan could not decide (`manual`: the meta tags were
+    // not read, or the value was too long) may be there, so neither "0 von 5" nor "teilweise" is certain.
+    const undecided = security.headers.some((h) => !h.counts && h.status === 'manual');
+    const result: Measure['result'] = present === total ? 'pass' : undecided ? 'manual' : present === 0 ? 'fail' : 'partial';
+    measures.push({ id: 'security-headers', result, target: { type: 'of', count: total, total }, actual: { type: 'of', count: present, total } });
   }
   return measures;
 }
@@ -730,6 +814,21 @@ function sortFindings(findings: Finding[]): Finding[] {
         a.index - b.index,
     )
     .map((x) => x.f);
+}
+
+/**
+ * "Drei Dinge sollten Sie zuerst beheben": the first three items with a risk. Session fix-a6 (review finding 70):
+ * chosen by risk first, then findings before manual checks, then area and the order of the analysis, so a manual
+ * check with a high risk (no Impressum link found) never gives way to a finding with a lower risk. The list of
+ * findings itself keeps its order (findings before manual checks, confirmed by Fedor on 23.11.2026).
+ */
+function prioritiesOf(findings: readonly Finding[]): string[] {
+  return findings
+    .map((f, index) => ({ f, index }))
+    .filter(({ f }) => f.risk !== null && (f.kind === 'finding' || f.kind === 'manual'))
+    .sort((a, b) => RISK_RANK[a.f.risk as FindingRisk] - RISK_RANK[b.f.risk as FindingRisk] || KIND_RANK[a.f.kind] - KIND_RANK[b.f.kind] || a.index - b.index)
+    .slice(0, 3)
+    .map(({ f }) => f.id);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -825,7 +924,7 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
 
   const tp = sections.thirdParty.status === 'checked' ? analysis.thirdParty : null;
   const all: Finding[] = [];
-  if (tp !== null) all.push(...thirdPartyFindings(tp));
+  if (tp !== null) all.push(...thirdPartyFindings(tp, capture.axe?.status === 'ok' ? (capture.axe.positions ?? null) : null));
   const almostEmpty = analysis.almostEmpty !== null;
   const linksCut = capture.page?.linksTruncated === true;
   if (loaded && sections.legal.status === 'checked' && analysis.legal !== null) all.push(...legalFindings(analysis.legal, shop, almostEmpty, options.mode, linksCut));
@@ -839,7 +938,7 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
   const sorted = sortFindings(all);
   const findings = sorted.slice(0, REPORT_LIMITS.findings);
   const findingIds = new Set(findings.map((f) => f.id));
-  const priorities = findings.filter((f) => f.risk !== null && (f.kind === 'finding' || f.kind === 'manual')).slice(0, 3).map((f) => f.id);
+  const priorities = prioritiesOf(findings);
   const services = tp === null ? [] : reportServices(tp, findingIds, almostEmpty);
   const impressum = capture.impressum ?? null;
   const durationMs = loaded ? Math.max(capture.timings.endMs, impressum === null ? 0 : impressum.timings.openedAtMs + impressum.timings.totalMs) : null;
@@ -859,6 +958,8 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
       scannerVersion: options.scannerVersion,
       rulesUpdated: options.rulesUpdated,
       axeVersion: versionOf(capture.axe?.axeVersion),
+      // Session fix-a6 (review finding 82): a page captured at the limit of 15 seconds was still loading.
+      stopReason: loaded && capture.timings.stopReason !== 'error' ? capture.timings.stopReason : null,
     },
     visit: {
       country: countryOf((options.visit ?? capture.visit)?.country),

@@ -42,6 +42,21 @@ export interface AxeExample {
   html: string;
   /** Only for `color-contrast`. */
   contrast: AxeContrast | null;
+  /**
+   * Session fix-a6 ("Feld B2"): the field of the element on the plan of the homepage, a 4 × 3 grid over the whole
+   * page (columns A to D from the left, rows 1 to 3 from the top), by the centre of its box. Null or missing when
+   * the element has no box (hidden, zero size) or the capture is older.
+   */
+  field?: string | null;
+}
+
+/**
+ * Session fix-a6 ("Feld B2"): where the page shows elements that load a file from another host (image, iframe,
+ * video, audio, embed, object; a script or stylesheet only when it has a box, which it normally does not). For
+ * each such host (at most 60) the fields of its first five elements with a box, in document order.
+ */
+export interface AxePositions {
+  hosts: Record<string, string[]>;
 }
 
 export interface AxeRuleResult {
@@ -107,6 +122,8 @@ export interface AxeCapture {
    * Null or missing when the split is unknown (a capture made before this field existed).
    */
   images?: AxeImages | null;
+  /** Session fix-a6 ("Feld B2"); missing in older captures. */
+  positions?: AxePositions | null;
   /** Lowest contrast among the failing elements and among the passing ones. */
   lowestContrast: { violation: AxeContrast | null; pass: AxeContrast | null };
   timing: {

@@ -19,20 +19,21 @@
         "url": { "$ref": "#/$defs/url" },
         "host": { "type": "string", "minLength": 1, "maxLength": 253 },
         "displayHost": { "type": "string", "minLength": 1, "maxLength": 253 },
-        "finalUrl": { "anyOf": [{ "$ref": "#/$defs/url" }, { "type": "null" }] }
+        "finalUrl": { "anyOf": [{ "$ref": "#/$defs/url" }, { "type": "null" }], "description": "Address the browser ended on, chosen by the scanned site (untrusted): a link only after the checks of docs/report-schema.md." }
       }
     },
     "scan": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mode", "scannedAt", "durationMs", "scannerVersion", "rulesUpdated", "axeVersion"],
+      "required": ["mode", "scannedAt", "durationMs", "scannerVersion", "rulesUpdated", "axeVersion", "stopReason"],
       "properties": {
         "mode": { "enum": ["full", "quick"] },
         "scannedAt": { "anyOf": [{ "$ref": "#/$defs/dateTime" }, { "type": "null" }] },
         "durationMs": { "anyOf": [{ "$ref": "#/$defs/ms" }, { "type": "null" }] },
         "scannerVersion": { "type": "string", "maxLength": 40 },
         "rulesUpdated": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
-        "axeVersion": { "type": ["string", "null"], "maxLength": 40 }
+        "axeVersion": { "type": ["string", "null"], "maxLength": 40 },
+        "stopReason": { "enum": ["network-quiet", "max-wait", "fetched", null] }
       }
     },
     "visit": {
@@ -72,7 +73,7 @@
           "additionalProperties": false,
           "required": ["reason", "status"],
           "properties": {
-            "reason": { "enum": ["timeout", "blocked", "invalid-address", "unreachable", "http-error", "not-allowed", "page-limit", "other"] },
+            "reason": { "enum": ["timeout", "blocked", "invalid-address", "unreachable", "http-error", "not-allowed", "page-limit", "not-html", "other"] },
             "status": { "type": ["integer", "null"], "minimum": 100, "maximum": 999 }
           }
         },
@@ -170,7 +171,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["status", "reason"],
-      "properties": { "status": { "enum": ["checked", "not-checked"] }, "reason": { "type": ["string", "null"], "maxLength": 300 } }
+      "properties": { "status": { "enum": ["checked", "not-checked"] }, "reason": { "type": ["string", "null"], "maxLength": 300, "description": "A short English reason for the log; may contain text of the scanned page (an error of axe). Never shown as it is: map known codes to fixed German phrases." } }
     },
     "measureValue": {
       "oneOf": [
@@ -225,12 +226,12 @@
           "required": ["type", "url", "startMs", "status", "reachedServer", "beforeBanner", "via"],
           "properties": {
             "type": { "const": "request" },
-            "url": { "type": "string", "maxLength": 300 },
+            "url": { "type": "string", "maxLength": 300, "pattern": "^(https?|wss?)://", "description": "Address taken from the scanned page (untrusted): render as text only, never as a link." },
             "startMs": { "$ref": "#/$defs/ms" },
             "status": { "type": ["integer", "null"], "minimum": 0, "maximum": 999 },
             "reachedServer": { "type": "boolean" },
             "beforeBanner": { "type": ["boolean", "null"] },
-            "via": { "type": ["string", "null"], "maxLength": 300 }
+            "via": { "type": ["string", "null"], "maxLength": 300, "pattern": "^(https?|wss?)://", "description": "Address taken from the scanned page (untrusted): render as text only, never as a link." }
           }
         },
         {
@@ -239,8 +240,8 @@
           "required": ["type", "target", "html", "ratio", "expected"],
           "properties": {
             "type": { "const": "element" },
-            "target": { "type": "array", "maxItems": 10, "items": { "type": "string", "maxLength": 300 } },
-            "html": { "type": "string", "maxLength": 200 },
+            "target": { "type": "array", "maxItems": 10, "items": { "type": "string", "maxLength": 300 }, "description": "CSS selectors built from the scanned page (untrusted): render as text only." },
+            "html": { "type": "string", "maxLength": 200, "description": "Raw HTML markup of the scanned page (untrusted): render only as a text node, never as HTML; highlight with nodes, not with an HTML string." },
             "ratio": { "type": ["number", "null"], "minimum": 1, "maximum": 21 },
             "expected": { "type": ["string", "null"], "maxLength": 20 }
           }
@@ -253,7 +254,7 @@
             "type": { "const": "header" },
             "name": { "type": "string", "maxLength": 60 },
             "status": { "type": "string", "maxLength": 20 },
-            "value": { "type": ["string", "null"], "maxLength": 300 }
+            "value": { "type": ["string", "null"], "maxLength": 300, "description": "Header value sent by the scanned site (untrusted): render as text only." }
           }
         }
       ]
@@ -268,9 +269,9 @@
         "kind": { "enum": ["finding", "manual", "hint", "not-checked"] },
         "risk": { "enum": ["high", "medium", "low", null] },
         "textId": { "$ref": "#/$defs/textId" },
-        "params": { "$ref": "#/$defs/params" },
+        "params": { "$ref": "#/$defs/params", "description": "Values for the text of textId. service, value and reason can be text of the scanned page (untrusted: render only as a text node, never as HTML, Markdown or a link.)" },
         "field": { "anyOf": [{ "type": "string", "pattern": "^[A-D][1-3]$" }, { "type": "null" }] },
-        "serviceKey": { "type": ["string", "null"], "maxLength": 120 },
+        "serviceKey": { "type": ["string", "null"], "maxLength": 120, "description": "Our id of a known service, or unknown:<registrable domain of the page's request> (untrusted: render only as a text node, never as HTML, Markdown or a link.)" },
         "beforeConsent": { "type": "boolean" },
         "evidence": { "type": "array", "maxItems": 5, "items": { "$ref": "#/$defs/evidence" } },
         "fixTextId": { "anyOf": [{ "$ref": "#/$defs/textId" }, { "type": "null" }] }
@@ -282,9 +283,9 @@
       "required": ["position", "key", "known", "name", "provider", "category", "riskClass", "dataLocation", "severity", "consent", "starts", "requestCount", "firstStartMs", "startsBeforeBanner", "hosts", "sources", "findingId"],
       "properties": {
         "position": { "type": "integer", "minimum": 1, "maximum": 80 },
-        "key": { "type": "string", "maxLength": 120 },
+        "key": { "type": "string", "maxLength": 120, "description": "Our id of a known service, or unknown:<registrable domain of the page's request> (untrusted: render only as a text node, never as HTML, Markdown or a link.)" },
         "known": { "type": "boolean" },
-        "name": { "type": "string", "maxLength": 120 },
+        "name": { "type": "string", "maxLength": 120, "description": "From the rules data when known is true; otherwise a host the scanned page requested (untrusted: render only as a text node, never as HTML, Markdown or a link.)" },
         "provider": { "type": ["string", "null"], "maxLength": 120 },
         "category": {
           "enum": ["fonts", "analytics", "tag-manager", "advertising", "social-pixel", "session-recording", "marketing-automation", "maps", "video", "chat", "reviews", "social-embed", "booking", "widget-platform", "cdn", "consent", "platform", "payment", "captcha", "accessibility-overlay", "translation", "other", "unknown"]
@@ -297,7 +298,7 @@
         "requestCount": { "$ref": "#/$defs/count" },
         "firstStartMs": { "$ref": "#/$defs/ms" },
         "startsBeforeBanner": { "type": ["boolean", "null"] },
-        "hosts": { "type": "array", "maxItems": 10, "items": { "type": "string", "maxLength": 253 } },
+        "hosts": { "type": "array", "maxItems": 10, "items": { "type": "string", "maxLength": 253 }, "description": "Hosts the scanned page requested (untrusted: render only as a text node, never as HTML, Markdown or a link.)" },
         "sources": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 120 } },
         "findingId": { "anyOf": [{ "$ref": "#/$defs/findingId" }, { "type": "null" }] }
       }
@@ -318,7 +319,7 @@
             "additionalProperties": false,
             "required": ["label", "party", "kind", "serviceKey", "provider", "startMs", "endMs", "requestCount", "beforeBanner"],
             "properties": {
-              "label": { "type": "string", "maxLength": 300 },
+              "label": { "type": "string", "maxLength": 300, "description": "A host, or a host and the first part of a path, of the scanned page (untrusted: render only as a text node, never as HTML, Markdown or a link.)" },
               "party": { "enum": ["own", "third"] },
               "kind": { "enum": ["document", "files", "consent-tool", "service"] },
               "serviceKey": { "type": ["string", "null"], "maxLength": 120 },
@@ -337,15 +338,15 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["href", "text"],
-      "properties": { "href": { "type": "string", "maxLength": 300 }, "text": { "type": "string", "maxLength": 300 } }
+      "properties": { "href": { "type": ["string", "null"], "maxLength": 300, "pattern": "^https?://", "description": "Address of a link of the scanned page (untrusted): http or https, no user name or password, never shortened; a link only after the checks of docs/report-schema.md." }, "text": { "type": "string", "maxLength": 300, "description": "Text of the scanned page (untrusted): render only as a text node, never as HTML, Markdown or a link." } }
     },
     "fieldState": {
       "oneOf": [
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["status", "quote"],
-          "properties": { "status": { "const": "found" }, "quote": { "type": "string", "maxLength": 300 } }
+          "required": ["status", "quote", "source"],
+          "properties": { "status": { "const": "found" }, "quote": { "type": "string", "maxLength": 300, "description": "Text of the scanned page (untrusted): render only as a text node, never as HTML, Markdown or a link. May contain line breaks." }, "source": { "enum": ["text", "link"] } }
         },
         {
           "type": "object",
@@ -369,8 +370,8 @@
               "additionalProperties": false,
               "required": ["href", "text", "certain", "page"],
               "properties": {
-                "href": { "type": "string", "maxLength": 300 },
-                "text": { "type": "string", "maxLength": 300 },
+                "href": { "type": ["string", "null"], "maxLength": 300, "pattern": "^https?://", "description": "Address of a link of the scanned page (untrusted): http or https, no user name or password, never shortened; a link only after the checks of docs/report-schema.md." },
+                "text": { "type": "string", "maxLength": 300, "description": "Text of the scanned page (untrusted): render only as a text node, never as HTML, Markdown or a link." },
                 "certain": { "type": "boolean" },
                 "page": { "enum": ["homepage", "impressum"] }
               }
@@ -384,7 +385,7 @@
           "required": ["state", "url", "crossSite"],
           "properties": {
             "state": { "enum": ["analyzed", "same-page", "no-link", "pdf", "failed", "not-captured"] },
-            "url": { "type": ["string", "null"], "maxLength": 300 },
+            "url": { "type": ["string", "null"], "maxLength": 300, "pattern": "^https?://", "description": "Address of a link of the scanned page (untrusted): http or https, no user name or password, never shortened; a link only after the checks of docs/report-schema.md." },
             "crossSite": { "type": "boolean" }
           }
         },
@@ -420,7 +421,7 @@
               "header": { "type": "string", "maxLength": 60 },
               "status": { "enum": ["present", "missing", "invalid", "meta", "report-only", "legacy", "manual"] },
               "counts": { "type": "boolean" },
-              "value": { "type": ["string", "null"], "maxLength": 300 },
+              "value": { "type": ["string", "null"], "maxLength": 300, "description": "Header value sent by the scanned site (untrusted): render as text only." },
               "textId": { "anyOf": [{ "$ref": "#/$defs/textId" }, { "type": "null" }] }
             }
           }

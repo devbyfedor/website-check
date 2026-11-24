@@ -174,7 +174,7 @@ describe('buildReport: a complete scan', () => {
 
   it('keeps the mandatory information with exact quotes and the security headers', () => {
     expect(report.legal?.impressum).toEqual({ state: 'analyzed', url: `${SHOP}impressum/`, crossSite: false });
-    expect(report.legal?.fields.ustId).toEqual({ status: 'found', quote: 'DE123456789' });
+    expect(report.legal?.fields.ustId).toEqual({ status: 'found', quote: 'DE123456789', source: 'text' });
     expect(report.security?.headers.filter((h) => h.counts).map((h) => h.key)).toEqual(['hsts', 'xcto']);
   });
 

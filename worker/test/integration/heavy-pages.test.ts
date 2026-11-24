@@ -170,7 +170,9 @@ describe('finding 10: what the scripts in the page return is bounded', () => {
     expect(largestMessage).toBeLessThan(400_000);
     expect(capture.ok).toBe(true);
     expect(JSON.stringify(capture.axe).length).toBeLessThan(200_000);
-    expect(report.scan.axeVersion).toBeNull();
+    // Session fix-a6 (review finding 26): the page's own `window.axe` is never the one that runs (isolated world).
+    expect(capture.axe?.status, capture.axe?.error ?? '').toBe('ok');
+    expect(report.scan.axeVersion).toBe('4.14.1');
   });
 
   it('twelve images whose id is 1 MB long: the selectors of the examples are cut', async () => {

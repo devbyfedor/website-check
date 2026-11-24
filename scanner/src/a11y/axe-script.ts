@@ -1,5 +1,5 @@
 import { CAPTURE_LIMITS, limitAxe } from '../capture/limits.ts';
-import { AXE_HTML_MAX, AXE_MAX_EXAMPLES, AXE_RULES, type AxeCapture, type AxeContrast, type AxeExample, type AxeImages, type AxeRuleId, type AxeRuleResult, type AxeScope, type AxeStatus } from './types.ts';
+import { AXE_HTML_MAX, AXE_MAX_EXAMPLES, AXE_RULES, type AxeCapture, type AxeContrast, type AxeExample, type AxeImages, type AxePositions, type AxeRuleId, type AxeRuleResult, type AxeScope, type AxeStatus } from './types.ts';
 
 /**
  * JavaScript that capture adapters evaluate in the page after `axe.min.js` of the pinned
@@ -65,6 +65,41 @@ export const AXE_RUN_EXPRESSION = `(async () => {
       return { frameset: !!document.querySelector('frameset'), frames: frames.length, largestFrameShare: Math.round(largest * 100) / 100 };
     } catch (e) { return null; }
   })();
+  // Session fix-a6 ("Feld B2"): the field of an element on a 4 x 3 grid over the whole page, by the centre of its box.
+  let pageSize = null;
+  const fieldOf = (el) => {
+    try {
+      if (!el || typeof el.getBoundingClientRect !== 'function') return null;
+      if (pageSize === null) pageSize = { w: Math.max(document.documentElement.scrollWidth, window.innerWidth, 1), h: Math.max(document.documentElement.scrollHeight, window.innerHeight, 1) };
+      const r = el.getBoundingClientRect();
+      if (!(r.width > 0) || !(r.height > 0)) return null;
+      const x = r.left + window.scrollX + r.width / 2;
+      const y = r.top + window.scrollY + r.height / 2;
+      const col = Math.min(3, Math.max(0, Math.floor((x / pageSize.w) * 4)));
+      const row = Math.min(2, Math.max(0, Math.floor((y / pageSize.h) * 3)));
+      return 'ABCD'[col] + String(row + 1);
+    } catch (e) { return null; }
+  };
+  const positionsOf = () => {
+    try {
+      const own = location.hostname;
+      const hosts = {};
+      let count = 0;
+      const els = document.querySelectorAll('img[src],iframe[src],video[src],audio[src],source[src],source[srcset],embed[src],object[data],script[src],link[href]');
+      for (let k = 0; k < els.length && k < 3000; k += 1) {
+        const el = els[k];
+        const value = el.getAttribute('src') || el.getAttribute('data') || el.getAttribute('href') || String(el.getAttribute('srcset') || '').trim().split(/\\s+/)[0] || '';
+        let host = '';
+        try { const u = new URL(value, location.href); if (u.protocol !== 'http:' && u.protocol !== 'https:') continue; host = u.hostname; } catch (e) { continue; }
+        if (!host || host === own || host.length > 253) continue;
+        const field = fieldOf(el.tagName === 'SOURCE' ? el.parentElement : el);
+        if (field === null) continue;
+        if (!hosts[host]) { if (count >= 60) continue; hosts[host] = []; count += 1; }
+        if (hosts[host].length < 5) hosts[host].push(field);
+      }
+      return { hosts: hosts };
+    } catch (e) { return null; }
+  };
   const SHORT = ${CAPTURE_LIMITS.shortText};
   const TARGET_MAX = ${CAPTURE_LIMITS.axeTargetLength};
   const TARGET_PARTS = ${CAPTURE_LIMITS.axeTargetParts};
@@ -95,7 +130,7 @@ export const AXE_RUN_EXPRESSION = `(async () => {
       }
     } catch (e) { target = []; }
     const source = typeof node.source === 'string' ? node.source : '';
-    return { target, html: cut(source, HTML_MAX), contrast: withContrast ? contrastOf(nodeResult) : null };
+    return { target, html: cut(source, HTML_MAX), contrast: withContrast ? contrastOf(nodeResult) : null, field: fieldOf(node.element) };
   };
   const lower = (a, b) => (b && typeof b.ratio === 'number' && (!a || b.ratio < a.ratio) ? b : a);
   // Why an image passes image-alt: 'decorative' when axe's check for a presentation role holds (alt="",
@@ -165,7 +200,7 @@ export const AXE_RUN_EXPRESSION = `(async () => {
       const e = list[k] || {};
       const target = [];
       for (let t = 0; e.target && typeof e.target === 'object' && t < e.target.length && t < TARGET_PARTS; t += 1) target[target.length] = cut(e.target[t], TARGET_MAX);
-      out[out.length] = { target: target, html: cut(e.html, HTML_MAX), contrast: tidyContrast(e.contrast) };
+      out[out.length] = { target: target, html: cut(e.html, HTML_MAX), contrast: tidyContrast(e.contrast), field: typeof e.field === 'string' && /^[A-D][1-3]$/.test(e.field) ? e.field : null };
     }
     return out;
   };
@@ -186,7 +221,7 @@ export const AXE_RUN_EXPRESSION = `(async () => {
   const version = () => { let v = null; try { v = axe.version; } catch (e) { v = null; } return str(v); };
   try {
     const result = tidy(await axe.run(document, { runOnly: { type: 'rule', values: RULES }, iframes: false, preload: false, reporter: '${AXE_REPORTER}' }));
-    return { status: 'ok', error: null, axeVersion: version(), rules: result.rules, ruleErrors: result.ruleErrors, images: result.images, lowestContrast: result.lowestContrast, scope: scope, runMs: Math.round(performance.now() - started) };
+    return { status: 'ok', error: null, axeVersion: version(), rules: result.rules, ruleErrors: result.ruleErrors, images: result.images, lowestContrast: result.lowestContrast, scope: scope, positions: positionsOf(), runMs: Math.round(performance.now() - started) };
   } catch (e) {
     return { status: 'error', error: cut(String((e && e.message) || e), 300), axeVersion: version(), runMs: Math.round(performance.now() - started), rules: {}, ruleErrors: [], lowestContrast: { violation: null, pass: null } };
   }
@@ -202,6 +237,7 @@ export interface AxeRunOutput {
   lowestContrast: { violation: unknown; pass: unknown };
   images?: unknown;
   scope?: unknown;
+  positions?: unknown;
   runMs: number | null;
 }
 
@@ -233,7 +269,7 @@ function examplesOf(value: unknown): AxeExample[] {
     const v = (typeof item === 'object' && item !== null ? item : {}) as Record<string, unknown>;
     const target = Array.isArray(v['target']) ? v['target'].filter((s): s is string => typeof s === 'string') : [];
     const html = text(v['html']) ?? '';
-    return { target, html: html.slice(0, 200), contrast: contrastOf(v['contrast']) };
+    return { target, html: html.slice(0, 200), contrast: contrastOf(v['contrast']), field: fieldOf(v['field']) };
   });
 }
 
@@ -261,6 +297,27 @@ function imagesOf(value: unknown, passes: number): AxeImages | null {
   return described + decorative === passes ? { described, decorative } : null;
 }
 
+/** Session fix-a6 ("Feld B2"): a field of the 4 × 3 grid, or null. */
+export function fieldOf(value: unknown): string | null {
+  return typeof value === 'string' && /^[A-D][1-3]$/.test(value) ? value : null;
+}
+
+const POSITION_HOST = /^[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$/;
+
+/** Session fix-a6 ("Feld B2"): the positions in the form `AxePositions`, at most 60 hosts with five fields each. */
+export function positionsOf(value: unknown): AxePositions | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const hosts = (value as Record<string, unknown>)['hosts'];
+  if (typeof hosts !== 'object' || hosts === null || Array.isArray(hosts)) return null;
+  const out: Record<string, string[]> = {};
+  for (const [host, fields] of Object.entries(hosts).slice(0, 60)) {
+    if (host.length > 253 || !POSITION_HOST.test(host) || !Array.isArray(fields)) continue;
+    const list = fields.map(fieldOf).filter((f): f is string => f !== null).slice(0, 5);
+    if (list.length > 0) out[host] = list;
+  }
+  return { hosts: out };
+}
+
 function scopeOf(value: unknown): AxeScope | null {
   if (typeof value !== 'object' || value === null) return null;
   const v = value as Record<string, unknown>;
@@ -281,10 +338,62 @@ export function axeNotRun(status: Exclude<AxeStatus, 'ok'>, error: string, timin
   };
 }
 
+/** One command of the browser protocol, as both adapters can send it. */
+export type CdpSend = (method: string, params?: Record<string, unknown>) => Promise<unknown>;
+
+/**
+ * Session fix-a6 (review finding 26): axe runs in an isolated world of the main frame, not in the page's own
+ * JavaScript. The isolated world shares the document but not the page's globals, so a page cannot put its own
+ * `window.axe` (or replace `axe.run`) in place of the pinned axe-core. Returns the execution context for
+ * `Runtime.evaluate`; throws when the frame or the world is not there (the tab moved on): the caller turns that
+ * into the axe status `error`.
+ */
+export async function axeWorldOf(send: CdpSend): Promise<number> {
+  const tree = (await send('Page.getFrameTree')) as { frameTree?: { frame?: { id?: unknown } } } | undefined;
+  const frameId = tree?.frameTree?.frame?.id;
+  if (typeof frameId !== 'string') throw new Error('the main frame is not known');
+  const world = (await send('Page.createIsolatedWorld', { frameId, worldName: 'website-check-axe', grantUniveralAccess: false })) as { executionContextId?: unknown } | undefined;
+  if (typeof world?.executionContextId !== 'number') throw new Error('no isolated world for axe');
+  return world.executionContextId;
+}
+
+/**
+ * Injects axe-core and runs `AXE_RUN_EXPRESSION` in the isolated world `contextId` (session fix-a6). Never throws:
+ * a failure or timeout becomes the capture's axe status. `withTimeout` is the adapter's own timer.
+ */
+export async function runAxeIsolated(
+  send: CdpSend,
+  axeSource: string,
+  budgetMs: number,
+  withTimeout: <T>(promise: Promise<T>, ms: number) => Promise<T>,
+  isTimeout: (message: string) => boolean,
+): Promise<AxeCapture> {
+  const started = Date.now();
+  const elapsed = (): number => Date.now() - started;
+  let injectMs: number | null = null;
+  try {
+    const contextId = await withTimeout(axeWorldOf(send), budgetMs);
+    const injected = (await withTimeout(send('Runtime.evaluate', { expression: axeSource, contextId, returnByValue: true }), budgetMs - elapsed())) as { exceptionDetails?: { text?: string } } | undefined;
+    injectMs = elapsed();
+    if (injected?.exceptionDetails !== undefined) return axeNotRun('error', `injecting axe-core failed: ${String(injected.exceptionDetails.text ?? 'exception').slice(0, 200)}`, { injectMs, totalMs: elapsed() });
+    const left = budgetMs - injectMs;
+    if (left < 300) return axeNotRun('timeout', 'no time left after injecting axe-core', { injectMs, totalMs: elapsed() });
+    const response = (await withTimeout(send('Runtime.evaluate', { expression: AXE_RUN_EXPRESSION, contextId, awaitPromise: true, returnByValue: true }), left)) as
+      | { result?: { value?: unknown }; exceptionDetails?: { text?: string } }
+      | undefined;
+    if (response?.exceptionDetails !== undefined) return axeNotRun('error', `axe failed: ${String(response.exceptionDetails.text ?? 'exception').slice(0, 200)}`, { injectMs, totalMs: elapsed() });
+    return axeCaptureFrom(response?.result?.value, { injectMs, totalMs: elapsed() });
+  } catch (error) {
+    const message = (error instanceof Error ? error.message.split('\n')[0] ?? error.message : String(error)).slice(0, 200);
+    return axeNotRun(isTimeout(message) ? 'timeout' : 'error', message, { injectMs, totalMs: elapsed() });
+  }
+}
+
 /**
  * Validates what the page returned and turns it into the capture's `axe` field. Anything that
- * does not look like a complete result (a page that replaced `window.axe`, a missing rule)
- * becomes `error`, so the report says "bitte manuell prüfen" instead of showing zero problems.
+ * does not look like a complete result (a missing rule, a wrong shape) becomes `error`, so the report
+ * says "bitte manuell prüfen" instead of showing zero problems. Since session fix-a6 axe runs in an isolated
+ * world (`runAxeIsolated`), so the page's own `window.axe` is never the one that runs.
  */
 export function axeCaptureFrom(output: unknown, timing: { injectMs: number | null; totalMs: number }): AxeCapture {
   if (typeof output !== 'object' || output === null) return axeNotRun('error', 'axe returned no result', timing);
@@ -310,6 +419,7 @@ export function axeCaptureFrom(output: unknown, timing: { injectMs: number | nul
     images: imagesOf(o.images, rules['image-alt']?.passes ?? 0),
     lowestContrast: { violation: contrastOf(lowest.violation), pass: contrastOf(lowest.pass) },
     scope: scopeOf(o.scope),
+    positions: positionsOf(o.positions),
     timing: { injectMs: timing.injectMs, runMs, totalMs: timing.totalMs },
   }) as AxeCapture;
 }

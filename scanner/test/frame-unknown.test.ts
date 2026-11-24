@@ -135,10 +135,34 @@ describe('finding 17: CORS preflight and web worker requests without a frame', (
   it('platform detection ignores a request whose document is unknown', () => {
     const frame = 'https://buchung.fremde-seite.example/';
     const url = 'https://static.parastorage.com/services/wix-thunderbolt/dist/clientWorker.abc.bundle.min.js';
-    const system = (request: RequestInput): string => analyzePlatform(cloud([{ url: frame, resourceType: 'document', isNavigation: true }, request])).system;
+    // Session fix-a6 (review finding 75): two files of the system, since one file alone names no system.
+    const second = (request: RequestInput): RequestInput => ({ ...request, url: request.url.replace('clientWorker', 'thunderbolt') });
+    const system = (request: RequestInput): string => analyzePlatform(cloud([{ url: frame, resourceType: 'document', isNavigation: true }, request, second(request)])).system;
     expect(system({ url, resourceType: 'script', isMainFrame: true, frameKnown: true })).toBe('wix');
     expect(system({ url, resourceType: 'script', frameUrls: [frame] })).toBe('unknown');
     expect(system({ url, resourceType: 'script', frameUrls: [] })).toBe('unknown');
     expect(system({ url, resourceType: 'script', frameUrls: [], frameKnown: false })).toBe('unknown');
+  });
+});
+
+describe('session fix-a6: captures of the deleted strategy (b) are still read', () => {
+  // Saved in A2 and A3: `strategy: 'resource-timing'`, no `frameKnown`, no initiators, no frames of sub-requests.
+  const legacy = (requests: RequestInput[]): Capture => ({ ...cloud(requests), strategy: 'resource-timing' });
+
+  it('the analyzers and the report accept it, and its requests are never marked as of an unknown document', () => {
+    const capture = legacy([{ url: FONTS, resourceType: 'stylesheet', isMainFrame: true, frameUrls: [], initiator: null }]);
+    expect(capture.strategy).toBe('resource-timing');
+    expect(capture.requests.map((r) => frameUnknown(capture, r))).toEqual([false, false]);
+    expect(analyzeThirdParty(capture, DEFAULT_RULES).counts.findings).toBe(1);
+    expect(report(capture)).toMatchObject({ state: 'complete', visit: { adapter: 'cloudflare-browser-run' } });
+    expect(report(capture).findings.find((f) => f.id === 'third-party:google-fonts')).toMatchObject({ kind: 'finding', risk: 'high' });
+  });
+
+  it('a request without a frame is not "unknown" in a capture of (b), unlike one of the current strategy', () => {
+    const request: RequestInput = { url: FONTS, resourceType: 'stylesheet', frameUrls: [] };
+    const old = legacy([request]);
+    const current = cloud([request]);
+    expect(frameUnknown(old, old.requests[1] as Capture['requests'][number])).toBe(false);
+    expect(frameUnknown(current, current.requests[1] as Capture['requests'][number])).toBe(true);
   });
 });

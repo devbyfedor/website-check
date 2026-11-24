@@ -85,10 +85,14 @@ describe('Impressum fields on the fixture pages', () => {
     // the site's own domain. The fixture pages are served from one host; the firm of this page owns this domain.
     const own = new Set(name === '07-mailto-linktext' ? ['tintenfabel.example'] : []);
     const fields = extractImpressumFields(snap.text, snap.links, own);
-    const quoteOk = (field: { status: string; quote?: string; source?: string }): void => {
+    const quoteOk = (field: { status: string; quote?: string; source?: string; value?: unknown }): void => {
       if (field.status !== 'found') return;
       if (field.source === 'text') expect(snap.text.includes(field.quote ?? '\u0000'), `quote ${JSON.stringify(field.quote)}`).toBe(true);
-      else expect(snap.links.some((l) => l.href === field.quote)).toBe(true);
+      // Session fix-a6 (review finding 52): the quote of a link is the e-mail address it names, not the link.
+      else {
+        expect(field.quote).toBe((field.value as { value: string }).value);
+        expect(snap.links.some((l) => /^mailto:|\/cdn-cgi\/l\/email-protection#/i.test(l.href))).toBe(true);
+      }
     };
     for (const field of Object.values(fields)) quoteOk(field);
     expect(fields.address.status === 'found' ? fields.address.value : null, 'address').toEqual(expected.address);

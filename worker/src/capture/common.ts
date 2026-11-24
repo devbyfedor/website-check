@@ -19,13 +19,13 @@ import {
   createUrlGuard,
 } from '@website-check/scanner';
 
-/** Options of both Cloudflare strategies; defaults are the shared capture settings. */
+/** Options of the Cloudflare capture; defaults are the shared capture settings. */
 export interface CloudCaptureOptions {
   maxWaitMs?: number;
   quietWindowMs?: number;
   hardLimitMs?: number;
   consentTools?: readonly ConsentTool[];
-  /** The pinned axe-core source; without it the accessibility check is not run (strategy a only). */
+  /** The pinned axe-core source; without it the accessibility check is not run. */
   axeSource?: string | null;
   /** Check the redirect from http:// to https:// with `fetch`, in parallel to the page (no browser time). */
   httpProbe?: boolean;
@@ -34,7 +34,7 @@ export interface CloudCaptureOptions {
    * main document, the redirect check). Default: a new guard that resolves names with DNS over HTTPS.
    */
   guard?: UrlGuard;
-  /** Session A5 part 3: open the Impressum in a second tab of the same context (strategy a only). */
+  /** Session A5 part 3: open the Impressum in a second tab of the same context. */
   impressum?: boolean;
   /** Lab only (Fedor, A5 part 3): measure what reading element positions for "Feld B2" costs; nothing goes into the capture. */
   measureFieldPositions?: boolean;
@@ -64,8 +64,6 @@ export interface CloudSettings {
 export interface CaptureStats {
   /** Browser protocol events the Worker handled for this page (best effort). */
   events: number;
-  /** In-page polls (strategy b only). */
-  polls: number;
   /** Emulation commands the browser rejected (should be empty). */
   emulationFailed: string[];
   /** Wall time of the capture in the Worker, ms (Worker clocks only advance on I/O). */
@@ -79,7 +77,7 @@ export interface CaptureStats {
   /** Browser time of the Impressum tab (open to close), when one was opened. */
   impressumMs?: number;
   /**
-   * Session fix-a1 (strategy a): requests of an iframe whose address Puppeteer learned only after they
+   * Session fix-a1: requests of an iframe whose address Puppeteer learned only after they
    * started, placed at the end of the capture; and requests whose document stayed unknown.
    */
   framesPlacedLate?: number;
@@ -151,7 +149,7 @@ export function pageSnapshotOf(snapshot: SnapshotResult | null): PageSnapshot | 
   };
 }
 
-/** Shared by both strategies: the page snapshot also recognises check pages with HTTP 200. */
+/** The page snapshot also recognises check pages with HTTP 200. */
 export function failureOf(
   navigationError: string | null,
   main: { status: number; headers: Record<string, string> } | null,
