@@ -135,7 +135,9 @@ describe('finding 17: CORS preflight and web worker requests without a frame', (
   it('platform detection ignores a request whose document is unknown', () => {
     const frame = 'https://buchung.fremde-seite.example/';
     const url = 'https://static.parastorage.com/services/wix-thunderbolt/dist/clientWorker.abc.bundle.min.js';
-    const system = (request: RequestInput): string => analyzePlatform(cloud([{ url: frame, resourceType: 'document', isNavigation: true }, request])).system;
+    // Session fix-a6 (review finding 75): two files of the system, since one file alone names no system.
+    const second = (request: RequestInput): RequestInput => ({ ...request, url: request.url.replace('clientWorker', 'thunderbolt') });
+    const system = (request: RequestInput): string => analyzePlatform(cloud([{ url: frame, resourceType: 'document', isNavigation: true }, request, second(request)])).system;
     expect(system({ url, resourceType: 'script', isMainFrame: true, frameKnown: true })).toBe('wix');
     expect(system({ url, resourceType: 'script', frameUrls: [frame] })).toBe('unknown');
     expect(system({ url, resourceType: 'script', frameUrls: [] })).toBe('unknown');

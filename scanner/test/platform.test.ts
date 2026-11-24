@@ -48,9 +48,10 @@ describe('analyzePlatform', () => {
 
   it('detects Shopify, Shopware 5 and 6, Wix and Jimdo', () => {
     expect(analyzePlatform(capture({ headers: { 'powered-by': 'Shopify' }, requests: [{ url: `${SITE}cdn/shop/t/3/assets/theme.css` }] })).system).toBe('shopify');
-    const sw6 = analyzePlatform(capture({ requests: [{ url: `${SITE}theme/0123456789abcdef0123456789abcdef/css/all.css` }] }));
+    // Session fix-a6 (review finding 75): two files of the system, not one.
+    const sw6 = analyzePlatform(capture({ requests: [{ url: `${SITE}theme/0123456789abcdef0123456789abcdef/css/all.css` }, { url: `${SITE}theme/0123456789abcdef0123456789abcdef/js/all.js` }] }));
     expect(sw6).toMatchObject({ system: 'shopware', shopwareVersion: 6 });
-    const sw5 = analyzePlatform(capture({ requests: [{ url: `${SITE}web/cache/1700000000_0123456789abcdef0123456789abcdef.css` }], hints: { globals: ['StateManager'] } }));
+    const sw5 = analyzePlatform(capture({ requests: [{ url: `${SITE}web/cache/1700000000_0123456789abcdef0123456789abcdef.css` }, { url: `${SITE}web/cache/1700000000_0123456789abcdef0123456789abcdef.js` }], hints: { globals: ['StateManager'] } }));
     expect(sw5).toMatchObject({ system: 'shopware', shopwareVersion: 5 });
     expect(analyzePlatform(capture({ headers: { 'x-wix-request-id': '1.2' } })).system).toBe('wix');
     expect(analyzePlatform(capture({ hints: { generators: ['Jimdo Dolphin'] } })).system).toBe('jimdo');
@@ -77,7 +78,8 @@ describe('analyzePlatform', () => {
   });
 
   it('takes the system with more strong signals, and gives "unbekannt" on a tie', () => {
-    const mixed = analyzePlatform(capture({ requests: [{ url: `${SITE}wp-content/a.css` }], hints: { generators: ['WordPress 6.9'], globals: ['salesChannelId'] } }));
+    // Session fix-a6: salesChannelId is weak now; two strong Shopware selectors make the conflict.
+    const mixed = analyzePlatform(capture({ requests: [{ url: `${SITE}wp-content/a.css` }, { url: `${SITE}wp-includes/b.js` }], hints: { generators: ['WordPress 6.9'], selectors: ['div.cookie-permission-container[data-cookie-permission]', 'body[class*="is-ctl-"]'] } }));
     expect(mixed).toMatchObject({ system: 'wordpress', conflict: true });
     const tie = analyzePlatform(capture({ hints: { generators: ['WordPress 6.9', 'Jimdo Creator'] } }));
     expect(tie).toMatchObject({ system: 'unknown', conflict: true });
@@ -101,7 +103,7 @@ describe('analyzePlatform', () => {
   });
 
   it('reads the Jimdo asset names with the inner ".js"', () => {
-    expect(analyzePlatform(capture({ requests: [{ url: 'https://assets.jimstatic.com/web.js.5ad5c63c0c3d8fc4a3e1.js' }] })).system).toBe('jimdo');
+    expect(analyzePlatform(capture({ requests: [{ url: 'https://assets.jimstatic.com/web.js.5ad5c63c0c3d8fc4a3e1.js' }, { url: 'https://assets.jimstatic.com/cookieControl.js.0d7e3c2a8a7f1b5c9e3d.js' }] })).system).toBe('jimdo');
   });
 
   it('gives "unbekannt" for a site without any signal', () => {
