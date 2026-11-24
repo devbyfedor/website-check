@@ -1,5 +1,7 @@
 import { CAPTURE_SCHEMA_VERSION, type Capture, type CaptureEnvironment, type CaptureFailure, type CapturedRequest, type CaptureVisit, type ImpressumCapture, type PageSnapshot } from '../capture/types.ts';
 import { classifyMainDocument, notAllowedCapture, pageEvidenceOf } from '../capture/failure.ts';
+import { limitCapture, pageLimitFailure } from '../capture/limits.ts';
+import type { FetchBudget } from '../security/fetch-budget.ts';
 import { CAPTURE_SETTINGS } from '../capture/settings.ts';
 import { chooseImpressumTarget } from '../legal/links.ts';
 import { httpsVariantOf, httpVariantOf, probeHttpRedirect, probeHttps } from '../security/http-probe.ts';
@@ -28,6 +30,11 @@ export interface QuickCaptureOptions {
   /** The same desktop Chrome user agent as the browser adapters, so the site answers as it answers them. */
   userAgent: string;
   fetch?: typeof fetch;
+  /**
+   * Session fix-a4: one budget for every request of this check. The caller builds the guard's resolver on
+   * `fetchBudget.fetch` too, so name lookups count. A page whose chain used the budget up fails with `page-limit`.
+   */
+  fetchBudget?: FetchBudget;
   /** Fetch the Impressum too (default true). */
   impressum?: boolean;
   /** Check the redirect from http to https (default true). */
@@ -90,10 +97,13 @@ function readPage(result: SafeFetchResult, platform: boolean): PageSnapshot | nu
 
 async function fetchImpressum(url: string, options: QuickCaptureOptions, homepageStartedAt: number, now: () => number): Promise<ImpressumCapture> {
   const opened = now();
+  const refusedBefore = options.fetchBudget?.refused() ?? 0;
   const result = await safeFetch(url, { guard: options.guard, userAgent: options.userAgent, acceptLanguage: CAPTURE_SETTINGS.acceptLanguage, ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}), ...(options.fetch !== undefined ? { fetch: options.fetch } : {}) });
   const page = readPage(result, false);
   const totalMs = Math.max(0, now() - opened);
   let failure = fetchFailure(result);
+  // The check's budget of requests ran out in this chain: that is the reason, whatever the fetch reported.
+  if (failure !== null && (options.fetchBudget?.refused() ?? 0) > refusedBefore) failure = pageLimitFailure('fetches');
   if (failure === null && result.status !== null) {
     failure = page === null ? { reason: 'other', message: 'the text of the Impressum could not be read' } : classifyMainDocument(result.status, result.headers, page.title, pageEvidenceOf(page, 1));
   }
@@ -109,7 +119,9 @@ async function fetchImpressum(url: string, options: QuickCaptureOptions, homepag
   };
 }
 
-export async function quickCapture(url: string, options: QuickCaptureOptions): Promise<Capture> {
+export async function quickCapture(url: string, input: QuickCaptureOptions): Promise<Capture> {
+  // Every request of the check goes through the budget when there is one.
+  const options: QuickCaptureOptions = input.fetchBudget === undefined ? input : { ...input, fetch: input.fetchBudget.fetch };
   const now = options.now ?? (() => Date.now());
   const environment = environmentOf(options.userAgent);
   const verdict = await options.guard.check(url);
@@ -133,6 +145,7 @@ export async function quickCapture(url: string, options: QuickCaptureOptions): P
   const endMs = Math.max(0, now() - t0);
   const page = readPage(home, true);
   let failure = fetchFailure(home);
+  if (failure !== null && (options.fetchBudget?.refused() ?? 0) > 0) failure = pageLimitFailure('fetches');
   if (failure === null && home.status !== null) {
     failure = page === null ? { reason: 'other', message: 'the homepage could not be read' } : classifyMainDocument(home.status, home.headers, page.title, pageEvidenceOf(page, 1));
   }
@@ -159,5 +172,6 @@ export async function quickCapture(url: string, options: QuickCaptureOptions): P
   }
   if (probe !== null) capture.httpProbe = await probe;
   if (httpsProbe !== null) capture.httpsProbe = await httpsProbe;
-  return capture;
+  // Session fix-a4: the capture leaves the adapter within the limits (header values, addresses).
+  return limitCapture(capture);
 }

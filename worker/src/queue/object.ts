@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import puppeteer, { type Browser, type BrowserWorker } from '@cloudflare/puppeteer';
-import { chromeVersionOf, createDohResolver, createUrlGuard, installPopupGuard, quickCapture, type CaptureVisit, type PopupGuardState, type UrlGuard } from '@website-check/scanner';
+import { chromeVersionOf, createDohResolver, createFetchBudget, createUrlGuard, installPopupGuard, QUICK_CHECK_FETCHES, quickCapture, type CaptureVisit, type PopupGuardState, type UrlGuard } from '@website-check/scanner';
 import { answerResponse, parseStartInput, startScan } from '../api/start.ts';
 import { markError } from '../db/store.ts';
 import { AXE_SOURCE } from '../capture/axe-source.ts';
@@ -137,9 +137,9 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
     return origins.length > 0 ? (url: URL) => origins.includes(url.origin) : undefined;
   }
 
-  #guard(): UrlGuard {
+  #guard(fetchFn?: typeof fetch): UrlGuard {
     const exempt = this.#exempt();
-    return createUrlGuard({ resolve: createDohResolver(), ...(exempt !== undefined ? { exempt } : {}) });
+    return createUrlGuard({ resolve: createDohResolver(fetchFn), ...(exempt !== undefined ? { exempt } : {}) });
   }
 
   #traceUrl(): string {
@@ -313,14 +313,17 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
   }
 
   async #capture(url: string, mode: ScanMode, metric: Partial<JobMetric>): Promise<CaptureOutcome> {
-    const guard = this.#guard();
     if (mode === 'quick') {
+      // Session fix-a4: one budget of requests for the whole quick check, the name lookups included.
+      const fetchBudget = createFetchBudget(QUICK_CHECK_FETCHES, (input, init) => fetch(input, init));
+      const guard = this.#guard(fetchBudget.fetch);
       this.#objectVisit ??= await traceObjectVisit(fetch, this.#traceUrl());
       // The same desktop Chrome user agent as the browser, as for the http redirect check since A3.
       const userAgent = cloudEnvironment(this.#chromeVersion).userAgent;
-      const capture = await quickCapture(url, { guard, userAgent, visit: this.#objectVisit });
+      const capture = await quickCapture(url, { guard, userAgent, visit: this.#objectVisit, fetchBudget });
       return { capture, visit: { country: this.#objectVisit.country, colo: this.#objectVisit.colo } };
     }
+    const guard = this.#guard();
     const browser = this.#browser;
     // Never a full capture without the browser's shared popup guard (a guard per scan would block the other tabs).
     if (browser === null || !browser.connected || this.#popupGuard === null) throw new Error('no browser');

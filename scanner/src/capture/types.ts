@@ -58,6 +58,11 @@ export type CaptureFailureReason =
    * or 443, a host name or address that is not public, more than 5 redirects). Nothing was sent there.
    */
   | 'not-allowed'
+  /**
+   * Session fix-a4: the page is larger than the scan records (more requests, more address text or more
+   * data than `CAPTURE_LIMITS`). The scan stopped watching it; nothing is concluded from the part it saw.
+   */
+  | 'page-limit'
   | 'other';
 
 export interface CaptureFailure {
@@ -125,6 +130,12 @@ export interface MainDocument {
   headers: Record<string, string>;
   /** Hops before the final URL, in order (empty if there was no redirect). */
   redirectChain: RedirectHop[];
+  /**
+   * Session fix-a4: names of headers that are not in `headers` because their value is longer than the limit
+   * (or the response has more header text than the budget). Such a header is not analysed: "bitte manuell
+   * prüfen", never "fehlt". Missing when every header was kept.
+   */
+  headersCut?: string[];
 }
 
 export interface PageLink {
@@ -165,6 +176,10 @@ export interface PageSnapshot {
   text: string;
   textTruncated: boolean;
   links: PageLink[];
+  /**
+   * True when the page has links that are not in `links`: more than the cap, or (session fix-a4) links whose
+   * address is longer than the limit or that no longer fit the page's budget for links.
+   */
   linksTruncated: boolean;
   /**
    * Security settings made by meta tags instead of headers (session A3): the first
@@ -302,5 +317,11 @@ export interface Capture {
   impressum?: ImpressumCapture | null;
   /** Session A5 part 3: where the site was visited from. Missing in older captures and in local runs. */
   visit?: CaptureVisit | null;
+  /**
+   * Session fix-a4: set when `limitCapture` cut strings of the page to their limits (`CAPTURE_LIMITS`):
+   * how many. The start of each string is kept. Links that were left out are `linksTruncated` of the page,
+   * headers that were left out `mainDocument.headersCut`.
+   */
+  limited?: { strings: number };
   timings: CaptureTimings;
 }

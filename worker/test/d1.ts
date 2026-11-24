@@ -27,7 +27,7 @@ export function migrationStatements(): string[] {
     );
 }
 
-export const TABLES = ['network_requests', 'findings', 'leads', 'scans', 'sites', 'rate_events', 'rate_salts'] as const;
+export const TABLES = ['network_requests', 'findings', 'leads', 'scans', 'sites', 'rate_events', 'rate_salts', 'rate_daily'] as const;
 
 export interface LocalD1 {
   db: D1Database;

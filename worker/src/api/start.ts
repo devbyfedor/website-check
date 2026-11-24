@@ -2,7 +2,7 @@ import { normalizeSiteAddress, type UrlVerdict } from '@website-check/scanner/ap
 import { createScan, findCachedScan, markError } from '../db/store.ts';
 import { answer, errorAnswer, refusal, scanBody, type Answer } from './answers.ts';
 import { cryptoRandomBytes, newScanId } from './ids.ts';
-import { hashVisitor, MIN_SECRET_LENGTH, RATE_LIMIT, releaseSlot, saltOfDay, takeSlot } from './rate-limit.ts';
+import { hashVisitor, MIN_SECRET_LENGTH, RATE_LIMIT, RATE_LIMIT_DAY, releaseSlot, saltOfDay, takeSlot } from './rate-limit.ts';
 
 /**
  * The start of a scan (session A5 part 5, Fedor's answer (a), docs/decisions.md): runs in the queue object
@@ -19,7 +19,7 @@ export interface StartInput {
   url: string;
   /** The visitor key of the connection (`visitorKeyOf`): an IPv4 address or an IPv6 /56, never stored; hashed here. */
   visitor: string;
-  /** Lab only: scans per hour per visitor (the API's default is 5). */
+  /** Lab only: scans per hour per visitor (the API's default is 5); the daily limit is 24 times this (the API's default is 15). */
   ratePerHour?: number;
   /** Lab only: run the quick check even when browser time is left. */
   force?: 'quick';
@@ -90,20 +90,25 @@ export async function startScan(input: StartInput, deps: StartDeps): Promise<Ans
 
   // Fail closed: without the secret the hashes could be reversed from the database alone.
   if (deps.secret === undefined || deps.secret.length < MIN_SECRET_LENGTH) return errorAnswer(503, 'not-configured');
-  const salt = await saltOfDay(deps.db, now, randomBytes);
+  // The name check can take time: the salt, the slot and the new scan use the time after it, not the first reading.
+  const at = (deps.now ?? Date.now)();
+  const { day, salt } = await saltOfDay(deps.db, at, randomBytes);
   const visitor = await hashVisitor(deps.secret, salt, input.visitor);
-  const slot = await takeSlot(deps.db, visitor, now, newScanId(randomBytes).slice(0, 8), input.ratePerHour ?? RATE_LIMIT.scans);
-  if (!slot.allowed) return errorAnswer(429, 'rate-limited', { retryAfterSeconds: slot.retryAfterSeconds }, slot.retryAfterSeconds);
+  // The lab's hourly rate gives a daily limit of 24 times as much; without it the limits are those of the brief.
+  const perHour = input.ratePerHour ?? RATE_LIMIT.scans;
+  const perDay = input.ratePerHour !== undefined ? input.ratePerHour * 24 : RATE_LIMIT_DAY.scans;
+  const slot = await takeSlot(deps.db, visitor, at, newScanId(randomBytes).slice(0, 8), day, perHour, perDay);
+  if (!slot.allowed) return errorAnswer(429, 'rate-limited', { retryAfterSeconds: slot.retryAfterSeconds, limit: slot.limit }, slot.retryAfterSeconds);
 
   let result: Awaited<ReturnType<typeof createScan>>;
   try {
-    result = await createScan(deps.db, { id: newScanId(randomBytes), url: address.url, host: address.host, now });
+    result = await createScan(deps.db, { id: newScanId(randomBytes), url: address.url, host: address.host, now: at });
   } catch {
     await releaseSlot(deps.db, visitor, slot).catch(() => undefined);
     return errorAnswer(503, 'unavailable', {}, 30);
   }
   if (!result.created) {
-    // Another visitor started the same address at the same moment: this one gets that scan and keeps its slot.
+    // Another visitor started the same address at the same moment: this one gets that scan and its slot is given back.
     await releaseSlot(deps.db, visitor, slot);
     return answer(200, scanBody(result.scan, true));
   }
@@ -119,7 +124,7 @@ export async function startScan(input: StartInput, deps: StartDeps): Promise<Ans
     if (dispatched !== undefined && !dispatched.accepted) {
       // The day's cap of the queue: no scan today. The gate remembers it, so further starts write nothing,
       // and the visitor's slot is kept, so the hourly limit still bounds retries (review of A5 part 3).
-      deps.dailyGate.until = Math.max(deps.dailyGate.until, now + dispatched.retryAfterSeconds * 1000);
+      deps.dailyGate.until = Math.max(deps.dailyGate.until, at + dispatched.retryAfterSeconds * 1000);
       await markError(deps.db, result.scan.id, 'daily-limit', (deps.now ?? Date.now)());
       return dailyLimit(dispatched.retryAfterSeconds);
     }

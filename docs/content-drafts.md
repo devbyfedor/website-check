@@ -417,6 +417,59 @@ Written in session fix-a3 (24.11.2026). Like every text in this file, a draft.
 - Used when: the only link the scan finds for the Datenschutzerklärung leads to another registrable domain (`params.reason` `other-site`) or is an anchor of the homepage itself (`same-page`). A manual check without a risk. The report then shows no `datenschutzLink`. New in session fix-a3 (review finding 14).
 - Status: Entwurf
 
+## Limits of the scan (session fix-a4)
+
+German drafts for what the report says when a limit of the scan was reached. All of them are drafts.
+
+### `report-failed` with `reason: page-limit`
+
+- Title: Prüfung abgebrochen: Die Seite ist größer, als die Prüfung aufzeichnet
+- Fact: Ihre Startseite hat während des Besuchs mehr als 2 000 Anfragen gestellt oder mehr Daten geliefert, als die Prüfung aufzeichnet. Wir haben den Besuch an dieser Grenze beendet. Aus einem Teil der Seite ziehen wir keine Schlüsse, deshalb zeigt dieser Bericht keine Funde.
+- Fix: Bitte manuell prüfen. Eine gewöhnliche Startseite stellt einige Dutzend bis einige Hundert Anfragen. Lädt Ihre Seite ständig nach, zum Beispiel durch ein Skript in einer Schleife, hilft ein Blick in die Netzwerkanalyse des Browsers.
+- Used when: the notice `report-failed` has `params.reason` `page-limit` (`failure.reason` is `page-limit` too): more than 2,000 requests, more than 500,000 characters of request addresses, or a capture larger than 2 MB.
+- Status: Entwurf
+
+### `legal-impressum-no-link-links-cut`
+
+- Title: Impressum-Link nicht gefunden, bitte manuell prüfen
+- Fact: Die Prüfung hat nicht alle Links Ihrer Startseite gelesen: Die Seite hat mehr Links, als die Prüfung liest, oder einzelne Links haben eine ungewöhnlich lange Adresse. Unter den gelesenen Links ist kein Link zum Impressum. Er kann unter den übrigen sein.
+- Fix: Bitte manuell prüfen: Ist der Link „Impressum“ auf Ihrer Startseite ohne weiteren Klick sichtbar?
+- Used when: no Impressum link was found and `truncated.page` contains `homepage-links`. A manual check without a risk, never in "Drei Dinge".
+- Status: Entwurf
+
+### `security-header-too-long`
+
+- Title: Header gesendet, Wert zu lang für die Prüfung, bitte manuell prüfen
+- Fact: Ihr Server sendet diesen Header, sein Wert ist aber länger als 16 000 Zeichen. Einen so langen Wert wertet die Prüfung nicht aus. Der Header zählt deshalb weder als vorhanden noch als fehlend.
+- Fix: Bitte manuell prüfen, ob der Wert so gewollt ist. Übliche Werte dieses Headers sind wenige Zeilen lang.
+- Used when: a security header (or its older form) is named in the capture's `headersCut`; the header row has the status `manual`, and `truncated.page` contains `headers`.
+- Status: Entwurf
+
+### `section-not-analysed`
+
+- Title: Dieser Teil der Prüfung konnte nicht ausgewertet werden
+- Fact: Bei der Auswertung dieses Teils ist bei uns ein Fehler aufgetreten. Die übrigen Teile des Berichts sind davon nicht betroffen.
+- Fix: Starten Sie die Prüfung später noch einmal.
+- Used when: an analysis threw (`sections.<part>` is `not-checked` with the reason `analyzer-error`); `params.section` names the part.
+- Status: Entwurf
+
+### `report-truncated-findings`, `report-truncated-services`
+
+- Text (findings): Die Liste zeigt die wichtigsten {shown} von {total} Einträgen.
+- Text (services): Die Stückliste zeigt {shown} von {total} Diensten.
+- Used when: `truncated.findings` or `truncated.services` is true; `total` comes from `counts`.
+- Status: Entwurf
+
+### `report-truncated-page`
+
+- Text (`homepage-text`): Die Startseite hat mehr Text, als die Prüfung liest (100 000 Zeichen). Der Rest wurde nicht gelesen.
+- Text (`homepage-links`): Die Startseite hat Links, die die Prüfung nicht gelesen hat (mehr als 1 500 Links oder ungewöhnlich lange Adressen).
+- Text (`impressum-text`): Das Impressum hat mehr Text, als die Prüfung liest (100 000 Zeichen). Der Rest wurde nicht gelesen.
+- Text (`impressum-links`): Das Impressum hat Links, die die Prüfung nicht gelesen hat.
+- Text (`headers`): Ein Header der Startseite hat einen Wert, der für die Prüfung zu lang ist. Er wurde nicht ausgewertet.
+- Used when: `truncated.page` names the part.
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/

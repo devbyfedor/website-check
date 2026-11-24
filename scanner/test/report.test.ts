@@ -318,8 +318,9 @@ describe('buildReport: unsure cases', () => {
 
   it('a huge page stays within the caps and still validates', () => {
     const requests = [{ url: SHOP, resourceType: 'document', isNavigation: true, startMs: 0, endMs: 100 }];
-    for (let i = 0; i < 2000; i += 1) {
-      requests.push({ url: `https://t${i % 300}.tracker${i % 150}.example/${'p'.repeat(600)}?i=${i}`, resourceType: 'script', isNavigation: false, startMs: 100 + i, endMs: 200 + i });
+    // Within the limits of a capture (session fix-a4: at most 2,000 requests and 500,000 characters of addresses).
+    for (let i = 0; i < 1900; i += 1) {
+      requests.push({ url: `https://t${i % 300}.tracker${i % 150}.example/${'p'.repeat(150)}?i=${i}`, resourceType: 'script', isNavigation: false, startMs: 100 + i, endMs: 200 + i });
     }
     const built = build({ capture: shopCapture({ requests: makeCapture({ requests }).requests }) });
     expectValid(built.report);

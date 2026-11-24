@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { createServer as createNetServer, type AddressInfo } from 'node:net';
+import { heavyPage } from '../../../scanner/test/integration/heavy-pages.ts';
 import type { Browser as PuppeteerBrowser } from '@cloudflare/puppeteer';
 import { launchLocalBrowser } from '@website-check/scanner/local';
 
@@ -21,8 +22,11 @@ export interface CdpFixture {
   /** Called once when the next page document of `www.shop.test` is requested. */
   onNextDocument(callback: () => void): void;
   hits(prefix: string): number;
-  /** A Puppeteer browser on the local Chromium; `delayMs` delays every message in both directions. */
-  connect(delayMs?: number): Promise<{ browser: PuppeteerBrowser; dropConnection(): void }>;
+  /**
+   * A Puppeteer browser on the local Chromium; `delayMs` delays every message in both directions. `wire`
+   * counts what the browser sent (session fix-a4): the number of messages and the longest one in characters.
+   */
+  connect(delayMs?: number): Promise<{ browser: PuppeteerBrowser; dropConnection(): void; wire: { messages: number; largest: number } }>;
   close(): Promise<void>;
 }
 
@@ -46,11 +50,14 @@ class DelayTransport {
   onclose?: () => void;
   readonly #socket: WebSocket;
   readonly #delay: number;
+  readonly wire = { messages: 0, largest: 0 };
   constructor(socket: WebSocket, delay: number) {
     this.#socket = socket;
     this.#delay = delay;
     socket.addEventListener('message', (event) => {
       const data = String(event.data);
+      this.wire.messages += 1;
+      if (data.length > this.wire.largest) this.wire.largest = data.length;
       if (delay === 0) this.onmessage?.(data);
       else setTimeout(() => this.onmessage?.(data), delay);
     });
@@ -167,8 +174,13 @@ export async function startCdpFixture(): Promise<CdpFixture> {
         return out(200, 'text/javascript', 'window.__tracked = 1;');
       case 'css.fontco.test/font.css':
         return out(200, 'text/css', 'h1 { color: #111; }', { 'access-control-allow-origin': '*' });
-      default:
+      default: {
+        // Session fix-a4: the heavy pages of the review, shared with the tests of the local adapter.
+        const heavy = host === 'www.shop.test' ? heavyPage(path) : null;
+        if (heavy !== null) return out(heavy.status, heavy.type, heavy.body, heavy.headers);
+        if (`${host}${path}` === 'www.shop.test/impressum') return out(200, 'text/html; charset=utf-8', doc('<h1>Impressum</h1><p>Angaben gemäß § 5 DDG</p><p>Muster GmbH<br>Musterweg 1<br>80331 München</p>').replace('<title>Fixture Shop</title>', '<title>Impressum</title>'));
         return out(404, 'text/plain', 'not found');
+      }
     }
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -198,9 +210,10 @@ export async function startCdpFixture(): Promise<CdpFixture> {
         socket.addEventListener('open', () => resolve());
         socket.addEventListener('error', () => reject(new Error('no WebSocket to the local browser')));
       });
-      const browser = await connector._connectToCdpBrowser(new DelayTransport(socket, delayMs), version.webSocketDebuggerUrl, { defaultViewport: null });
+      const transport = new DelayTransport(socket, delayMs);
+      const browser = await connector._connectToCdpBrowser(transport, version.webSocketDebuggerUrl, { defaultViewport: null });
       connections.push(browser);
-      return { browser, dropConnection: () => socket.close() };
+      return { browser, dropConnection: () => socket.close(), wire: transport.wire };
     },
     close: async () => {
       for (const browser of connections) await browser.disconnect().catch(() => undefined);

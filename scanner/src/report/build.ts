@@ -1,9 +1,10 @@
-import { analyzeCapture, type CaptureAnalysis } from '../analyzers/capture.ts';
+import { analyzeCapture, type AnalysisPart, type CaptureAnalysis } from '../analyzers/capture.ts';
 import type { AccessibilityAnalysis, A11yCheck } from '../analyzers/accessibility.ts';
 import type { LegalAnalysis } from '../analyzers/legal.ts';
 import type { SecurityAnalysis } from '../analyzers/security.ts';
 import type { DetectedService, ThirdPartyAnalysis } from '../analyzers/third-party.ts';
 import type { AxeExample } from '../a11y/types.ts';
+import { limitCapture } from '../capture/limits.ts';
 import type { Capture, CapturedRequest } from '../capture/types.ts';
 import { firstPartySites, hostOf, siteOfUrl } from '../domain/site.ts';
 import type { FieldResult } from '../legal/fields.ts';
@@ -20,6 +21,7 @@ import {
   type FindingKind,
   type FindingRisk,
   type Measure,
+  type PageCut,
   type Report,
   type ReportLegal,
   type ReportSecurity,
@@ -127,6 +129,28 @@ export function reportServiceKey(key: string): string {
 /** `third-party:google-fonts`, `third-party:unknown:beispiel.example`; at most 112 characters. */
 function serviceFindingId(key: string): string {
   return `third-party:${reportServiceKey(key).split(':').map(idPart).join(':')}`;
+}
+
+/**
+ * Session fix-a4 (review finding 54): values that come from the page go into the report only in the form the
+ * schema names. Anything else is left out, so a page cannot turn a scan into an error of ours.
+ */
+function versionOf(value: string | null | undefined): string | null {
+  return typeof value === 'string' && /^\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(value) ? value : null;
+}
+
+/** A contrast requirement as axe writes it ("4.5:1"). */
+function expectedOf(value: string | null | undefined): string | null {
+  return typeof value === 'string' && /^\d{1,2}(?:\.\d{1,2})?:1$/.test(value) ? value : null;
+}
+
+/** The id of a consent tool: one of our ids (lower-case letters, digits, hyphens). */
+function toolIdOf(value: string | null | undefined): string | null {
+  return typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,59}$/.test(value) ? value : null;
+}
+
+function countOf(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.min(100_000, Math.round(value))) : 0;
 }
 
 function ms(value: number): number {
@@ -334,7 +358,8 @@ function buildTimeline(capture: Capture, analysis: ThirdPartyAnalysis): Timeline
   if (files.length > 0) {
     const host = mainHost ?? hostOf((files[0] as CapturedRequest).url) ?? '';
     const segment = commonFirstSegment(files);
-    const start = Math.min(...files.map((r) => r.startMs));
+    let start = (files[0] as CapturedRequest).startMs;
+    for (const r of files) if (r.startMs < start) start = r.startMs;
     rows.push({
       rank: 1,
       row: { label: clip(segment === null ? host : `${host}/${segment}`, 300), party: 'own', kind: 'files', serviceKey: null, provider: null, startMs: ms(start), endMs: lastEnd(files), requestCount: files.length, beforeBanner: before(start) },
@@ -366,7 +391,7 @@ function buildTimeline(capture: Capture, analysis: ThirdPartyAnalysis): Timeline
   return {
     windowMs: TIMELINE_WINDOW_MS,
     bannerVisibleAtMs: bannerAt === null ? null : ms(bannerAt),
-    bannerToolId: capture.consentBanner.detected ? capture.consentBanner.toolId : null,
+    bannerToolId: capture.consentBanner.detected ? toolIdOf(capture.consentBanner.toolId) : null,
     rows: chosen.map((c) => c.row),
     rowsTruncated: rows.length > chosen.length,
   };
@@ -409,7 +434,7 @@ function elementEvidence(examples: readonly AxeExample[]): Evidence[] {
     target: e.target.slice(0, 10).map((t) => clip(t, 300)),
     html: clip(e.html, REPORT_LIMITS.htmlLength),
     ratio: e.contrast?.ratio != null && e.contrast.ratio >= 1 ? Math.min(21, e.contrast.ratio) : null,
-    expected: e.contrast?.expected == null ? null : clip(e.contrast.expected, 20),
+    expected: expectedOf(e.contrast?.expected),
   }));
 }
 
@@ -512,18 +537,22 @@ function isShop(analysis: CaptureAnalysis): boolean | null {
   return null;
 }
 
-function legalFindings(legal: LegalAnalysis, shop: boolean | null, almostEmpty: boolean, mode: 'full' | 'quick'): Finding[] {
+function legalFindings(legal: LegalAnalysis, shop: boolean | null, almostEmpty: boolean, mode: 'full' | 'quick', linksCut = false): Finding[] {
   if (!legal.homepageRead) return [finding({ id: 'legal:not-checked', area: 'mandatory-information', kind: 'not-checked', textId: 'legal-not-checked' })];
   const out: Finding[] = [];
   const impressumTexts: Record<Exclude<LegalAnalysis['impressum']['state'], 'analyzed'>, { kind: FindingKind; textId: string; risk: FindingRisk | null }> = {
     // On a page that shows almost nothing (perhaps a page of bot protection) a missing link says nothing about the site: no risk.
     // Session fix-a2: the quick check reads only the HTML source. A link that a script builds in the browser
     // is not in it, so a link it does not find is a limit of the method: no risk, never in "Drei Dinge".
+    // Session fix-a4: the scan did not read every link of the page (more links than the cap, or links left out
+    // at a limit), so the link may be among those it did not read: no risk.
     'no-link': almostEmpty
       ? { kind: 'manual', textId: 'legal-impressum-no-link-empty-page', risk: null }
-      : mode === 'quick'
-        ? { kind: 'manual', textId: 'legal-impressum-no-link-quick', risk: null }
-        : { kind: 'manual', textId: 'legal-impressum-no-link', risk: 'high' },
+      : linksCut
+        ? { kind: 'manual', textId: 'legal-impressum-no-link-links-cut', risk: null }
+        : mode === 'quick'
+          ? { kind: 'manual', textId: 'legal-impressum-no-link-quick', risk: null }
+          : { kind: 'manual', textId: 'legal-impressum-no-link', risk: 'high' },
     'same-page': { kind: 'manual', textId: 'legal-impressum-same-page', risk: null },
     pdf: { kind: 'manual', textId: 'legal-impressum-pdf', risk: null },
     failed: { kind: 'manual', textId: 'legal-impressum-failed', risk: null },
@@ -571,6 +600,18 @@ function reportLegal(legal: LegalAnalysis): ReportLegal {
   };
 }
 
+const AREA_OF_PART: Record<AnalysisPart, FindingArea | null> = { thirdParty: 'privacy', legal: 'mandatory-information', accessibility: 'accessibility', security: 'security', platform: null };
+
+/** Session fix-a4: one "nicht geprüft" item for each part of the analysis that threw. */
+function analyzerErrorFindings(analysis: CaptureAnalysis): Finding[] {
+  const out: Finding[] = [];
+  for (const part of Object.keys(analysis.errors ?? {}) as AnalysisPart[]) {
+    const area = AREA_OF_PART[part];
+    if (area !== null) out.push(finding({ id: `scan:not-analysed:${idPart(part)}`, area, kind: 'not-checked', textId: 'section-not-analysed', params: { section: part } }));
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Measures ("Prüfmaße")
 
@@ -611,7 +652,7 @@ function imagesMeasure(a11y: AccessibilityAnalysis | null): Measure {
   const check = a11yResult(a11y, 'image-alt');
   const images = a11y?.images ?? null;
   if (check === 'not-checked' || images === null) return { id: 'images-described', result: 'not-checked', target, actual: null };
-  const actual: Measure['actual'] = images.described === null || images.total === null ? null : { type: 'of', count: images.described, total: images.total };
+  const actual: Measure['actual'] = images.described === null || images.total === null ? null : { type: 'of', count: countOf(images.described), total: countOf(images.total) };
   if (check === 'fail') return { id: 'images-described', result: 'fail', target, actual };
   const sure = check === 'pass' && images.described !== null;
   return { id: 'images-described', result: sure ? 'pass' : 'manual', target, actual };
@@ -642,7 +683,7 @@ function buildMeasures(analysis: CaptureAnalysis, sections: Record<SectionId, Se
     id: 'lowest-contrast',
     result: contrast,
     target: { type: 'ratio', ratio: 4.5, expected: '4.5:1' },
-    actual: contrast === 'not-checked' || lowest === null || lowest.ratio === null || lowest.ratio < 1 ? null : { type: 'ratio', ratio: Math.min(21, lowest.ratio), expected: lowest.expected },
+    actual: contrast === 'not-checked' || lowest === null || lowest.ratio === null || lowest.ratio < 1 ? null : { type: 'ratio', ratio: Math.min(21, lowest.ratio), expected: expectedOf(lowest.expected) },
   });
 
   measures.push(imagesMeasure(a11y));
@@ -731,6 +772,18 @@ function emptySource(capture: Capture): boolean {
 }
 
 function sectionsOf(state: ReportState, analysis: CaptureAnalysis, capture: Capture): Record<SectionId, SectionStatus> {
+  return withAnalyzerErrors(sectionsBefore(state, analysis, capture), state, analysis);
+}
+
+/** Session fix-a4: a part whose analysis threw is "nicht geprüft" with the reason `analyzer-error`. */
+function withAnalyzerErrors(sections: Record<SectionId, SectionStatus>, state: ReportState, analysis: CaptureAnalysis): Record<SectionId, SectionStatus> {
+  if ((state !== 'complete' && state !== 'quick') || analysis.errors === undefined) return sections;
+  const out = { ...sections };
+  for (const part of Object.keys(analysis.errors) as AnalysisPart[]) if (out[part].status === 'checked') out[part] = { status: 'not-checked', reason: 'analyzer-error' };
+  return out;
+}
+
+function sectionsBefore(state: ReportState, analysis: CaptureAnalysis, capture: Capture): Record<SectionId, SectionStatus> {
   const checked: SectionStatus = { status: 'checked', reason: null };
   if (state === 'blocked' || state === 'not-allowed' || state === 'failed') {
     const off: SectionStatus = { status: 'not-checked', reason: 'page-not-loaded' };
@@ -759,7 +812,8 @@ function coloOf(value: string | null | undefined): string | null {
 }
 
 export function buildReport(options: BuildReportOptions): BuiltReport {
-  const { capture } = options;
+  // Session fix-a4: the report is built from the capture within its limits, as the analysis is.
+  const capture = limitCapture(options.capture);
   const analysis = analyzeCapture(capture, options.rules);
   const state = stateOf(analysis, options.mode);
   const sections = sectionsOf(state, analysis, capture);
@@ -771,11 +825,13 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
   const all: Finding[] = [];
   if (tp !== null) all.push(...thirdPartyFindings(tp));
   const almostEmpty = analysis.almostEmpty !== null;
-  if (loaded && sections.legal.status === 'checked' && analysis.legal !== null) all.push(...legalFindings(analysis.legal, shop, almostEmpty, options.mode));
+  const linksCut = capture.page?.linksTruncated === true;
+  if (loaded && sections.legal.status === 'checked' && analysis.legal !== null) all.push(...legalFindings(analysis.legal, shop, almostEmpty, options.mode, linksCut));
   if (loaded && analysis.accessibility !== null) {
     if (sections.accessibility.status === 'checked' || sections.accessibility.reason !== 'quick-check') all.push(...accessibilityFindings(analysis.accessibility));
   }
   if (loaded && sections.security.status === 'checked' && analysis.security !== null) all.push(...securityFindings(analysis.security));
+  if (loaded) all.push(...analyzerErrorFindings(analysis));
   // An almost empty page shows no finding and no hint: only the notice and manual checks (session fix-a2).
   if (almostEmpty) all.splice(0, all.length, ...withoutFindings(all));
   const sorted = sortFindings(all);
@@ -800,7 +856,7 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
       durationMs: durationMs === null ? null : ms(durationMs),
       scannerVersion: options.scannerVersion,
       rulesUpdated: options.rulesUpdated,
-      axeVersion: capture.axe?.axeVersion ?? null,
+      axeVersion: versionOf(capture.axe?.axeVersion),
     },
     visit: {
       country: countryOf((options.visit ?? capture.visit)?.country),
@@ -826,14 +882,62 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
     // An almost empty page shows no measured state of HTTPS and the headers either (session fix-a2).
     security: loaded && !almostEmpty && analysis.security !== null ? reportSecurity(analysis.security) : null,
     counts: {
-      findings: all.filter((f) => f.kind === 'finding').length,
-      manual: all.filter((f) => f.kind === 'manual').length,
-      hints: all.filter((f) => f.kind === 'hint').length,
-      notChecked: all.filter((f) => f.kind === 'not-checked').length,
-      services: tp === null ? 0 : tp.services.length,
+      findings: countOf(all.filter((f) => f.kind === 'finding').length),
+      manual: countOf(all.filter((f) => f.kind === 'manual').length),
+      hints: countOf(all.filter((f) => f.kind === 'hint').length),
+      notChecked: countOf(all.filter((f) => f.kind === 'not-checked').length),
+      services: countOf(tp === null ? 0 : tp.services.length),
+    },
+    truncated: {
+      findings: sorted.length > findings.length,
+      services: tp !== null && tp.services.length > services.length,
+      page: loaded ? pageCuts(capture, analysis) : [],
     },
   };
-  const size = JSON.stringify(report).length;
-  if (size > REPORT_LIMITS.maxReportChars) throw new Error(`report of ${size} characters exceeds the limit of ${REPORT_LIMITS.maxReportChars}`);
-  return { report, networkHosts: network.rows, networkHostsDropped: network.dropped, analysis };
+  return { report: fitReport(report), networkHosts: network.rows, networkHostsDropped: network.dropped, analysis };
+}
+
+/**
+ * Session fix-a4: what the scan read of the page only up to a limit (`CAPTURE_LIMITS`), so the report can
+ * say so: the text of a page (100,000 characters), its links (1,500 and those naming a legal page; links
+ * with an address over the limit), a header with a value over the limit.
+ */
+function pageCuts(capture: Capture, analysis: CaptureAnalysis): PageCut[] {
+  const cuts: PageCut[] = [];
+  if (capture.page?.textTruncated === true) cuts.push('homepage-text');
+  if (capture.page?.linksTruncated === true) cuts.push('homepage-links');
+  const impressum = analysis.legal?.impressum.state === 'analyzed' ? (capture.impressum?.page ?? null) : null;
+  if (impressum?.textTruncated === true) cuts.push('impressum-text');
+  if (impressum?.linksTruncated === true) cuts.push('impressum-links');
+  if ((capture.mainDocument?.headersCut ?? []).length > 0) cuts.push('headers');
+  return cuts;
+}
+
+/**
+ * Session fix-a4 (review finding 54): a report larger than `maxReportChars` is made smaller, never thrown
+ * away. First the examples go (one piece of evidence per finding, two hosts and sources per service), then
+ * the list of services and after it the list of findings is halved until the report fits; `truncated` says
+ * that they were cut, `counts` keeps the full numbers.
+ */
+function fitReport(report: Report): Report {
+  const fits = (r: Report): boolean => JSON.stringify(r).length <= REPORT_LIMITS.maxReportChars;
+  if (fits(report)) return report;
+  let r: Report = {
+    ...report,
+    findings: report.findings.map((f) => ({ ...f, evidence: f.evidence.slice(0, 1) })),
+    services: report.services.map((s) => ({ ...s, hosts: s.hosts.slice(0, 2), sources: s.sources.slice(0, 2) })),
+  };
+  for (let step = 0; step < 16 && !fits(r); step += 1) {
+    const services = r.services.slice(0, Math.floor(r.services.length / 2));
+    const findings = r.services.length > 0 ? r.findings : r.findings.slice(0, Math.floor(r.findings.length / 2));
+    const ids = new Set(findings.map((f) => f.id));
+    r = {
+      ...r,
+      findings,
+      priorities: r.priorities.filter((id) => ids.has(id)),
+      services: services.map((s) => (s.findingId !== null && !ids.has(s.findingId) ? { ...s, findingId: null } : s)),
+      truncated: { ...r.truncated, services: r.truncated.services || services.length < r.services.length, findings: r.truncated.findings || findings.length < r.findings.length },
+    };
+  }
+  return r;
 }

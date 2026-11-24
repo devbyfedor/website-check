@@ -1,19 +1,22 @@
 import type { BrowserContext, HTTPResponse } from '@cloudflare/puppeteer';
 import {
+  CAPTURE_LIMITS,
   checkReadDocument,
   classifyMainDocument,
   classifyNavigationError,
   IMPRESSUM_SETTINGS,
   IMPRESSUM_SNAPSHOT_EXPRESSION,
   installNavigationGuard,
+  limitPageSnapshot,
   navigationBlockMessage,
   pageEvidenceOf,
+  pageLimitFailure,
   pollText,
   TEXT_PROGRESS_EXPRESSION,
   type CaptureFailure,
   type ImpressumCapture,
   type NavigationGuardState,
-  type SnapshotResult,
+  type PageSnapshot,
   type TextProgress,
   type TextWatch,
   type UrlGuard,
@@ -43,9 +46,10 @@ export async function captureImpressumTabCdp(
   let response: HTTPResponse | null = null;
   let navigationError: string | null = null;
   let stopReason: ImpressumCapture['timings']['stopReason'] = 'error';
-  let snapshot: SnapshotResult | null = null;
+  let snapshot: PageSnapshot | null = null;
   let snapshotMs: number | null = null;
   let hardLimitHit = false;
+  let overLimit = false;
   const page = await context.newPage();
   const hardTimer = setTimeout(() => {
     hardLimitHit = true;
@@ -63,6 +67,11 @@ export async function captureImpressumTabCdp(
     }
     page.on('request', () => {
       requestCount += 1;
+      // Session fix-a4: a tab that makes more requests than a page may is closed at once.
+      if (requestCount > CAPTURE_LIMITS.maxRequests && !overLimit) {
+        overLimit = true;
+        void page.close().catch(() => undefined);
+      }
     });
     page.on('domcontentloaded', () => {
       domContentLoadedMs ??= since();
@@ -93,8 +102,8 @@ export async function captureImpressumTabCdp(
         await sleep(IMPRESSUM_SETTINGS.pollMs);
       }
       if (!hardLimitHit && !page.isClosed()) {
-        snapshot = await withTimeout(client.send('Runtime.evaluate', { expression: IMPRESSUM_SNAPSHOT_EXPRESSION, returnByValue: true }) as Promise<{ result?: { value?: SnapshotResult } }>, 4_000)
-          .then((r) => r.result?.value ?? null)
+        snapshot = await withTimeout(client.send('Runtime.evaluate', { expression: IMPRESSUM_SNAPSHOT_EXPRESSION, returnByValue: true }) as Promise<{ result?: { value?: unknown } }>, 4_000)
+          .then((r) => limitPageSnapshot(r.result?.value))
           .catch(() => null);
         if (snapshot !== null && navigation !== null && !(await checkReadDocument(navigation, options.guard, snapshot.url ?? page.url()))) snapshot = null;
         snapshotMs = since();
@@ -110,6 +119,7 @@ export async function captureImpressumTabCdp(
   let failure: CaptureFailure | null;
   if (navigation === null) failure = { reason: 'other', message: 'the SSRF guard could not be installed; the Impressum was not opened' };
   else if (refused !== undefined) failure = { reason: 'not-allowed', message: navigationBlockMessage(refused) };
+  else if (overLimit) failure = pageLimitFailure('requests');
   else if (navigationError !== null) failure = { reason: classifyNavigationError(navigationError), message: navigationError };
   else if (main === null) failure = { reason: 'other', message: 'no Impressum response' };
   else if (snapshot === null) failure = { reason: hardLimitHit ? 'timeout' : 'other', message: 'the text of the Impressum could not be read' };
@@ -120,10 +130,7 @@ export async function captureImpressumTabCdp(
     failure,
     finalUrl: main?.url() ?? null,
     status: main?.status() ?? null,
-    page:
-      snapshot === null
-        ? null
-        : { ...(snapshot.url ? { url: snapshot.url } : {}), title: snapshot.title, lang: snapshot.lang, text: snapshot.text, textTruncated: snapshot.textTruncated, links: snapshot.links, linksTruncated: snapshot.linksTruncated },
+    page: failure?.reason === 'page-limit' ? null : snapshot,
     requestCount,
     timings: {
       openedAtMs: Math.max(0, opened - options.homepageStartedAt),

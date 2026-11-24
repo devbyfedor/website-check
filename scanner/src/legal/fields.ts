@@ -633,14 +633,89 @@ function linkEmails(links: readonly PageLink[]): EmailCandidate[] {
 }
 
 /** Finds `needle` in `text` from `from` on, whatever kind and number of spaces stand between its words (link texts are normalised, `innerText` keeps `&nbsp;`). */
-function findLoose(text: string, needle: string, from: number): { index: number; end: number } | null {
-  const words = needle.split(/[\s   ]+/u).filter((w) => w !== '').map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  if (words.length === 0) return null;
-  const pattern = new RegExp(words.join('[\\s\\u00a0\\u2009\\u202f]+'), 'gu');
-  pattern.lastIndex = from;
-  const match = pattern.exec(text);
-  return match === null ? null : { index: match.index, end: match.index + match[0].length };
+function findLoose(loose: LooseText, needle: string, from: number): { index: number; end: number } | null {
+  const words = looseText(needle).text.trim();
+  if (words === '') return null;
+  // The first place of the collapsed text that lies at or after `from` in the page text.
+  let low = 0;
+  let high = loose.at.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if ((loose.at[middle] as number) < from) low = middle + 1;
+    else high = middle;
+  }
+  const found = indexOfLinear(loose.text, words, low);
+  if (found === -1) return null;
+  return { index: loose.at[found] as number, end: (loose.at[found + words.length - 1] as number) + 1 };
 }
+
+/** A text with every run of white space collapsed to one space, and for each of its characters the place in the original. */
+interface LooseText {
+  text: string;
+  at: Int32Array;
+}
+
+function isLooseSpace(code: number): boolean {
+  return (
+    code === 0x20 || (code >= 0x09 && code <= 0x0d) || code === 0xa0 || code === 0x1680 || (code >= 0x2000 && code <= 0x200a) ||
+    code === 0x2028 || code === 0x2029 || code === 0x202f || code === 0x205f || code === 0x3000 || code === 0xfeff
+  );
+}
+
+function looseText(text: string): LooseText {
+  const at = new Int32Array(text.length);
+  const parts: string[] = [];
+  let length = 0;
+  let start = 0;
+  let inSpace = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const space = isLooseSpace(text.charCodeAt(i));
+    if (space) {
+      if (i > start) parts.push(text.slice(start, i));
+      start = i + 1;
+      if (!inSpace) {
+        parts.push(' ');
+        at[length] = i;
+        length += 1;
+      }
+    } else {
+      at[length] = i;
+      length += 1;
+    }
+    inSpace = space;
+  }
+  if (text.length > start) parts.push(text.slice(start));
+  return { text: parts.join(''), at: at.subarray(0, length) };
+}
+
+/**
+ * `haystack.indexOf(needle, from)` in time linear in both lengths whatever they hold (Knuth, Morris, Pratt).
+ * Session fix-a4 (review finding 12): the page chooses the text and the link texts, and a search that starts
+ * again at every place of a repetitive text costs the product of the two lengths, for every link.
+ */
+export function indexOfLinear(haystack: string, needle: string, from: number): number {
+  const m = needle.length;
+  if (m === 0) return Math.min(from, haystack.length);
+  const fail = new Int32Array(m);
+  for (let i = 1, k = 0; i < m; i += 1) {
+    while (k > 0 && needle.charCodeAt(i) !== needle.charCodeAt(k)) k = fail[k - 1] as number;
+    if (needle.charCodeAt(i) === needle.charCodeAt(k)) k += 1;
+    fail[i] = k;
+  }
+  for (let i = Math.max(0, from), k = 0; i < haystack.length; i += 1) {
+    while (k > 0 && haystack.charCodeAt(i) !== needle.charCodeAt(k)) k = fail[k - 1] as number;
+    if (haystack.charCodeAt(i) === needle.charCodeAt(k)) k += 1;
+    if (k === m) return i - m + 1;
+  }
+  return -1;
+}
+
+/**
+ * Links with an e-mail address that are looked at for the operator's address (session fix-a4). An Impressum
+ * has a handful, and the search stops at the first that counts. Beyond the cap the field is "nicht gefunden,
+ * bitte manuell prüfen".
+ */
+export const MAX_LINK_EMAILS = 50;
 
 function findEmail(doc: Doc, links: readonly PageLink[], ownSites: ReadonlySet<string>, regionEnd: number): FieldResult<EmailValue> {
   const { text } = doc;
@@ -660,11 +735,12 @@ function findEmail(doc: Doc, links: readonly PageLink[], ownSites: ReadonlySet<s
   // menus and labels (session fix-a3, review finding 71). A link without a known place counts only for an
   // address on the site's own domain.
   let searchFrom = 0;
-  for (const candidate of linkEmails(links)) {
+  let loose: LooseText | null = null;
+  for (const candidate of linkEmails(links).slice(0, MAX_LINK_EMAILS)) {
     if (skipped.has(candidate.value)) continue;
     const linkText = (candidate.linkText ?? '').trim();
     const showsAddress = candidate.form === 'cloudflare' || linkText.toLowerCase().replace(/[\s\u00a0]+/g, '').includes(candidate.value);
-    const place = linkText === '' || !showsAddress ? null : findLoose(text, linkText, searchFrom);
+    const place = linkText === '' || !showsAddress ? null : findLoose((loose ??= looseText(text)), linkText, searchFrom);
     if (place === null) {
       if (!own(candidate.value)) continue;
     } else {

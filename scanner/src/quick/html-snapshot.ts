@@ -1,3 +1,5 @@
+import { CAPTURE_LIMITS, cutText } from '../capture/limits.ts';
+import { LEGAL_LINK_RESERVE, LINK_SCAN_MAX } from '../capture/page-scripts.ts';
 import type { PageLink, PageSnapshot, PlatformHints, SecurityMeta } from '../capture/types.ts';
 import { PLATFORM_SELECTORS } from '../platform/fingerprints.ts';
 
@@ -23,20 +25,20 @@ import { PLATFORM_SELECTORS } from '../platform/fingerprints.ts';
 // The caps of the in-page script (a unit test checks that they appear in its source)
 
 /** Maximum text length (`MAX_TEXT` of the in-page script). */
-export const SNAPSHOT_MAX_TEXT = 100000;
+export const SNAPSHOT_MAX_TEXT = CAPTURE_LIMITS.textLength;
 /** Maximum number of links in document order (`MAX_LINKS`). */
-export const SNAPSHOT_MAX_LINKS = 1500;
+export const SNAPSHOT_MAX_LINKS = CAPTURE_LIMITS.maxLinks;
 /** Links beyond the cap that are still kept when their text or address names a legal page (`MAX_EXTRA_LINKS`). */
-export const SNAPSHOT_MAX_EXTRA_LINKS = 100;
+export const SNAPSHOT_MAX_EXTRA_LINKS = CAPTURE_LIMITS.extraLinks;
 /** The words of legal links (`LEGAL_WORDS`), used as `/…/i`. */
 export const SNAPSHOT_LEGAL_WORDS = 'impressum|imprint|anbieterkenn|legal|datenschutz|privacy|data protection|barrierefrei|accessib';
 /** Characters of a link text. */
-export const SNAPSHOT_LINK_TEXT_LENGTH = 200;
+export const SNAPSHOT_LINK_TEXT_LENGTH = CAPTURE_LIMITS.linkTextLength;
 /** Generator meta tags read, and characters of each. */
 export const SNAPSHOT_MAX_GENERATORS = 5;
 export const SNAPSHOT_GENERATOR_LENGTH = 120;
 /** Characters of the `content` of a security meta tag. */
-export const SNAPSHOT_META_LENGTH = 1000;
+export const SNAPSHOT_META_LENGTH = CAPTURE_LIMITS.metaLength;
 
 /** Characters of one link's text that are read at most (the label keeps 200 of them after collapsing white space). */
 const LINK_TEXT_READ = 65536;
@@ -331,6 +333,10 @@ function prescanMetaCharset(bytes: Uint8Array): string | null {
  * then the `charset` of the Content-Type header, then a `<meta charset>` or `<meta http-equiv>` in the
  * first 1024 bytes, else UTF-8. ISO-8859-1 and ASCII are read as windows-1252 (WHATWG Encoding
  * standard). Invalid bytes become U+FFFD; nothing throws.
+ *
+ * Session fix-a4: a page that declares no encoding at all and whose bytes are not valid UTF-8 is read as
+ * windows-1252, as a browser with German settings reads it: old pages written in ISO-8859-1 keep their
+ * umlauts. A declared encoding is never second-guessed.
  */
 export function decodeHtml(body: Uint8Array, contentType: string | null | undefined): string {
   if (body.length >= 3 && body[0] === 0xef && body[1] === 0xbb && body[2] === 0xbf) return decodeAs(body.subarray(3), 'utf-8');
@@ -338,7 +344,13 @@ export function decodeHtml(body: Uint8Array, contentType: string | null | undefi
   if (body.length >= 2 && body[0] === 0xff && body[1] === 0xfe) return decodeAs(body.subarray(2), 'utf-16le');
   const label = contentType === null || contentType === undefined ? null : charsetParameter(contentType);
   const fromHeader = label === null ? null : encodingForLabel(label);
-  return decodeAs(body, fromHeader ?? prescanMetaCharset(body) ?? 'utf-8');
+  const declared = fromHeader ?? prescanMetaCharset(body);
+  if (declared !== null) return decodeAs(body, declared);
+  try {
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(body);
+  } catch {
+    return decodeWindows1252(body);
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2256,29 +2268,49 @@ export function snapshotFromHtml(html: string, documentUrl: string, options: { p
     return read;
   };
   const anchors = named('a').filter((a) => attr(a, 'href') !== null);
-  const linkOf = (a: ElementNode): PageLink => {
+  const legal = new RegExp(SNAPSHOT_LEGAL_WORDS, 'i');
+  // Session fix-a4, as in the in-page script: a link whose resolved address is longer than the limit is left
+  // out, and all links share a budget of characters (a long `<base href>` is otherwise repeated in every
+  // link); the last part of the budget is kept for links that name a legal page.
+  let linkChars = 0;
+  let linksLeftOut = false;
+  const baseTooLong = base !== null && base.length > CAPTURE_LIMITS.urlLength;
+  const linkOf = (a: ElementNode): PageLink | null => {
     const raw = attr(a, 'href') ?? '';
+    // An address longer than the limit is not even resolved.
+    if (raw.length > CAPTURE_LIMITS.urlLength) return null;
     let href = raw;
     try {
-      href = absoluteUrl(raw, base);
+      // A base address over the limit is not parsed again for every link: only links that are absolute
+      // themselves are kept, a relative one would be longer than the limit anyway.
+      href = baseTooLong ? new URL(raw).href : absoluteUrl(raw, base);
     } catch {
+      if (baseTooLong) return null;
       href = raw;
     }
+    if (href.length > CAPTURE_LIMITS.urlLength) return null;
     const label = (innerText(a) || attr(a, 'aria-label') || attr(a, 'title') || '').replace(/\s+/g, ' ').trim().slice(0, SNAPSHOT_LINK_TEXT_LENGTH);
+    const budget = legal.test(`${label} ${raw}`) ? CAPTURE_LIMITS.linkChars : CAPTURE_LIMITS.linkChars - LEGAL_LINK_RESERVE;
+    if (linkChars + href.length > budget) return null;
+    linkChars += href.length;
     return { href, text: label, footer: inFooterBox(a.parent, doc.html) };
   };
-  const links = anchors.slice(0, SNAPSHOT_MAX_LINKS).map(linkOf);
-  if (anchors.length > SNAPSHOT_MAX_LINKS) {
-    const legal = new RegExp(SNAPSHOT_LEGAL_WORDS, 'i');
-    let extra = 0;
-    for (const a of anchors.slice(SNAPSHOT_MAX_LINKS)) {
+  const links: PageLink[] = [];
+  let extra = 0;
+  for (let i = 0; i < anchors.length && i < LINK_SCAN_MAX && links.length < SNAPSHOT_MAX_LINKS + SNAPSHOT_MAX_EXTRA_LINKS; i += 1) {
+    const a = anchors[i] as ElementNode;
+    if (i >= SNAPSHOT_MAX_LINKS) {
       if (extra >= SNAPSHOT_MAX_EXTRA_LINKS) break;
-      const words = `${innerText(a) || ''} ${attr(a, 'aria-label') || ''} ${attr(a, 'title') || ''} ${attr(a, 'href') || ''}`;
-      if (legal.test(words)) {
-        links.push(linkOf(a));
-        extra += 1;
-      }
+      const words = `${innerText(a) || ''} ${attr(a, 'aria-label') || ''} ${attr(a, 'title') || ''} ${(attr(a, 'href') || '').slice(0, CAPTURE_LIMITS.urlLength)}`;
+      if (!legal.test(words)) continue;
     }
+    const link = linkOf(a);
+    if (link === null) {
+      linksLeftOut = true;
+      continue;
+    }
+    links.push(link);
+    if (i >= SNAPSHOT_MAX_LINKS) extra += 1;
   }
 
   const metas = named('meta');
@@ -2292,13 +2324,13 @@ export function snapshotFromHtml(html: string, documentUrl: string, options: { p
   };
 
   const snapshot: PageSnapshot = {
-    url: url ?? documentUrl,
-    title,
-    lang,
+    url: cutText(url ?? documentUrl, CAPTURE_LIMITS.urlLength),
+    title: cutText(title, CAPTURE_LIMITS.titleLength),
+    lang: lang === null ? null : cutText(lang, CAPTURE_LIMITS.langLength),
     text: text.slice(0, SNAPSHOT_MAX_TEXT),
     textTruncated: text.length > SNAPSHOT_MAX_TEXT,
     links,
-    linksTruncated: anchors.length > SNAPSHOT_MAX_LINKS,
+    linksTruncated: anchors.length > SNAPSHOT_MAX_LINKS || linksLeftOut,
     securityMeta,
   };
   if (options.platform === true) {

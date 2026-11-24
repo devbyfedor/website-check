@@ -7,6 +7,8 @@ import {
   describeRejection,
   installNavigationGuard,
   installPopupGuard,
+  limitCapture,
+  limitSnapshot,
   navigationBlockMessage,
   notAllowedCapture,
   type NavigationGuardState,
@@ -202,7 +204,7 @@ async function runCapture(browser: Browser, session: CDPSession, url: string, se
   }
   const workerEndMs = rel();
   const timing = collected?.timing ?? null;
-  let snapshot = collected?.snapshot ?? null;
+  let snapshot = limitSnapshot(collected?.snapshot ?? null);
   // The data must come from a document the guard allows (second line of defence).
   if (snapshot !== null && !(await checkReadDocument(navigation, settings.guard, snapshot.url ?? ''))) snapshot = null;
 
@@ -238,5 +240,5 @@ async function runCapture(browser: Browser, session: CDPSession, url: string, se
       stopReason,
     },
   };
-  return { capture, stats: { events, polls, emulationFailed, wallMs: 0 } };
+  return { capture: limitCapture(capture), stats: { events, polls, emulationFailed, wallMs: 0 } };
 }

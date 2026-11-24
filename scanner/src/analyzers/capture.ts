@@ -1,4 +1,5 @@
 import { almostEmptyReason, pageEvidenceOf, recheckCapture } from '../capture/failure.ts';
+import { limitCapture } from '../capture/limits.ts';
 import type { Capture, CaptureFailure } from '../capture/types.ts';
 import type { CompiledRules } from '../rules/match.ts';
 import { analyzeAccessibility, type AccessibilityAnalysis } from './accessibility.ts';
@@ -43,7 +44,14 @@ export interface CaptureAnalysis {
    * names. The sizes, for the log. The report then claims nothing from what the page lacks.
    */
   almostEmpty: string | null;
+  /**
+   * Session fix-a4: analyses that threw. Each is null above and its part of the report is "nicht geprüft";
+   * the other parts stand. The text of the error, for the log. Missing when none threw.
+   */
+  errors?: Partial<Record<AnalysisPart, string>>;
 }
+
+export type AnalysisPart = 'thirdParty' | 'accessibility' | 'security' | 'legal' | 'platform';
 
 function almostEmptyOf(capture: Capture, legal: LegalAnalysis): string | null {
   const evidence = pageEvidenceOf(capture.page, capture.requests.length);
@@ -52,20 +60,33 @@ function almostEmptyOf(capture: Capture, legal: LegalAnalysis): string | null {
 }
 
 export function analyzeCapture(capture: Capture, rules: CompiledRules): CaptureAnalysis {
-  const checked = recheckCapture(capture);
+  // Session fix-a4: whatever adapter made the capture, and whenever, it is analysed within the limits.
+  const checked = recheckCapture(limitCapture(capture));
   if (!checked.ok) {
     const failure = checked.failure ?? { reason: 'other' as const, message: 'capture not ok' };
     return { state: failure.reason === 'blocked' ? 'blocked' : 'failed', failure, thirdParty: null, accessibility: null, security: null, legal: null, platform: null, almostEmpty: null };
   }
-  const legal = analyzeLegal(checked);
-  return {
+  // One analysis that throws does not end the scan: its part is not checked, the others stand (review finding 51).
+  const errors: Partial<Record<AnalysisPart, string>> = {};
+  const run = <T>(part: AnalysisPart, work: () => T): T | null => {
+    try {
+      return work();
+    } catch (error) {
+      errors[part] = (error instanceof Error ? `${error.name}: ${error.message}` : String(error)).slice(0, 200);
+      return null;
+    }
+  };
+  const legal = run('legal', () => analyzeLegal(checked));
+  const analysis: CaptureAnalysis = {
     state: 'analyzed',
     failure: null,
-    thirdParty: analyzeThirdParty(checked, rules),
-    accessibility: analyzeAccessibility(checked),
-    security: analyzeSecurity(checked),
+    thirdParty: run('thirdParty', () => analyzeThirdParty(checked, rules)),
+    accessibility: run('accessibility', () => analyzeAccessibility(checked)),
+    security: run('security', () => analyzeSecurity(checked)),
     legal,
-    platform: analyzePlatform(checked),
-    almostEmpty: almostEmptyOf(checked, legal),
+    platform: run('platform', () => analyzePlatform(checked)),
+    almostEmpty: legal === null ? null : almostEmptyOf(checked, legal),
   };
+  if (Object.keys(errors).length > 0) analysis.errors = errors;
+  return analysis;
 }

@@ -42,22 +42,24 @@ describe('the caps and rules of the in-page script', () => {
     expect(script).toContain(`const MAX_LINKS = ${SNAPSHOT_MAX_LINKS};`);
     expect(script).toContain(`const MAX_EXTRA_LINKS = ${SNAPSHOT_MAX_EXTRA_LINKS};`);
     expect(script).toContain(`const legal = /${SNAPSHOT_LEGAL_WORDS}/i;`);
-    expect(script).toContain(`.replace(/\\s+/g, ' ').trim().slice(0, ${SNAPSHOT_LINK_TEXT_LENGTH})`);
+    expect(script).toContain(`const MAX_LINK_TEXT = ${SNAPSHOT_LINK_TEXT_LENGTH};`);
+    expect(script).toContain(`.replace(/\\s+/g, ' ').trim(), MAX_LINK_TEXT)`);
     expect(script).toContain("(a.innerText || a.getAttribute('aria-label') || a.getAttribute('title') || '')");
     expect(script).toContain("document.querySelectorAll('a[href]')");
     expect(script).toContain('new URL(raw, document.baseURI).href');
     expect(script).toContain("tag === 'footer' || el.getAttribute('role') === 'contentinfo'");
     expect(script).toContain(`el.querySelector('header, main, [role="main"], [role="banner"]')`);
     expect(script).toContain("names.indexOf('footer') !== -1 && tag !== 'body' && tag !== 'html'");
-    expect(script).toContain('url: location.href');
+    expect(script).toContain('url: cut(location.href, MAX_URL)');
     expect(script).toContain("document.documentElement.getAttribute('lang')");
     expect(script).toContain("const text = body ? (body.innerText || '') : '';");
   });
 
   it('the homepage script reads the generator and security meta tags as the quick check does', () => {
-    expect(SNAPSHOT_EXPRESSION).toContain(`querySelectorAll('meta[name="generator" i]')).slice(0, ${SNAPSHOT_MAX_GENERATORS})`);
-    expect(SNAPSHOT_EXPRESSION).toContain(`.slice(0, ${SNAPSHOT_GENERATOR_LENGTH})`);
-    expect(SNAPSHOT_EXPRESSION).toContain(`.slice(0, ${SNAPSHOT_META_LENGTH})`);
+    expect(SNAPSHOT_EXPRESSION).toContain(`document.querySelectorAll('meta[name="generator" i]')`);
+    expect(SNAPSHOT_EXPRESSION).toContain(`for (let i = 0; i < ${SNAPSHOT_MAX_GENERATORS} && metas`);
+    expect(SNAPSHOT_EXPRESSION).toContain(`cut(String(metas[i].getAttribute('content') || ''), ${SNAPSHOT_GENERATOR_LENGTH})`);
+    expect(SNAPSHOT_EXPRESSION).toContain(`cut(String(el.getAttribute('content') || ''), ${SNAPSHOT_META_LENGTH})`);
     expect(SNAPSHOT_EXPRESSION).toContain(`read('meta[http-equiv="content-security-policy" i]')`);
     expect(SNAPSHOT_EXPRESSION).toContain(`read('meta[name="referrer" i]')`);
   });
@@ -88,10 +90,14 @@ describe('decodeHtml', () => {
   });
 
   it('ignores a meta tag after 1024 bytes, inside a comment, or without the pragma', () => {
-    const late = bytes(`<!--${'x'.repeat(1100)}--><meta charset="iso-8859-1">`, [0xe4]);
-    expect(decodeHtml(late, null).endsWith('\ufffd')).toBe(true);
-    expect(decodeHtml(bytes('<!-- <meta charset="iso-8859-1"> -->', [0xe4]), null).endsWith('\ufffd')).toBe(true);
-    expect(decodeHtml(bytes('<meta content="text/html; charset=iso-8859-1">', [0xe4]), null).endsWith('\ufffd')).toBe(true);
+    // Session fix-a4: without a declared encoding, bytes that are not UTF-8 are read as windows-1252 (0xE4 is "ä").
+    // A meta tag that is not seen does not decide: ISO-8859-5 would make the byte a Cyrillic letter.
+    const late = bytes(`<!--${'x'.repeat(1100)}--><meta charset="iso-8859-5">`, [0xe4]);
+    expect(decodeHtml(late, null).endsWith('ä')).toBe(true);
+    expect(decodeHtml(bytes('<!-- <meta charset="iso-8859-5"> -->', [0xe4]), null).endsWith('ä')).toBe(true);
+    expect(decodeHtml(bytes('<meta content="text/html; charset=iso-8859-5">', [0xe4]), null).endsWith('ä')).toBe(true);
+    // The same tag where it counts decides.
+    expect(decodeHtml(bytes('<meta charset="iso-8859-5">', [0xe4]), null).endsWith('ä')).toBe(false);
   });
 
   it('the header wins over the meta tag; an unknown label falls back to the next source', () => {

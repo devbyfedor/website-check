@@ -289,6 +289,20 @@ export interface ReportV1 {
   legal: ReportLegal | null;
   security: ReportSecurity | null;
   counts: { findings: number; manual: number; hints: number; notChecked: number; services: number };
+  /**
+   * Session fix-a4: what this report shows only in part. `findings` and `services`: the list is shorter than
+   * `counts` says (cut at `REPORT_LIMITS`, or to keep the report within its size). `page`: parts of the page the
+   * scan read only up to a limit; empty when everything was read.
+   */
+  truncated: { findings: boolean; services: boolean; page: PageCut[] };
 }
+
+/**
+ * - `homepage-text`, `impressum-text`: the visible text is longer than the scan reads (100,000 characters).
+ * - `homepage-links`, `impressum-links`: the page has links the scan did not read (more than 1,500, or links
+ *   with an address longer than the limit).
+ * - `headers`: a response header of the homepage has a value longer than the scan keeps; it was not analysed.
+ */
+export type PageCut = 'homepage-text' | 'homepage-links' | 'impressum-text' | 'impressum-links' | 'headers';
 
 export type Report = ReportV1;
