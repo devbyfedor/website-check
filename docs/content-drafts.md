@@ -517,6 +517,14 @@ German drafts for what the report says when a limit of the scan was reached. All
 - Used when: `failure.reason` is `not-html` (the main document has a content type other than HTML); the text `report-failed` itself is written in B3.
 - Status: Entwurf
 
+## Session B2 part 1
+
+### Title of the scan screen
+
+- Text: Prüfung läuft, Website-Check DE
+- Used when: the `<title>` of the scan screen (in part 1 only on the example page of the checks, `/pruefung/beispiel`). The reference has "Prüfung läuft, Bauplan", where "Bauplan" is the name of the design; the home page has "Website-Check DE".
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/

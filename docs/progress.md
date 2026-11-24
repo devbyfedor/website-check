@@ -840,10 +840,50 @@ Fedor's answers to the questions of part 1 (`docs/decisions.md`, `docs/backlog.m
 - Where text crosses a 1 px line of the grid, the contrast at those pixels drops to 2.48:1 at the lowest, for 0.58 % (1440 px) and 0.80 % (390 px) of the background pixels behind text; the same on the reference.
 - `package-lock.json` has an uncommitted change that was there before the session (`"peer": true` on five optional packages, written by npm 11); it is in no commit.
 
+## B2 part 1: merge of B1, the scan screen with the example of the reference (24.11.2026)
+
+Branch `b2-scan`, **not merged** (by the session message: Fedor looks first). `b1-home` is merged into `main` (05f9370, a real merge) after the checks of B1 ran again on the branch. Session time: about 45 minutes (about 16:35 to 17:20). No Cloudflare, no deploy, nothing pushed, no test site visited, no helpers.
+
+Fedor's answers after B1 part 2 (`docs/decisions.md`): `scroll-margin: 8px` on the controls, a deviation from the CSS of the reference; the checks run on the branch right before a merge. Fedor's rule for the scan screen: no made-up progress run by a timer.
+
+### What was done
+
+- `package-lock.json` (step 1): npm 11.12.1, bundled with the pinned Node 24.15.0, writes `"peer": true` on five optional packages. From the committed file the first `npm install` gives a third variant (six bundled packages of `@tailwindcss/oxide-wasm32-wasi` marked extraneous); the second and every later run (four runs, and once more after `npm ci`) write exactly the uncommitted change and leave it unchanged. `npm ci` passes; version, resolved and integrity are the same for all 280 entries. Committed on `b1-home` as a commit of its own (e521bbd); after `npm install` the working tree stays clean.
+- B1 checks on `b1-home` (step 2), then the merge: numbers below.
+- `scroll-margin: 8px` on links, buttons and fields (step 4); `npm run a11y` counts a focus ring past the edge of the window right after Tab as an error (shown: without the margin it finds 4 cut rings on the home page and exits with 1).
+- The reference at 390 px (step 5): `design/reference/pruefung.html` has no sideways scrolling, no text outside the window, no cut-off text and no overlapping text boxes, by the layout check of `npm run visual` and by eye; with motion, at 12 moments from 0.35 to 8 s, it does not scroll sideways at 390 or 1440 px. Nothing to report; the small text of the drawing is 5.4 px high at 390 px, as on the home page.
+- The scan screen (step 6, `web/components/scan/`): `ScanScreen` with the header ("Prüfung abbrechen", the shared `HeaderAction`), the heading, the plotter (`SketchFrame` with the timings of pruefung.html, rail and carriage, code mark, footer texts, the red marks, the pen), the "Messprotokoll" (time bar, eight steps), "Fertig. Ihr Bericht ist gezeichnet." with "Bericht öffnen", and the footer; CSS modules with the keyframes and reduced-motion rules of the reference. The example of the reference (domain, steps, marks, summary, the times of its compressed run) is one module, `example-scan.ts`; its page `/pruefung/beispiel` is built only for the checks (`page.example.tsx`, `WC_EXAMPLES=1`); the production build has no such page and fails if "roesterei-muster" gets into `web/out` (shown: exit 1 with the page renamed to `page.tsx`). The form of the home page is unchanged.
+- `npm run visual`, `motion` and `a11y` check the scan screen (step 7); they build with the example pages. `npm run preview:examples` serves that build. Unit tests: the 41 timed elements of pruefung.html with their delays and durations, the time bar, the shapes, the label of the drawing and every text of the page; only the example page imports the example data.
+
+### Numbers against the conditions of the session message
+
+B1, on `b1-home` before the merge:
+- Home against start.html with reduced motion: 0.000 % at 1440 px (0 of 2,095,200) and 390 px (0 of 1,112,280). Motion: 25 of 25 animations without difference, frames at 4 moments and the layer switch 0 pixels. axe 0 violations. 14 of 14 controls by Tab with visible focus. 0 requests to other hosts. `npm test` 1,358 of 1,358, typecheck and `build:web` pass. Merged.
+
+B2 part 1, final run on `b2-scan` (all checks one after the other on the last code):
+- Scan screen against pruefung.html with reduced motion: 0.000 % at 1440 px (0 of 1,736,640) and 390 px (0 of 755,430), also 0 in the strict count; same page size. Home still 0.000 % at both widths (0 pixels).
+- Motion: 44 of 44 animations of the scan screen without difference in target, keyframes, duration, delay, easing and fill, all started together, at both widths (home 25 of 25). Frames of the whole scan screen at 12 moments (0.35 to 8 s): 0 different pixels at both widths, also in the strict count; no sideways scrolling at any moment. Home: 0 pixels at its 4 moments; layer switch 0 pixels (strict count 23 pixels in one frame, 0.08 s after the click). Reduced motion: 0 animations on both pages at both widths.
+- axe-core 4.14.1, every rule on by default: scan screen 0 violations with reduced motion and after every animation, at both widths (36 rules passed of 91); home 0 in all six states. Incomplete color-contrast measured by pixels: scan screen 32 elements, 0 under the required ratio against the usual background, lowest 4.89:1; home 40 elements, lowest 4.89:1 as in B1.
+- Keyboard: scan screen 6 of 6 controls (logo, "Prüfung abbrechen", "Bericht öffnen", three footer links) in the order of the reference at both widths; home 14 of 14 in the order of the reference. Every stop has :focus-visible; the ring covers at least 1.59 times the area of a 2 px line at 3:1 or more (scan screen), 1.53 (home); right after Tab every ring is whole in the window on both pages (the reference home page without the margin: 3 rings cut at 1440 px, 1 at 390 px).
+- Requests to other hosts: 0 on both pages in visual, motion and a11y at both widths; the built scan page and CSS contain no absolute address and no "googleapis" or "gstatic".
+- `npm test` 1,363 of 1,363 (5 new in `web/`). `npm run typecheck` no errors. `npm run build:web` passes and reports no example data in `web/out`. Integration tests not run (no change in `scanner/` or `worker/`). `git ls-files local` is empty.
+- Fitting to 1 %: one change (the heading as one string; 2 pixels before). About 15 minutes went into the motion check itself (the 1 px borders of the reference, `docs/decisions.md`).
+
+### Observations (`docs/backlog.md`)
+
+- In the middle of the run (3.3 s) the steps that have not lit up are at opacity 0.32: contrast 2.17 to 2.49:1, in the app and the reference alike; axe leaves them "incomplete" (the grid behind the panel).
+- In the reference "Bericht öffnen" is in the Tab order while it is invisible (until 7.4 s); the example page keeps that, the real page of part 2 should not.
+- The scan screen needs a title; "Prüfung läuft, Website-Check DE" is a draft.
+
+### How to look at it
+
+- `npm run preview:examples`, then http://127.0.0.1:3000/pruefung/beispiel (stop with Ctrl+C); the reference `design/reference/pruefung.html` beside it. With reduced motion switched on in the system the page shows the final state at once.
+- `npm run preview` is the production build: there `/pruefung/beispiel` gives 404.
+
 ## Next
 
-- Fedor: look at the animation (`npm run preview`, http://127.0.0.1:3000/ on branch `b1-home`, the reference `design/reference/start.html` beside it), then decide on the merge of `b1-home` into `main` (every point of the merge condition holds, numbers above).
-- B2 on its own branch after the merge: the scan screen with `SketchFrame` and the timings of pruefung.html, the header variant with "Prüfung abbrechen", the form starts a scan; `npm run motion` and `npm run a11y` learn the scan screen.
-- Fedor: push `main` (the commit of the brief of B1, d4a5b1f, on top of fix-a6).
-- Fedor: look at the German drafts in `docs/content-drafts.md` (also the five of fix-a6) together with the others.
+- Fedor: look at the scan screen (`npm run preview:examples`, http://127.0.0.1:3000/pruefung/beispiel on branch `b2-scan`, the reference `design/reference/pruefung.html` beside it), then decide on the merge of `b2-scan` into `main` and answer the three questions of the report (progress, "Prüfung abbrechen", motion and status messages).
+- B2 part 2: the form starts a scan, the real scan screen `/pruefung` from the API (the example module replaced), the states without design (`docs/backlog.md`), end to end home → scan → report for 3 sites in local development.
+- Fedor: push `main` (the merge of B1, 05f9370).
+- Fedor: look at the German drafts in `docs/content-drafts.md` (also the five of fix-a6 and the title of the scan screen) together with the others.
 - Fedor, before the launch (stage C): create the real D1 database (all five migrations) and put its id into both configs, set `RATE_LIMIT_SECRET` on the scan Worker; deploy the scan Worker first, then the API Worker. The measurements before the launch are in `docs/backlog.md`.
