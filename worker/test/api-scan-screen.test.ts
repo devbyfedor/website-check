@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createUrlGuard, type Resolver } from '@website-check/scanner';
 import { newScanId } from '../src/api/ids.ts';
+import { markError, saveResult } from '../src/db/store.ts';
 import { localApi } from './api-local.ts';
 import { countingD1, localD1, type LocalD1 } from './d1.ts';
 
@@ -63,6 +64,24 @@ describe('status for the scan screen', () => {
     expect(counting.queries()).toBe(1);
     expect(counting.read()).toBe(2);
     expect(counting.written()).toBe(0);
+  });
+
+  // The local runtime counts the changed scan row once; the pricing page adds a row for the partial index of scans in
+  // progress that the row leaves, so docs/d1.md budgets 2.
+  it('the report request is one query that reads one row; a cancel in D1 is one query that writes one row locally', async () => {
+    const started = await start('kaffee-beispiel.de');
+    const id = String(started.id);
+    await saveResult(d1.db, { id, now: clock, state: 'complete', mode: 'full', reportVersion: 1, reportJson: '{"schemaVersion":1}', country: null, colo: null, findings: [], hosts: [] });
+    const counting = countingD1(d1.db);
+    expect((await api(counting.db)(new Request(`https://website-check.test/api/scans/${id}/report`))).status).toBe(200);
+    expect(counting.queries()).toBe(1);
+    expect(counting.read()).toBe(1);
+
+    const other = String((await start('tee-beispiel.de')).id);
+    counting.reset();
+    await markError(counting.db, other, 'cancelled', clock);
+    expect(counting.queries()).toBe(1);
+    expect(counting.written()).toBe(1);
   });
 });
 

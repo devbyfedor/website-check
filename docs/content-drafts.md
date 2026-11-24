@@ -522,7 +522,61 @@ German drafts for what the report says when a limit of the scan was reached. All
 ### Title of the scan screen
 
 - Text: Prüfung läuft, Website-Check DE
-- Used when: the `<title>` of the scan screen (in part 1 only on the example page of the checks, `/pruefung/beispiel`). The reference has "Prüfung läuft, Bauplan", where "Bauplan" is the name of the design; the home page has "Website-Check DE".
+- Used when: the `<title>` of the scan screen (in part 1 only on the example page of the checks, `/pruefung/beispiel`). The reference has "Prüfung läuft, Bauplan", where "Bauplan" is the name of the design; the home page has "Website-Check DE". Since part 2 also the title of the real scan screen `/pruefung?id=…`.
+- Status: Entwurf
+
+## Session B2 part 2
+
+All texts of the real scan screen and of the form live in `web/lib/scan-texts.ts`. Texts marked "final" there are those of `design/reference/pruefung.html`; everything below is a draft. Values of the scanned site or of the visitor (the address, unknown service names, the place of the Impressum) are never part of a template: the page shows them as text of their own in `<bdi>`.
+
+### Heading before the address is known
+
+- Text: Ihre Website wird nachgemessen
+- Used when: the scan screen has loaded but neither the form nor the API has named the address yet (a fraction of a second, or a link opened in a new tab until the first answer). The reference: "{domain} wird nachgemessen".
+- Status: Entwurf
+
+### Rows of the "Messprotokoll" while they wait for the report
+
+- Texts, in the order of the rows: Seite aufrufen · Anfragen aufzeichnen · Einwilligungsbanner suchen · Fremde Dienste vor der Einwilligung prüfen · Impressum suchen · Pflichtangaben lesen · Barrierefreiheit prüfen · Verschlüsselung und Sicherheits-Header lesen
+- Used when: the scan waits in the queue or runs; the rows name what the scan does, never a result, no number (Fedor, B2 part 2, answer 1). Shown dimmed at a contrast of at least 4.5:1, without a tick. A row whose part the report did not check stays like this after the report (part 3 gives it a state).
+- Status: Entwurf
+
+### Rows with the report: variants not in the reference
+
+- "1 Anfrage aufgezeichnet" (singular of "{n} Anfragen aufgezeichnet"); "Anfragen aufgezeichnet" without a number for a report made before the count existed.
+- "keine an fremde Server" (for "davon {n} an fremde Server" with 0).
+- "Kein Einwilligungsbanner erkannt" (no banner seen; never a finding by itself).
+- "1 fremder Dienst vor der Einwilligung" (singular); "Keine fremden Dienste vor der Einwilligung" (none; tick instead of "!"); after three names "und 1 weiterer" or "und {n} weitere".
+- "Impressum-Link nicht gefunden" with the line "bitte manuell prüfen" (red "!", the manual check with a high risk; wording as `legal-impressum-no-link`).
+- "USt-IdNr." as the fourth name in the line of "Pflichtangaben gelesen" (the reference lists "Anschrift, E-Mail, Handelsregister"); "keine gefunden, bitte manuell prüfen" when no field was found.
+- Status: Entwurf
+
+### Summary under "Fertig. Ihr Bericht ist gezeichnet."
+
+- Pattern (final in the reference for 7 and 3): "{n} Funde, davon {p} vorrangig. Zu jedem gibt es eine Anleitung für {System}."
+- Drafts: "1 Fund" (singular); "Keine Funde."; ", davon {p} vorrangig" left out when no priority is a finding; "1 Punkt bitte manuell prüfen." or "{m} Punkte bitte manuell prüfen." when the report has manual checks; "Dazu gibt es eine Anleitung für {System}." for one finding. The sentence about the instructions only when the system is known and every finding names its instructions (B4 writes them).
+- "Der Bericht zeigt, was wir prüfen konnten." for a report that is not a complete check (quick check, blocked, refused, failed, almost empty page) until part 3 builds those states.
+- Status: Entwurf
+
+### Text description of the drawing (aria-label)
+
+- While waiting: Der Plotter zeichnet die Startseite, die wir prüfen.
+- With the report: "Der Plotter zeichnet die geprüfte Startseite." (no priority), "… und markiert einen vorrangigen Fund rot." (one), "… und markiert {n} vorrangige Funde rot." (two or three). The reference names the places ("Überschrift, Quelltext am Seitenende und Unterzeile"); the real marks stand on those places in the order of the priorities, which is no measured place (see `docs/decisions.md`), so the text does not name them.
+- Status: Entwurf
+
+### Status line (role="status")
+
+- In the queue: "Ihre Prüfung wartet: Platz {n} in der Warteschlange." (without a known place: "Ihre Prüfung wartet in der Warteschlange.")
+- Running: "Die Messung läuft."
+- Ready: "Die Messung ist fertig. Der Bericht ist bereit."
+- Used when: the status region of the scan screen; a text only when the state changes (Fedor, B2 part 2, answer 3). Visible under the lead text in the cyan of "Startseite und Impressum".
+- Status: Entwurf
+
+### Temporary messages of part 2
+
+- Scan screen: "Das hat nicht geklappt. Bitte versuchen Sie es später noch einmal." (every answer with an error: unknown id, the scan ended with our error, the report could not be read, three status requests in a row without an answer).
+- Form of the home page: "Das hat nicht geklappt. Bitte prüfen Sie die Adresse und versuchen Sie es noch einmal." (every refused start: empty field, invalid or refused address, limits, "heute ausgelastet", our errors). Shown under "Website prüfen" in the light red of the marks, `role="alert"`.
+- Both are replaced by the states of part 3.
 - Status: Entwurf
 
 ## Sources
