@@ -8,7 +8,8 @@
   },
   "workspaces": [
     "scanner",
-    "worker"
+    "worker",
+    "web"
   ],
   "scripts": {
     "test": "vitest run",
@@ -21,7 +22,9 @@
     "report:check": "node scanner/src/local/report-check.ts",
     "lab:e2e": "node scanner/src/local/e2e-lab.ts",
     "lab:e2e:dev": "node scanner/src/local/lab-e2e-dev.ts",
-    "lab:cpu": "node scanner/src/local/cpu-lab.ts"
+    "lab:cpu": "node scanner/src/local/cpu-lab.ts",
+    "build:web": "npm run build --workspace web",
+    "visual": "npm run build --workspace web && node web/scripts/visual.ts"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
