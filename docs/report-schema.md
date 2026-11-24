@@ -129,6 +129,9 @@ Session fix-a6 (the last polishing session of stage A):
 - "Kleinster Textkontrast" without a measured contrast is `not-checked`, never `pass`. "Sicherheits-Header" is `manual` when a header that does not count has the status `manual`.
 - New header texts: `security-header-referrer-policy-weak` (`unsafe-url` or `no-referrer-when-downgrade`, weaker than the browser's default), `security-header-permissions-policy-open` (every feature allowed everywhere), `security-header-hsts-duplicate` (a repeated directive); `security-header-csp-invalid` is used now for a policy without any directive. None of them counts in "{n} von 5". A CSP meta element counts only as a child of `<head>`.
 
+Session B2 part 2:
+- `scan.requests` (`total`, `thirdParty`): the http and https requests of the homepage the scan recorded and how many of them went to third parties, for the row "17 Anfragen aufgezeichnet, davon 9 an fremde Server" of the scan screen; null when the third-party part was not checked. The property is not required, so reports made before stay valid; the schema version stays 1 (no renderer read reports before B2).
+
 ## Strings of the scanned page (requirements for stage B)
 
 The report carries text that the scanned site chose: page text, link texts and addresses, HTML snippets, selectors, header values, host names and the reasons of errors. Our own site shows a report to anyone who has its link, so a site that is checked must never get its own markup or script into our page, and must never make its text look like ours. The schema marks every such field with a `description` that starts with what it is and says "untrusted". The builder already removes C0 and C1 controls (except tab and line break), bidi controls, U+200B and U+FEFF, makes every string well formed and never cuts inside a character; stage B must still follow these rules.

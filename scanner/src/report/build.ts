@@ -960,6 +960,8 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
       axeVersion: versionOf(capture.axe?.axeVersion),
       // Session fix-a6 (review finding 82): a page captured at the limit of 15 seconds was still loading.
       stopReason: loaded && capture.timings.stopReason !== 'error' ? capture.timings.stopReason : null,
+      // Session B2 part 2: the row of the scan screen with the number of requests.
+      requests: tp === null ? null : { total: countOf(tp.counts.firstPartyRequests + tp.counts.thirdPartyRequests), thirdParty: countOf(tp.counts.thirdPartyRequests) },
     },
     visit: {
       country: countryOf((options.visit ?? capture.visit)?.country),

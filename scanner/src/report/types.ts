@@ -265,6 +265,12 @@ export interface ReportV1 {
      * Null when the page was not loaded.
      */
     stopReason: 'network-quiet' | 'max-wait' | 'fetched' | null;
+    /**
+     * Session B2 part 2: the requests of the homepage the scan recorded (http and https; `data:` and `blob:` are not
+     * counted), and how many of them went to third parties: the row "17 Anfragen aufgezeichnet, davon 9 an fremde
+     * Server" of the scan screen. Null when the third-party part was not checked. Missing in reports made before.
+     */
+    requests?: { total: number; thirdParty: number } | null;
   };
   /** Where the site was visited from. The report names the country in its head and next to every finding about data sent before consent. */
   visit: {
