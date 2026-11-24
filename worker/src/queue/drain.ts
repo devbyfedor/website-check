@@ -34,6 +34,8 @@ export interface DrainDeps {
   runJob(job: QueueJob, mode: ScanMode): Promise<void>;
   /** A job that could not run (for example the browser could not be opened): record it in D1. */
   onJobError(job: QueueJob, error: unknown): Promise<void>;
+  /** Session B2 part 2: a job a lost run left half cancelled; it is gone from the queue, record the cancel in D1 again. */
+  onCancelledLeft?(job: QueueJob): Promise<void>;
   /** How often the loop looks for new jobs while scans run. */
   pollMs?: number;
 }
@@ -59,6 +61,7 @@ export async function drain(deps: DrainDeps): Promise<DrainResult> {
   // job that counts as started is not running any more: retried at once, or given up after its second start.
   const stale = await queue.recoverStale(deps.now(), new Set(), 0);
   for (const job of stale.abandoned) await deps.onJobError(job, new Error('job did not finish after a retry')).catch(() => undefined);
+  for (const job of await queue.dropCancelled()) await deps.onCancelledLeft?.(job).catch(() => undefined);
 
   const runOne = async (job: QueueJob): Promise<void> => {
     let mode: ScanMode = chooseMode(job, await queue.day(deps.now()), limits, deps.browser.openMs());

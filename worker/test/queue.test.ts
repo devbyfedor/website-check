@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chooseMode, MemoryKv, QUEUE_LIMITS, ScanQueue, secondsToNextUtcDay, type DayCounters, type QueueJob, type QueueLimits, type ScanMode } from '../src/queue/core.ts';
+import { chooseMode, MAX_HOLDERS, MemoryKv, QUEUE_LIMITS, ScanQueue, secondsToNextUtcDay, type DayCounters, type QueueJob, type QueueLimits, type ScanMode } from '../src/queue/core.ts';
 import { BrowserTimeExhausted, drain, type BrowserPort } from '../src/queue/drain.ts';
 
 /**
@@ -279,5 +279,154 @@ describe('queue: a run (drain)', () => {
     await enqueueMany(queue, 1, later);
     await queue.takeNext(later);
     expect(await queue.recoverStale(later + 10 * QUEUE_LIMITS.staleRunningMs, new Set(['scan00']))).toEqual({ retried: 0, abandoned: [] });
+  });
+});
+
+describe('queue: "Prüfung abbrechen" (session B2 part 2, Fedor\'s answer 2)', () => {
+  const job = (id: string, holder: string, at = T0) => ({ id, url: `https://${id}.example/`, createdAt: at, holder });
+
+  it('a cancelled scan leaves the queue before it starts: D1 is told once, and the run never opens the browser', async () => {
+    const queue = queueWith();
+    await queue.enqueue(job('scanaa', 'token-a'), T0);
+    const told: string[] = [];
+    expect(await queue.cancel('scanaa', 'token-a', async (j) => void told.push(j.id))).toBe('removed');
+    expect(told).toEqual(['scanaa']);
+    expect(await queue.position('scanaa')).toBeNull();
+    expect(await queue.join('scanaa', 'token-b')).toBe(false);
+    const browser = new FakeBrowser();
+    const r = runner(queue, browser);
+    const result = await r.run();
+    expect(result).toMatchObject({ started: 0, full: 0, quick: 0 });
+    expect(r.ran).toEqual([]);
+    expect(browser.launches).toBe(0);
+    expect((await queue.jobs()).length).toBe(0);
+  });
+
+  it('a scan another visitor joined stays for that visitor and runs; it leaves only with the last token', async () => {
+    const queue = queueWith();
+    await queue.enqueue(job('scanaa', 'token-a'), T0);
+    expect(await queue.join('scanaa', 'token-b')).toBe(true);
+    const told: string[] = [];
+    const finalize = async (j: QueueJob) => void told.push(j.id);
+    expect(await queue.cancel('scanaa', 'token-a', finalize)).toBe('kept');
+    expect(await queue.cancel('scanaa', 'token-a', finalize)).toBe('not-holder');
+    expect(told).toEqual([]);
+    expect(await queue.position('scanaa')).toBe(1);
+    const browser = new FakeBrowser();
+    const r = runner(queue, browser);
+    await r.run();
+    expect(r.ran).toEqual([{ id: 'scanaa', mode: 'full', browserOpen: true }]);
+    expect(browser.launches).toBe(1);
+    // After the run the queue does not know it any more: the second visitor's cancel changes nothing.
+    expect(await queue.cancel('scanaa', 'token-b', finalize)).toBe('unknown');
+    expect(told).toEqual([]);
+
+    const other = queueWith();
+    await other.enqueue(job('scanbb', 'token-a'), T0);
+    await other.join('scanbb', 'token-b');
+    expect(await other.cancel('scanbb', 'token-b', finalize)).toBe('kept');
+    expect(await other.cancel('scanbb', 'token-a', finalize)).toBe('removed');
+    expect(told).toEqual(['scanbb']);
+  });
+
+  it('a running scan is not stopped: the cancel answers "running" and the scan ends normally', async () => {
+    const queue = queueWith();
+    await queue.enqueue(job('scanaa', 'token-a'), T0);
+    const browser = new FakeBrowser();
+    const r = runner(queue, browser, () => 60);
+    const run = r.run();
+    for (let i = 0; i < 50 && (await queue.position('scanaa')) !== 0; i += 1) await tick(2);
+    expect(await queue.position('scanaa')).toBe(0);
+    const told: string[] = [];
+    expect(await queue.cancel('scanaa', 'token-a', async (j) => void told.push(j.id))).toBe('running');
+    await run;
+    expect(r.ran.map((x) => x.id)).toEqual(['scanaa']);
+    expect(r.errors).toEqual([]);
+    expect(told).toEqual([]);
+  });
+
+  it('a wrong token changes nothing, a job without tokens (older code) cannot be cancelled, and the other scans keep their places', async () => {
+    const queue = queueWith();
+    await queue.enqueue(job('scanaa', 'token-a'), T0);
+    await queue.enqueue({ id: 'scanbb', url: 'https://scanbb.example/', createdAt: T0 + 1 }, T0 + 1);
+    await queue.enqueue(job('scancc', 'token-c', T0 + 2), T0 + 2);
+    const never = async () => {
+      throw new Error('finalize must not run');
+    };
+    expect(await queue.cancel('scanaa', 'token-x', never)).toBe('not-holder');
+    expect(await queue.cancel('scanbb', 'token-a', never)).toBe('not-holder');
+    expect(await queue.cancel('scanzz', 'token-a', never)).toBe('unknown');
+    expect(await queue.cancel('scanaa', 'token-a', async () => undefined)).toBe('removed');
+    expect(await queue.position('scanbb')).toBe(1);
+    expect(await queue.position('scancc')).toBe(2);
+    expect(await queue.waitingCount()).toBe(2);
+  });
+
+  it('a start that joins while the last visitor cancels waits for the cancel and is told the scan is gone', async () => {
+    const queue = queueWith();
+    await queue.enqueue(job('scanaa', 'token-a'), T0);
+    let release: () => void = () => undefined;
+    const d1Written = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const order: string[] = [];
+    const cancel = queue.cancel('scanaa', 'token-a', async () => {
+      await d1Written;
+      order.push('d1 written');
+    });
+    await tick(1);
+    const joined = queue.join('scanaa', 'token-b').then((ok) => {
+      order.push(`join ${ok}`);
+      return ok;
+    });
+    const taken = queue.takeNext(T0 + 5).then((j) => {
+      order.push(`take ${j?.id ?? 'none'}`);
+      return j;
+    });
+    await tick(5);
+    expect(order).toEqual([]);
+    release();
+    expect(await cancel).toBe('removed');
+    expect(await joined).toBe(false);
+    expect(await taken).toBeNull();
+    expect(order).toEqual(['d1 written', 'join false', 'take none']);
+  });
+
+  it('a job left half cancelled by a lost run is dropped by the next run and told to D1 again, without a browser', async () => {
+    const store = new MemoryKv();
+    const queue = new ScanQueue(store, QUEUE_LIMITS);
+    await queue.enqueue(job('scanaa', 'token-a'), T0);
+    const [key] = [...store.map.keys()].filter((k) => k.startsWith('job:'));
+    await store.put(key as string, { ...(store.map.get(key as string) as QueueJob), holders: [], cancelled: true });
+    expect(await queue.position('scanaa')).toBeNull();
+    const browser = new FakeBrowser();
+    const told: string[] = [];
+    const result = await drain({
+      queue,
+      browser,
+      now: () => T0 + 60_000,
+      sleep: tick,
+      pollMs: 5,
+      runJob: async () => {
+        throw new Error('must not run');
+      },
+      onJobError: async () => undefined,
+      onCancelledLeft: async (j) => void told.push(j.id),
+    });
+    expect(result.started).toBe(0);
+    expect(told).toEqual(['scanaa']);
+    expect(browser.launches).toBe(0);
+    expect((await queue.jobs()).length).toBe(0);
+  });
+
+  it('keeps at most MAX_HOLDERS tokens; a job joined by more visitors is never cancelled', async () => {
+    const queue = queueWith();
+    await queue.enqueue(job('scanaa', 'token-0'), T0);
+    for (let i = 1; i <= MAX_HOLDERS; i += 1) expect(await queue.join('scanaa', `token-${i}`)).toBe(true);
+    const stored = (await queue.jobs())[0]?.job;
+    expect(stored?.holders).toHaveLength(MAX_HOLDERS);
+    expect(stored?.pinned).toBe(true);
+    for (let i = 0; i < MAX_HOLDERS; i += 1) await queue.cancel('scanaa', `token-${i}`, async () => undefined);
+    expect(await queue.position('scanaa')).toBe(1);
   });
 });

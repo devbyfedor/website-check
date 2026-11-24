@@ -1,4 +1,4 @@
-import type { UrlRejection } from '@website-check/scanner/api';
+import { displayHostOf, type UrlRejection } from '@website-check/scanner/api';
 import type { ScanRow } from '../db/store.ts';
 
 /**
@@ -26,12 +26,20 @@ function iso(ms: number | null): string | null {
   return ms === null ? null : new Date(ms).toISOString();
 }
 
-export function scanBody(scan: ScanRow, cached: boolean, queuePosition: number | null = null): Record<string, unknown> {
+/**
+ * The body of a scan in the API's answers. Session B2 part 2: `displayHost` for the heading of the scan screen
+ * (the normalized address the visitor entered, in the form of the report's `site.displayHost`; null when the row
+ * was read without its site), and `cancelToken` only in the answer to the start that handed it out.
+ */
+export function scanBody(scan: ScanRow, cached: boolean, queuePosition: number | null = null, extra: { host?: string | null; cancelToken?: string | null } = {}): Record<string, unknown> {
+  const host = extra.host ?? scan.host ?? null;
   return {
     id: scan.id,
     status: scan.status,
     state: scan.state,
     cached,
+    displayHost: host === null ? null : displayHostOf(host),
+    ...(extra.cancelToken !== undefined && extra.cancelToken !== null ? { cancelToken: extra.cancelToken } : {}),
     // Only while the scan waits: its place in the queue (1 = next), shown by the scan screen (B2).
     queuePosition: scan.status === 'queued' ? queuePosition : null,
     createdAt: iso(scan.createdAt),

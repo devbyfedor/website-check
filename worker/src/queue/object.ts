@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import puppeteer, { type Browser, type BrowserWorker } from '@cloudflare/puppeteer';
 import { chromeVersionOf, createDohResolver, createFetchBudget, createUrlGuard, installPopupGuard, QUICK_CHECK_FETCHES, quickCapture, type CaptureVisit, type PopupGuardState, type UrlGuard } from '@website-check/scanner';
+import { isCancelToken, isScanId, newCancelToken } from '../api/ids.ts';
 import { answerResponse, parseStartInput, startScan } from '../api/start.ts';
 import { markError } from '../db/store.ts';
 import { AXE_SOURCE } from '../capture/axe-source.ts';
@@ -22,6 +23,8 @@ import { runScanJob, type CaptureOutcome } from './job.ts';
  *   POST /start     {url, visitor, ratePerHour?, force?} → the API's answer to the start (status, JSON body,
  *                                                   Retry-After): 202 new and queued, 200 cached, 400, 429, 503
  *   GET  /position?id=…                           → {position}: 0 running, 1 next, null unknown
+ *   POST /cancel    {id, token}                   → {outcome}: "Prüfung abbrechen" of one visitor (session B2 part 2;
+ *                                                   `CancelOutcome` in core.ts); the API Worker answers 204 whatever it is
  *   GET  /stats                                   → day counters and the last jobs' measurements (the lab reads it; the
  *                                                   production Worker never routes a visitor here)
  *   GET  /limits                                  → Browser Run's limits and recent sessions (the lab reads it, as /stats)
@@ -167,12 +170,28 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
           dayCap: (now) => this.#queue.dayCapReached(now),
           ...(exempt !== undefined ? { exempt } : {}),
           dispatch: async (scan) => {
-            const result = await this.#queue.enqueue({ ...scan, ...(input.force !== undefined ? { force: input.force } : {}) }, Date.now());
-            if (result.accepted) await this.#wake();
-            return result;
+            // Session B2 part 2: the visitor's cancel token is kept with the job.
+            const holder = newCancelToken();
+            const result = await this.#queue.enqueue({ ...scan, holder, ...(input.force !== undefined ? { force: input.force } : {}) }, Date.now());
+            if (!result.accepted) return result;
+            await this.#wake();
+            return { ...result, token: holder };
+          },
+          join: async (id) => {
+            const token = newCancelToken();
+            return (await this.#queue.join(id, token)) ? token : null;
           },
         });
         return answerResponse(answer);
+      }
+      if (pathname === '/cancel' && request.method === 'POST') {
+        // Session B2 part 2 (Fedor's answer 2): "Prüfung abbrechen". The API Worker checked the form of id and token.
+        const body = (await request.json().catch(() => null)) as { id?: unknown; token?: unknown } | null;
+        const id = typeof body?.id === 'string' && isScanId(body.id) ? body.id : null;
+        const token = typeof body?.token === 'string' && isCancelToken(body.token) ? body.token : null;
+        if (id === null || token === null) return json({ error: 'bad-request' }, 500);
+        const outcome = await this.#queue.cancel(id, token, (job) => this.#recordCancel(job.id));
+        return json({ outcome });
       }
       if (pathname === '/position' && request.method === 'GET') {
         const id = searchParams.get('id') ?? '';
@@ -207,6 +226,19 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
     }
   }
 
+  /**
+   * A cancelled scan ends in D1 as an error with the reason `cancelled` (no report; the cache never reuses it). When
+   * D1 does not take it, the next runs write it, as for every scan whose end D1 did not take (session fix-a5).
+   */
+  async #recordCancel(id: string): Promise<void> {
+    try {
+      await markError(this.env.DB, id, 'cancelled', Date.now());
+    } catch {
+      await this.#queue.addUnrecorded(id, 'cancelled', Date.now());
+      if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + UNRECORDED_RETRY_MS);
+    }
+  }
+
   async #wake(): Promise<void> {
     if (this.#draining) return; // the running loop takes new jobs itself
     await this.ctx.storage.setAlarm(Date.now());
@@ -232,6 +264,7 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
         onJobError: async (job, error) => {
           await markError(this.env.DB, job.id, `queue: ${(error instanceof Error ? error.message : String(error)).slice(0, 150)}`, Date.now());
         },
+        onCancelledLeft: (job) => this.#recordCancel(job.id),
       });
       more = result.more;
     } finally {

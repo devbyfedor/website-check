@@ -35,3 +35,15 @@ export function newScanId(randomBytes: (n: number) => Uint8Array = cryptoRandomB
 export function isScanId(text: string): boolean {
   return SCAN_ID_PATTERN.test(text);
 }
+
+/**
+ * Session B2 part 2: the cancel token a start hands to its visitor ("Prüfung abbrechen" of a scan in the queue),
+ * of the same form as a scan id. Only the queue object keeps it, with the job, until the job leaves the queue.
+ */
+export function newCancelToken(randomBytes: (n: number) => Uint8Array = cryptoRandomBytes): string {
+  return newScanId(randomBytes);
+}
+
+export function isCancelToken(text: string): boolean {
+  return SCAN_ID_PATTERN.test(text);
+}

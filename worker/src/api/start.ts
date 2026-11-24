@@ -30,7 +30,8 @@ export interface StartInput {
   force?: 'quick';
 }
 
-export type DispatchResult = { accepted: true; position: number } | { accepted: false; reason: 'daily-limit'; retryAfterSeconds: number };
+/** `token`: the cancel token of the visitor who started the scan (session B2 part 2), kept by the queue with the job. */
+export type DispatchResult = { accepted: true; position: number; token?: string } | { accepted: false; reason: 'daily-limit'; retryAfterSeconds: number };
 
 export interface StartDeps {
   db: D1Database;
@@ -54,7 +55,14 @@ export interface StartDeps {
   dayCap?: (now: number) => Promise<number | null>;
   /** Local `wrangler dev` only: exact fixture origins that skip the address rules (never set on Cloudflare). */
   exempt?: (url: URL) => boolean;
+  /**
+   * Session B2 part 2: the visitor joins a scan that waits or runs (an answer from the cache): a cancel token of
+   * their own, or null when the queue does not know the scan any more (it finished, or was cancelled a moment ago).
+   */
+  join?: (id: string) => Promise<string | null>;
 }
+
+const inProgress = (scan: { status: string }): boolean => scan.status === 'queued' || scan.status === 'running';
 
 const MAX_URL = 2100;
 const MAX_VISITOR = 64;
@@ -113,12 +121,22 @@ export async function startScan(input: StartInput, deps: StartDeps): Promise<Ans
   const budget = await checkStart(deps.db, visitor, now, starts);
   if (!budget.result.allowed) return rateLimited(budget.result.retryAfterSeconds, budget.result.limit);
 
-  const cached = await findCachedScan(deps.db, address.url, now);
+  let cached = await findCachedScan(deps.db, address.url, now);
+  let token: string | null = null;
+  if (cached !== null && inProgress(cached) && deps.join !== undefined) {
+    // Session B2 part 2: the visitor joins the scan with a cancel token of their own. A scan that left the queue
+    // between the read and the join (its last visitor cancelled it) is read again: D1 knows that by now.
+    token = await deps.join(cached.id);
+    if (token === null) {
+      cached = await findCachedScan(deps.db, address.url, clock());
+      if (cached !== null && inProgress(cached)) token = await deps.join(cached.id);
+    }
+  }
   if (cached !== null) {
     // A cached answer takes no scan slot, but it is a start of the visitor's budget.
     const counted = await recordStart(deps.db, visitor, now, starts, budget.loaded);
     if (!counted.allowed) return rateLimited(counted.retryAfterSeconds, counted.limit);
-    return answer(200, scanBody(cached, true));
+    return answer(200, scanBody(cached, true, null, { host: address.host, cancelToken: token }));
   }
 
   const verdict = await deps.check(address.url);
@@ -146,9 +164,11 @@ export async function startScan(input: StartInput, deps: StartDeps): Promise<Ans
   if (!result.created) {
     // Another visitor started the same address at the same moment: this one gets that scan and its slot is given back.
     await releaseSlot(deps.db, visitor, slot);
-    return answer(200, scanBody(result.scan, true));
+    const joined = inProgress(result.scan) && deps.join !== undefined ? await deps.join(result.scan.id) : null;
+    return answer(200, scanBody(result.scan, true, null, { host: address.host, cancelToken: joined }));
   }
   let position: number | null = null;
+  let holderToken: string | null = null;
   if (deps.dispatch !== undefined) {
     let dispatched: DispatchResult | void;
     try {
@@ -165,8 +185,9 @@ export async function startScan(input: StartInput, deps: StartDeps): Promise<Ans
       return dailyLimit(dispatched.retryAfterSeconds);
     }
     position = dispatched?.position ?? null;
+    holderToken = dispatched?.token ?? null;
   }
-  return answer(202, scanBody(result.scan, false, position));
+  return answer(202, scanBody(result.scan, false, position, { host: address.host, cancelToken: holderToken }));
 }
 
 function rateLimited(retryAfterSeconds: number, limit: 'hour' | 'day' | 'starts'): Answer {
