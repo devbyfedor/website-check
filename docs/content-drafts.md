@@ -483,7 +483,7 @@ German drafts for what the report says when a limit of the scan was reached. All
 ### `security-header-permissions-policy-open`
 
 - Title: Permissions-Policy erlaubt alles
-- Fact and risk: Ihre Seite sendet den Header Permissions-Policy, erlaubt darin aber jede genannte Funktion für alle Herkunften: „{value}“. So schränkt der Header nichts ein. Wir werten ihn deshalb nicht als vorhanden.
+- Fact and risk: Ihre Seite sendet den Header Permissions-Policy, erlaubt darin aber jede genannte Funktion für jede Herkunft: „{value}“. So schränkt der Header nichts ein. Wir werten ihn deshalb nicht als vorhanden.
 - Fix: Schalten Sie ab, was Ihre Seite nicht nutzt, zum Beispiel Permissions-Policy: camera=(), microphone=(), geolocation=(). Erlauben Sie eine Funktion nur dort, wo sie gebraucht wird, etwa geolocation=(self).
 - Used when: every feature of the header that browsers still know has an allowlist with `*` (`camera=*` or `camera=(*)`); does not count in "{n} von 5".
 - Status: Entwurf
