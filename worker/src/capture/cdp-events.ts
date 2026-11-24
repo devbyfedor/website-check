@@ -56,7 +56,7 @@ import {
 import { applyEmulation, frameEmulation, sendAll, userAgentMetadataOf, viewportEmulation, VISITOR_PLATFORM } from './emulation.ts';
 import { measureFieldPositions } from './field-positions.ts';
 import { frameChain, resolveFrames, type FrameSource } from './frames.ts';
-import { captureImpressumTabCdp } from './impressum.ts';
+import { captureImpressumTabCdp, failedImpressumTab } from './impressum.ts';
 
 /**
  * Strategy (a): request events through the browser protocol.
@@ -214,12 +214,15 @@ export async function captureWithCdpEvents(browser: Browser, url: string, option
     if (settings.impressum && !hardLimitHit && capture.ok && capture.page !== null) {
       const target = chooseImpressumTarget(capture.page.links, capture.page.url ?? capture.finalUrl);
       if (target.action === 'open') {
+        const opened = Date.now();
+        // A tab that fails while it is created or prepared fails only the Impressum (finding 100); a lost browser still
+        // fails the whole capture below (`assertConnected`).
         capture.impressum = await captureImpressumTabCdp(context, target.url, {
           guard: settings.guard,
           ownTargets,
           userAgent: capture.environment.userAgent,
           homepageStartedAt: Date.parse(capture.startedAt),
-        });
+        }).catch((error: unknown) => failedImpressumTab(target.url, error, opened, Date.parse(capture.startedAt)));
         result.stats.impressumMs = capture.impressum.timings.totalMs;
       } else {
         capture.impressum = null;
