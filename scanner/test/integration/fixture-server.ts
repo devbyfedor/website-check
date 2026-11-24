@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { resolve } from 'node:path';
 import { createLocalGuard } from '../../src/local/node-resolver.ts';
+import { heavyPage } from './heavy-pages.ts';
 
 /** Accessibility fixture pages of session A3, served as `www.a11y.test/<file>`. */
 const A11Y_DIR = resolve(import.meta.dirname, '../../fixtures/a11y');
@@ -383,7 +384,10 @@ export async function startFixtureServer(): Promise<FixtureServer> {
     const host = (req.headers.host ?? '').split(':')[0] ?? '';
     const path = (req.url ?? '/').split('?')[0] ?? '/';
     const handler = routes[`${host}${path}`] ?? (host === 'www.a11y.test' && /^\/[a-z-]+\.html$/.test(path) ? a11yPage(path) : undefined);
-    if (handler === undefined) send(res, 404, 'text/plain', 'not found');
+    // Session fix-a4: the heavy pages of the review, shared with the tests of the Cloudflare adapter.
+    const heavy = handler === undefined && host === 'www.heavy.test' ? heavyPage(path) : null;
+    if (heavy !== null) send(res, heavy.status, heavy.type, heavy.body, heavy.headers);
+    else if (handler === undefined) send(res, 404, 'text/plain', 'not found');
     else handler(req, res, port);
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
