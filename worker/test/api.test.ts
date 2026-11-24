@@ -185,7 +185,7 @@ describe('rate limit: 5 scans per hour per visitor, hashed IP with a daily salt'
     const cached = await start('kaffee-beispiel.de');
     for (let i = 0; i < 10; i += 1) expect((await start('kaffee-beispiel.de')).body.id).toBe(cached.body.id);
     for (let i = 0; i < 10; i += 1) expect((await start('localhost')).status).toBe(400);
-    expect(await count('rate_events')).toBe(1);
+    expect(await count('rate_state')).toBe(1);
     for (let i = 2; i <= 5; i += 1) expect((await start(`laden${i}-beispiel.de`)).status).toBe(202);
     expect((await start('laden6-beispiel.de')).status).toBe(429);
     expect((await start('kaffee-beispiel.de')).status).toBe(200);
@@ -199,12 +199,12 @@ describe('rate limit: 5 scans per hour per visitor, hashed IP with a daily salt'
     const all = dump.join('\n');
     for (const needle of ['203.0.113.77', '2001:db8:abcd:12', '2001:0db8', '4:3405803853', '6:2001:db8:abcd:0/56', SECRET]) expect(all).not.toContain(needle);
 
-    const hashes = async (): Promise<string[]> => (await d1.db.prepare('SELECT visitor FROM rate_events ORDER BY at').all<{ visitor: string }>()).results.map((r) => r.visitor);
+    const hashes = async (): Promise<string[]> => (await d1.db.prepare('SELECT visitor FROM rate_state ORDER BY day').all<{ visitor: string }>()).results.map((r) => r.visitor);
     await d1.clear();
     await start('tag1-beispiel.de', '203.0.113.77');
     const [day1] = await hashes();
     clock += 24 * 3_600_000;
-    // The event of the day before is older than the window and deleted with this start.
+    // The row of the day before is deleted with the salt of the new day.
     await start('tag2-beispiel.de', '203.0.113.77');
     const [day2] = await hashes();
     expect(day1).toMatch(/^[0-9a-f]{32}$/);
@@ -227,7 +227,7 @@ describe('rate limit: 5 scans per hour per visitor, hashed IP with a daily salt'
   it('two starts of the same address at the same moment by one visitor take one slot', async () => {
     const [a, b] = await Promise.all([start('kaffee-beispiel.de'), start('kaffee-beispiel.de')]);
     expect([a?.status, b?.status].sort()).toEqual([200, 202]);
-    expect(await count('rate_events')).toBe(1);
+    expect(await count('rate_state')).toBe(1);
   });
 
   it('a request without the visitor header shares one limit', async () => {
@@ -264,7 +264,7 @@ describe('refused addresses get 400 before anything is queued or counted', () =>
     expect(JSON.stringify(body)).not.toContain('127.0.0.1');
     expect(await count('scans')).toBe(0);
     expect(await count('sites')).toBe(0);
-    expect(await count('rate_events')).toBe(0);
+    expect(await count('rate_state')).toBe(0);
   });
 
   it('a resolver failure is unsure: 503, nothing queued', async () => {
@@ -379,13 +379,13 @@ describe('store edge cases (review of A5 part 2)', () => {
     expect(await count('findings')).toBe(0);
   });
 
-  it('the hourly cleanup deletes old salts and expired events without any scan', async () => {
+  it('the hourly cleanup deletes old salts and visitor rows without any scan', async () => {
     await start('kaffee-beispiel.de');
     clock += 25 * 3_600_000;
     const env = { DB: d1.db };
     await worker.scheduled({ scheduledTime: clock, cron: '0 * * * *', noRetry() {} } as ScheduledController, env);
     expect(await count('rate_salts')).toBe(0);
-    expect(await count('rate_events')).toBe(0);
+    expect(await count('rate_state')).toBe(0);
   });
 });
 

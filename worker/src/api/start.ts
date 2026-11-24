@@ -2,7 +2,7 @@ import { normalizeSiteAddress, type UrlVerdict } from '@website-check/scanner/ap
 import { createScan, findCachedScan, markError } from '../db/store.ts';
 import { answer, errorAnswer, refusal, scanBody, type Answer } from './answers.ts';
 import { cryptoRandomBytes, newScanId } from './ids.ts';
-import { hashVisitor, MIN_SECRET_LENGTH, RATE_LIMIT, RATE_LIMIT_DAY, releaseSlot, saltOfDay, takeSlot } from './rate-limit.ts';
+import { checkStart, MIN_SECRET_LENGTH, RATE_LIMIT, RATE_LIMIT_DAY, rateVisitor, recordStart, releaseSlot, saltOfDay, START_LIMIT, takeSlot, utcDay, type LoadedState, type StartLimits } from './rate-limit.ts';
 
 /**
  * The start of a scan (session A5 part 5, Fedor's answer (a), docs/decisions.md): runs in the queue object
@@ -11,7 +11,12 @@ import { hashVisitor, MIN_SECRET_LENGTH, RATE_LIMIT, RATE_LIMIT_DAY, releaseSlot
  * the object); the object has 30 s CPU per request, the API Worker 10 ms. Everything with round trips runs
  * here: the 24-hour cache in D1, the queue's day cap, the SSRF guard with DNS over HTTPS, the rate limit
  * (salt of the day, visitor hash with `RATE_LIMIT_SECRET`, slot), the new scan in D1 and the hand-over to
- * the queue. The order and the answers are those of A5 part 2 and 3.
+ * the queue. The order and the answers are those of A5 part 2 and 3, with two changes of session fix-a5:
+ * - the queue's day cap is read from the object's own storage first (finding 46): after the cap a start reads
+ *   and writes nothing in D1, also when the address has a cached report (otherwise the refusal of a miss and
+ *   the answer of a hit would tell which sites other visitors checked, without any cost);
+ * - every start that passes the day cap counts against the visitor's start budget before the cache lookup,
+ *   whether it is answered from the cache, refused or a new scan (finding 89).
  */
 
 export interface StartInput {
@@ -42,6 +47,11 @@ export interface StartDeps {
    * D1 (review of A5 part 3). The queue object keeps one for all starts.
    */
   dailyGate: { until: number };
+  /**
+   * The queue's day cap as stored in the object (finding 46: the gate above lives in memory and is lost when
+   * the object is evicted): seconds until 00:00 UTC when no scan is accepted today any more, otherwise null.
+   */
+  dayCap?: (now: number) => Promise<number | null>;
   /** Local `wrangler dev` only: exact fixture origins that skip the address rules (never set on Cloudflare). */
   exempt?: (url: URL) => boolean;
 }
@@ -75,30 +85,56 @@ function dailyLimit(retryAfterSeconds: number): Answer {
 }
 
 export async function startScan(input: StartInput, deps: StartDeps): Promise<Answer> {
-  const now = (deps.now ?? Date.now)();
+  const clock = deps.now ?? Date.now;
+  const now = clock();
   const randomBytes = deps.randomBytes ?? cryptoRandomBytes;
   const address = normalizeSiteAddress(input.url, deps.exempt);
   if (!address.ok) return refusal(address.rejection);
 
-  const cached = await findCachedScan(deps.db, address.url, now);
-  if (cached !== null) return answer(200, scanBody(cached, true));
-  // The queue refused new scans for today: answer without any D1 write (a cached report above is still served).
+  // The queue refused new scans for today: answer before any D1 read or write (findings 46 and 89).
   if (deps.dailyGate.until > now) return dailyLimit(Math.max(1, Math.ceil((deps.dailyGate.until - now) / 1000)));
+  const capped = deps.dayCap === undefined ? null : await deps.dayCap(now);
+  if (capped !== null) {
+    deps.dailyGate.until = Math.max(deps.dailyGate.until, now + capped * 1000);
+    return dailyLimit(capped);
+  }
+
+  // Fail closed: without the secret the hashes could be reversed from the database alone, and no start can be counted.
+  if (deps.secret === undefined || deps.secret.length < MIN_SECRET_LENGTH) return errorAnswer(503, 'not-configured');
+  const secret = deps.secret;
+  // The lab's hourly rate gives a daily limit of 24 times as much; without it the limits are those of the brief.
+  const perHour = input.ratePerHour ?? RATE_LIMIT.scans;
+  const perDay = input.ratePerHour !== undefined ? input.ratePerHour * 24 : RATE_LIMIT_DAY.scans;
+  const starts: StartLimits = input.ratePerHour !== undefined ? { perHour: perHour * 4, perDay: perDay * 4 } : { perHour: START_LIMIT.hour, perDay: START_LIMIT.day };
+
+  // The start budget (finding 89), read only: a visitor who used it up learns nothing, whatever the address.
+  let salt = await saltOfDay(deps.db, now, randomBytes);
+  let visitor = await rateVisitor(secret, salt, input.visitor);
+  const budget = await checkStart(deps.db, visitor, now, starts);
+  if (!budget.result.allowed) return rateLimited(budget.result.retryAfterSeconds, budget.result.limit);
+
+  const cached = await findCachedScan(deps.db, address.url, now);
+  if (cached !== null) {
+    // A cached answer takes no scan slot, but it is a start of the visitor's budget.
+    const counted = await recordStart(deps.db, visitor, now, starts, budget.loaded);
+    if (!counted.allowed) return rateLimited(counted.retryAfterSeconds, counted.limit);
+    return answer(200, scanBody(cached, true));
+  }
 
   const verdict = await deps.check(address.url);
   if (!verdict.allowed) return refusal(verdict.rejection);
 
-  // Fail closed: without the secret the hashes could be reversed from the database alone.
-  if (deps.secret === undefined || deps.secret.length < MIN_SECRET_LENGTH) return errorAnswer(503, 'not-configured');
-  // The name check can take time: the salt, the slot and the new scan use the time after it, not the first reading.
-  const at = (deps.now ?? Date.now)();
-  const { day, salt } = await saltOfDay(deps.db, at, randomBytes);
-  const visitor = await hashVisitor(deps.secret, salt, input.visitor);
-  // The lab's hourly rate gives a daily limit of 24 times as much; without it the limits are those of the brief.
-  const perHour = input.ratePerHour ?? RATE_LIMIT.scans;
-  const perDay = input.ratePerHour !== undefined ? input.ratePerHour * 24 : RATE_LIMIT_DAY.scans;
-  const slot = await takeSlot(deps.db, visitor, at, newScanId(randomBytes).slice(0, 8), day, perHour, perDay);
-  if (!slot.allowed) return errorAnswer(429, 'rate-limited', { retryAfterSeconds: slot.retryAfterSeconds, limit: slot.limit }, slot.retryAfterSeconds);
+  // The name check can take time: the slot and the new scan use the time after it, not the first reading, and a
+  // start that crossed midnight UTC meanwhile counts for the new day with the newest salt (finding 8).
+  const at = clock();
+  let first: LoadedState | undefined = budget.loaded;
+  if (utcDay(at) !== salt.day) {
+    salt = await saltOfDay(deps.db, at, randomBytes);
+    visitor = await rateVisitor(secret, salt, input.visitor);
+    first = undefined;
+  }
+  const slot = await takeSlot(deps.db, visitor, at, newScanId(randomBytes).slice(0, 8), perHour, perDay, starts, first);
+  if (!slot.allowed) return rateLimited(slot.retryAfterSeconds, slot.limit);
 
   let result: Awaited<ReturnType<typeof createScan>>;
   try {
@@ -118,19 +154,23 @@ export async function startScan(input: StartInput, deps: StartDeps): Promise<Ans
     try {
       dispatched = await deps.dispatch({ id: result.scan.id, url: address.url, createdAt: result.scan.createdAt });
     } catch {
-      await markError(deps.db, result.scan.id, 'dispatch failed', (deps.now ?? Date.now)());
+      await markError(deps.db, result.scan.id, 'dispatch failed', clock());
       return errorAnswer(503, 'queue-unavailable', {}, 60);
     }
     if (dispatched !== undefined && !dispatched.accepted) {
-      // The day's cap of the queue: no scan today. The gate remembers it, so further starts write nothing,
-      // and the visitor's slot is kept, so the hourly limit still bounds retries (review of A5 part 3).
+      // The day's cap was reached by starts that passed the check above at the same moment. The gate remembers it,
+      // so further starts write nothing, and the visitor's slot is kept, so the hourly limit still bounds retries.
       deps.dailyGate.until = Math.max(deps.dailyGate.until, at + dispatched.retryAfterSeconds * 1000);
-      await markError(deps.db, result.scan.id, 'daily-limit', (deps.now ?? Date.now)());
+      await markError(deps.db, result.scan.id, 'daily-limit', clock());
       return dailyLimit(dispatched.retryAfterSeconds);
     }
     position = dispatched?.position ?? null;
   }
   return answer(202, scanBody(result.scan, false, position));
+}
+
+function rateLimited(retryAfterSeconds: number, limit: 'hour' | 'day' | 'starts'): Answer {
+  return errorAnswer(429, 'rate-limited', { retryAfterSeconds, limit }, retryAfterSeconds);
 }
 
 /** The answer as the queue object sends it back to the API Worker: the JSON body, the status and `Retry-After`. */

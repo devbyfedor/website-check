@@ -163,6 +163,15 @@ export class ScanQueue {
     return { accepted: true, position: positionIn([...all, { key: jobKey(job), job }], job.id) };
   }
 
+  /**
+   * Seconds until 00:00 UTC when the day's cap of accepted scans is reached, otherwise null. Read from the stored
+   * counters, so it holds after the object was evicted from memory (session fix-a5, review finding 46).
+   */
+  async dayCapReached(now: number): Promise<number | null> {
+    const day = await this.day(now);
+    return day.accepted >= this.limits.maxScansPerDay ? secondsToNextUtcDay(now) : null;
+  }
+
   /** 0 while the job runs, 1 for the next job to start, null when the queue does not know it (finished or never queued). */
   async position(id: string): Promise<number | null> {
     const all = await this.jobs();

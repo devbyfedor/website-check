@@ -161,6 +161,8 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
           check: (url) => guard.check(url),
           secret: this.env.RATE_LIMIT_SECRET,
           dailyGate: this.#dailyGate,
+          // The stored day cap (finding 46): after an eviction the gate above is empty again.
+          dayCap: (now) => this.#queue.dayCapReached(now),
           ...(exempt !== undefined ? { exempt } : {}),
           dispatch: async (scan) => {
             const result = await this.#queue.enqueue({ ...scan, ...(input.force !== undefined ? { force: input.force } : {}) }, Date.now());

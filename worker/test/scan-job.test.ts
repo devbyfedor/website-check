@@ -164,7 +164,7 @@ describe('the API and the queue', () => {
     expect(refused.body).toEqual({ error: 'daily-limit', retryAfterSeconds: 3_600 });
     expect(refused.headers.get('retry-after')).toBe('3600');
     // The slot is kept: the hourly limit still bounds a visitor who retries (review of A5 part 3).
-    const events = await d1.db.prepare('SELECT COUNT(*) AS n FROM rate_events').all<{ n: number }>();
+    const events = await d1.db.prepare('SELECT COUNT(*) AS n FROM rate_state').all<{ n: number }>();
     expect(events.results[0]?.n).toBe(1);
     const scans = await d1.db.prepare("SELECT status, error FROM scans").all<{ status: string; error: string }>();
     expect(scans.results).toEqual([{ status: 'error', error: 'daily-limit' }]);
@@ -176,7 +176,7 @@ describe('the API and the queue', () => {
     }
     expect(asked).toBe(1);
     expect((await d1.db.prepare('SELECT COUNT(*) AS n FROM scans').all<{ n: number }>()).results[0]?.n).toBe(1);
-    expect((await d1.db.prepare('SELECT COUNT(*) AS n FROM rate_events').all<{ n: number }>()).results[0]?.n).toBe(1);
+    expect((await d1.db.prepare('SELECT COUNT(*) AS n FROM rate_state').all<{ n: number }>()).results[0]?.n).toBe(1);
     // An error is never reused by the cache: the next day a new scan starts.
     clock += 24 * 3600 * 1000;
     expect((await start(api(), 'beispiel-baeckerei.de')).status).toBe(202);
