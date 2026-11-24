@@ -709,10 +709,71 @@ Result: merged into `main` with `git merge --no-ff`.
 - The local Playwright adapter can still keep one kind of page (a loop of large `data:` fetches) past 20 s; it is for development only and costs no browser minutes (`docs/backlog.md`).
 - New values for B2: the answer 429 with `limit: starts`, and 503 `daily-limit` also for an address with a cached report.
 
+## fix-a6: the sixth and last polishing session after the review of stage A (24.11.2026)
+
+Branch `fix-a6`, **merged into `main`**; then the brief on `main` (a commit of its own). Session time: about 1 hour (14:12 to about 15:15). No Cloudflare, no deploy, nothing pushed. The local browser visited 5 of the 30 test sites once (homepage and Impressum, 14:37 to 14:38, for "Feld B2"); everything else ran on saved captures and on pages on 127.0.0.1. Two helpers (Sonnet): one deleted strategy (b) and the A2 lab in a separate worktree (its branch was merged into `fix-a6`), one did the blind check of the system detection.
+
+Fedor's answers before the start (in `docs/decisions.md`, the review with Turnstile in `docs/backlog.md`): "heute ausgelastet" after the daily limit also for a cached report; 20 starts per hour and 60 per day per visitor with cached answers, until Turnstile; the slow page of the local adapter stays.
+
+**Stage A is finished**: the six polishing sessions fixed the review's findings named for them; the rest is in `docs/backlog.md`, one line each.
+
+### What was done
+
+- Honesty of the report. Finding 26: axe runs in an isolated world of the main frame in both adapters, so a page cannot give it a false result. 63: first party are only the requested and the final address. 66: a main document that is not HTML is a failed check (`not-html`). 70: "Drei Dinge" by risk first. 77: a header that has no effect or weakens the protection does not count (Referrer-Policy weaker than the default, Permissions-Policy that allows everything, CSP without directives, HSTS with a repeated directive; a CSP meta element only in `<head>`). 79: the redirect is a manual check when the page ended on http://. 81: "Sicherheits-Header" is manual when a header is undecided. 83: a large iframe gives a manual check and no "erfüllt"; a noticeable frame with almost nothing checked makes the part "nicht geprüft".
+- Small findings, each under 15 minutes with a test: 67 (the evidence of a confirmed finding shows a request that reached the service), 68 ("Kleinster Textkontrast" without a value is "nicht geprüft"; "Bilder mit Beschreibung" with "0 von 0" stays "erfüllt" by Fedor's answer of 24.11.2026, question in the report), 69 (reason and status of the manual redirect check), 82 (`scan.stopReason`).
+- Finding 75 as a step of its own: one strong signal names the system only when it is a header, the generator or the final host; otherwise two pieces of strong evidence, every different file of the system that the site served counting once; only answered requests count; `csrfConfig`, `salesChannelId` and `/bundles/storefront/` are weak.
+- "Feld B2": the axe run records the field (4 × 3 grid over the whole page) of every example element and, per other host, of the elements that load its files; the report gives each finding the field of its first example or element.
+- Strings of the page (28, 52, 53, 58, 59): only web addresses in `evidence.via`; the e-mail quote of a link is the address, with `source`; link addresses http(s) without user name and password, null instead of shortened; every string well formed and without controls; the schema marks every such field as untrusted, and `docs/report-schema.md` has the rules for stage B in a section of its own.
+- Finding 99: strategy (b) and the A2 lab deleted; the SSRF integration test runs on the production queue object, and the A3 check of the accessibility fixture pages on the Cloudflare adapter is a test (16 cases, the same counts with axe in the isolated world).
+- Finding 97 in part: the two timing tests of the HTML reader on 2 MB pages took 1.0 to 2.3 s while the whole suite ran (0.33 to 0.54 s alone, the same with the reader of `main`); they now compare with an ordinary page of the same size and take the fastest of up to three tries.
+- Decisions in `docs/decisions.md`, every finding of the review not fixed in stage A in `docs/backlog.md`, five German drafts in `docs/content-drafts.md`, the new values in `docs/report-schema.md`, the rule of the system in `docs/cms-fingerprints.md`.
+
+### Tests
+
+- New: `scanner/test/report-honesty-a6.test.ts` (30), `platform-honest.test.ts` (8), `untrusted-strings.test.ts` (30), `field-b2.test.ts` (3), `worker/test/lab-removed.test.ts` (2); in Chromium `scanner/test/integration/hostile-a6.test.ts` (7, local adapter) and 7 cases in `worker/test/integration/cdp-capture.test.ts` (Cloudflare adapter), pages in `scanner/test/integration/hostile-a6-pages.ts`.
+- Run against the code of `main` (a separate worktree with the new test files): 65 of the 73 unit tests failed, at least one for every finding (26 in Chromium; 28: 6, 52: 4, 53: 1, 58: 1, 59: 16, 63: 2, 66: 4, 67: 1, 68: 1, 69: 5, 70: 1, 75: 8, 77: 6, 79: 1, 81: 1, 82: 1, 83: 2, 99: 2; "Feld B2": 2); the 8 that passed are controls. In Chromium 6 of 7 failed in each adapter: the four pages that try to fake axe (26), the CSP meta element in `<body>` (77) and "Feld B2"; the honest page passed (the control). With the fix all pass.
+- Older tests changed on purpose: the referrer meta value `always` (= unsafe-url) no longer counts, a CSP meta element in `<body>` is not read, five platform cases have two files of the system instead of one, the e-mail quote of a mailto link is the address, the found fields carry `source`, the example of axe has a `field`, and the fake axe of the heavy page of fix-a4 no longer runs (both adapters now report the pinned axe-core).
+
+### Blind check of the system (finding 75)
+
+- One helper saw only the saved homepage of each of the latest 30 captures (HTML, headers, the requests with their status, screenshot), never a result of the scanner, and named the system with its evidence. Compared by a script with the scanner of the branch.
+- Named by the scanner 26, different from the reviewer 0 (WooCommerce 4 of 4 the same, Shopware major version 4 of 4 the same). "unbekannt" 4, as before the change; the reviewer called all four "other". On all 287 saved captures no detected system changed.
+
+### "Feld B2" on the test pages and on 5 sites
+
+- A page with three elements at known places: the image without alt in A1, the grey text in B2, the iframe of another host in D3, through both adapters.
+- Local run of 5 sites (into `local/fix-a6/`): 5 of 5 captured; axe examples with a field 42 of 42; accessibility findings with a field 5 of 5, manual checks 5 of 8; third-party findings 0 of 7 and hints 3 of 13 (a font or a script loaded from the head has no element with a box: `docs/backlog.md`); 5 of 5 reports valid.
+
+### Saved captures analysed again (no site visited)
+
+- All 287 saved captures (219 of real sites, 68 of our own fixture pages), reports built with the code of `main` and of the branch; a script assigned every changed value to its cause: 0 unexplained.
+- Every report changed by the new field `scan.stopReason` (82). Besides: 81, 145 reports (111 of real sites, all captures without the meta tags of the page) go from "teilweise" or "nicht erfüllt" to "bitte manuell prüfen" for the headers; 52, `source` on 194 found fields of 60 reports; 28, 65 initiator addresses (`about:`, `blob:`) of 27 reports become null; 77, one site whose Referrer-Policy is `no-referrer-when-downgrade` (7 reports) has one counted header less; 58, 3 HTML snippets lose a zero-width space; 70, 23 reports of fixture pages put the missing Impressum link first in "Drei Dinge"; 68, 2 fixture pages without text get "Kleinster Textkontrast" "nicht geprüft".
+- No state, finding id, service or system changed. `npm run scan:local -- --reanalyze` on the run of fix-a3: the fields and systems as before. `npm run report:check`: 30 of 30 reports valid.
+
+### Merge condition of fix-a6 (session message)
+
+- Findings 26, 28, 52, 53, 58, 59, 63, 66, 70, 75, 77, 79, 81, 83 and 99 fixed, each with a test: yes (above).
+- Blind check of finding 75: yes, 26 named systems, 0 different from the reviewer; "unbekannt" 4, as before.
+- `npm test` and the integration tests pass completely, one after the other: yes. `npm test` 1,326 of 1,326 (1,296 before); `npm run test:integration` 90 of 90 in Chromium (83 before) and 63 of 63 in the worker project (45 before). `npm run typecheck`: no errors. Before the timing tests were changed (finding 97), five full runs of `npm test` failed only in them (and once in a 5 s timeout of a D1 test); every file passed alone.
+- Every change in the reports is explained: yes, 0 unexplained values.
+- No secrets, addresses or names of sites, no data of real Impressum pages, no review file and no reproduction scripts in git: yes. 180 search strings and the value in `worker/.dev.vars`: 0 hits in the 350 tracked files, in the added lines of the 13 commits of the branch and in their messages. No tracked path and no tracked line names the review folder or its scripts. `git ls-files local` is empty.
+
+Result: merged into `main` with `git merge --no-ff`.
+
+### The brief (a commit of its own on `main`)
+
+- `<architecture>`: `worker/` is two Workers (the API Worker without browser code, the scan Worker with only the queue object); the checks run in one Durable Object in the EU jurisdiction with strategy (a), which also runs the start, the queue and the scans in its alarm; a new block "Limits from the measurements" (Worker CPU, browser time and the day caps of 540 s, 80 full checks and 150 scans, subrequests, D1 rows, the limits per visitor, the limits of a page).
+- `<stage_b>`: a line that every B session follows the section "Strings of the scanned page" of `docs/report-schema.md`.
+- Unchanged: owner decisions, goals, the merge conditions of stage B, and the rest of the brief (also its log and the status line at the top).
+
+### Not done, on purpose
+
+- The findings of the review that no session named (`docs/backlog.md`, one line each).
+- "Bilder mit Beschreibung" with "0 von 0" (finding 68, owner decision); the field of a finding about a font or a script from the head; the new report values are not designed.
+
 ## Next
 
-- Fedor: push `main` (fix-a5 is merged).
-- Fedor: look at the new German drafts of fix-a1 to fix-a4 in `docs/content-drafts.md` together with the others.
-- Next session: the sixth and last polishing session by the review (the small findings about the honesty of the report, finding 75 as a step of its own, "Feld B2" and the rest of the review, see `docs/backlog.md`), then stage B, session B1.
-- Fedor, before the launch of the site (stage C): create the real D1 database (all five migrations, `wrangler d1 migrations apply`) and put its id into both configs, set `RATE_LIMIT_SECRET` on the scan Worker (`npx wrangler secret put RATE_LIMIT_SECRET -c worker/wrangler.scanner.jsonc`); deploy the scan Worker first, then the API Worker.
-- Polishing after the review, already noted before it: "Feld B2" (`docs/backlog.md`); the windows-1252 fallback of the quick check is done (fix-a4).
+- Fedor: push `main` (fix-a6 and the brief are on it).
+- Stage A is finished. Next session: stage B, session B1 (app skeleton and home page), by the brief and `design/README.md`; every B session that shows report data follows `docs/report-schema.md`, "Strings of the scanned page".
+- Fedor: look at the German drafts in `docs/content-drafts.md` (also the five of fix-a6) together with the others.
+- Fedor, before the launch (stage C): create the real D1 database (all five migrations) and put its id into both configs, set `RATE_LIMIT_SECRET` on the scan Worker; deploy the scan Worker first, then the API Worker. The measurements before the launch are in `docs/backlog.md`.
