@@ -169,7 +169,7 @@ describe('strings of the scanned page', () => {
   });
 
   it('gives a general title for an unknown text id or a missing value, never the id', () => {
-    expect(findingTitle({ ...EXAMPLE.findings[3]!, textId: 'no-such-text' })).toBe('Vorrangiger Punkt');
+    expect(findingTitle({ ...EXAMPLE.findings[3]!, textId: 'no-such-text' as unknown as Finding['textId'] })).toBe('Vorrangiger Punkt');
     expect(findingTitle({ ...EXAMPLE.findings[3]!, params: {} })).toBe('Vorrangiger Punkt');
   });
 

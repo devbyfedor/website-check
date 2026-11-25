@@ -106,7 +106,7 @@ describe('the note under the head', () => {
   });
 
   it('a notice the page does not know gets a general line, never its id or a reason of the page', () => {
-    const r = { ...reportOf('blockiert'), notice: { textId: 'report-<b>neu</b>', params: { reason: '<script>' } } } as Report;
+    const r = { ...reportOf('blockiert'), notice: { textId: 'report-<b>neu</b>', params: { reason: '<script>' } } } as unknown as Report;
     expect(noticeLines(r)).toEqual([D.otherNotice]);
     const failed = { ...reportOf('zeitlimit'), failure: { reason: 'something-new', status: null } } as unknown as Report;
     expect(noticeLines(failed)[0]).toContain('bei der Prüfung ist ein Fehler aufgetreten');

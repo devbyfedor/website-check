@@ -199,6 +199,117 @@ export const THIRD_PARTY_TARGET = {
 } as const;
 
 /**
+ * Session texts-fix (drafts, docs/content-drafts.md, "Session texts-fix"): the general steps of the "Montageanleitung"
+ * of a third-party finding by its class, for a known service without steps of its own.
+ */
+const FONTS_GENERAL = [
+  'Laden Sie die Schriften, die Ihre Seite nutzt, bei Google Fonts herunter und legen Sie die Dateien auf Ihren eigenen Server.',
+  'Binden Sie sie mit @font-face aus diesen Dateien ein und entfernen Sie jeden Verweis auf fonts.googleapis.com und fonts.gstatic.com, auch in Theme, Plugins und eingefügtem Code.',
+  'Starten Sie eine neue Prüfung. Die Anfrage an Google sollte verschwunden sein.',
+] as const;
+
+export const THIRD_PARTY_FIX: Record<string, readonly string[]> = {
+  'third-party-precedent': FONTS_GENERAL,
+  'third-party-consent-required': [
+    'Laden Sie den Dienst erst, nachdem der Besucher im Einwilligungsbanner zugestimmt hat. Vorher darf sein Skript nicht starten, auch nicht über einen Tag Manager.',
+    'Das übernimmt ein Einwilligungstool: Sie tragen den Dienst dort ein, und das Tool blockiert ihn laut Anbieter, bis der Besucher zustimmt. Beispiele sind CCM19, Cookiebot, Usercentrics und das quelloffene, kostenlose Klaro!.',
+    'Starten Sie danach eine neue Prüfung. Vor der Zustimmung sollte keine Anfrage an den Anbieter mehr zu sehen sein.',
+  ],
+  'third-party-usually-consent': [
+    'Ersetzen Sie den eingebetteten Inhalt zunächst durch einen Platzhalter, etwa einen kurzen Hinweis oder ein Bild von Ihrem eigenen Server. Der Inhalt des Anbieters lädt erst, wenn der Besucher darauf klickt oder im Einwilligungsbanner zustimmt.',
+    'Viele Einwilligungstools bringen solche Platzhalter mit. Ohne Werkzeug genügt oft ein einfacher Link, etwa zur Anfahrt auf der Karte des Anbieters oder zum Video auf seiner Seite.',
+    'Starten Sie danach eine neue Prüfung. Vor dem Klick oder der Zustimmung sollte keine Anfrage an den Anbieter mehr zu sehen sein.',
+  ],
+};
+
+/** Consent Mode of Google: the basic implementation loads nothing before consent, the advanced one does. */
+const CONSENT_MODE =
+  'Wenn Sie den Einwilligungsmodus von Google (Consent Mode) nutzen, wählen Sie die einfache Umsetzung („basic“). In der erweiterten Umsetzung („advanced“) laden die Google-Tags schon beim Aufruf und senden ohne Zustimmung Daten ohne Cookies an Google.';
+
+/**
+ * Session texts-fix: the general steps of the five services with a risk found most often in the saved reports, by
+ * their `fixTextId`: without tabs, and in a system tab without confirmed steps of its own. Drafts.
+ */
+export const SERVICE_FIX: Record<string, readonly string[]> = {
+  'fix-google-fonts': FONTS_GENERAL,
+  'fix-google-tag-manager': [
+    'Laden Sie den Google Tag Manager erst nach der Zustimmung im Einwilligungsbanner. Schon das Laden seines Skripts ist eine Anfrage an Google, gleich welche Tags darin stehen.',
+    'Tragen Sie ihn dazu in Ihrem Einwilligungstool als eigenen Dienst ein, so dass das Tool ihn bis zur Zustimmung blockiert. Wird das Einwilligungsbanner selbst über den Tag Manager eingebunden, binden Sie es stattdessen direkt in die Seite ein.',
+    'Starten Sie danach eine neue Prüfung. Vor der Zustimmung sollte keine Anfrage an googletagmanager.com mehr zu sehen sein.',
+  ],
+  'fix-google-analytics': [
+    'Laden Sie Google Analytics erst nach der Zustimmung im Einwilligungsbanner: Ihr Einwilligungstool blockiert den Dienst, bis der Besucher zustimmt.',
+    CONSENT_MODE,
+    'Starten Sie danach eine neue Prüfung. Vor der Zustimmung sollte keine Anfrage an Google Analytics mehr zu sehen sein.',
+  ],
+  'fix-google-ads': [
+    'Laden Sie die Werbe-Tags von Google, etwa das Conversion-Tracking und Remarketing von Google Ads oder die Anzeigen von AdSense, erst nach der Zustimmung im Einwilligungsbanner: Ihr Einwilligungstool blockiert sie, bis der Besucher zustimmt.',
+    CONSENT_MODE,
+    'Starten Sie danach eine neue Prüfung. Vor der Zustimmung sollte keine Anfrage an doubleclick.net, googlesyndication.com oder googleadservices.com mehr zu sehen sein.',
+  ],
+  'fix-youtube-nocookie': [
+    'Laden Sie das Video erst nach einem Klick: An seiner Stelle steht zuerst ein Vorschaubild von Ihrem eigenen Server mit einem kurzen Hinweis. Der Player lädt erst, wenn der Besucher klickt oder im Einwilligungsbanner zustimmt.',
+    'Der erweiterte Datenschutzmodus allein genügt dafür nicht: Auch mit ihm lädt der Player schon beim Aufruf Ihrer Seite von youtube-nocookie.com, wie diese Prüfung zeigt.',
+    'Viele Einwilligungstools bringen solche Platzhalter mit. Ohne Werkzeug genügt ein Vorschaubild von Ihrem Server mit einem Link zum Video auf YouTube. Starten Sie danach eine neue Prüfung.',
+  ],
+};
+
+/** The names of the five headers, as the steps of the card "Sicherheits-Header" name them. */
+export const HEADER_NAMES: Record<string, string> = {
+  hsts: 'Strict-Transport-Security',
+  csp: 'Content-Security-Policy',
+  xcto: 'X-Content-Type-Options',
+  'referrer-policy': 'Referrer-Policy',
+  'permissions-policy': 'Permissions-Policy',
+};
+
+/**
+ * Session texts-fix: the step of the card "Sicherheits-Header" for each header that does not count, by the text id of
+ * the header (`report.security.headers[].textId`): the title and the fix of the drafts of sessions A3 and fix-a6
+ * (docs/content-drafts.md, "Security"). `{header}` is the name of the header (HEADER_NAMES). Drafts.
+ */
+export const HEADER_STEPS: Record<string, string> = {
+  'security-header-hsts-missing':
+    'Strict-Transport-Security nicht gesetzt. Senden Sie den Header mit jeder HTTPS-Antwort, zum Beispiel Strict-Transport-Security: max-age=31536000 (ein Jahr); über http:// gesendet, beachtet ihn der Browser nicht. Wenn Sie unsicher sind, beginnen Sie mit einer kurzen Laufzeit, etwa max-age=86400 (ein Tag), und erhöhen Sie sie später. Den Zusatz includeSubDomains setzen Sie nur, wenn alle Subdomains HTTPS haben.',
+  'security-header-hsts-invalid': 'Strict-Transport-Security ohne Wirkung. Senden Sie den Header in der HTTPS-Antwort mit einer Laufzeit in Sekunden, zum Beispiel max-age=31536000 für ein Jahr.',
+  'security-header-hsts-no-max-age': 'Strict-Transport-Security ohne gültige Laufzeit. Ergänzen Sie eine Laufzeit in Sekunden in der Form max-age=Zahl, zum Beispiel Strict-Transport-Security: max-age=31536000 für ein Jahr.',
+  'security-header-hsts-duplicate': 'Strict-Transport-Security mit doppelter Angabe. Nennen Sie jede Angabe nur einmal, zum Beispiel Strict-Transport-Security: max-age=31536000; includeSubDomains.',
+  'security-header-csp-missing':
+    'Content-Security-Policy nicht gesetzt. Legen Sie eine Richtlinie an, die nur die Quellen erlaubt, die Ihre Seite wirklich nutzt. Testen Sie sie zuerst als Content-Security-Policy-Report-Only, dann sehen Sie, was blockiert würde, ohne dass etwas kaputtgeht.',
+  'security-header-csp-invalid':
+    'Content-Security-Policy mit Fehlern. Prüfen Sie die Schreibweise, zum Beispiel script-src statt script-scr, und trennen Sie die Anweisungen mit Semikolon. Die Konsole in den Entwicklerwerkzeugen des Browsers zeigt, was er nicht versteht.',
+  'security-header-csp-report-only':
+    'Content-Security-Policy nur im Testmodus. Wenn die Meldungen keine Probleme mehr zeigen, senden Sie dieselbe Richtlinie als Content-Security-Policy. Den Testmodus können Sie für spätere Änderungen daneben behalten.',
+  'security-header-csp-manual': 'Content-Security-Policy: bitte manuell prüfen. Suchen Sie im Quelltext der Startseite nach <meta http-equiv="Content-Security-Policy".',
+  'security-header-csp-meta': 'Content-Security-Policy im Quelltext statt im Header. Wenn Ihr Hoster es erlaubt, senden Sie die Richtlinie als HTTP-Header. Sonst setzen Sie das meta-Element möglichst weit oben in den head, denn es gilt erst ab seiner Stelle.',
+  'security-header-xcto-missing': 'X-Content-Type-Options nicht gesetzt. Senden Sie den Header X-Content-Type-Options: nosniff. Er stört nichts, solange Ihr Server Skripte und Stylesheets mit dem richtigen Typ ausliefert.',
+  'security-header-xcto-invalid': 'X-Content-Type-Options mit falschem Wert. Setzen Sie den Wert genau auf nosniff: X-Content-Type-Options: nosniff.',
+  'security-header-referrer-policy-missing':
+    'Referrer-Policy nicht gesetzt. Setzen Sie den Header ausdrücklich, zum Beispiel Referrer-Policy: strict-origin-when-cross-origin. Dann hängt das Verhalten nicht von der Voreinstellung des einzelnen Browsers ab.',
+  'security-header-referrer-policy-invalid':
+    'Referrer-Policy mit unbekanntem Wert. Verwenden Sie einen der festgelegten Werte, zum Beispiel strict-origin-when-cross-origin oder no-referrer. Im Header dürfen mehrere Werte mit Komma getrennt stehen; der Browser nimmt den letzten, den er kennt.',
+  'security-header-referrer-policy-manual': 'Referrer-Policy: bitte manuell prüfen. Suchen Sie im Quelltext der Startseite nach <meta name="referrer".',
+  'security-header-referrer-policy-meta': 'Referrer-Policy im Quelltext statt im Header. Wenn Sie später auch den Header setzen, verwenden Sie denselben Wert, damit sich beide Angaben nicht widersprechen.',
+  'security-header-referrer-policy-weak':
+    'Referrer-Policy schwächer als die Voreinstellung. Setzen Sie Referrer-Policy: strict-origin-when-cross-origin oder einen strengeren Wert wie same-origin oder no-referrer. Prüfen Sie auch ein meta-Element name="referrer" im Quelltext: Es gilt nach dem Header.',
+  'security-header-permissions-policy-missing':
+    'Permissions-Policy nicht gesetzt. Senden Sie den Header und schalten Sie ab, was Ihre Seite nicht nutzt, zum Beispiel Permissions-Policy: camera=(), microphone=(), geolocation=().',
+  'security-header-permissions-policy-invalid':
+    'Permissions-Policy fehlerhaft geschrieben. Schreiben Sie jede Funktion in der Form Name=Wert, zum Beispiel camera=() für „nirgends erlaubt“, geolocation=(self) für „nur Ihre eigene Seite“ oder fullscreen=* für „überall erlaubt“, und trennen Sie die Einträge mit Komma.',
+  'security-header-permissions-policy-legacy': "Nur der veraltete Header Feature-Policy. Senden Sie stattdessen Permissions-Policy. Die Schreibweise ist neu: Aus camera 'none' wird camera=().",
+  'security-header-permissions-policy-open':
+    'Permissions-Policy erlaubt alles. Schalten Sie ab, was Ihre Seite nicht nutzt, zum Beispiel Permissions-Policy: camera=(), microphone=(), geolocation=(). Erlauben Sie eine Funktion nur dort, wo sie gebraucht wird, etwa geolocation=(self).',
+  'security-header-too-long': '{header}: Wert zu lang für die Prüfung, bitte manuell prüfen, ob er so gewollt ist. Übliche Werte dieses Headers sind wenige Zeilen lang.',
+};
+
+/** Session texts-fix: the first and the last step of the card "Sicherheits-Header" around the steps of the headers. */
+export const HEADER_STEPS_FRAME = {
+  first:
+    'Die Header setzen Sie in der Konfiguration Ihres Servers oder im Kundenbereich Ihres Hosters. Haben Sie darauf keinen Zugriff, etwa bei einem Baukastensystem, fragen Sie Ihren Anbieter, welche Header er sendet.',
+  last: 'Starten Sie danach eine neue Prüfung.',
+} as const;
+
+/**
  * "Was passiert", "Warum das wichtig ist" and the general fix of the other findings that can be among "Drei Dinge":
  * the drafts of docs/content-drafts.md ("Fact and risk" split into the fact and the risk, "Fix" one step per
  * sentence). `{count}`, `{ratio}`, `{expected}`, `{value}` are filled in one pass (`fill`); `one` is the singular.
@@ -283,6 +394,13 @@ export const FINDING_TEXTS: Record<string, FindingText> = {
     why: 'Fehlt der Link wirklich, finden Besucher die Pflichtangaben zum Anbieter nicht, und das kann abgemahnt werden.',
     fix: ['Setzen Sie einen Link mit dem Text „Impressum“ in den Fußbereich jeder Seite, so dass er ohne weiteren Klick sichtbar ist.'],
   },
+  // Session texts-fix (draft): the card of the security headers. Its steps are built from the headers of the report
+  // (HEADER_STEPS between the two of HEADER_STEPS_FRAME); `fix` is used only when the report lists none.
+  'security-headers': {
+    happens: 'Von den {total} gängigen Sicherheits-Headern zählen wir bei Ihrer Startseite {present} als gesetzt. Welche fehlen oder nicht wirken, steht in der Montageanleitung.',
+    why: 'Diese Header sind Anweisungen Ihres Servers an den Browser. Sie erschweren bekannte Angriffe, etwa das Einschleusen fremder Skripte oder das Umlenken auf eine unverschlüsselte Verbindung. Fehlen sie, entfällt dieser zusätzliche Schutz; Ihre Seite funktioniert trotzdem.',
+    fix: [HEADER_STEPS_FRAME.first, HEADER_STEPS_FRAME.last],
+  },
 };
 
 /** The systems of the tabs, in the order of the reference. */
@@ -290,37 +408,97 @@ export const FIX_SYSTEMS = ['wordpress', 'shopify', 'wix', 'jimdo', 'shopware'] 
 export type FixSystem = (typeof FIX_SYSTEMS)[number];
 export const FIX_SYSTEM_NAMES: Record<FixSystem, string> = { wordpress: 'WordPress', shopify: 'Shopify', wix: 'Wix', jimdo: 'Jimdo', shopware: 'Shopware' };
 
+/** Session texts-fix: parts that several steps by system share. */
+const NEW_SCAN = 'Starten Sie eine neue Prüfung.';
+const SHOPIFY_CONSENT_APP = 'Eine Cookie-Banner-App kann Tracking-Skripte bis zur Zustimmung blockieren, zum Beispiel Consentico (laut App-Seite mit kostenlosem Tarif).';
+const wixCustomCode = (what: string) =>
+  `Eigener Code gilt bei Wix ohne weitere Einstellung als notwendig und lädt laut Wix vor der Einwilligung. Steht ${what} als eigener Code auf der Seite, entfernen Sie ihn oder ordnen Sie ihn in seinen Einstellungen einer anderen Kategorie zu (in der englischen Hilfe von Wix: „Custom Code“).`;
+
 /**
- * "Montageanleitung" by system, by the `fixTextId` of a finding. Only Google Fonts has them (reference: WordPress is
- * final, Shopify, Wix, Jimdo and Shopware are drafts by design/README.md). Every other `fix-<service>` text is still
- * missing (docs/content-drafts.md, "Session B4 part 1").
+ * "Montageanleitung" by system, by the `fixTextId` of a finding. The WordPress steps of Google Fonts are the reference's
+ * (final). Session texts-fix: steps by system only for the five services with a risk found most often, and only steps
+ * the official documentation of the system or plugin confirms and a second helper could not refute; each step names its
+ * source next to it in docs/content-drafts.md (a unit test checks it). The reference's drafts for Shopify, Wix, Jimdo and
+ * Shopware are replaced by checked steps or left out (Jimdo). A system without confirmed steps shows the general steps
+ * (SERVICE_FIX). Drafts.
  */
 export const FIX_TEXTS: Record<string, Partial<Record<FixSystem, readonly string[]>>> = {
   'fix-google-fonts': {
+    // Reference, final.
     wordpress: [
       'Finden Sie heraus, ob Ihr Theme oder ein Plugin die Schrift einbindet. Oft steht es in den Theme-Einstellungen unter „Typografie“.',
       'Binden Sie die Schrift lokal ein, zum Beispiel mit einem Plugin für lokale Google Fonts. Die Dateien liegen danach auf Ihrem eigenen Server.',
       'Starten Sie eine neue Prüfung. Die Anfrage an Google sollte verschwunden sein.',
     ],
+    // Session texts-fix: checked against the documentation; they replace the drafts of the reference (Jimdo has none).
     shopify: [
-      'Shopify liefert die Schriften Ihres Themes von eigenen Servern. Google Fonts kommen meist aus einer App oder aus eingefügtem Code.',
-      'Suchen Sie unter Onlineshop › Themes › Code bearbeiten nach fonts.googleapis.com und entfernen Sie die Einbindung.',
-      'Wählen Sie die Schrift in den Theme-Einstellungen aus der Shopify-Schriftbibliothek und starten Sie eine neue Prüfung.',
+      'Schriften aus der Schriftbibliothek von Shopify liefert Shopify über sein eigenes CDN aus, nicht von Google. Eine Anfrage an fonts.googleapis.com stammt aus Code, der Google Fonts zusätzlich einbindet, etwa im Theme.',
+      'Entfernen Sie diese Einbindung im Code-Editor Ihres Themes.',
+      'Wählen Sie die Schrift stattdessen in den Einstellungen Ihres Themes aus der Schriftbibliothek von Shopify. Diese nutzen laut Shopify alle kostenlosen Themes; bei anderen Themes bestimmt der Theme-Entwickler die Auswahl.',
+      NEW_SCAN,
     ],
     wix: [
-      'Wix stellt seine Schriften selbst bereit. Google Fonts laden meist über ein eingebettetes HTML-Element oder eine App.',
-      'Entfernen Sie den eingebetteten Code oder die App, die die Schrift lädt.',
-      'Laden Sie die gewünschte Schrift als eigene Datei hoch und starten Sie eine neue Prüfung.',
-    ],
-    jimdo: [
-      'Prüfen Sie, ob in den Einstellungen eigener Code im Kopfbereich der Seite eingetragen ist.',
-      'Entfernen Sie jede Zeile mit fonts.googleapis.com.',
-      'Wählen Sie eine Schrift aus den Design-Einstellungen und starten Sie eine neue Prüfung.',
+      'Laut Wix werden Google Fonts bei Wix lokal gehostet. Schriften, die über benutzerdefiniertes Einbetten, ein benutzerdefiniertes Element oder ein iframe eingefügt sind, können dagegen von Google stammen.',
+      'Entfernen Sie ein solches Element: Wählen Sie es im Editor aus und drücken Sie die Entfernen-Taste.',
+      'Laden Sie die gewünschte Schrift stattdessen als eigene Datei hoch: Textelement auswählen, auf „Text bearbeiten“ klicken, im Menü „Schriftarten“ auf „Schriftarten hochladen“ und danach auf „Fertig“.',
+      NEW_SCAN,
     ],
     shopware: [
-      'In Shopware 6 bindet das Theme die Schriften ein.',
-      'Legen Sie die Schriftdateien in den Ordner Ihres Themes und binden Sie sie per @font-face ein, nicht über fonts.googleapis.com.',
-      'Kompilieren Sie das Theme neu, leeren Sie den Cache und starten Sie eine neue Prüfung.',
+      'In Shopware 6 legen Sie die Schriftdateien als Asset in Ihr Theme, in den Ordner, den die theme.json unter „asset“ nennt.',
+      'Binden Sie die Schrift im Stylesheet des Themes mit @font-face aus diesen Dateien ein und entfernen Sie den Verweis auf fonts.googleapis.com.',
+      'Kompilieren Sie das Theme mit bin/console theme:compile neu und starten Sie eine neue Prüfung.',
+    ],
+  },
+  'fix-google-analytics': {
+    wordpress: [
+      'Entfernen Sie Google-Analytics-Code, der schon fest im Theme oder in einem anderen Plugin steht.',
+      'Binden Sie Google Analytics über ein Einwilligungs-Plugin ein, das Skripte bis zur Zustimmung blockiert, zum Beispiel Complianz (die kostenlose Version enthält laut Plugin-Seite das Blockieren von Skripten) oder Cookiebot (laut Plugin-Seite kostenlos für eine Domain mit bis zu 50 Unterseiten).',
+      'Bei Complianz Premium lassen Sie Google-Tags vor der Einwilligung blockieren (in der englischen Anleitung die Frage „Do you want to block all Google Tags before consent?“, Antwort „Yes“). Mit der Voreinstellung „No“ laden die Google-Tags laut Complianz schon beim Aufruf der Seite.',
+      NEW_SCAN,
+    ],
+    shopify: ['Prüfen Sie im Code-Editor Ihres Themes, ob Google Analytics dort fest eingetragen ist, und entfernen Sie es.', SHOPIFY_CONSENT_APP, NEW_SCAN],
+    wix: [
+      'Verbinden Sie Google Analytics über „Marketing-Integrationen“ in der Website-Verwaltung (unter „Google-Tag“ auf „Verknüpfen“).',
+      'Schalten Sie unter „Datenschutz & Cookies“ das Cookie-Hinweisbanner ein (Schieberegler „Banner anzeigen“). Laut Wix schaltet es nicht unbedingt erforderliche Cookies und Skripte ab, bis der Besucher zustimmt; Google Analytics zählt Wix zu den Analyse-Cookies. Die Basisversion des Banners ist kostenlos.',
+      wixCustomCode('Google Analytics zusätzlich'),
+      NEW_SCAN,
+    ],
+  },
+  'fix-google-tag-manager': {
+    wordpress: [
+      'Prüfen Sie, wo der Google Tag Manager eingebunden ist (Theme, Plugin oder eigenes Snippet), und entfernen Sie die übrigen Einbindungen, bevor Sie ihn im Einwilligungs-Plugin einrichten.',
+      'Bei Complianz setzen Sie im Snippet des Tag Managers type="text/plain" und data-category="statistics": Laut Complianz blockiert das den Tag Manager vor der Einwilligung und gibt ihn danach frei.',
+      'Bei Real Cookie Banner wählen Sie die Vorlage „Google Tag Manager“ und lassen für den Dienst einen Inhaltsblocker anlegen; die Unterstützung für den Tag Manager gehört laut Plugin-Seite zur Pro-Version.',
+      NEW_SCAN,
+    ],
+    shopify: [
+      'Entfernen Sie einen fest eingetragenen Tag Manager aus dem Code-Editor Ihres Themes.',
+      'Binden Sie ihn stattdessen als eigenes Pixel ein (in der englischen Hilfe von Shopify: „Customer events“) und verlangen Sie dafür die Berechtigung des Besuchers („Permission“: „Required“). In Märkten mit Einwilligungspflicht wie dem EWR läuft ein solches Pixel laut Shopify erst, wenn der Besucher die verlangten Berechtigungen erteilt hat.',
+      `Alternativ: ${SHOPIFY_CONSENT_APP}`,
+      NEW_SCAN,
+    ],
+    wix: [
+      wixCustomCode('der Tag Manager'),
+      'Ist er über die Marketing-Integrationen verbunden, sammelt er laut Wix erst nach der Einwilligung Daten. Ob er vorher schon lädt, sagt Wix nicht. Starten Sie eine neue Prüfung: Sie zeigt, ob vor der Zustimmung noch eine Anfrage an googletagmanager.com geht.',
+    ],
+  },
+  'fix-google-ads': {
+    shopify: ['Prüfen Sie im Code-Editor Ihres Themes, ob Code von Google Ads oder AdSense dort fest eingetragen ist.', SHOPIFY_CONSENT_APP, NEW_SCAN],
+    wix: [
+      wixCustomCode('Code von Google Ads oder AdSense'),
+      'Ist Google Ads über die Marketing-Integrationen verbunden, sammelt es laut Wix erst nach der Einwilligung Daten. Ob es vorher schon lädt, sagt Wix nicht. Starten Sie eine neue Prüfung: Sie zeigt, ob vor der Zustimmung noch eine Anfrage an Google geht.',
+    ],
+  },
+  'fix-youtube-nocookie': {
+    wordpress: [
+      'Das quelloffene Plugin Embed Privacy ersetzt eingebettete Inhalte wie YouTube-Videos durch einen Platzhalter; laut Plugin-Seite lädt es sie erst, wenn der Besucher das Laden externer Inhalte erlaubt.',
+      'Ein Einwilligungs-Plugin mit Inhaltsblocker tut dasselbe, zum Beispiel Complianz, das laut Plugin-Seite iFrames wie YouTube blockiert.',
+      NEW_SCAN,
+    ],
+    wix: [
+      'Das YouTube-Element ist laut Wix nicht in die Cookie-Banner-Lösung von Wix eingebunden; das Banner allein hält es also nicht auf.',
+      'Entfernen Sie das YouTube-Element (im Editor auswählen und die Entfernen-Taste drücken). Als Alternative nennt Wix Wix Video; laut Wix werden dabei keine Besucherdaten an Google in den USA übertragen.',
+      NEW_SCAN,
     ],
   },
 };

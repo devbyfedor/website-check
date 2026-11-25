@@ -1,5 +1,8 @@
 import type { CaptureFailureReason } from '../capture/types.ts';
 import type { DataLocation, RiskClass, ServiceCategory, Severity } from '../rules/types.ts';
+import type { TextId } from './text-ids.ts';
+
+export { PRIORITY_TEXT_IDS, REPORT_TEXT_IDS, type TextId } from './text-ids.ts';
 
 /**
  * The report JSON, version 1 (session A5): what the Durable Object stores after a scan and what the
@@ -106,8 +109,8 @@ export interface Finding {
   area: FindingArea;
   kind: FindingKind;
   risk: FindingRisk | null;
-  /** Text id in `docs/content-drafts.md` (title, fact and risk, fix). */
-  textId: string;
+  /** Text id in `docs/content-drafts.md` (title, fact and risk, fix); one of `REPORT_TEXT_IDS` (session texts-fix). */
+  textId: TextId;
   /** Placeholders of the text, for example `count`, `ratio`, `expected`, `provider`. */
   params: Record<string, TextParam>;
   /**
@@ -248,7 +251,7 @@ export interface ReportLegal {
 export interface ReportSecurity {
   https: 'pass' | 'fail' | 'manual';
   httpRedirect: 'pass' | 'fail' | 'manual' | 'info' | 'not-checked';
-  headers: { key: string; header: string; status: string; counts: boolean; value: string | null; textId: string | null }[];
+  headers: { key: string; header: string; status: string; counts: boolean; value: string | null; textId: TextId | null }[];
   headersPresent: number;
   headersTotal: number;
 }
@@ -310,7 +313,7 @@ export interface ReportV1 {
    * and may have been a page of bot protection; such a report has no findings and no hints, and its measures
    * are `manual` (session fix-a2).
    */
-  notice: { textId: string; params: Record<string, TextParam> } | null;
+  notice: { textId: TextId; params: Record<string, TextParam> } | null;
   failure: { reason: CaptureFailureReason; status: number | null } | null;
   /** "Geprüfte Seiten": Startseite and Impressum. */
   pages: { homepage: 'checked' | 'not-checked'; impressum: 'checked' | 'not-checked' };

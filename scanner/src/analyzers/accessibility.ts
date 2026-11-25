@@ -1,5 +1,6 @@
 import type { AxeCapture, AxeContrast, AxeExample, AxeRuleId, AxeRuleResult } from '../a11y/types.ts';
 import type { Capture } from '../capture/types.ts';
+import type { TextId } from '../report/text-ids.ts';
 
 /**
  * Accessibility analysis (session A3): the six error types of the brief from the axe part of
@@ -26,7 +27,7 @@ export interface A11yCheck {
   incomplete: number;
   passes: number;
   /** Id of the draft text in `docs/content-drafts.md`; null for a pass. */
-  textId: string | null;
+  textId: TextId | null;
   /** Up to five examples of the violations (or of the undecided elements for `manual`). */
   examples: AxeExample[];
   /** Undecided elements ("bitte manuell prüfen"), also next to violations; null if there are none or the type is not checked. */
@@ -88,7 +89,7 @@ function manualTextId(id: A11yCheckId): 'a11y-manual-check' | 'a11y-manual-check
   return id === 'color-contrast' ? 'a11y-manual-check-contrast' : 'a11y-manual-check';
 }
 
-function textIdOf(id: A11yCheckId, result: A11yCheck['result'], axe: AxeCapture): string | null {
+function textIdOf(id: A11yCheckId, result: A11yCheck['result'], axe: AxeCapture): TextId | null {
   if (result === 'pass') return null;
   if (result === 'not-checked') return 'a11y-check-not-checked';
   if (result === 'manual') return manualTextId(id);

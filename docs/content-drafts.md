@@ -763,6 +763,7 @@ The lower part of the report (Stückliste, the finding details with the system t
 - Third-party services with a risk: 32 services can be such a finding (classes precedent, consent-required, usually-consent of `scanner/data/third-party-services.json`); `fix-google-fonts` has all five systems (WordPress final, the other four drafts of the reference that still have to be checked against the real systems). Missing for all five systems: `fix-google-tag-manager`, `fix-google-analytics`, `fix-google-ads`, `fix-google-analytics-advertising-features`, `fix-yandex-metrica`, `fix-hotjar`, `fix-microsoft-clarity`, `fix-brevo-tracker`, `fix-klaviyo-client-events`, `fix-criteo`, `fix-microsoft-advertising-uet`, `fix-linkedin-insight-tag`, `fix-meta-pixel`, `fix-pinterest-tag`, `fix-snap-pixel`, `fix-tiktok-pixel`, `fix-x-pixel`, `fix-google-maps`, `fix-openstreetmap-tiles`, `fix-vimeo`, `fix-youtube`, `fix-youtube-nocookie`, `fix-facebook-social-plugins`, `fix-instagram-embeds`, `fix-x-embeds`, `fix-crisp`, `fix-intercom`, `fix-livechat`, `fix-smartsupp`, `fix-tawk-to`, `fix-zendesk-web-widget` (31 × 5 = 155 texts), and the "Was passiert" and "Warum das wichtig ist" of these classes are only the general drafts above.
 - Accessibility (`a11y-color-contrast`, `-image-alt`, `-label`, `-link-name`, `-button-name`, `-html-has-lang`, `-html-lang-valid`), security (`security-https-missing`, `security-http-no-redirect`) and `legal-impressum-no-link`: only the general fix, no steps by system (10 × 5 = 50 texts).
 - `security-headers` (low risk, can be among "Drei Dinge" when fewer findings have a higher risk): no "Was passiert", no "Warum das wichtig ist", no fix at all; its card shows only the title and Soll and Ist.
+- Session texts-fix (Fedor's scope): every finding has its general text now, the services by their class and the five found most often by their own ("Session texts-fix" below); the card of the security headers has its texts. Steps by system only for those five; the other 27 services and the 10 other findings by system come after the launch (`docs/backlog.md`).
 - Status: offen
 
 ## Session B4 part 2
@@ -814,6 +815,274 @@ The BFSG page (design/reference/bfsg.html). Every text on the page is the refere
 
 - The title of the browser tab: "BFSG-Prüfschema, Website-Check DE" (the reference: "BFSG-Prüfschema, Bauplan", as the other pages: "Prüfbericht, Website-Check DE").
 - Status: Entwurf
+
+## Session texts-fix (25.11.2026)
+
+General texts for every finding the report builder can give (Fedor, message of the session of the fix texts): the explanation and the general way to fix it. Before this session, the ids of `docs/report-schema.md` ("Texts that do not exist yet") had no text; they follow here. The texts the report page shows live in `web/lib/report-detail-texts.ts`; a unit test (`web/test/report-texts-complete.test.ts`) checks that every text id of the report builder (`REPORT_TEXT_IDS` in `scanner/src/report/types.ts`) has a section in this file, that every finding that can be among "Drei Dinge" has a card with "Was passiert", "Warum das wichtig ist" and steps, and that no text holds a forbidden word of the brief. Every text is an Entwurf; the review by a native speaker is stage C.
+
+Rules of this session (Fedor): no menu path or name of a setting that is not in the official documentation; tools are named as options without a judgement, a free one too when there is one; no forbidden word of the brief.
+
+### The five services with a risk found most often (step 3)
+
+Counted in the latest analysis of each of the 30 test sites (`local/results`, no site visited): a service counts once per site, only a known service of the classes precedent, consent-required and usually-consent. Google Tag Manager 8 sites, Google Analytics 6, Google Fonts 5, Google Ads / AdSense 3, YouTube (erweiterter Datenschutzmodus) 2; every other such service at most 1 (Meta Pixel, Google Analytics (Werbefunktionen), Facebook Social Plugins, Instagram, Google Maps, Microsoft Advertising, Pinterest Tag). The 30 reports of `check:report --reports` (27 different sites, one report each) give the same first three, then YouTube (erweiterter Datenschutzmodus) with 2 and Google Ads / AdSense with 1, the same as six other services; the analysis of the 30 sites decides the fifth place. These five get steps by system in this session (Fedor: only the five most frequent); every other service the general text of its class.
+
+- Status: Entwurf
+
+### General fix by class of service (`third-party-consent-required`, `third-party-usually-consent`, `third-party-precedent`)
+
+The steps of the "Montageanleitung" (without tabs) of a known service whose finding has no text of its own (`fix-<service>`), by the class of the service. "Was passiert" and "Warum das wichtig ist" of these classes are the drafts of "Session B4 part 1" (and the reference's for Google Fonts).
+
+- `third-party-consent-required` (statistics, tag managers, advertising, social pixels, session recording, marketing automation):
+  1. Laden Sie den Dienst erst, nachdem der Besucher im Einwilligungsbanner zugestimmt hat. Vorher darf sein Skript nicht starten, auch nicht über einen Tag Manager.
+  2. Das übernimmt ein Einwilligungstool: Sie tragen den Dienst dort ein, und das Tool blockiert ihn laut Anbieter, bis der Besucher zustimmt. Beispiele sind CCM19, Cookiebot, Usercentrics und das quelloffene, kostenlose Klaro!.
+  3. Starten Sie danach eine neue Prüfung. Vor der Zustimmung sollte keine Anfrage an den Anbieter mehr zu sehen sein.
+- `third-party-usually-consent` (maps, videos, embedded posts, chat and review windows):
+  1. Ersetzen Sie den eingebetteten Inhalt zunächst durch einen Platzhalter, etwa einen kurzen Hinweis oder ein Bild von Ihrem eigenen Server. Der Inhalt des Anbieters lädt erst, wenn der Besucher darauf klickt oder im Einwilligungsbanner zustimmt.
+  2. Viele Einwilligungstools bringen solche Platzhalter mit. Ohne Werkzeug genügt oft ein einfacher Link, etwa zur Anfahrt auf der Karte des Anbieters oder zum Video auf seiner Seite.
+  3. Starten Sie danach eine neue Prüfung. Vor dem Klick oder der Zustimmung sollte keine Anfrage an den Anbieter mehr zu sehen sein.
+- `third-party-precedent` (only Google Fonts): the general steps of `fix-google-fonts` below.
+- Used for: `fix-<service>` of every known service of these classes without a text of its own, in this session 27 of the 32 services (all but Google Fonts, Google Tag Manager, Google Analytics, Google Ads / AdSense and YouTube (erweiterter Datenschutzmodus), which have their own general steps below).
+- Sources: see "Sources of the general texts" below.
+- Status: Entwurf
+
+### General fix of the five services found most often (`fix-google-fonts`, `fix-google-tag-manager`, `fix-google-analytics`, `fix-google-ads`, `fix-youtube-nocookie`)
+
+The five services of step 3 above. Their general steps stand without tabs, and in a system tab that has no confirmed steps of its own (`SERVICE_FIX` in `web/lib/report-detail-texts.ts`).
+
+- `fix-google-fonts`:
+  1. Laden Sie die Schriften, die Ihre Seite nutzt, bei Google Fonts herunter und legen Sie die Dateien auf Ihren eigenen Server.
+  2. Binden Sie sie mit @font-face aus diesen Dateien ein und entfernen Sie jeden Verweis auf fonts.googleapis.com und fonts.gstatic.com, auch in Theme, Plugins und eingefügtem Code.
+  3. Starten Sie eine neue Prüfung. Die Anfrage an Google sollte verschwunden sein. (The sentence of the reference's WordPress steps.)
+- `fix-google-tag-manager`:
+  1. Laden Sie den Google Tag Manager erst nach der Zustimmung im Einwilligungsbanner. Schon das Laden seines Skripts ist eine Anfrage an Google, gleich welche Tags darin stehen.
+  2. Tragen Sie ihn dazu in Ihrem Einwilligungstool als eigenen Dienst ein, so dass das Tool ihn bis zur Zustimmung blockiert. Wird das Einwilligungsbanner selbst über den Tag Manager eingebunden, binden Sie es stattdessen direkt in die Seite ein.
+  3. Starten Sie danach eine neue Prüfung. Vor der Zustimmung sollte keine Anfrage an googletagmanager.com mehr zu sehen sein.
+- `fix-google-analytics`:
+  1. Laden Sie Google Analytics erst nach der Zustimmung im Einwilligungsbanner: Ihr Einwilligungstool blockiert den Dienst, bis der Besucher zustimmt.
+  2. Wenn Sie den Einwilligungsmodus von Google (Consent Mode) nutzen, wählen Sie die einfache Umsetzung („basic“). In der erweiterten Umsetzung („advanced“) laden die Google-Tags schon beim Aufruf und senden ohne Zustimmung Daten ohne Cookies an Google.
+  3. Starten Sie danach eine neue Prüfung. Vor der Zustimmung sollte keine Anfrage an Google Analytics mehr zu sehen sein.
+- `fix-google-ads`:
+  1. Laden Sie die Werbe-Tags von Google, etwa das Conversion-Tracking und Remarketing von Google Ads oder die Anzeigen von AdSense, erst nach der Zustimmung im Einwilligungsbanner: Ihr Einwilligungstool blockiert sie, bis der Besucher zustimmt.
+  2. Wenn Sie den Einwilligungsmodus von Google (Consent Mode) nutzen, wählen Sie die einfache Umsetzung („basic“). In der erweiterten Umsetzung („advanced“) laden die Google-Tags schon beim Aufruf und senden ohne Zustimmung Daten ohne Cookies an Google.
+  3. Starten Sie danach eine neue Prüfung. Vor der Zustimmung sollte keine Anfrage an doubleclick.net, googlesyndication.com oder googleadservices.com mehr zu sehen sein.
+- `fix-youtube-nocookie`:
+  1. Laden Sie das Video erst nach einem Klick: An seiner Stelle steht zuerst ein Vorschaubild von Ihrem eigenen Server mit einem kurzen Hinweis. Der Player lädt erst, wenn der Besucher klickt oder im Einwilligungsbanner zustimmt.
+  2. Der erweiterte Datenschutzmodus allein genügt dafür nicht: Auch mit ihm lädt der Player schon beim Aufruf Ihrer Seite von youtube-nocookie.com, wie diese Prüfung zeigt.
+  3. Viele Einwilligungstools bringen solche Platzhalter mit. Ohne Werkzeug genügt ein Vorschaubild von Ihrem Server mit einem Link zum Video auf YouTube. Starten Sie danach eine neue Prüfung.
+- Sources: see "Sources of the general texts" below. The step "Wird das Einwilligungsbanner selbst über den Tag Manager eingebunden" follows from step 1: a banner loaded by the Tag Manager needs its script before any consent.
+- Status: Entwurf
+
+### Steps by system of the five services (step 5)
+
+How they were found (Fedor's rules for this session): a first helper (Sonnet) looked for each of the 25 pairs of service and system in the official documentation of the system or of the plugin or app the step names, with the decisive quote; a second helper (Sonnet) tried to refute every proposed step by opening the page itself (40 steps and 5 claims of the general texts: 33 confirmed, many only in a narrower wording, which is the wording used here; 10 unconfirmed; 2 refuted). A step that was not confirmed is left out; the tab then shows the general steps of the service. A menu label stands only where a German page of the system shows it; where only the English help could be read, the step describes the place without a label or names the English label as English. Every step is an Entwurf; the review by a native speaker and a look at the real systems are stage C. `web/lib/report-detail-texts.ts`, `FIX_TEXTS`; the test `web/test/report-texts-complete.test.ts` checks that every step stands here with its source on the same line.
+
+- `fix-google-fonts`:
+  - WordPress:
+    1. Finden Sie heraus, ob Ihr Theme oder ein Plugin die Schrift einbindet. Oft steht es in den Theme-Einstellungen unter „Typografie“. Quelle: design/reference/bericht.html (final text of the design, not part of the check)
+    2. Binden Sie die Schrift lokal ein, zum Beispiel mit einem Plugin für lokale Google Fonts. Die Dateien liegen danach auf Ihrem eigenen Server. Quelle: design/reference/bericht.html (final text of the design, not part of the check)
+    3. Starten Sie eine neue Prüfung. Die Anfrage an Google sollte verschwunden sein. Quelle: design/reference/bericht.html (final text of the design, not part of the check)
+  - Shopify:
+    1. Schriften aus der Schriftbibliothek von Shopify liefert Shopify über sein eigenes CDN aus, nicht von Google. Eine Anfrage an fonts.googleapis.com stammt aus Code, der Google Fonts zusätzlich einbindet, etwa im Theme. Quelle: https://shopify.dev/docs/storefronts/themes/best-practices/performance/self-host-web-fonts
+    2. Entfernen Sie diese Einbindung im Code-Editor Ihres Themes. Quelle: https://help.shopify.com/en/manual/online-store/themes/customizing-themes/edit-code/edit-theme-code
+    3. Wählen Sie die Schrift stattdessen in den Einstellungen Ihres Themes aus der Schriftbibliothek von Shopify. Diese nutzen laut Shopify alle kostenlosen Themes; bei anderen Themes bestimmt der Theme-Entwickler die Auswahl. Quelle: https://help.shopify.com/en/manual/online-store/themes/customizing-themes/theme-editor/theme-settings
+    4. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Wix:
+    1. Laut Wix werden Google Fonts bei Wix lokal gehostet. Schriften, die über benutzerdefiniertes Einbetten, ein benutzerdefiniertes Element oder ein iframe eingefügt sind, können dagegen von Google stammen. Quelle: https://support.wix.com/de/article/faqs-google-wix-und-die-dsgvo
+    2. Entfernen Sie ein solches Element: Wählen Sie es im Editor aus und drücken Sie die Entfernen-Taste. Quelle: https://support.wix.com/de/article/faqs-google-wix-und-die-dsgvo (the two actions as the page gives them for the YouTube element)
+    3. Laden Sie die gewünschte Schrift stattdessen als eigene Datei hoch: Textelement auswählen, auf „Text bearbeiten“ klicken, im Menü „Schriftarten“ auf „Schriftarten hochladen“ und danach auf „Fertig“. Quelle: https://support.wix.com/de/article/wix-editor-deine-eigenen-schriftarten-hochladen-und-verwenden
+    4. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Jimdo: no confirmed steps; the tab shows the general steps.
+  - Shopware:
+    1. In Shopware 6 legen Sie die Schriftdateien als Asset in Ihr Theme, in den Ordner, den die theme.json unter „asset“ nennt. Quelle: https://developer.shopware.com/docs/guides/plugins/themes/assets/add-assets-to-theme.html
+    2. Binden Sie die Schrift im Stylesheet des Themes mit @font-face aus diesen Dateien ein und entfernen Sie den Verweis auf fonts.googleapis.com. Quelle: https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face (a step of the web standard, not of the Shopware documentation)
+    3. Kompilieren Sie das Theme mit bin/console theme:compile neu und starten Sie eine neue Prüfung. Quelle: https://developer.shopware.com/docs/guides/plugins/themes/assets/add-assets-to-theme.html
+- `fix-google-analytics`:
+  - WordPress:
+    1. Entfernen Sie Google-Analytics-Code, der schon fest im Theme oder in einem anderen Plugin steht. Quelle: https://complianz.io/statistics-implementation/
+    2. Binden Sie Google Analytics über ein Einwilligungs-Plugin ein, das Skripte bis zur Zustimmung blockiert, zum Beispiel Complianz (die kostenlose Version enthält laut Plugin-Seite das Blockieren von Skripten) oder Cookiebot (laut Plugin-Seite kostenlos für eine Domain mit bis zu 50 Unterseiten). Quelle: https://wordpress.org/plugins/complianz-gdpr/ and https://wordpress.org/plugins/cookiebot/
+    3. Bei Complianz Premium lassen Sie Google-Tags vor der Einwilligung blockieren (in der englischen Anleitung die Frage „Do you want to block all Google Tags before consent?“, Antwort „Yes“). Mit der Voreinstellung „No“ laden die Google-Tags laut Complianz schon beim Aufruf der Seite. Quelle: https://complianz.io/simplified-guide-to-google-consent-mode-v2/ ("The steps outlined below require Complianz Premium.")
+    4. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Shopify:
+    1. Prüfen Sie im Code-Editor Ihres Themes, ob Google Analytics dort fest eingetragen ist, und entfernen Sie es. Quelle: https://help.shopify.com/en/manual/online-store/themes/customizing-themes/edit-code/edit-theme-code
+    2. Eine Cookie-Banner-App kann Tracking-Skripte bis zur Zustimmung blockieren, zum Beispiel Consentico (laut App-Seite mit kostenlosem Tarif). Quelle: https://apps.shopify.com/consentico
+    3. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Wix:
+    1. Verbinden Sie Google Analytics über „Marketing-Integrationen“ in der Website-Verwaltung (unter „Google-Tag“ auf „Verknüpfen“). Quelle: https://support.wix.com/de/article/events-auf-deiner-website-mit-google-analytics-verfolgen
+    2. Schalten Sie unter „Datenschutz & Cookies“ das Cookie-Hinweisbanner ein (Schieberegler „Banner anzeigen“). Laut Wix schaltet es nicht unbedingt erforderliche Cookies und Skripte ab, bis der Besucher zustimmt; Google Analytics zählt Wix zu den Analyse-Cookies. Die Basisversion des Banners ist kostenlos. Quelle: https://support.wix.com/de/article/einen-cookie-banner-auf-deiner-website-anzeigen
+    3. Eigener Code gilt bei Wix ohne weitere Einstellung als notwendig und lädt laut Wix vor der Einwilligung. Steht Google Analytics zusätzlich als eigener Code auf der Seite, entfernen Sie ihn oder ordnen Sie ihn in seinen Einstellungen einer anderen Kategorie zu (in der englischen Hilfe von Wix: „Custom Code“). Quelle: https://support.wix.com/en/article/categorizing-your-custom-code
+    4. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Jimdo: no confirmed steps; the tab shows the general steps.
+  - Shopware: no confirmed steps; the tab shows the general steps.
+- `fix-google-tag-manager`:
+  - WordPress:
+    1. Prüfen Sie, wo der Google Tag Manager eingebunden ist (Theme, Plugin oder eigenes Snippet), und entfernen Sie die übrigen Einbindungen, bevor Sie ihn im Einwilligungs-Plugin einrichten. Quelle: https://complianz.io/statistics-implementation/
+    2. Bei Complianz setzen Sie im Snippet des Tag Managers type="text/plain" und data-category="statistics": Laut Complianz blockiert das den Tag Manager vor der Einwilligung und gibt ihn danach frei. Quelle: https://complianz.io/how-to-set-google-tag-manager-after-consent-and-is-it-needed/
+    3. Bei Real Cookie Banner wählen Sie die Vorlage „Google Tag Manager“ und lassen für den Dienst einen Inhaltsblocker anlegen; die Unterstützung für den Tag Manager gehört laut Plugin-Seite zur Pro-Version. Quelle: https://devowl.io/knowledge-base/real-cookie-banner-with-google-tag-manager-google-consent-mode/ and https://wordpress.org/plugins/real-cookie-banner/ (Pro)
+    4. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Shopify:
+    1. Entfernen Sie einen fest eingetragenen Tag Manager aus dem Code-Editor Ihres Themes. Quelle: https://help.shopify.com/en/manual/online-store/themes/customizing-themes/edit-code/edit-theme-code
+    2. Binden Sie ihn stattdessen als eigenes Pixel ein (in der englischen Hilfe von Shopify: „Customer events“) und verlangen Sie dafür die Berechtigung des Besuchers („Permission“: „Required“). In Märkten mit Einwilligungspflicht wie dem EWR läuft ein solches Pixel laut Shopify erst, wenn der Besucher die verlangten Berechtigungen erteilt hat. Quelle: https://help.shopify.com/en/manual/promoting-marketing/pixels/custom-pixels/code and https://help.shopify.com/en/manual/promoting-marketing/pixels/custom-pixels/manage
+    3. Alternativ: Eine Cookie-Banner-App kann Tracking-Skripte bis zur Zustimmung blockieren, zum Beispiel Consentico (laut App-Seite mit kostenlosem Tarif). Quelle: https://apps.shopify.com/consentico
+    4. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Wix:
+    1. Eigener Code gilt bei Wix ohne weitere Einstellung als notwendig und lädt laut Wix vor der Einwilligung. Steht der Tag Manager als eigener Code auf der Seite, entfernen Sie ihn oder ordnen Sie ihn in seinen Einstellungen einer anderen Kategorie zu (in der englischen Hilfe von Wix: „Custom Code“). Quelle: https://support.wix.com/en/article/categorizing-your-custom-code
+    2. Ist er über die Marketing-Integrationen verbunden, sammelt er laut Wix erst nach der Einwilligung Daten. Ob er vorher schon lädt, sagt Wix nicht. Starten Sie eine neue Prüfung: Sie zeigt, ob vor der Zustimmung noch eine Anfrage an googletagmanager.com geht. Quelle: https://support.wix.com/en/article/connecting-your-google-tag-manager-account-to-your-wix-site ("Google Tag Manager will only gather data after a visitor provides consent")
+  - Jimdo: no confirmed steps; the tab shows the general steps.
+  - Shopware: no confirmed steps; the tab shows the general steps.
+- `fix-google-ads`:
+  - WordPress: no confirmed steps; the tab shows the general steps.
+  - Shopify:
+    1. Prüfen Sie im Code-Editor Ihres Themes, ob Code von Google Ads oder AdSense dort fest eingetragen ist. Quelle: https://help.shopify.com/en/manual/online-store/themes/customizing-themes/edit-code/edit-theme-code
+    2. Eine Cookie-Banner-App kann Tracking-Skripte bis zur Zustimmung blockieren, zum Beispiel Consentico (laut App-Seite mit kostenlosem Tarif). Quelle: https://apps.shopify.com/consentico
+    3. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Wix:
+    1. Eigener Code gilt bei Wix ohne weitere Einstellung als notwendig und lädt laut Wix vor der Einwilligung. Steht Code von Google Ads oder AdSense als eigener Code auf der Seite, entfernen Sie ihn oder ordnen Sie ihn in seinen Einstellungen einer anderen Kategorie zu (in der englischen Hilfe von Wix: „Custom Code“). Quelle: https://support.wix.com/en/article/categorizing-your-custom-code
+    2. Ist Google Ads über die Marketing-Integrationen verbunden, sammelt es laut Wix erst nach der Einwilligung Daten. Ob es vorher schon lädt, sagt Wix nicht. Starten Sie eine neue Prüfung: Sie zeigt, ob vor der Zustimmung noch eine Anfrage an Google geht. Quelle: https://support.wix.com/en/article/adding-your-google-remarketing-code-to-your-wix-site ("Google Ads only gathers data after a visitor provides consent")
+  - Jimdo: no confirmed steps; the tab shows the general steps.
+  - Shopware: no confirmed steps; the tab shows the general steps.
+- `fix-youtube-nocookie`:
+  - WordPress:
+    1. Das quelloffene Plugin Embed Privacy ersetzt eingebettete Inhalte wie YouTube-Videos durch einen Platzhalter; laut Plugin-Seite lädt es sie erst, wenn der Besucher das Laden externer Inhalte erlaubt. Quelle: https://wordpress.org/plugins/embed-privacy/
+    2. Ein Einwilligungs-Plugin mit Inhaltsblocker tut dasselbe, zum Beispiel Complianz, das laut Plugin-Seite iFrames wie YouTube blockiert. Quelle: https://wordpress.org/plugins/complianz-gdpr/
+    3. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Shopify: no confirmed steps; the tab shows the general steps.
+  - Wix:
+    1. Das YouTube-Element ist laut Wix nicht in die Cookie-Banner-Lösung von Wix eingebunden; das Banner allein hält es also nicht auf. Quelle: https://support.wix.com/de/article/faqs-google-wix-und-die-dsgvo
+    2. Entfernen Sie das YouTube-Element (im Editor auswählen und die Entfernen-Taste drücken). Als Alternative nennt Wix Wix Video; laut Wix werden dabei keine Besucherdaten an Google in den USA übertragen. Quelle: https://support.wix.com/de/article/faqs-google-wix-und-die-dsgvo
+    3. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Jimdo: no confirmed steps; the tab shows the general steps.
+  - Shopware: no confirmed steps; the tab shows the general steps.
+
+Left out after the check (the tab shows the general steps):
+- Every Jimdo pair (5): the help pages of Jimdo (help.jimdo.com, legal.jimdo.com) refused automated reading (HTTP 403), so no step could be confirmed; what the search summaries say is not a source.
+- The four drafts of the reference for Google Fonts on Shopify, Wix, Jimdo and Shopware are replaced (Shopify, Wix, Shopware) or left out (Jimdo): no sentence was contradicted, but these had no source: "Google Fonts kommen meist aus einer App oder aus eingefügtem Code" and the German path "Onlineshop › Themes › Code bearbeiten" (Shopify; only the English help could be read); "Google Fonts laden meist über ein eingebettetes HTML-Element oder eine App" and the removal of an app (Wix); every Jimdo sentence; "In Shopware 6 bindet das Theme die Schriften ein", "per @font-face" with the asset path of Shopware, and the cache (Shopware). The WordPress steps of the reference are final and stay.
+- Shopware × Google Analytics, Google Tag Manager, Google Ads: no page says that the built-in integration or the cookie notice of Shopware keeps these scripts from loading before consent; the only source says in general that third-party scripts must load after consent, which is the general text.
+- Shopware × YouTube: the sentence "Your cookie settings prevent us from loading YouTube …" is a placeholder of a video on the documentation page itself, not a description of the YouTube element; the cookie notice is not tied to YouTube on any page.
+- Shopify × YouTube: nothing documented. Shopify × Google Analytics: "Pixel von Apps richten sich nach der Einwilligung" was not confirmed (the page says events "might be restricted", not that the Google tag does not load); the app pixels of the channel "Google & YouTube" are therefore not named as a fix.
+- WordPress × Google Ads: Complianz says it blocks "cookies" of AdSense, not the scripts; the setting "Do you want to block all Google Tags before consent?" needs Complianz Premium and is not said to cover AdSense.
+- Wix × Google Tag Manager and Google Ads, connected through the "Marketing-Integrationen": Wix says only that they "gather data" after consent, not that they do not load before; the steps say exactly that and ask for a new scan, and only the step on own code (which loads before consent) is a fix.
+- Real Cookie Banner is not named as a free option: the plugin page puts most templates of content blockers and the support of the Google Tag Manager into the Pro version.
+- Status: Entwurf
+
+### `security-headers`
+
+- Title (B3 part 1): {present} von {total} Sicherheits-Headern gesetzt
+- Was passiert: Von den {total} gängigen Sicherheits-Headern zählen wir bei Ihrer Startseite {present} als gesetzt. Welche fehlen oder nicht wirken, steht in der Anleitung.
+- Warum das wichtig ist: Diese Header sind Anweisungen Ihres Servers an den Browser. Sie erschweren bekannte Angriffe, etwa das Einschleusen fremder Skripte oder das Umlenken auf eine unverschlüsselte Verbindung. Fehlen sie, entfällt dieser zusätzliche Schutz; Ihre Seite funktioniert trotzdem.
+- Montageanleitung (without tabs): first "Die Header setzen Sie in der Konfiguration Ihres Servers oder im Kundenbereich Ihres Hosters. Haben Sie darauf keinen Zugriff, etwa bei einem Baukastensystem, fragen Sie Ihren Anbieter, welche Header er sendet."; then one step per header that does not count (in the order Strict-Transport-Security, Content-Security-Policy, X-Content-Type-Options, Referrer-Policy, Permissions-Policy): the title of its text and its fix, as drafted in "Security" and "Session fix-a6" above (for example "X-Content-Type-Options nicht gesetzt. Senden Sie den Header X-Content-Type-Options: nosniff. Er stört nichts, solange Ihr Server Skripte und Stylesheets mit dem richtigen Typ ausliefert."); last "Starten Sie danach eine neue Prüfung."
+- Used when: the finding `security:headers` (fewer than five headers count; low risk) is among "Drei Dinge". Like every header text, none of these says that a law requires a header.
+- Status: Entwurf
+
+### `security-http-redirect-not-checked`
+
+- Title: Weiterleitung auf https:// nicht geprüft
+- Fact: Die Anfrage an Ihre Adresse mit http:// haben wir bei dieser Prüfung nicht gestellt. Ob Ihr Server auf https:// weiterleitet, wissen wir deshalb nicht.
+- Fix: Starten Sie später eine neue Prüfung. Bis dahin: bitte manuell prüfen.
+- Used when: the check of the http:// address did not run (`httpRedirect` `not-checked`). Without a risk.
+- Status: Entwurf
+
+### `third-party-unknown`
+
+- Title: {service}: unbekannter Dienst, bitte manuell prüfen
+- Fact: Ihre Startseite hat Anfragen an {service} gestellt, einen fremden Server, den unsere Liste nicht kennt. Ob dabei Daten an einen Anbieter gehen, der eine Einwilligung braucht, können wir deshalb nicht sagen.
+- Fix: Bitte manuell prüfen: Finden Sie heraus, zu welchem Dienst dieser Server gehört, etwa mit Ihrer Webagentur oder Ihrem Hoster. Gehört er zu einem fremden Anbieter, nennen Sie ihn in Ihrer Datenschutzerklärung und klären Sie, ob er erst nach einer Einwilligung laden darf.
+- Used when: a host of another registrable domain that no rule names (`known: false`); a hint without a risk. `{service}` is the host name, a string of the page (a text node only).
+- Status: Entwurf
+
+### `third-party-grey-zone`
+
+- Title: {service}: Graubereich
+- Fact: Ihre Startseite lädt Dateien von {service} ({provider}). Der Anbieter erhält dabei die IP-Adresse Ihrer Besucher. Für diesen Dienst haben wir keine Quelle, die ihn eindeutig einordnet, deshalb führen wir ihn als Graubereich und nicht als Fund.
+- Fix: Nennen Sie den Dienst in Ihrer Datenschutzerklärung. Wo Sie die Einbindung selbst steuern, etwa bei Skripten aus einem öffentlichen Servernetz, können Sie die Dateien auch auf Ihren eigenen Server legen; dann geht beim Aufruf keine Anfrage an den Anbieter.
+- Used when: a known service of the class `grey-zone` (public CDNs, and every service without a source for another class, product rule 2); a hint, never a finding.
+- Status: Entwurf
+
+### `third-party-unconfirmed`
+
+- Title: {service}: Anfragen ohne Antwort, bitte manuell prüfen
+- Fact: Ihre Startseite hat Anfragen an {service} ({provider}) gestellt, aber keine davon hat bei unserem Besuch eine Antwort bekommen. Ob dabei Daten beim Anbieter angekommen sind, wissen wir nicht.
+- Fix: Bitte manuell prüfen: Binden Sie {service} auf Ihrer Seite ein? Dann gilt dasselbe wie für jeden solchen Dienst: Er darf erst nach der Zustimmung im Einwilligungsbanner laden.
+- Used when: a known service of a class that would be a finding, whose requests got no answer (the Stückliste says "keine Antwort"); a hint without a risk.
+- Status: Entwurf
+
+### `legal-not-checked`
+
+- Title: Pflichtangaben nicht geprüft
+- Fact: Ihre Startseite konnte bei dieser Prüfung nicht gelesen werden. Die Links zu Impressum und Datenschutzerklärung und die Angaben im Impressum haben wir deshalb nicht geprüft.
+- Fix: Starten Sie später eine neue Prüfung. Bis dahin gilt für diese Punkte: bitte manuell prüfen.
+- Used when: the homepage was not read (`legal.homepageRead` false). Without a risk.
+- Status: Entwurf
+
+### `legal-impressum-same-page`
+
+- Title: Impressum auf der Startseite, bitte manuell prüfen
+- Fact: Der Link zum Impressum führt zu einer Stelle Ihrer Startseite. Die Angaben dort haben wir nicht einzeln geprüft, weil die Startseite auch andere Namen und Anschriften enthalten kann.
+- Fix: Bitte manuell prüfen: Stehen im Abschnitt mit dem Impressum Ihre Anschrift, eine E-Mail-Adresse und, wenn es sie für Ihr Unternehmen gibt, Handelsregister und USt-IdNr?
+- Used when: the Impressum link is an anchor of the homepage (state `same-page`). Without a risk.
+- Status: Entwurf
+
+### `legal-impressum-pdf`
+
+- Title: Impressum als PDF-Datei, bitte manuell prüfen
+- Fact: Der Link zum Impressum führt zu einer PDF-Datei. Ihren Inhalt lesen wir nicht, die Angaben darin haben wir deshalb nicht geprüft.
+- Fix: Bitte manuell prüfen: Stehen in der Datei Ihre Anschrift, eine E-Mail-Adresse und, wenn es sie für Ihr Unternehmen gibt, Handelsregister und USt-IdNr?
+- Used when: the Impressum link leads to a PDF file (state `pdf`). Without a risk.
+- Status: Entwurf
+
+### `legal-impressum-failed`
+
+- Title: Impressum nicht lesbar, bitte manuell prüfen
+- Fact: Den Link zum Impressum haben wir gefunden, die Seite dahinter aber nicht als Impressum lesen können. Sie hat zum Beispiel nicht rechtzeitig geantwortet, eine Fehlermeldung gezeigt oder keinen Hinweis auf ein Impressum enthalten.
+- Fix: Bitte manuell prüfen: Öffnen Sie den Link „Impressum“ auf Ihrer Startseite und sehen Sie nach, ob er zu Ihrem Impressum führt.
+- Used when: the state of the Impressum is `failed` (the page did not load, or it is no Impressum: an error page with HTTP 200, the homepage again, a page without any sign of an Impressum; fix-a3). Without a risk.
+- Status: Entwurf
+
+### `legal-impressum-not-checked`
+
+- Title: Impressum nicht geprüft
+- Fact: Den Link zum Impressum haben wir gefunden, die Seite dahinter bei dieser Prüfung aber nicht aufgerufen. Die Angaben darin sind deshalb nicht geprüft.
+- Fix: Starten Sie später eine neue Prüfung. Bis dahin: bitte manuell prüfen.
+- Used when: the state of the Impressum is `not-captured`. Without a risk.
+- Status: Entwurf
+
+### `legal-field-not-found`
+
+- Title: {Angabe} im Impressum nicht gefunden, bitte manuell prüfen. {Angabe}: "Anschrift" (`address`), "E-Mail-Adresse" (`email`), "Handelsregister" (`handelsregister`), "USt-IdNr" (`ustId`), the names of the rows of the Prüfmaß.
+- Fact: Im Impressum haben wir {die Angabe} nicht gefunden. Das heißt nicht, dass sie fehlt: Sie kann zum Beispiel als Bild eingebunden oder ungewöhnlich geschrieben sein.
+- Fix: Bitte manuell prüfen: Steht die Angabe als Text im Impressum? Handelsregister und USt-IdNr gehören nur dann dorthin, wenn es sie für Ihr Unternehmen gibt.
+- Used when: a field of the Impressum is `not-found` (product rule 3: "nicht gefunden, bitte manuell prüfen", never "fehlt"). Without a risk.
+- Status: Entwurf
+
+### `legal-datenschutz-no-link`
+
+- Title: Link zur Datenschutzerklärung nicht gefunden, bitte manuell prüfen
+- Fact: Auf der Startseite haben wir keinen Link gefunden, der zur Datenschutzerklärung führt. Er kann in einem Menü stecken, das sich erst nach einem Klick öffnet, und unsere Prüfung klickt nichts an.
+- Fix: Bitte manuell prüfen: Ist ein Link „Datenschutz“ oder „Datenschutzerklärung“ ohne weiteren Klick sichtbar, etwa in der Fußzeile? Wenn nicht, setzen Sie ihn dort auf jeder Seite.
+- Used when: no link to a Datenschutzerklärung on the homepage. Without a risk (product rule 3: only the missing Impressum link has a risk).
+- Status: Entwurf
+
+### `legal-accessibility-statement-not-found`
+
+- Title: Erklärung zur Barrierefreiheit nicht gefunden, bitte manuell prüfen
+- Fact: Auf der Startseite haben wir keinen Link zu einer Erklärung zur Barrierefreiheit gefunden. Ob Ihre Website eine braucht, hängt davon ab, ob das BFSG für Ihr Angebot gilt; das zeigt das BFSG-Prüfschema.
+- Fix: Bitte manuell prüfen: Gilt das BFSG für Ihr Angebot, verlinken Sie die Erklärung zur Barrierefreiheit auf jeder Seite, etwa in der Fußzeile neben Impressum und Datenschutz.
+- Used when: the site looks like a shop and no link to an accessibility statement was found (the decided wording of the Prüfmaß, conflict 14 of `docs/report-schema.md`). Without a risk.
+- Status: Entwurf
+
+### Notices of the report (`report-quick-incomplete`, `report-blocked`, `report-not-allowed`, `report-failed`, `report-page-almost-empty`)
+
+Their texts are the lines of "The note under the head" (Session B3 part 2) and of `report-page-almost-empty` (fix-a1); listed here so that every text id of the builder has a section.
+
+- Status: Entwurf
+
+### Sources of the general texts
+
+Each opened by the second helper (step 5), with the decisive sentence:
+- Google, "Consent mode overview" (basic: "you prevent Google tags from loading until a user interacts with a consent banner", "This setup transmits no data to Google prior to user interaction with the consent banner"; advanced: "Google tags load when a user opens the website or app"): https://developers.google.com/tag-platform/security/concepts/consent-mode
+- Klaro! ("This project is licensed under a BSD-3 license", "Free and Open Source"): https://github.com/kiprotect/klaro; `klaro-readme` in `docs/rules-sources.md`.
+- The consent tools block until consent, by their vendors: CCM19 ("Block cookies & scripts that require consent"): https://www.ccm19.de/en/; Cookiebot ("Cookies are blocked before consent is given"): https://wordpress.org/plugins/cookiebot/; Usercentrics (Smart Data Protector "blocks third-party technologies you added to your website" until consent): https://usercentrics.com/smart-data-protector/
+- Google Fonts ("You can download all Google Fonts in a simple ZIP snapshot", "you can self-host"): https://github.com/google/fonts (the FAQ of fonts.google.com loads by script and could not be read).
+- YouTube: the claim "Er ändert, was YouTube speichert" of the first draft was not confirmed (YouTube Help says only that views in the privacy-enhanced mode do not influence the viewer's experience on YouTube) and is gone; the step now says what the scan measures (a request to youtube-nocookie.com on the visit).
 
 ## Sources
 
