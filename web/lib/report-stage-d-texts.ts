@@ -29,5 +29,8 @@ export const WORK_ORDER_TEXTS = {
   href: '#arbeitsauftrag',
 } as const;
 
-/** Strings that only these parts have: a production build of web/ must not contain any of them (web/scripts/next.ts). */
-export const STAGE_D_MARKERS = ['Revisionen', 'Arbeitsauftrag', 'Erneut prüfen', 'behoben in Rev.'] as const;
+/**
+ * Strings that only these parts have: a production build of web/ must not contain any of them (web/scripts/next.ts).
+ * Not the word "Revisionen" alone: the home page names revisions among the features of the report (start.html).
+ */
+export const STAGE_D_MARKERS = ['Jede neue Prüfung wird eine Revision', 'Arbeitsauftrag', 'Erneut prüfen', 'behoben in Rev.'] as const;
