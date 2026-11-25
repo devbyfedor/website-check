@@ -841,7 +841,7 @@ The steps of the "Montageanleitung" (without tabs) of a known service whose find
   2. Viele Einwilligungstools bringen solche Platzhalter mit. Ohne Werkzeug genügt oft ein einfacher Link, etwa zur Anfahrt auf der Karte des Anbieters oder zum Video auf seiner Seite.
   3. Starten Sie danach eine neue Prüfung. Vor dem Klick oder der Zustimmung sollte keine Anfrage an den Anbieter mehr zu sehen sein.
 - `third-party-precedent` (only Google Fonts): the general steps of `fix-google-fonts` below.
-- Used for: `fix-<service>` of every known service of these classes without a text of its own, in this session 29 of the 32 services (all but Google Fonts, Google Tag Manager, Google Analytics, Google Ads / AdSense and YouTube (erweiterter Datenschutzmodus), which have their own general steps below).
+- Used for: `fix-<service>` of every known service of these classes without a text of its own, in this session 27 of the 32 services (all but Google Fonts, Google Tag Manager, Google Analytics, Google Ads / AdSense and YouTube (erweiterter Datenschutzmodus), which have their own general steps below).
 - Sources: see "Sources of the general texts" below.
 - Status: Entwurf
 
