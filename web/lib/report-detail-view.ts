@@ -146,7 +146,9 @@ function targetActual(f: Finding, report: Report): FindingCard['targetActual'] {
   }
   const id = lookup(MEASURE_OF, f.textId);
   const row = id === undefined ? undefined : measureRows(report).find((r) => r.id === id);
-  return row === undefined ? null : { target: row.target, actual: row.actual, bad: row.bad };
+  // A ratio stays on one line in the narrow box ("4,5 : 1"); the table of the Prüfmaße does not wrap its values at all.
+  const keep = (v: string) => v.replace(/ : /g, ' : ');
+  return row === undefined ? null : { target: keep(row.target), actual: keep(row.actual), bad: row.bad };
 }
 
 /** The addresses of the finding's requests that the HTML parser found in the homepage itself (B3 part 2), each once. */

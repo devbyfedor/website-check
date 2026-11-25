@@ -121,7 +121,8 @@ describe('the finding details of the example', () => {
     expect(ga!.source).toEqual([]); // the requests of Google Analytics are made by the Google tag
     expect(ga!.fix).toBeNull(); // fix-google-analytics is not written yet
     expect(text(contrast!.happens!)).toBe('An 14 Stellen hebt sich der Text zu wenig vom Hintergrund ab, der schwächste Wert liegt bei 2,9 : 1 statt mindestens 4,5 : 1.');
-    expect(contrast!.targetActual).toEqual({ target: 'mind. 4,5 : 1', actual: '2,9 : 1', bad: true });
+    // The ratio with no-break spaces, so it never wraps inside the narrow box at 390 px.
+    expect(contrast!.targetActual).toEqual({ target: 'mind. 4,5 : 1', actual: '2,9 : 1', bad: true });
     expect(contrast!.fix).toEqual({ kind: 'general', steps: expect.any(Array) });
   });
 
