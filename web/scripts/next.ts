@@ -12,12 +12,15 @@ import { readdir, readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { STAGE_D_MARKERS } from '../lib/report-stage-d-texts.ts';
 
 const require = createRequire(import.meta.url);
 const nextBin = require.resolve('next/dist/bin/next');
 const OUT_DIR = join(resolve(dirname(fileURLToPath(import.meta.url)), '..'), 'out');
-// A string that only the example data contains: the fictional shop of the reference.
+// A string that only the example data contains: the fictional shop of the reference. Session B4 part 1: also the texts
+// that only the parts of stage D have (the "Revisionen" and the "Arbeitsauftrag"), which only the example page shows.
 const EXAMPLE_MARKER = 'roesterei-muster';
+const MARKERS: readonly string[] = [EXAMPLE_MARKER, ...STAGE_D_MARKERS];
 
 const args = process.argv.slice(2);
 const examples = args.includes('--examples');
@@ -36,7 +39,9 @@ async function filesWithMarker(dir: string): Promise<string[]> {
       continue;
     }
     if (!entry.isFile() || !/\.(html|js|txt|json|css)$/.test(entry.name)) continue;
-    if ((await readFile(path, 'utf8')).includes(EXAMPLE_MARKER)) hits.push(relative(OUT_DIR, path));
+    const text = await readFile(path, 'utf8');
+    const found = MARKERS.filter((m) => text.includes(m));
+    if (found.length) hits.push(`${relative(OUT_DIR, path)} (${found.join(', ')})`);
   }
   return hits;
 }
@@ -50,10 +55,10 @@ child.on('exit', async (code, signal) => {
   if (code === 0 && nextArgs[0] === 'build' && !examples) {
     const hits = await filesWithMarker(OUT_DIR);
     if (hits.length) {
-      console.error(`The production build contains the example data ("${EXAMPLE_MARKER}") in: ${hits.join(', ')}`);
+      console.error(`The production build contains the example data or a text of stage D in: ${hits.join(', ')}`);
       process.exit(1);
     }
-    console.log(`Production build: no example page and no example data in web/out (searched for "beispiel" in the paths and "${EXAMPLE_MARKER}" in the files).`);
+    console.log(`Production build: no example page, no example data and no text of stage D in web/out (searched for "beispiel" in the paths and ${MARKERS.map((m) => `"${m}"`).join(', ')} in the files).`);
   }
   process.exit(code ?? 1);
 });
