@@ -237,11 +237,13 @@ describe('probeHttpRedirect', () => {
   });
 
   it('the time limit covers name resolution (A5 review)', async () => {
-    const slow = createUrlGuard({ resolve: () => new Promise<string[]>((resolve) => setTimeout(() => resolve(['93.184.215.14']), 1_500)) });
-    const started = Date.now();
+    // Session B5 part 1: the probe ends before the slow name resolution answers, not "in less than 1 s by the clock",
+    // which a busy machine could break (test/speed.ts).
+    let answered = false;
+    const slow = createUrlGuard({ resolve: () => new Promise<string[]>((resolve) => setTimeout(() => ((answered = true), resolve(['93.184.215.14'])), 1_500)) });
     const result = await probe('http://www.example.de/', { fetch: fakeFetch({}).fetch, guard: slow, timeoutMs: 150 });
     expect(result.outcome).toBe('timeout');
-    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(answered).toBe(false);
   });
 
   it('httpVariantOf', () => {

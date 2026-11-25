@@ -18,6 +18,7 @@ import { createUrlGuard } from '../src/security/ssrf.ts';
 import type { CompiledRules } from '../src/rules/match.ts';
 import { makeCapture } from './helpers.ts';
 import { axeResult, shopCapture, SHOP } from './report-helpers.ts';
+import { cpuMs as threadCpuMs } from './speed.ts';
 
 /**
  * Session fix-a4: limits and heavy pages (review findings 4, 10, 11, 12, 13 and the small findings 25, 51,
@@ -35,12 +36,9 @@ function build(capture: Capture, mode: 'full' | 'quick' = 'full', rules: Compile
   return buildReport({ id: ID, createdAt: '2026-11-24T10:00:00.000Z', siteUrl: SHOP, mode, capture, rules, scannerVersion: SCANNER_VERSION, rulesUpdated: RULES_FILE.updated, visit: { country: 'DE', colo: 'FRA' } });
 }
 
-function cpuMs(work: () => void): number {
-  const before = process.cpuUsage();
-  work();
-  const used = process.cpuUsage(before);
-  return (used.user + used.system) / 1000;
-}
+// Session B5 part 1: the CPU time of this thread (test/speed.ts), so that the waiting for a core and the helper threads of
+// the garbage collector do not count.
+const cpuMs = (work: () => void): number => threadCpuMs(work).ms;
 
 function jsonLength(value: unknown): number {
   return JSON.stringify(value).length;

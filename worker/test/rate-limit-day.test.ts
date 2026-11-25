@@ -1,9 +1,12 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UrlVerdict } from '@website-check/scanner/api';
 import type { Answer } from '../src/api/answers.ts';
 import { cleanupRateLimit, loadState, RATE_LIMIT, RATE_LIMIT_DAY, rateVisitor, releaseSlot, saltOfDay, takeSlot, type RateVisitor, type VisitorState } from '../src/api/rate-limit.ts';
 import { startScan, type StartDeps } from '../src/api/start.ts';
-import { localD1, type LocalD1 } from './d1.ts';
+import { D1_TEST_TIMEOUT_MS, localD1, type LocalD1 } from './d1.ts';
+
+// Tests against the local D1 measure no time; the timeout only stops one whose local D1 never answers (test/d1.ts).
+vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS });
 
 /**
  * The rate limit of the scan start (session fix-a4): findings 8 and 9 of the review. A start that outlives

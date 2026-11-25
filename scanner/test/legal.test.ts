@@ -5,6 +5,7 @@ import { decodeCloudflareEmail, extractImpressumFields } from '../src/legal/fiel
 import { IMPRESSUM_SETTINGS, pollText } from '../src/legal/impressum-capture.ts';
 import { chooseImpressumTarget, findLegalLinks } from '../src/legal/links.ts';
 import { makeCapture, SITE } from './helpers.ts';
+import { cpuMs } from './speed.ts';
 
 /** Session A4: templates, links and the analysis of mandatory information, on small invented texts. */
 
@@ -200,10 +201,9 @@ describe('cases from the code review of the templates (22.11.2026)', () => {
   });
 
   it('stays fast on one long line with many postcodes or third-party candidates', () => {
+    // Session B5 part 1: by the CPU time of the process, which does not count the waiting for a core (test/speed.ts).
     for (const text of ['12345 Musterstadt, '.repeat(5_000), `Webdesign: ${'a@b.de '.repeat(14_000)}`, `Webdesign: ${'HRB 12345 '.repeat(10_000)}`]) {
-      const started = performance.now();
-      extractImpressumFields(text);
-      expect(performance.now() - started).toBeLessThan(1_000);
+      expect(cpuMs(() => extractImpressumFields(text)).ms).toBeLessThan(1_000);
     }
   });
 });
@@ -219,9 +219,7 @@ describe('templates on long or strange texts', () => {
       'Musterweg 3\n12345 Musterstadt\n'.repeat(3_000),
     ];
     for (const text of texts) {
-      const started = performance.now();
-      extractImpressumFields(text);
-      expect(performance.now() - started, text.slice(0, 30)).toBeLessThan(1_000);
+      expect(cpuMs(() => extractImpressumFields(text)).ms, text.slice(0, 30)).toBeLessThan(1_000);
     }
   });
 });

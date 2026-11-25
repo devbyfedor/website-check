@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createUrlGuard, type Resolver } from '@website-check/scanner';
 import { base32, isScanId, newScanId } from '../src/api/ids.ts';
 import { visitorKeyOf } from '../src/api/rate-limit.ts';
@@ -8,7 +8,10 @@ import { MAX_BODY_BYTES } from '../src/api/router.ts';
 import { purgeBefore, saveResult } from '../src/db/store.ts';
 import worker from '../src/app.ts';
 import { localApi } from './api-local.ts';
-import { localD1, TABLES, WORKER_ROOT, type LocalD1 } from './d1.ts';
+import { D1_TEST_TIMEOUT_MS, localD1, TABLES, WORKER_ROOT, type LocalD1 } from './d1.ts';
+
+// Tests against the local D1 measure no time; the timeout only stops one whose local D1 never answers (test/d1.ts).
+vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS });
 
 /**
  * The API on the local D1 (session A5 part 2): cache, rate limit, refusals before the queue, ids,
