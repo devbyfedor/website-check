@@ -724,6 +724,43 @@ Built from the dashed box of the "Revisionen" ("So erscheint ein erledigter Fund
 - The small line of the site's own files (Fedor's answer 1 of B3 part 1): "Ihre Dateien: {Arten}" with the words of the types the report gives, each once, joined with ", " and " und ": "Design" (style sheets and fonts) and "Skripte" are the reference's words; "Bilder", "Medien" (video and audio), "Daten" (xhr, fetch, event streams, web sockets) and "Weiteres" (anything else) are drafts. Without types (a report made before) or with other files only: "Ihre Dateien" (the draft of B3 part 1).
 - Status: Entwurf
 
+## Session B4 part 1
+
+The lower part of the report (Stückliste, the finding details with the system tabs, the help block, the title block) and the note next to the country of the visit. The texts of `design/reference/bericht.html` are final and are not listed (the fix instructions for Shopify, Wix, Jimdo and Shopware stay drafts by `design/README.md`); these are the texts the reference does not have. They live in `web/lib/report-detail-texts.ts` and `web/lib/report-texts.ts`; every one is an Entwurf.
+
+### Head: the country of the visit (Fedor, answer 3)
+
+- A second line under the country, small and grey: "Unser Prüfbrowser läuft in einem Rechenzentrum in der EU und ist eingestellt wie ein Besucher aus Deutschland: deutsche Sprache, Zeitzone Berlin."
+- Without "in der EU" for a country outside the EU; without the part after "Rechenzentrum" when the report does not say `de-DE` and `Europe/Berlin`: "Unser Prüfbrowser läuft in einem Rechenzentrum in der EU."
+- Status: Entwurf
+
+### Stückliste
+
+- With one service: 1 Dienst gefunden.
+- Anbieter of an unknown service: unbekannt.
+- The small line by category (the reference's are "Schriften", "lädt weitere Skripte", "Statistik" and, for a public CDN, "Skripte"): Aufzeichnung von Besuchen (session recording), Marketing, Werbung, Werbung in sozialen Netzwerken (social pixels), Karte, Video (the reference's "Produktvideo" names the use on the page, which the scan does not know), Beiträge aus sozialen Netzwerken (embeds), Chat, Bewertungen, Terminbuchung, Widgets, Zahlung, Schutz vor Bots (captcha), Werkzeug für Barrierefreiheit (overlay), Übersetzung, Dienst Ihres Systems (platform), Einwilligungstool, Weiteres, unbekannter Dienst.
+- "Daten gehen an" (the reference's are "Server in den USA möglich" and "weltweites Servernetz"): Server in der EU; nicht bekannt.
+- The tag of "Einwilligung" (the reference's are "fehlt" and "Graubereich"): nicht nötig (blue; the consent tool itself, a service of the site), keine Antwort (grey; no request of the service got an answer), bitte manuell prüfen (grey). The reference's "wird eingeholt" needs a service that waits for a click, which the scan does not see.
+- Status: Entwurf
+
+### Finding details
+
+- "Was passiert" of a service of the classes consent-required and usually-consent, after the reference's sentence for Google Fonts: "Ihre Startseite stellt {Anzahl} an Server von {Anbieter}, die erste {Sekunden} nach dem Aufruf. {Anbieter} erhält dabei die IP-Adresse jedes Besuchers, bevor dieser zustimmen kann." ({Anzahl}: "eine Anfrage", "zwei Anfragen" … "zwölf Anfragen", then digits; {Sekunden}: "0,3 Sekunden", "1 Sekunde", "weniger als 0,1 Sekunden".)
+- When the first request came after the banner, or no banner was seen, the second sentence (also of Google Fonts) is: "{Anbieter} erhält dabei die IP-Adresse jedes Besuchers, ohne dass dieser zugestimmt hat." The reference's "bevor dieser zustimmen kann" is true only before the banner.
+- Ist next to "0 Anfragen an {Anbieter}" in the same case: "{n} Anfragen, ohne Einwilligung" (the reference: "2 Anfragen, vor dem Banner"); "1 Anfrage, …".
+- "Warum das wichtig ist", consent-required: "Für Dienste zur Statistik, Werbung und ähnliche Zwecke verlangen die deutschen Datenschutzbehörden eine Einwilligung, bevor sie im Browser des Besuchers starten. Ein Einwilligungsbanner allein genügt dafür nicht: Der Dienst darf erst nach der Zustimmung laden." (Sources: `dsk-oh-digitale-dienste`, `tdddg-25` in `docs/rules-sources.md`.)
+- "Warum das wichtig ist", usually-consent: "Karten, Videos, Chat- und Bewertungsfenster fremder Anbieter brauchen nach Ansicht der deutschen Datenschutzbehörden meist eine Einwilligung, bevor sie laden. Eine gängige Lösung ist ein Platzhalter, der den Dienst erst nach einem Klick lädt."
+- The cards of accessibility, HTTPS, the redirect and the Impressum link take the drafts above: "Fact and risk" split into "Was passiert" (the fact) and "Warum das wichtig ist" (the risk), and "Fix" as the steps of the "Montageanleitung" (one step per sentence, without tabs).
+- A system tab without steps of its own and without general steps: "Für {System} haben wir noch keine eigene Anleitung." (not used yet: only Google Fonts has tabs, with all five systems).
+- Status: Entwurf
+
+### Texts that are still missing (finding × system)
+
+- Third-party services with a risk: 32 services can be such a finding (classes precedent, consent-required, usually-consent of `scanner/data/third-party-services.json`); `fix-google-fonts` has all five systems (WordPress final, the other four drafts of the reference that still have to be checked against the real systems). Missing for all five systems: `fix-google-tag-manager`, `fix-google-analytics`, `fix-google-ads`, `fix-google-analytics-advertising-features`, `fix-yandex-metrica`, `fix-hotjar`, `fix-microsoft-clarity`, `fix-brevo-tracker`, `fix-klaviyo-client-events`, `fix-criteo`, `fix-microsoft-advertising-uet`, `fix-linkedin-insight-tag`, `fix-meta-pixel`, `fix-pinterest-tag`, `fix-snap-pixel`, `fix-tiktok-pixel`, `fix-x-pixel`, `fix-google-maps`, `fix-openstreetmap-tiles`, `fix-vimeo`, `fix-youtube`, `fix-youtube-nocookie`, `fix-facebook-social-plugins`, `fix-instagram-embeds`, `fix-x-embeds`, `fix-crisp`, `fix-intercom`, `fix-livechat`, `fix-smartsupp`, `fix-tawk-to`, `fix-zendesk-web-widget` (31 × 5 = 155 texts), and the "Was passiert" and "Warum das wichtig ist" of these classes are only the general drafts above.
+- Accessibility (`a11y-color-contrast`, `-image-alt`, `-label`, `-link-name`, `-button-name`, `-html-has-lang`, `-html-lang-valid`), security (`security-https-missing`, `security-http-no-redirect`) and `legal-impressum-no-link`: only the general fix, no steps by system (10 × 5 = 50 texts).
+- `security-headers` (low risk, can be among "Drei Dinge" when fewer findings have a higher risk): no "Was passiert", no "Warum das wichtig ist", no fix at all; its card shows only the title and Soll and Ist.
+- Status: offen
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/
