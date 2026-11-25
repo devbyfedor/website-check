@@ -113,10 +113,16 @@ describe('the finding details of the example', () => {
     if (c.fix?.kind !== 'systems') throw new Error('no tabs');
     expect(c.fix.detected).toBe('wordpress');
     expect(c.fix.selected).toBe('wordpress');
-    // Every step of every system, as in the reference (its panels in order: WordPress, Shopify, Wix, Jimdo, Shopware).
+    // The reference's panels in order: WordPress, Shopify, Wix, Jimdo, Shopware. The WordPress steps are final and the same;
+    // session texts-fix replaced the drafts of the other four by steps the documentation confirms (Jimdo: none, so its tab
+    // shows the general steps), docs/content-drafts.md, "Steps by system of the five services".
     const panels = [...fund.matchAll(/<ol class="steps">([\s\S]*?)<\/ol>/g)].map((m) => [...m[1]!.matchAll(/<li>(.*?)<\/li>/g)].map((l) => decode(l[1]!)));
     expect(panels).toHaveLength(5);
-    expect([c.fix.steps.wordpress, c.fix.steps.shopify, c.fix.steps.wix, c.fix.steps.jimdo, c.fix.steps.shopware]).toEqual(panels);
+    expect(c.fix.steps.wordpress).toEqual(panels[0]);
+    const fonts = FIX_TEXTS['fix-google-fonts']!;
+    expect([c.fix.steps.shopify, c.fix.steps.wix, c.fix.steps.shopware]).toEqual([fonts.shopify, fonts.wix, fonts.shopware]);
+    expect(c.fix.steps.jimdo).toBeNull();
+    expect(c.fix.general).toEqual(SERVICE_FIX['fix-google-fonts']);
   });
 
   it('the second and third card: drafts, the Prüfmaß of the same thing, and no part without a text', () => {
@@ -126,8 +132,13 @@ describe('the finding details of the example', () => {
     );
     expect(ga!.targetActual).toEqual({ target: '0 Anfragen an Google', actual: '3 Anfragen, ohne Einwilligung', bad: true });
     expect(ga!.source).toEqual([]); // the requests of Google Analytics are made by the Google tag
-    // Session texts-fix: the general steps of Google Analytics (one of the five services found most often).
-    expect(ga!.fix).toEqual({ kind: 'general', steps: SERVICE_FIX['fix-google-analytics'] });
+    // Session texts-fix: the steps by system of Google Analytics (one of the five services found most often), the general
+    // steps for the systems without confirmed ones.
+    if (ga!.fix.kind !== 'systems') throw new Error('no tabs');
+    expect(ga!.fix.selected).toBe('wordpress');
+    expect(ga!.fix.steps.wordpress).toEqual(FIX_TEXTS['fix-google-analytics']!.wordpress);
+    expect([ga!.fix.steps.jimdo, ga!.fix.steps.shopware]).toEqual([null, null]);
+    expect(ga!.fix.general).toEqual(SERVICE_FIX['fix-google-analytics']);
     expect(text(contrast!.happens!)).toBe('An 14 Stellen hebt sich der Text zu wenig vom Hintergrund ab, der schwächste Wert liegt bei 2,9 : 1 statt mindestens 4,5 : 1.');
     // The ratio with no-break spaces, so it never wraps inside the narrow box at 390 px.
     expect(contrast!.targetActual).toEqual({ target: 'mind. 4,5 : 1', actual: '2,9 : 1', bad: true });
@@ -228,14 +239,16 @@ describe('the system tabs', () => {
   it('follow the WAI-ARIA tabs pattern in the markup: one tab in the Tab order, the panel named by it', () => {
     const html = render(EXAMPLE);
     expect(html).toContain('role="tablist" aria-label="System wählen"');
-    const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>/g)].map((m) => m[0]);
+    // Session texts-fix: the second card (Google Analytics) has tabs too; these are the tabs of the first.
+    expect([...html.matchAll(/<button[^>]*role="tab"[^>]*>/g)]).toHaveLength(10);
+    const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>/g)].map((m) => m[0]).filter((t) => t.includes('aria-controls="fund-1-panel"'));
     expect(tabs).toHaveLength(5);
     expect(tabs.filter((t) => t.includes('aria-selected="true"') && t.includes('tabindex="0"'))).toHaveLength(1);
     expect(tabs.filter((t) => t.includes('aria-selected="false"') && t.includes('tabindex="-1"'))).toHaveLength(4);
     expect(tabs.every((t) => t.includes('aria-controls="fund-1-panel"'))).toBe(true);
     expect(html).toContain('role="tabpanel" id="fund-1-panel" aria-labelledby="fund-1-tab-wordpress" tabindex="0"');
     expect(html).toContain('WordPress <small>erkannt</small>');
-    expect(html.match(/erkannt/g)).toHaveLength(1);
+    expect(html.match(/erkannt/g)).toHaveLength(2); // one per card with tabs
   });
 
   it('select the detected system, else the first without "erkannt"', () => {
@@ -264,13 +277,13 @@ describe('the system tabs', () => {
     const html = render(r);
     expect(html).toContain('Binden Sie sie mit @font-face aus diesen Dateien ein');
     expect(html).not.toContain('Für Shopware 5 haben wir noch keine eigene Anleitung.');
-    expect(html).not.toContain('In Shopware 6 bindet das Theme');
+    expect(html).not.toContain('In Shopware 6 legen Sie die Schriftdateien');
     r.platform = { ...r.platform, shopwareVersion: 6 };
-    expect(render(r)).toContain('In Shopware 6 bindet das Theme');
+    expect(render(r)).toContain('In Shopware 6 legen Sie die Schriftdateien');
   });
 
-  it('have steps for Google Fonts only (the reference); every other fix text is still missing', () => {
-    expect(Object.keys(FIX_TEXTS)).toEqual(['fix-google-fonts']);
+  it('have steps for the five services found most often only (session texts-fix)', () => {
+    expect(Object.keys(FIX_TEXTS).sort()).toEqual(['fix-google-ads', 'fix-google-analytics', 'fix-google-fonts', 'fix-google-tag-manager', 'fix-youtube-nocookie']);
   });
 });
 

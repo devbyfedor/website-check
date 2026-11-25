@@ -834,7 +834,7 @@ The steps of the "Montageanleitung" (without tabs) of a known service whose find
 
 - `third-party-consent-required` (statistics, tag managers, advertising, social pixels, session recording, marketing automation):
   1. Laden Sie den Dienst erst, nachdem der Besucher im Einwilligungsbanner zugestimmt hat. Vorher darf sein Skript nicht starten, auch nicht über einen Tag Manager.
-  2. Das übernimmt ein Einwilligungstool: Sie tragen den Dienst dort ein, und das Tool lädt ihn erst nach der Zustimmung. Beispiele sind CCM19, Cookiebot, Usercentrics und das quelloffene, kostenlose Klaro!.
+  2. Das übernimmt ein Einwilligungstool: Sie tragen den Dienst dort ein, und das Tool blockiert ihn laut Anbieter, bis der Besucher zustimmt. Beispiele sind CCM19, Cookiebot, Usercentrics und das quelloffene, kostenlose Klaro!.
   3. Starten Sie danach eine neue Prüfung. Vor der Zustimmung sollte keine Anfrage an den Anbieter mehr zu sehen sein.
 - `third-party-usually-consent` (maps, videos, embedded posts, chat and review windows):
   1. Ersetzen Sie den eingebetteten Inhalt zunächst durch einen Platzhalter, etwa einen kurzen Hinweis oder ein Bild von Ihrem eigenen Server. Der Inhalt des Anbieters lädt erst, wenn der Besucher darauf klickt oder im Einwilligungsbanner zustimmt.
@@ -867,9 +867,101 @@ The five services of step 3 above. Their general steps stand without tabs, and i
   3. Starten Sie danach eine neue Prüfung. Vor der Zustimmung sollte keine Anfrage an doubleclick.net, googlesyndication.com oder googleadservices.com mehr zu sehen sein.
 - `fix-youtube-nocookie`:
   1. Laden Sie das Video erst nach einem Klick: An seiner Stelle steht zuerst ein Vorschaubild von Ihrem eigenen Server mit einem kurzen Hinweis. Der Player lädt erst, wenn der Besucher klickt oder im Einwilligungsbanner zustimmt.
-  2. Der erweiterte Datenschutzmodus allein genügt dafür nicht: Er ändert, was YouTube speichert, aber der Player lädt trotzdem beim Aufruf Ihrer Seite von Servern von Google.
+  2. Der erweiterte Datenschutzmodus allein genügt dafür nicht: Auch mit ihm lädt der Player schon beim Aufruf Ihrer Seite von youtube-nocookie.com, wie diese Prüfung zeigt.
   3. Viele Einwilligungstools bringen solche Platzhalter mit. Ohne Werkzeug genügt ein Vorschaubild von Ihrem Server mit einem Link zum Video auf YouTube. Starten Sie danach eine neue Prüfung.
-- Sources: Google, "Consent mode overview" (basic: tags are not loaded before the user interacts with the banner, no data is sent; advanced: tags load when the page opens and send cookieless pings without consent): https://developers.google.com/tag-platform/security/concepts/consent-mode; YouTube Help, privacy-enhanced mode (`youtube-help-privacy-enhanced-mode` in `docs/rules-sources.md`); Google Fonts, the download of a family and the open licences of the fonts: https://fonts.google.com/knowledge and the FAQ https://developers.google.com/fonts/faq. The step "Wird das Einwilligungsbanner selbst über den Tag Manager eingebunden" follows from step 1: a banner loaded by the Tag Manager needs its script before any consent.
+- Sources: see "Sources of the general texts" below. The step "Wird das Einwilligungsbanner selbst über den Tag Manager eingebunden" follows from step 1: a banner loaded by the Tag Manager needs its script before any consent.
+- Status: Entwurf
+
+### Steps by system of the five services (step 5)
+
+How they were found (Fedor's rules for this session): a first helper (Sonnet) looked for each of the 25 pairs of service and system in the official documentation of the system or of the plugin or app the step names, with the decisive quote; a second helper (Sonnet) tried to refute every proposed step by opening the page itself (40 steps and 5 claims of the general texts: 33 confirmed, many only in a narrower wording, which is the wording used here; 10 unconfirmed; 2 refuted). A step that was not confirmed is left out; the tab then shows the general steps of the service. A menu label stands only where a German page of the system shows it; where only the English help could be read, the step describes the place without a label or names the English label as English. Every step is an Entwurf; the review by a native speaker and a look at the real systems are stage C. `web/lib/report-detail-texts.ts`, `FIX_TEXTS`; the test `web/test/report-texts-complete.test.ts` checks that every step stands here with its source on the same line.
+
+- `fix-google-fonts`:
+  - WordPress:
+    1. Finden Sie heraus, ob Ihr Theme oder ein Plugin die Schrift einbindet. Oft steht es in den Theme-Einstellungen unter „Typografie“. Quelle: design/reference/bericht.html (final text of the design, not part of the check)
+    2. Binden Sie die Schrift lokal ein, zum Beispiel mit einem Plugin für lokale Google Fonts. Die Dateien liegen danach auf Ihrem eigenen Server. Quelle: design/reference/bericht.html (final text of the design, not part of the check)
+    3. Starten Sie eine neue Prüfung. Die Anfrage an Google sollte verschwunden sein. Quelle: design/reference/bericht.html (final text of the design, not part of the check)
+  - Shopify:
+    1. Schriften aus der Schriftbibliothek von Shopify liefert Shopify über sein eigenes CDN aus, nicht von Google. Eine Anfrage an fonts.googleapis.com stammt aus Code, der Google Fonts zusätzlich einbindet, etwa im Theme. Quelle: https://shopify.dev/docs/storefronts/themes/best-practices/performance/self-host-web-fonts
+    2. Entfernen Sie diese Einbindung im Code-Editor Ihres Themes. Quelle: https://help.shopify.com/en/manual/online-store/themes/customizing-themes/edit-code/edit-theme-code
+    3. Wählen Sie die Schrift stattdessen in den Einstellungen Ihres Themes aus der Schriftbibliothek von Shopify. Diese nutzen laut Shopify alle kostenlosen Themes; bei anderen Themes bestimmt der Theme-Entwickler die Auswahl. Quelle: https://help.shopify.com/en/manual/online-store/themes/customizing-themes/theme-editor/theme-settings
+    4. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Wix:
+    1. Laut Wix werden Google Fonts bei Wix lokal gehostet. Schriften, die über benutzerdefiniertes Einbetten, ein benutzerdefiniertes Element oder ein iframe eingefügt sind, können dagegen von Google stammen. Quelle: https://support.wix.com/de/article/faqs-google-wix-und-die-dsgvo
+    2. Entfernen Sie ein solches Element: Wählen Sie es im Editor aus und drücken Sie die Entfernen-Taste. Quelle: https://support.wix.com/de/article/faqs-google-wix-und-die-dsgvo (the two actions as the page gives them for the YouTube element)
+    3. Laden Sie die gewünschte Schrift stattdessen als eigene Datei hoch: Textelement auswählen, auf „Text bearbeiten“ klicken, im Menü „Schriftarten“ auf „Schriftarten hochladen“ und danach auf „Fertig“. Quelle: https://support.wix.com/de/article/wix-editor-deine-eigenen-schriftarten-hochladen-und-verwenden
+    4. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Jimdo: no confirmed steps; the tab shows the general steps.
+  - Shopware:
+    1. In Shopware 6 legen Sie die Schriftdateien als Asset in Ihr Theme, in den Ordner, den die theme.json unter „asset“ nennt. Quelle: https://developer.shopware.com/docs/guides/plugins/themes/assets/add-assets-to-theme.html
+    2. Binden Sie die Schrift im Stylesheet des Themes mit @font-face aus diesen Dateien ein und entfernen Sie den Verweis auf fonts.googleapis.com. Quelle: https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face (a step of the web standard, not of the Shopware documentation)
+    3. Kompilieren Sie das Theme mit bin/console theme:compile neu und starten Sie eine neue Prüfung. Quelle: https://developer.shopware.com/docs/guides/plugins/themes/assets/add-assets-to-theme.html
+- `fix-google-analytics`:
+  - WordPress:
+    1. Entfernen Sie Google-Analytics-Code, der schon fest im Theme oder in einem anderen Plugin steht. Quelle: https://complianz.io/statistics-implementation/
+    2. Binden Sie Google Analytics über ein Einwilligungs-Plugin ein, das Skripte bis zur Zustimmung blockiert, zum Beispiel Complianz (die kostenlose Version enthält laut Plugin-Seite das Blockieren von Skripten) oder Cookiebot (laut Plugin-Seite kostenlos für eine Domain mit bis zu 50 Unterseiten). Quelle: https://wordpress.org/plugins/complianz-gdpr/ and https://wordpress.org/plugins/cookiebot/
+    3. Bei Complianz Premium lassen Sie Google-Tags vor der Einwilligung blockieren (in der englischen Anleitung die Frage „Do you want to block all Google Tags before consent?“, Antwort „Yes“). Mit der Voreinstellung „No“ laden die Google-Tags laut Complianz schon beim Aufruf der Seite. Quelle: https://complianz.io/simplified-guide-to-google-consent-mode-v2/ ("The steps outlined below require Complianz Premium.")
+    4. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Shopify:
+    1. Prüfen Sie im Code-Editor Ihres Themes, ob Google Analytics dort fest eingetragen ist, und entfernen Sie es. Quelle: https://help.shopify.com/en/manual/online-store/themes/customizing-themes/edit-code/edit-theme-code
+    2. Eine Cookie-Banner-App kann Tracking-Skripte bis zur Zustimmung blockieren, zum Beispiel Consentico (laut App-Seite mit kostenlosem Tarif). Quelle: https://apps.shopify.com/consentico
+    3. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Wix:
+    1. Verbinden Sie Google Analytics über „Marketing-Integrationen“ in der Website-Verwaltung (unter „Google-Tag“ auf „Verknüpfen“). Quelle: https://support.wix.com/de/article/events-auf-deiner-website-mit-google-analytics-verfolgen
+    2. Schalten Sie unter „Datenschutz & Cookies“ das Cookie-Hinweisbanner ein (Schieberegler „Banner anzeigen“). Laut Wix schaltet es nicht unbedingt erforderliche Cookies und Skripte ab, bis der Besucher zustimmt; Google Analytics zählt Wix zu den Analyse-Cookies. Die Basisversion des Banners ist kostenlos. Quelle: https://support.wix.com/de/article/einen-cookie-banner-auf-deiner-website-anzeigen
+    3. Eigener Code gilt bei Wix ohne weitere Einstellung als notwendig und lädt laut Wix vor der Einwilligung. Steht Google Analytics zusätzlich als eigener Code auf der Seite, entfernen Sie ihn oder ordnen Sie ihn in seinen Einstellungen einer anderen Kategorie zu (in der englischen Hilfe von Wix: „Custom Code“). Quelle: https://support.wix.com/en/article/categorizing-your-custom-code
+    4. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Jimdo: no confirmed steps; the tab shows the general steps.
+  - Shopware: no confirmed steps; the tab shows the general steps.
+- `fix-google-tag-manager`:
+  - WordPress:
+    1. Prüfen Sie, wo der Google Tag Manager eingebunden ist (Theme, Plugin oder eigenes Snippet), und entfernen Sie die übrigen Einbindungen, bevor Sie ihn im Einwilligungs-Plugin einrichten. Quelle: https://complianz.io/statistics-implementation/
+    2. Bei Complianz setzen Sie im Snippet des Tag Managers type="text/plain" und data-category="statistics": Laut Complianz blockiert das den Tag Manager vor der Einwilligung und gibt ihn danach frei. Quelle: https://complianz.io/how-to-set-google-tag-manager-after-consent-and-is-it-needed/
+    3. Bei Real Cookie Banner wählen Sie die Vorlage „Google Tag Manager“ und lassen für den Dienst einen Inhaltsblocker anlegen; die Unterstützung für den Tag Manager gehört laut Plugin-Seite zur Pro-Version. Quelle: https://devowl.io/knowledge-base/real-cookie-banner-with-google-tag-manager-google-consent-mode/ and https://wordpress.org/plugins/real-cookie-banner/ (Pro)
+    4. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Shopify:
+    1. Entfernen Sie einen fest eingetragenen Tag Manager aus dem Code-Editor Ihres Themes. Quelle: https://help.shopify.com/en/manual/online-store/themes/customizing-themes/edit-code/edit-theme-code
+    2. Binden Sie ihn stattdessen als eigenes Pixel ein (in der englischen Hilfe von Shopify: „Customer events“) und verlangen Sie dafür die Berechtigung des Besuchers („Permission“: „Required“). In Märkten mit Einwilligungspflicht wie dem EWR läuft ein solches Pixel laut Shopify erst, wenn der Besucher die verlangten Berechtigungen erteilt hat. Quelle: https://help.shopify.com/en/manual/promoting-marketing/pixels/custom-pixels/code and https://help.shopify.com/en/manual/promoting-marketing/pixels/custom-pixels/manage
+    3. Alternativ: Eine Cookie-Banner-App kann Tracking-Skripte bis zur Zustimmung blockieren, zum Beispiel Consentico (laut App-Seite mit kostenlosem Tarif). Quelle: https://apps.shopify.com/consentico
+    4. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Wix:
+    1. Eigener Code gilt bei Wix ohne weitere Einstellung als notwendig und lädt laut Wix vor der Einwilligung. Steht der Tag Manager als eigener Code auf der Seite, entfernen Sie ihn oder ordnen Sie ihn in seinen Einstellungen einer anderen Kategorie zu (in der englischen Hilfe von Wix: „Custom Code“). Quelle: https://support.wix.com/en/article/categorizing-your-custom-code
+    2. Ist er über die Marketing-Integrationen verbunden, sammelt er laut Wix erst nach der Einwilligung Daten. Ob er vorher schon lädt, sagt Wix nicht. Starten Sie eine neue Prüfung: Sie zeigt, ob vor der Zustimmung noch eine Anfrage an googletagmanager.com geht. Quelle: https://support.wix.com/en/article/connecting-your-google-tag-manager-account-to-your-wix-site ("Google Tag Manager will only gather data after a visitor provides consent")
+  - Jimdo: no confirmed steps; the tab shows the general steps.
+  - Shopware: no confirmed steps; the tab shows the general steps.
+- `fix-google-ads`:
+  - WordPress: no confirmed steps; the tab shows the general steps.
+  - Shopify:
+    1. Prüfen Sie im Code-Editor Ihres Themes, ob Code von Google Ads oder AdSense dort fest eingetragen ist. Quelle: https://help.shopify.com/en/manual/online-store/themes/customizing-themes/edit-code/edit-theme-code
+    2. Eine Cookie-Banner-App kann Tracking-Skripte bis zur Zustimmung blockieren, zum Beispiel Consentico (laut App-Seite mit kostenlosem Tarif). Quelle: https://apps.shopify.com/consentico
+    3. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Wix:
+    1. Eigener Code gilt bei Wix ohne weitere Einstellung als notwendig und lädt laut Wix vor der Einwilligung. Steht Code von Google Ads oder AdSense als eigener Code auf der Seite, entfernen Sie ihn oder ordnen Sie ihn in seinen Einstellungen einer anderen Kategorie zu (in der englischen Hilfe von Wix: „Custom Code“). Quelle: https://support.wix.com/en/article/categorizing-your-custom-code
+    2. Ist Google Ads über die Marketing-Integrationen verbunden, sammelt es laut Wix erst nach der Einwilligung Daten. Ob es vorher schon lädt, sagt Wix nicht. Starten Sie eine neue Prüfung: Sie zeigt, ob vor der Zustimmung noch eine Anfrage an Google geht. Quelle: https://support.wix.com/en/article/adding-your-google-remarketing-code-to-your-wix-site ("Google Ads only gathers data after a visitor provides consent")
+  - Jimdo: no confirmed steps; the tab shows the general steps.
+  - Shopware: no confirmed steps; the tab shows the general steps.
+- `fix-youtube-nocookie`:
+  - WordPress:
+    1. Das quelloffene Plugin Embed Privacy ersetzt eingebettete Inhalte wie YouTube-Videos durch einen Platzhalter; laut Plugin-Seite lädt es sie erst, wenn der Besucher das Laden externer Inhalte erlaubt. Quelle: https://wordpress.org/plugins/embed-privacy/
+    2. Ein Einwilligungs-Plugin mit Inhaltsblocker tut dasselbe, zum Beispiel Complianz, das laut Plugin-Seite iFrames wie YouTube blockiert. Quelle: https://wordpress.org/plugins/complianz-gdpr/
+    3. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Shopify: no confirmed steps; the tab shows the general steps.
+  - Wix:
+    1. Das YouTube-Element ist laut Wix nicht in die Cookie-Banner-Lösung von Wix eingebunden; das Banner allein hält es also nicht auf. Quelle: https://support.wix.com/de/article/faqs-google-wix-und-die-dsgvo
+    2. Entfernen Sie das YouTube-Element (im Editor auswählen und die Entfernen-Taste drücken). Als Alternative nennt Wix Wix Video; laut Wix werden dabei keine Besucherdaten an Google in den USA übertragen. Quelle: https://support.wix.com/de/article/faqs-google-wix-und-die-dsgvo
+    3. Starten Sie eine neue Prüfung. (a new scan; no claim)
+  - Jimdo: no confirmed steps; the tab shows the general steps.
+  - Shopware: no confirmed steps; the tab shows the general steps.
+
+Left out after the check (the tab shows the general steps):
+- Every Jimdo pair (5): the help pages of Jimdo (help.jimdo.com, legal.jimdo.com) refused automated reading (HTTP 403), so no step could be confirmed; what the search summaries say is not a source.
+- The four drafts of the reference for Google Fonts on Shopify, Wix, Jimdo and Shopware are replaced (Shopify, Wix, Shopware) or left out (Jimdo): no sentence was contradicted, but these had no source: "Google Fonts kommen meist aus einer App oder aus eingefügtem Code" and the German path "Onlineshop › Themes › Code bearbeiten" (Shopify; only the English help could be read); "Google Fonts laden meist über ein eingebettetes HTML-Element oder eine App" and the removal of an app (Wix); every Jimdo sentence; "In Shopware 6 bindet das Theme die Schriften ein", "per @font-face" with the asset path of Shopware, and the cache (Shopware). The WordPress steps of the reference are final and stay.
+- Shopware × Google Analytics, Google Tag Manager, Google Ads: no page says that the built-in integration or the cookie notice of Shopware keeps these scripts from loading before consent; the only source says in general that third-party scripts must load after consent, which is the general text.
+- Shopware × YouTube: the sentence "Your cookie settings prevent us from loading YouTube …" is a placeholder of a video on the documentation page itself, not a description of the YouTube element; the cookie notice is not tied to YouTube on any page.
+- Shopify × YouTube: nothing documented. Shopify × Google Analytics: "Pixel von Apps richten sich nach der Einwilligung" was not confirmed (the page says events "might be restricted", not that the Google tag does not load); the app pixels of the channel "Google & YouTube" are therefore not named as a fix.
+- WordPress × Google Ads: Complianz says it blocks "cookies" of AdSense, not the scripts; the setting "Do you want to block all Google Tags before consent?" needs Complianz Premium and is not said to cover AdSense.
+- Wix × Google Tag Manager and Google Ads, connected through the "Marketing-Integrationen": Wix says only that they "gather data" after consent, not that they do not load before; the steps say exactly that and ask for a new scan, and only the step on own code (which loads before consent) is a fix.
+- Real Cookie Banner is not named as a free option: the plugin page puts most templates of content blockers and the support of the Google Tag Manager into the Pro version.
 - Status: Entwurf
 
 ### `security-headers`
@@ -985,9 +1077,12 @@ Their texts are the lines of "The note under the head" (Session B3 part 2) and o
 
 ### Sources of the general texts
 
-- Google, Consent mode overview: https://developers.google.com/tag-platform/security/concepts/consent-mode
-- YouTube Help, privacy-enhanced mode: `youtube-help-privacy-enhanced-mode` in `docs/rules-sources.md`.
-- Klaro!: `klaro-readme` in `docs/rules-sources.md`; licence BSD-3-Clause: https://github.com/kiprotect/klaro
+Each opened by the second helper (step 5), with the decisive sentence:
+- Google, "Consent mode overview" (basic: "you prevent Google tags from loading until a user interacts with a consent banner", "This setup transmits no data to Google prior to user interaction with the consent banner"; advanced: "Google tags load when a user opens the website or app"): https://developers.google.com/tag-platform/security/concepts/consent-mode
+- Klaro! ("This project is licensed under a BSD-3 license", "Free and Open Source"): https://github.com/kiprotect/klaro; `klaro-readme` in `docs/rules-sources.md`.
+- The consent tools block until consent, by their vendors: CCM19 ("Block cookies & scripts that require consent"): https://www.ccm19.de/en/; Cookiebot ("Cookies are blocked before consent is given"): https://wordpress.org/plugins/cookiebot/; Usercentrics (Smart Data Protector "blocks third-party technologies you added to your website" until consent): https://usercentrics.com/smart-data-protector/
+- Google Fonts ("You can download all Google Fonts in a simple ZIP snapshot", "you can self-host"): https://github.com/google/fonts (the FAQ of fonts.google.com loads by script and could not be read).
+- YouTube: the claim "Er ändert, was YouTube speichert" of the first draft was not confirmed (YouTube Help says only that views in the privacy-enhanced mode do not influence the viewer's experience on YouTube) and is gone; the step now says what the scan measures (a request to youtube-nocookie.com on the visit).
 
 ## Sources
 
