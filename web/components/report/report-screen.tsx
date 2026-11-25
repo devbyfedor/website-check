@@ -4,6 +4,7 @@ import { showsLowerPart } from '../../lib/report-detail-view';
 import { REPORT_TEXTS as T } from '../../lib/report-texts';
 import { SiteFooter } from '../site-footer';
 import { HeaderAction, SiteHeader, SiteNav } from '../site-header';
+import { CheckList } from './check-list';
 import { FindingCards } from './finding-cards';
 import { HelpBlock } from './help-block';
 import { Measures } from './measures';
@@ -60,7 +61,7 @@ export interface StageDParts {
 // The report (design/reference/bericht.html), rendered from a report that passed `validateReport`. The upper part
 // (session B3): the head, the notices of a report that is not a plain complete check, the Prüfmaße, "Drei Dinge" with the
 // plan and the Zeitschnitt A–A. The lower part (session B4): the Stückliste, one finding detail per priority, the help
-// block, for a report whose homepage was checked (a report without it shows its head and the note, B3 part 2); the
+// block, for a report whose homepage was checked (session B5 part 2: the list of manual checks and hints under the cards) (a report without it shows its head and the note, B3 part 2); the
 // title block at the foot of every sheet. The "Revisionen", the "Arbeitsauftrag" and "An Entwickler weitergeben" of
 // stage D only where the example page passes them. The last line of every report is here (product rule 4).
 export function ReportScreen({ report, timeZone, status, stageD }: { report: Report; timeZone?: string; status?: string; stageD?: StageDParts }) {
@@ -76,6 +77,7 @@ export function ReportScreen({ report, timeZone, status, stageD }: { report: Rep
         <>
           <Services report={report} {...zone} />
           <FindingCards report={report} />
+          <CheckList report={report} />
           {stageD?.revisions}
           <HelpBlock report={report} workOrder={stageD?.workOrder} />
         </>

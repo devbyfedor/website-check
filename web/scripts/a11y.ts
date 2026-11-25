@@ -24,7 +24,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium, type Browser, type Page } from 'playwright';
 import { PNG } from 'pngjs';
-import { ROOT, VIEWPORT_HEIGHT, nextFrames, routeHosts, settle, startCheckServer } from './browser-setup.ts';
+import { addCheckStyle, printConsoleLog, removeCheckStyle, ROOT, VIEWPORT_HEIGHT, nextFrames, routeHosts, settle, startCheckServer } from './browser-setup.ts';
 import { DIMMED_CARDS_CSS, decidedDimming } from './image-diff.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'a11y');
@@ -480,7 +480,9 @@ export interface AxeSummary {
 }
 
 export async function axe(page: Page, state: string, source: string): Promise<AxeSummary> {
-  await page.addScriptTag({ content: source });
+  // Session B5 part 2: not as a <script> element, which the CSP of our pages refuses; page.evaluate runs it through the
+  // browser protocol, which a CSP does not restrict.
+  await page.evaluate(source);
   const r = await page.evaluate(async () => {
     const w = window as unknown as { axe: { run: (ctx: Document, opts: object) => Promise<Record<string, { id: string; impact?: string | null; nodes: unknown[] }[]>> } };
     return w.axe.run(document, { resultTypes: ['violations', 'incomplete'] });
@@ -516,6 +518,24 @@ export interface TextContrast {
 // at 390 px) is measured with the box scrolled so that the text is whole in view (session B3 part 1): the boxes are
 // scrolled by their own width, step by step, and each text is measured at the first step that shows all of it; before,
 // a text past the edge of its box was measured against what lay there on the page.
+/**
+ * Session B5 part 2: a screenshot of the whole page, in slices of at most 8,000 px joined into one image when the page is
+ * taller. Chromium paints one capture of at most 16,384 px; a taller page (the report with a cut Stückliste of 80 rows
+ * and the list of manual checks and hints at 390 px) came back wrong in one piece.
+ */
+export async function fullPageShot(page: Page): Promise<PNG> {
+  const SLICE = 8000;
+  const size = await page.evaluate(() => ({ w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight }));
+  if (size.h <= SLICE) return PNG.sync.read(await page.screenshot({ fullPage: true, animations: 'allow', caret: 'hide' }));
+  const whole = new PNG({ width: size.w, height: size.h });
+  for (let y = 0; y < size.h; y += SLICE) {
+    const height = Math.min(SLICE, size.h - y);
+    const part = PNG.sync.read(await page.screenshot({ fullPage: true, clip: { x: 0, y, width: size.w, height }, animations: 'allow', caret: 'hide' }));
+    PNG.bitblt(part, whole, 0, 0, Math.min(part.width, size.w), Math.min(part.height, height), 0, y);
+  }
+  return whole;
+}
+
 export async function contrastByPixels(page: Page): Promise<TextContrast[]> {
   const { items, steps } = await page.evaluate(async () => {
     type Node = { target: string[]; any: { data?: { messageKey?: string } }[] };
@@ -568,14 +588,15 @@ export async function contrastByPixels(page: Page): Promise<TextContrast[]> {
         return { rects, whole };
       });
     }, step);
-    const style = await page.addStyleTag({
-      content:
-        '*, *::placeholder { color: transparent !important; -webkit-text-fill-color: transparent !important; text-decoration-color: transparent !important; } ' +
+    // Session B5 part 2: a constructed style sheet, which the CSP of our pages allows (a <style> element it refuses).
+    await page.evaluate(
+      addCheckStyle,
+      '*, *::placeholder { color: transparent !important; -webkit-text-fill-color: transparent !important; text-decoration-color: transparent !important; } ' +
         'text, tspan { fill: transparent !important; stroke: transparent !important; }',
-    });
+    );
     await nextFrames(page);
-    const shot = PNG.sync.read(await page.screenshot({ fullPage: true, animations: 'allow', caret: 'hide' }));
-    await style.evaluate((el) => (el as HTMLStyleElement).remove());
+    const shot = await fullPageShot(page);
+    await page.evaluate(removeCheckStyle);
     items.forEach((item, i) => {
       if (measured[i] !== null || !placed[i]!.whole) return;
       measured[i] = measure(item, placed[i]!.rects, shot);
@@ -847,6 +868,9 @@ async function main(): Promise<void> {
   report.blocked = blocked;
   await writeFile(join(RESULT_DIR, 'summary.json'), JSON.stringify(report, null, 2) + '\n');
   console.log(`\nRequests of the app to other hosts: ${blocked}`);
+  // Session B5 part 2: the CSP of production holds on every page of the app.
+  const csp = printConsoleLog();
+  if (csp > 0) problems.push(`${csp} CSP violations in the console`);
   console.log(problems.length ? `Problems (${problems.length}):\n  ${problems.join('\n  ')}` : 'Problems: 0');
   if (problems.length || blocked) process.exitCode = 1;
 }

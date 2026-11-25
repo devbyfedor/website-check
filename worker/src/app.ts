@@ -1,5 +1,5 @@
 import { cleanupRateLimit } from './api/rate-limit.ts';
-import { createApi } from './api/router.ts';
+import { API_HEADERS, createApi } from './api/router.ts';
 import type { StartInput } from './api/start.ts';
 import { endStuckScans } from './db/store.ts';
 
@@ -78,7 +78,7 @@ export async function handleRequest(request: Request, env: Env, options: { rateP
   // so the queue object's dev settings (exempt fixture origins, a fixture trace page) can never act on Cloudflare.
   const { hostname } = new URL(request.url);
   if (env.DEV_MODE === '1' && hostname !== '127.0.0.1' && hostname !== 'localhost') {
-    return new Response(JSON.stringify({ error: 'misconfigured' }), { status: 503, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+    return new Response(JSON.stringify({ error: 'misconfigured' }), { status: 503, headers: API_HEADERS });
   }
   const exempt = devExempt(env, request);
   const queue = env.SCAN_QUEUE === undefined ? null : queueClient(queueStub(env.SCAN_QUEUE, request, env.DEV_MODE === '1'));

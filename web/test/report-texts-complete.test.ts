@@ -139,8 +139,10 @@ describe('every step by system names its source', () => {
     for (const [fix, bySystem] of Object.entries(FIX_TEXTS)) {
       for (const [system, steps] of Object.entries(bySystem)) {
         for (const step of steps ?? []) {
-          if (step === 'Starten Sie eine neue Prüfung.') continue; // a new scan claims nothing
-          const source = /Quelle: (https:\/\/\S+|design\/reference\/bericht\.html)/;
+          // A new scan claims nothing (the reference's WordPress step adds only what the new scan should show).
+          if (step.startsWith('Starten Sie eine neue Prüfung.')) continue;
+          // Session B5 part 2 (Fedor): the WordPress steps of the reference have official sources too, so every step needs a link.
+          const source = /Quelle: https:\/\/\S+/;
           expect(lines.some((l) => l.includes(step)), `${fix} ${system}: "${step}" not in docs/content-drafts.md`).toBe(true);
           expect(lines.some((l) => l.includes(step) && source.test(l)), `${fix} ${system}: no source next to "${step}"`).toBe(true);
         }

@@ -6,6 +6,7 @@ import type { Finding, Report, TextId } from '@website-check/scanner/report';
 import exampleJson from '../components/report/example-report.json';
 import { ReportScreen } from '../components/report/report-screen';
 import { HAND_OVER, Revisions, WORK_ORDER } from '../components/report/stage-d';
+import { WORDPRESS_FONTS_STEP_1 } from '../scripts/image-diff';
 import { countWords, FIX_TEXTS, secondsText, SERVICE_FIX } from '../lib/report-detail-texts';
 import { copyListText, detectedSystem, findingCards, helpView, serviceRows, showsLowerPart, sourceAddresses, titleBlock } from '../lib/report-detail-view';
 import { STAGE_D_MARKERS } from '../lib/report-stage-d-texts';
@@ -118,7 +119,10 @@ describe('the finding details of the example', () => {
     // shows the general steps), docs/content-drafts.md, "Steps by system of the five services".
     const panels = [...fund.matchAll(/<ol class="steps">([\s\S]*?)<\/ol>/g)].map((m) => [...m[1]!.matchAll(/<li>(.*?)<\/li>/g)].map((l) => decode(l[1]!)));
     expect(panels).toHaveLength(5);
-    expect(c.fix.steps.wordpress).toEqual(panels[0]);
+    // Session B5 part 2: the first WordPress step in the narrower wording the check confirmed (the decided wording that
+    // npm run visual puts into the reference, web/scripts/image-diff.ts); steps 2 and 3 are the reference's.
+    expect(c.fix.steps.wordpress).toEqual([WORDPRESS_FONTS_STEP_1.decided, ...panels[0]!.slice(1)]);
+    expect(panels[0]![0]).toBe(WORDPRESS_FONTS_STEP_1.reference);
     const fonts = FIX_TEXTS['fix-google-fonts']!;
     expect([c.fix.steps.shopify, c.fix.steps.wix, c.fix.steps.shopware]).toEqual([fonts.shopify, fonts.wix, fonts.shopware]);
     expect(c.fix.steps.jimdo).toBeNull();

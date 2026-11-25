@@ -29,7 +29,7 @@ import { buildReport, DEFAULT_RULES, RULES_FILE, SCANNER_VERSION } from '../../s
 import { SHOP_URL, shopCapture } from '../../scanner/test/report-helpers.ts';
 import { EXAMPLE_SCAN_STATES } from '../components/scan/example-states.ts';
 import { axe, contrastByPixels, keyboard, printContrast, type AxeSummary, type TextContrast } from './a11y.ts';
-import { ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer } from './browser-setup.ts';
+import { documentHeaderProblems, printConsoleLog, productionHeaderRules, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer, watchDocuments } from './browser-setup.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'scan-check');
 const AXE_FILE = join(ROOT, 'node_modules', 'axe-core', 'axe.min.js');
@@ -87,6 +87,7 @@ async function open(browser: Browser, origin: string, width: number, reduced: bo
     timezoneId: 'Europe/Berlin',
   });
   const blocked = await routeHosts(context, origin, 'none');
+  watchDocuments(context, origin);
   // Registered after routeHosts, so it answers the API first.
   await context.route(/\/api\/scans\//, async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -136,6 +137,8 @@ async function main(): Promise<void> {
   const widths = widthArg >= 0 ? (process.argv[widthArg + 1] ?? '').split(',').map(Number).filter((n) => n > 0) : [1440, 390];
   await mkdir(RESULT_DIR, { recursive: true });
   const axeSource = await readFile(AXE_FILE, 'utf8');
+  // Session C0: only on the production build, every page with the CSP of its _headers.
+  const rules = productionHeaderRules();
   const server = await startCheckServer();
   const browser = await chromium.launch({ channel: 'chromium', headless: true });
   const problems: string[] = [];
@@ -258,10 +261,14 @@ async function main(): Promise<void> {
     await browser.close();
     await server.close();
   }
+  problems.push(...(await documentHeaderProblems(rules)));
   summary.problems = problems;
   summary.blocked = blocked;
   await writeFile(join(RESULT_DIR, 'summary.json'), JSON.stringify(summary, null, 2) + '\n');
   console.log(`\nRequests of the app to other hosts: ${blocked}`);
+  // Session B5 part 2: the CSP of production holds in every state.
+  const csp = printConsoleLog();
+  if (csp > 0) problems.push(`${csp} CSP violations in the console`);
   console.log(problems.length ? `Problems (${problems.length}):\n  ${problems.join('\n  ')}` : 'Problems: 0');
   if (problems.length || blocked) process.exitCode = 1;
 }
@@ -359,6 +366,7 @@ function screenStates(): ScreenState[] {
 async function openState(browser: Browser, origin: string, width: number, reduced: boolean, state: { status: Answering; report: Answering }, path = `/pruefung?id=${ID}`) {
   const context = await browser.newContext({ viewport: { width, height: VIEWPORT_HEIGHT[width] ?? 900 }, deviceScaleFactor: 1, reducedMotion: reduced ? 'reduce' : 'no-preference', locale: 'de-DE', timezoneId: 'Europe/Berlin' });
   const blocked = await routeHosts(context, origin, 'none');
+  watchDocuments(context, origin);
   const calls = { status: 0, report: 0, start: 0 };
   const answer = async (route: Route, a: Answer | 'abort') => {
     if (a === 'abort') return route.abort();
@@ -531,6 +539,7 @@ async function checkForm(browser: Browser, origin: string, width: number, axeSou
     for (const reduced of i === 0 ? [true, false] : [true]) {
       const context = await browser.newContext({ viewport: { width, height: VIEWPORT_HEIGHT[width] ?? 900 }, deviceScaleFactor: 1, reducedMotion: reduced ? 'reduce' : 'no-preference', locale: 'de-DE', timezoneId: 'Europe/Berlin' });
       blocked += (await routeHosts(context, origin, 'none')).length;
+      watchDocuments(context, origin);
       let answeredAt = 0;
       let starts = 0;
       await context.route(/\/api\/scans$/, async (route) => {

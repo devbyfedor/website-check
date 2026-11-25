@@ -49,8 +49,19 @@ async function watched(page: Page): Promise<Watch> {
 }
 
 const statusTexts = (page: Page): Promise<(string | null)[]> => page.evaluate('window.__status') as Promise<(string | null)[]>;
-const statusIs = (page: Page, test: string, timeout: number): Promise<unknown> =>
-  page.waitForFunction(`(() => { const t = document.querySelector('[role="status"]')?.textContent ?? ''; return ${test}; })()`, null, { timeout });
+// Session B5 part 2: a function, not a string. Playwright evaluates a string predicate with eval inside the page, which
+// the CSP of our pages refuses (no 'unsafe-eval'); a function goes through the browser protocol. The worker's TypeScript
+// has no DOM library, so the page's document is typed here (the cast is gone at runtime: `globalThis.document`).
+type PageDocument = { querySelector(selector: string): { textContent: string | null } | null };
+const statusIs = (page: Page, want: { startsWith: string } | { equals: string }, timeout: number): Promise<unknown> =>
+  page.waitForFunction(
+    (w) => {
+      const t = (globalThis as unknown as { document: PageDocument }).document.querySelector('[role="status"]')?.textContent ?? '';
+      return 'equals' in w ? t === w.equals : t.startsWith(w.startsWith);
+    },
+    want,
+    { timeout },
+  );
 
 async function api(path: string, body?: unknown): Promise<{ status: number; json: Record<string, unknown> | null }> {
   const response = await fetch(`${site.origin}${path}`, body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -95,7 +106,7 @@ describe('home → scan screen → ready → "Bericht öffnen" (local wrangler d
     expect(await page.locator('h1').textContent()).toBe('localhost wird nachgemessen');
     expect(await page.locator('a', { hasText: 'Bericht öffnen' }).count()).toBe(0);
 
-    await statusIs(page, `t.startsWith('Die Messung ist fertig')`, 90_000);
+    await statusIs(page, { startsWith: 'Die Messung ist fertig' }, 90_000);
     const link = page.locator('a', { hasText: 'Bericht öffnen' });
     expect(await link.getAttribute('href')).toBe(`/bericht?id=${id}`);
     const rows = await page.locator('ol li').allTextContents();
@@ -165,7 +176,7 @@ describe('home → scan screen → ready → "Bericht öffnen" (local wrangler d
     // An unknown id: "Diesen Bericht finden wir nicht."
     await page.goto(`${site.origin}/bericht?id=${'a'.repeat(26)}`);
     await page.waitForSelector('h1', { timeout: 15_000 });
-    await page.waitForFunction(`document.querySelector('h1')?.textContent === 'Diesen Bericht finden wir nicht.'`, null, { timeout: 15_000 });
+    await page.waitForFunction(() => (globalThis as unknown as { document: PageDocument }).document.querySelector('h1')?.textContent === 'Diesen Bericht finden wir nicht.', null, { timeout: 15_000 });
     await context.close();
   }, 180_000);
 });
@@ -185,7 +196,7 @@ describe('"Prüfung abbrechen" of a scan that waits in the queue', () => {
     await page.click('button[type="submit"]');
     await page.waitForURL(/\/pruefung\?id=[a-z2-7]{26}$/, { timeout: 30_000 });
     const id = new URL(page.url()).searchParams.get('id') ?? '';
-    await statusIs(page, `t === 'Ihre Prüfung wartet: Platz 1 in der Warteschlange.'`, 20_000);
+    await statusIs(page, { equals: 'Ihre Prüfung wartet: Platz 1 in der Warteschlange.' }, 20_000);
     expect(await statusOf(id)).toBe('queued');
 
     await page.click('text=Prüfung abbrechen');

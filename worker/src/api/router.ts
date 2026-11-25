@@ -3,6 +3,7 @@ import { getReportText, getScan } from '../db/store.ts';
 import { errorAnswer, refusal, scanBody, type Answer } from './answers.ts';
 import { isCancelToken, isScanId } from './ids.ts';
 import { visitorKeyOf } from './rate-limit.ts';
+import { API_CSP, SITE_HEADERS } from './site-headers.ts';
 import type { StartInput } from './start.ts';
 
 /**
@@ -40,14 +41,20 @@ export interface ApiDeps {
 
 export const MAX_BODY_BYTES = 2048;
 
-const HEADERS: Record<string, string> = {
+// Session B5 part 2: the security headers of the site on every answer of the API too (site-headers.ts), with a CSP and a
+// Referrer-Policy of its own for JSON.
+export const API_HEADERS: Record<string, string> = {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': 'no-store',
   'x-robots-tag': 'noindex, nofollow, noarchive',
+  'strict-transport-security': SITE_HEADERS['Strict-Transport-Security'],
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'no-referrer',
-  'content-security-policy': "default-src 'none'; frame-ancestors 'none'",
+  'permissions-policy': SITE_HEADERS['Permissions-Policy'],
+  'x-frame-options': 'DENY',
+  'content-security-policy': API_CSP,
 };
+const HEADERS = API_HEADERS;
 
 function respond(a: Answer, extra: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(a.body), { status: a.status, headers: { ...HEADERS, ...(a.retryAfter !== undefined ? { 'retry-after': String(a.retryAfter) } : {}), ...extra } });

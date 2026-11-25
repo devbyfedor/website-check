@@ -424,9 +424,10 @@ const wixCustomCode = (what: string) =>
  */
 export const FIX_TEXTS: Record<string, Partial<Record<FixSystem, readonly string[]>>> = {
   'fix-google-fonts': {
-    // Reference, final.
+    // Reference, final; session B5 part 2 (Fedor: checked by the rules of the session of the fix texts): the first step in
+    // the narrower wording the second check confirmed, each step with its source in docs/content-drafts.md.
     wordpress: [
-      'Finden Sie heraus, ob Ihr Theme oder ein Plugin die Schrift einbindet. Oft steht es in den Theme-Einstellungen unter „Typografie“.',
+      'Finden Sie heraus, ob Ihr Theme oder ein Plugin die Schrift einbindet. Bei Block-Themes stehen die Schriften in den Stilen des Website-Editors unter „Typografie“.',
       'Binden Sie die Schrift lokal ein, zum Beispiel mit einem Plugin für lokale Google Fonts. Die Dateien liegen danach auf Ihrem eigenen Server.',
       'Starten Sie eine neue Prüfung. Die Anfrage an Google sollte verschwunden sein.',
     ],
