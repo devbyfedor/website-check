@@ -1,4 +1,4 @@
-import type { Capture, Report } from '@website-check/scanner';
+import { buildReport, DEFAULT_RULES, RULES_FILE, SCANNER_VERSION, type Capture, type Report } from '@website-check/scanner';
 import type { ReportPageState } from '../../lib/report-page';
 import { axe, capture, DOCUMENT, failed, ID, LEGAL_LINKS, page, report, REPORTS, SHOP, type RequestInput } from '../scan/example-states.ts';
 
@@ -32,6 +32,14 @@ const own = (path: string, resourceType: string, startMs: number, endMs: number)
 
 /** 85 requests to hosts no rule names: more services (80) and findings (60) than a report lists. */
 const MANY_HOSTS: RequestInput[] = Array.from({ length: 85 }, (_, i) => ({ url: `https://cdn-${String(i + 1).padStart(2, '0')}.beispiel-anbieter-${i + 1}.example/lib.js`, resourceType: 'script', startMs: 300 + i * 30, endMs: 340 + i * 30 }));
+
+/** Session B3 part 2: a domain with letters of Latin Extended-A (kawa-łódź-muster.de), shown decoded in the latin-ext subset. */
+const EXT_SITE = 'https://xn--kawa-d-muster-flb89ixza.de/';
+function extReport(): Report {
+  const base = capture([{ ...DOCUMENT, url: EXT_SITE }]);
+  const c = { ...base, requestedUrl: EXT_SITE, finalUrl: EXT_SITE, page: base.page === null ? null : { ...base.page, url: EXT_SITE } } as Capture;
+  return buildReport({ id: ID, createdAt: '2026-11-24T13:02:38.000Z', siteUrl: EXT_SITE, mode: 'full', capture: c, rules: DEFAULT_RULES, scannerVersion: SCANNER_VERSION, rulesUpdated: RULES_FILE.updated, visit: { country: 'DE', colo: 'FRA' } }).report;
+}
 
 const STATE_REPORTS = {
   quick: REPORTS.schnellpruefung,
@@ -141,6 +149,7 @@ export const EXAMPLE_REPORT_STATES: readonly ExampleReportState[] = [
   { slug: 'ohne-felder', what: 'drei vorrangige Punkte ohne Feld: keine Marke auf dem Plan', show: r(STATE_REPORTS.withoutFields) },
   { slug: 'banner-spaeter', what: 'Zeitschnitt: Banner erst nach 4,2 s', show: r(STATE_REPORTS.bannerLater) },
   { slug: 'ohne-fremde-server', what: 'Zeitschnitt: keine Anfrage an fremde Server', show: r(STATE_REPORTS.noThirdParty) },
+  { slug: 'buchstaben', what: 'Domain mit polnischen Buchstaben: Barlow latin-ext wird nur hier geladen', show: r(extReport) },
   { slug: 'gekuerzt', what: 'gekürzte Listen und Texte, Seite lud nach 15 s noch', show: r(STATE_REPORTS.truncated) },
   { slug: 'laedt', what: 'Seite: der Bericht wird geladen', show: p({ kind: 'loading' }) },
   { slug: 'nicht-fertig', what: 'Seite: Bericht noch nicht fertig (Prüfung läuft)', show: p({ kind: 'not-ready', id: ID, displayHost: 'roesterei-muster.de' }) },
