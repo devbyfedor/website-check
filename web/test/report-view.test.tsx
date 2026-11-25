@@ -8,7 +8,7 @@ import exampleJson from '../components/report/example-report.json';
 import { ReportScreen } from '../components/report/report-screen';
 import { EXAMPLE_REPORT_FILE, exampleReportText } from '../scripts/example-report-source';
 import { fill } from '../lib/report-texts';
-import { findingTitle, headFacts, measureRows, percentOf, planLabel, planMarks, priorityItems, ratioText, timelineView } from '../lib/report-view';
+import { findingTitle, headFacts, measureRows, ownFilesText, percentOf, planLabel, planMarks, priorityItems, ratioText, timelineView } from '../lib/report-view';
 
 // The upper part of the report (session B3 part 1) with the example of the reference: every text, value and position
 // must be the one of design/reference/bericht.html, except where a product rule decides otherwise (named below).
@@ -125,10 +125,20 @@ describe('Zeitschnitt A–A', () => {
     }));
     expect(ref).toHaveLength(6);
     const app = view.rows.map((r) => ({ label: phraseText(r.label), small: phraseText(r.small), party: r.party, left: r.left, width: r.width }));
-    // Schema v1 does not say which kind of files the site's own files are: "Ihre Dateien" without ": Design und Skripte".
-    expect(app[1]!.small).toBe('Ihre Dateien');
+    // Session B3 part 2: the report names the types of the site's own files (style sheets, a font and scripts in the
+    // window of the example), so the row says "Ihre Dateien: Design und Skripte" as the reference does.
     expect(ref[1]!.small).toBe('Ihre Dateien: Design und Skripte');
-    expect(app.map((r, i) => (i === 1 ? { ...r, small: ref[1]!.small } : r))).toEqual(ref);
+    expect(app).toEqual(ref);
+  });
+
+  it('names the types of the own files only when they are true (Fedor, B3 part 2, answer 1)', () => {
+    expect(ownFilesText(['stylesheet', 'font', 'script'])).toBe('Ihre Dateien: Design und Skripte');
+    expect(ownFilesText(['script'])).toBe('Ihre Dateien: Skripte');
+    expect(ownFilesText(['stylesheet', 'script', 'image', 'data'])).toBe('Ihre Dateien: Design, Skripte, Bilder und Daten');
+    expect(ownFilesText(['image', 'media', 'other'])).toBe('Ihre Dateien: Bilder, Medien und Weiteres');
+    expect(ownFilesText(['other'])).toBe('Ihre Dateien');
+    expect(ownFilesText([])).toBe('Ihre Dateien');
+    expect(ownFilesText(null)).toBe('Ihre Dateien');
   });
 
   it('has the ticks, the cut and the banner time of the reference', () => {

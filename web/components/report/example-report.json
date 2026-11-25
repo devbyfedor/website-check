@@ -186,7 +186,8 @@
           "status": 200,
           "reachedServer": true,
           "beforeBanner": true,
-          "via": "https://roesterei-muster.de/"
+          "via": "https://roesterei-muster.de/",
+          "initiatorType": "parser"
         },
         {
           "type": "request",
@@ -195,7 +196,8 @@
           "status": 200,
           "reachedServer": true,
           "beforeBanner": true,
-          "via": "https://fonts.googleapis.com/css2?family=Lato:wght@400;700"
+          "via": "https://fonts.googleapis.com/css2?family=Lato:wght@400;700",
+          "initiatorType": "parser"
         }
       ],
       "fixTextId": "fix-google-fonts",
@@ -225,7 +227,8 @@
           "status": 200,
           "reachedServer": true,
           "beforeBanner": true,
-          "via": "https://roesterei-muster.de/"
+          "via": "https://roesterei-muster.de/",
+          "initiatorType": "parser"
         }
       ],
       "fixTextId": "fix-google-tag-manager",
@@ -255,7 +258,8 @@
           "status": 200,
           "reachedServer": true,
           "beforeBanner": false,
-          "via": "https://www.googletagmanager.com/gtag/js"
+          "via": "https://www.googletagmanager.com/gtag/js",
+          "initiatorType": "script"
         },
         {
           "type": "request",
@@ -264,7 +268,8 @@
           "status": 200,
           "reachedServer": true,
           "beforeBanner": false,
-          "via": "https://www.googletagmanager.com/gtag/js"
+          "via": "https://www.googletagmanager.com/gtag/js",
+          "initiatorType": "script"
         },
         {
           "type": "request",
@@ -273,7 +278,8 @@
           "status": 200,
           "reachedServer": true,
           "beforeBanner": false,
-          "via": "https://www.googletagmanager.com/gtag/js"
+          "via": "https://www.googletagmanager.com/gtag/js",
+          "initiatorType": "script"
         }
       ],
       "fixTextId": "fix-google-analytics",
@@ -403,7 +409,8 @@
           "status": 200,
           "reachedServer": true,
           "beforeBanner": false,
-          "via": "https://roesterei-muster.de/"
+          "via": "https://roesterei-muster.de/",
+          "initiatorType": "script"
         },
         {
           "type": "request",
@@ -412,7 +419,8 @@
           "status": 200,
           "reachedServer": true,
           "beforeBanner": false,
-          "via": "https://roesterei-muster.de/"
+          "via": "https://roesterei-muster.de/",
+          "initiatorType": "script"
         },
         {
           "type": "request",
@@ -421,7 +429,8 @@
           "status": 200,
           "reachedServer": true,
           "beforeBanner": false,
-          "via": "https://roesterei-muster.de/"
+          "via": "https://roesterei-muster.de/",
+          "initiatorType": "script"
         }
       ],
       "fixTextId": null,
@@ -561,7 +570,8 @@
         "startMs": 0,
         "endMs": 279,
         "requestCount": 1,
-        "beforeBanner": true
+        "beforeBanner": true,
+        "fileTypes": null
       },
       {
         "label": "roesterei-muster.de/wp-content",
@@ -571,8 +581,13 @@
         "provider": null,
         "startMs": 300,
         "endMs": 1050,
-        "requestCount": 7,
-        "beforeBanner": true
+        "requestCount": 4,
+        "beforeBanner": true,
+        "fileTypes": [
+          "stylesheet",
+          "font",
+          "script"
+        ]
       },
       {
         "label": "fonts.googleapis.com",
@@ -583,7 +598,8 @@
         "startMs": 309,
         "endMs": 420,
         "requestCount": 1,
-        "beforeBanner": true
+        "beforeBanner": true,
+        "fileTypes": null
       },
       {
         "label": "fonts.gstatic.com",
@@ -594,7 +610,8 @@
         "startMs": 441,
         "endMs": 711,
         "requestCount": 1,
-        "beforeBanner": true
+        "beforeBanner": true,
+        "fileTypes": null
       },
       {
         "label": "www.googletagmanager.com",
@@ -605,7 +622,8 @@
         "startMs": 861,
         "endMs": 1122,
         "requestCount": 1,
-        "beforeBanner": true
+        "beforeBanner": true,
+        "fileTypes": null
       },
       {
         "label": "roesterei-muster.de",
@@ -616,7 +634,8 @@
         "startMs": 1179,
         "endMs": 1401,
         "requestCount": 1,
-        "beforeBanner": true
+        "beforeBanner": true,
+        "fileTypes": null
       }
     ],
     "rowsTruncated": false

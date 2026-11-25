@@ -63,6 +63,8 @@ export interface ThirdPartyEvidence {
   ownServiceId: string | null;
   /** Document, stylesheet or script that triggered the request, if known (best effort) */
   initiatorUrl: string | null;
+  /** The browser's initiator type of the request (`parser`, `script`, …), if known (session B3 part 2) */
+  initiatorType: string | null;
   /** False when the adapter does not know which document made the request (`frameUnknown`) */
   frameKnown: boolean;
 }
@@ -293,6 +295,7 @@ export function analyzeThirdParty(capture: Capture, rules: CompiledRules): Third
         via: via === null ? null : { kind: via.kind, url: truncate(via.url) },
         ownServiceId: own.kind === 'service' && own.key !== owner.key ? own.key : null,
         initiatorUrl: request.initiator?.url ? truncate(request.initiator.url) : null,
+        initiatorType: request.initiator?.type ?? null,
         frameKnown,
       })),
       evidenceTruncated: items.length > MAX_EVIDENCE,

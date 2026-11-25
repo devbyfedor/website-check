@@ -13,9 +13,13 @@ import { SEVERITY_OF_RISK_CLASS, type RiskClass } from '../rules/types.ts';
 import { pageAddress } from './page-address.ts';
 import { displayHostOf } from './site-address.ts';
 import {
+  FILE_TYPES,
+  INITIATOR_TYPES,
   REPORT_LIMITS,
   REPORT_SCHEMA_VERSION,
   type Evidence,
+  type FileType,
+  type InitiatorType,
   type FieldState,
   type Finding,
   type FindingArea,
@@ -283,6 +287,12 @@ function viaOf(url: string | null): string | null {
   return clipUrl(url);
 }
 
+/** Session B3 part 2: the browser's initiator type in the closed list of the report; another is `other`. */
+function initiatorTypeOf(type: string | null): InitiatorType | null {
+  if (type === null) return null;
+  return (INITIATOR_TYPES as readonly string[]).includes(type) ? (type as InitiatorType) : 'other';
+}
+
 function thirdPartyFindings(analysis: ThirdPartyAnalysis, positions: AxePositions | null = null): Finding[] {
   const out: Finding[] = [];
   for (const service of analysis.services) {
@@ -297,6 +307,7 @@ function thirdPartyFindings(analysis: ThirdPartyAnalysis, positions: AxePosition
       beforeBanner: analysis.bannerVisibleAtMs === null ? null : e.startMs < analysis.bannerVisibleAtMs,
       // Session fix-a6 (review finding 28): the initiator is a string the page can choose (`//# sourceURL=`); only a web address stays.
       via: viaOf(e.via === null ? e.initiatorUrl : e.via.url),
+      initiatorType: initiatorTypeOf(e.initiatorType),
     }));
     out.push(
       finding({
@@ -407,6 +418,31 @@ function commonFirstSegment(requests: readonly CapturedRequest[]): string | null
   return top !== undefined && top[1] * 2 >= requests.length ? top[0] : null;
 }
 
+/** Session B3 part 2: the browser's resource type of a file of the site as a type of the report. */
+function fileTypeOf(resourceType: string): FileType {
+  switch (resourceType) {
+    case 'stylesheet':
+    case 'font':
+    case 'script':
+    case 'image':
+    case 'media':
+      return resourceType;
+    case 'xhr':
+    case 'fetch':
+    case 'eventsource':
+    case 'websocket':
+      return 'data';
+    default:
+      return 'other';
+  }
+}
+
+/** The types of the files of a row, each once, in the order of `FILE_TYPES`. */
+function fileTypesOf(requests: readonly CapturedRequest[]): FileType[] {
+  const seen = new Set(requests.map((r) => fileTypeOf(r.resourceType)));
+  return FILE_TYPES.filter((t) => seen.has(t));
+}
+
 function buildTimeline(capture: Capture, analysis: ThirdPartyAnalysis): Timeline {
   const bannerAt = capture.consentBanner.detected ? capture.consentBanner.visibleAtMs : null;
   const inWindow = (r: CapturedRequest): boolean => r.startMs < TIMELINE_WINDOW_MS;
@@ -425,7 +461,7 @@ function buildTimeline(capture: Capture, analysis: ThirdPartyAnalysis): Timeline
     const first = documents[0] as CapturedRequest;
     rows.push({
       rank: 0,
-      row: { label: clip(hostOf(first.url) ?? mainHost ?? '', 300), party: 'own', kind: 'document', serviceKey: null, provider: null, startMs: ms(first.startMs), endMs: lastEnd(documents), requestCount: documents.length, beforeBanner: before(first.startMs) },
+      row: { label: clip(hostOf(first.url) ?? mainHost ?? '', 300), party: 'own', kind: 'document', serviceKey: null, provider: null, startMs: ms(first.startMs), endMs: lastEnd(documents), requestCount: documents.length, beforeBanner: before(first.startMs), fileTypes: null },
     });
   }
   if (files.length > 0) {
@@ -435,7 +471,7 @@ function buildTimeline(capture: Capture, analysis: ThirdPartyAnalysis): Timeline
     for (const r of files) if (r.startMs < start) start = r.startMs;
     rows.push({
       rank: 1,
-      row: { label: clip(segment === null ? host : `${host}/${segment}`, 300), party: 'own', kind: 'files', serviceKey: null, provider: null, startMs: ms(start), endMs: lastEnd(files), requestCount: files.length, beforeBanner: before(start) },
+      row: { label: clip(segment === null ? host : `${host}/${segment}`, 300), party: 'own', kind: 'files', serviceKey: null, provider: null, startMs: ms(start), endMs: lastEnd(files), requestCount: files.length, beforeBanner: before(start), fileTypes: fileTypesOf(files) },
     });
   }
   for (const group of groupByHost(capture)) {
@@ -456,6 +492,7 @@ function buildTimeline(capture: Capture, analysis: ThirdPartyAnalysis): Timeline
         endMs: lastEnd(requests),
         requestCount: requests.length,
         beforeBanner: before(start),
+        fileTypes: null,
       },
     });
   }

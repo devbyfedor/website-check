@@ -19,24 +19,28 @@ const ID = 'beispielbeispielbeispielaa';
 
 type RequestInput = Partial<CapturedRequest> & { url: string; startMs: number; endMs: number };
 const own = (path: string, resourceType: string, startMs: number, endMs: number): RequestInput => ({ url: `${SHOP}${path}`, resourceType, startMs, endMs, initiator: { type: 'parser', url: SHOP } });
-const third = (url: string, resourceType: string, startMs: number, endMs: number, via = SHOP): RequestInput => ({ url, resourceType, startMs, endMs, initiator: { type: 'script', url: via } });
+// `parser`: the tag stands in the source of `via` (the homepage, or the style sheet of Google Fonts); `script`: a script made it.
+const third = (url: string, resourceType: string, startMs: number, endMs: number, via = SHOP, type: 'parser' | 'script' = 'script'): RequestInput => ({ url, resourceType, startMs, endMs, initiator: { type, url: via } });
 
 // 17 requests, 9 of them to third parties (the numbers of the scan screen of pruefung.html). The bars of the
 // Zeitschnitt: the homepage 0 to 279 ms, its files 300 to 1,050 ms, fonts.googleapis.com 309 to 420 ms,
 // fonts.gstatic.com 441 to 711 ms, www.googletagmanager.com 861 to 1,122 ms; Google Analytics and jsDelivr start
-// after the three seconds of the window.
+// after the three seconds of the window. Session B3 part 2: the images load lazily, after the window, so the files of
+// the site in the window are style sheets, a font and scripts: "Ihre Dateien: Design und Skripte", as the reference says
+// (Fedor's answer 1: the words only when they are true). The link of Google Fonts and the Google tag stand in the source
+// of the homepage ("Gefunden im Quelltext" of the reference), the requests of Google Analytics are made by the tag.
 const REQUESTS: RequestInput[] = [
   { url: SHOP, resourceType: 'document', isNavigation: true, startMs: 0, endMs: 279 },
   own('wp-content/themes/roesterei/style.css', 'stylesheet', 300, 520),
-  third('https://fonts.googleapis.com/css2?family=Lato:wght@400;700', 'stylesheet', 309, 420, SHOP),
+  third('https://fonts.googleapis.com/css2?family=Lato:wght@400;700', 'stylesheet', 309, 420, SHOP, 'parser'),
   own('wp-content/themes/roesterei/theme.js', 'script', 330, 640),
-  third('https://fonts.gstatic.com/s/lato/v24/S6uyw4BMUTPHjx4wXg.woff2', 'font', 441, 711, 'https://fonts.googleapis.com/css2?family=Lato:wght@400;700'),
+  third('https://fonts.gstatic.com/s/lato/v24/S6uyw4BMUTPHjx4wXg.woff2', 'font', 441, 711, 'https://fonts.googleapis.com/css2?family=Lato:wght@400;700', 'parser'),
   own('wp-content/plugins/woocommerce/assets/js/frontend/cart-fragments.min.js', 'script', 360, 700),
-  own('wp-content/uploads/2026/10/roestung.jpg', 'image', 520, 1050),
-  own('wp-content/uploads/2026/10/bohnen.jpg', 'image', 540, 980),
-  third('https://www.googletagmanager.com/gtag/js?id=G-MUSTER123', 'script', 861, 1122, SHOP),
-  own('wp-content/uploads/2026/10/kaffee.jpg', 'image', 560, 1010),
-  own('wp-content/themes/roesterei/fonts/icons.woff2', 'font', 600, 900),
+  own('wp-content/uploads/2026/10/roestung.jpg', 'image', 3100, 3520),
+  own('wp-content/uploads/2026/10/bohnen.jpg', 'image', 3120, 3480),
+  third('https://www.googletagmanager.com/gtag/js?id=G-MUSTER123', 'script', 861, 1122, SHOP, 'parser'),
+  own('wp-content/uploads/2026/10/kaffee.jpg', 'image', 3140, 3510),
+  own('wp-content/themes/roesterei/fonts/icons.woff2', 'font', 600, 1050),
   third('https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css', 'stylesheet', 3050, 3180),
   third('https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js', 'script', 3060, 3260),
   third('https://cdn.jsdelivr.net/npm/glightbox@3/dist/js/glightbox.min.js', 'script', 3070, 3240),
@@ -165,7 +169,7 @@ export function exampleReportText(): string {
   // 4. The row "Einwilligungstool, Ihr Server" of the Zeitschnitt (1,179 to 1,401 ms): the builder does not tell a
   //    consent tool on the site's own server from its other files (gap 4).
   if (report.timeline === null) throw new Error('no timeline');
-  report.timeline.rows.push({ label: 'roesterei-muster.de', party: 'own', kind: 'consent-tool', serviceKey: null, provider: null, startMs: 1179, endMs: 1401, requestCount: 1, beforeBanner: true });
+  report.timeline.rows.push({ label: 'roesterei-muster.de', party: 'own', kind: 'consent-tool', serviceKey: null, provider: null, startMs: 1179, endMs: 1401, requestCount: 1, beforeBanner: true, fileTypes: null });
 
   const ours = validateReport(report);
   const ajv = new Ajv2020({ allErrors: true, strict: true, allowUnionTypes: true }).compile(REPORT_SCHEMA_V1 as object);

@@ -115,7 +115,7 @@ describe('the marks stand only where they show the place of the finding (Fedor, 
   const base = report();
   const own = base.site.finalUrl ?? base.site.url;
   const template = base.findings[0]!;
-  const request = (via: string | null) => ({ type: 'request' as const, url: 'https://tracker.example/x.js', startMs: 10, status: 200, reachedServer: true, beforeBanner: null, via });
+  const request = (via: string | null, initiatorType: 'parser' | 'script' | null = 'parser') => ({ type: 'request' as const, url: 'https://tracker.example/x.js', startMs: 10, status: 200, reachedServer: true, beforeBanner: null, via, initiatorType });
   const f = (id: string, over: Partial<Finding>): Finding => ({ ...template, id, kind: 'finding', risk: 'high', area: 'privacy', serviceKey: 'svc', field: null, evidence: [], ...over });
   const withPriorities = (...findings: Finding[]): Report => ({ ...structuredClone(base), findings, priorities: findings.map((x) => x.id) });
   const places = (rep: Report) => marksOf(rep, 0).map((m) => [m.place, m.numbers.join(', ')]);
@@ -130,12 +130,21 @@ describe('the marks stand only where they show the place of the finding (Fedor, 
     expect(marksLabel(rep)).toBe('Der Plotter zeichnet die geprüfte Startseite und markiert rot, wo vorrangige Punkte liegen: Punkt 2 in Feld B2 und Punkt 3 in Feld A2.');
   });
 
-  it('without a field: the source code for a third party that the page\'s own code requested, nothing otherwise', () => {
+  it('without a field: the source code for a third party whose request stands in the source of the homepage, nothing otherwise', () => {
     const fromPage = f('fonts', { evidence: [request('https://tracker.example/a.css'), request(own)] });
     const fromOwnFile = f('tag', { evidence: [request(`${new URL(own).origin}/wp-content/theme.js`)] });
     const fromThirdParty = f('ga', { evidence: [request('https://www.googletagmanager.com/gtm.js')] });
     expect(places(withPriorities(fromPage))).toEqual([['source', '1']]);
-    expect(places(withPriorities(fromOwnFile))).toEqual([['source', '1']]);
+    // Session B3 part 2 (Fedor): a request a script made is no tag of the source, also when the stack names the homepage
+    // (an inline script a tag manager inserted); a request of the site's own script or style sheet is none either.
+    expect(places(withPriorities(f('inline', { evidence: [request(own, 'script')] })))).toEqual([]);
+    expect(places(withPriorities(fromOwnFile))).toEqual([]);
+    expect(places(withPriorities(f('css', { evidence: [request(`${new URL(own).origin}/wp-content/style.css`, 'parser')] })))).toEqual([]);
+    // A report made before the initiator type existed: no mark (unsure means no mark).
+    expect(places(withPriorities(f('old', { evidence: [{ ...request(own), initiatorType: undefined }] })))).toEqual([]);
+    expect(places(withPriorities(f('null', { evidence: [request(own, null)] })))).toEqual([]);
+    // The homepage with a query or a fragment is the same document.
+    expect(places(withPriorities(f('query', { evidence: [request(`${own}?lang=de#top`)] })))).toEqual([['source', '1']]);
     expect(places(withPriorities(fromThirdParty))).toEqual([]);
     expect(places(withPriorities(f('x', { evidence: [request(null)] })))).toEqual([]);
     // A look-alike host is no file of the site.

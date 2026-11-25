@@ -4,7 +4,7 @@
 // A value of the scanned page is never put into a template string here: titles are phrases whose page values stay
 // text nodes of their own (<bdi>), and every template is filled in one pass (`fill`).
 
-import type { FindingArea, FindingRisk, MeasureId, MeasureResult } from '@website-check/scanner/report';
+import type { FileType, FindingArea, FindingRisk, MeasureId, MeasureResult } from '@website-check/scanner/report';
 import type { Phrase } from '../components/scan/scan-data';
 
 /** German decimal comma: 2.9 → "2,9", 4.5 → "4,5", 21 → "21". */
@@ -60,8 +60,10 @@ export const REPORT_TEXTS = {
   /** Reference: "Einwilligungsbanner erscheint nach 1,4 s". */
   bannerAfter: (ms: number) => `Einwilligungsbanner erscheint nach ${seconds(ms)} s`,
   ownPage: 'Ihre Seite', // reference
-  /** Draft: the reference says "Ihre Dateien: Design und Skripte"; the report does not say which kind of files they are. */
+  /** Without the types of the files (a report made before B3 part 2, or files of other types only): a draft. */
   ownFiles: 'Ihre Dateien',
+  /** Reference: "Ihre Dateien: Design und Skripte", only when the files of the row are of these types (Fedor, B3 part 2). */
+  ownFilesOf: (kinds: string) => `Ihre Dateien: ${kinds}`,
   consentTool: 'Einwilligungstool', // reference
   ownServer: 'Ihr Server', // reference
   /** Reference: "Google, fremder Server". */
@@ -151,6 +153,19 @@ export const PAGE_TEXTS = {
   newScan: 'Neue Prüfung', // reference
   reload: 'Neu laden', // draft of B2 part 3
 } as const;
+
+/**
+ * The words for the types of the site's own files in the Zeitschnitt (session B3 part 2, Fedor's answer 1): "Design"
+ * (style sheets and fonts) and "Skripte" are the reference's words, the others drafts. Each word once, in this order.
+ */
+export const FILE_TYPE_WORDS: readonly { word: string; types: readonly FileType[] }[] = [
+  { word: 'Design', types: ['stylesheet', 'font'] },
+  { word: 'Skripte', types: ['script'] },
+  { word: 'Bilder', types: ['image'] },
+  { word: 'Medien', types: ['media'] },
+  { word: 'Daten', types: ['data'] },
+  { word: 'Weiteres', types: ['other'] },
+];
 
 /** "Merkmal" of each Prüfmaß (reference). */
 export const MEASURE_NAMES: Record<MeasureId, string> = {

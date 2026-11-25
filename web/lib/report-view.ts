@@ -3,11 +3,12 @@
 // (web/test/report-view.test.ts). The states the design does not show (another state than `complete`, no banner,
 // fewer than three priorities, the country of the visit) are B3 part 2.
 
-import type { Finding, Measure, MeasureValue, Report, TimelineRow } from '@website-check/scanner/report';
+import type { FileType, Finding, Measure, MeasureValue, Report, TimelineRow } from '@website-check/scanner/report';
 import type { MarkPlace, Phrase } from '../components/scan/scan-data';
 import {
   AREA_TEXTS,
   decimal,
+  FILE_TYPE_WORDS,
   fill,
   GENERAL_TITLE,
   MEASURE_NAMES,
@@ -22,7 +23,7 @@ import {
   STATE_TEXTS,
   TITLE_TEMPLATES,
 } from './report-texts';
-import { SCAN_TEXTS, SYSTEM_NAMES } from './scan-texts';
+import { listText, SCAN_TEXTS, SYSTEM_NAMES } from './scan-texts';
 import { priorityPlaces } from './scan-view';
 
 export const REPORT_TIME_ZONE = 'Europe/Berlin';
@@ -302,6 +303,18 @@ export interface TimelineView {
  */
 export const TICK_CLEARANCE_MS = 200;
 
+/**
+ * "Ihre Dateien: Design und Skripte" (reference) when the row's files are style sheets or fonts and scripts; the words
+ * name exactly the types the report gives (session B3 part 2, Fedor's answer 1). Without types, or with files of other
+ * types only, "Ihre Dateien".
+ */
+export function ownFilesText(types: readonly FileType[] | null): string {
+  if (types === null) return T.ownFiles;
+  const words = FILE_TYPE_WORDS.filter((w) => w.types.some((t) => types.includes(t))).map((w) => w.word);
+  if (words.length === 0 || (words.length === 1 && words[0] === 'Weiteres')) return T.ownFiles;
+  return T.ownFilesOf(listText(words));
+}
+
 // `provider` comes from our rules data (known services only; docs/report-schema.md does not list it among the strings of
 // the page), so "Google, fremder Server" is one text, as in the reference; the host is a string of the page (<bdi>).
 function rowView(row: TimelineRow, windowMs: number): TimelineRowView {
@@ -315,7 +328,7 @@ function rowView(row: TimelineRow, windowMs: number): TimelineRowView {
     if (own) label = T.consentTool;
     small = own ? T.ownServer : row.provider === null ? T.thirdServer : `${row.provider}, ${T.thirdServer}`;
   } else if (own) {
-    small = row.kind === 'document' ? T.ownPage : T.ownFiles;
+    small = row.kind === 'document' ? T.ownPage : ownFilesText(row.fileTypes ?? null);
   } else {
     small = row.provider === null ? T.thirdServer : `${row.provider}, ${T.thirdServer}`;
   }
