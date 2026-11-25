@@ -46,10 +46,11 @@
   --ease-draw: cubic-bezier(0.6, 0, 0.2, 1);
 }
 
-/* Fonts come from next/font (app/fonts.ts), which sets the two variables on <html>. */
+/* Fonts come from next/font (app/fonts.ts), which sets the variables on <html>. Each family is its latin-ext subset
+   (only for letters in its unicode-range, session B3 part 2), then its latin subset with the fallback of next/font. */
 @theme inline {
-  --font-body: var(--font-barlow), system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-head: var(--font-barlow-semi-condensed), var(--font-barlow), sans-serif;
+  --font-body: var(--font-barlow-ext), var(--font-barlow), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-head: var(--font-barlow-semi-condensed-ext), var(--font-barlow-semi-condensed), var(--font-barlow-ext), var(--font-barlow), sans-serif;
 }
 
 :root {
@@ -99,7 +100,9 @@
   button,
   input,
   select,
-  textarea {
+  textarea,
+  [tabindex]:not([tabindex="-1"]) {
+    /* [tabindex]: the box of a data table that scrolls sideways and takes focus (B3 part 2). */
     scroll-margin: 8px;
   }
 }

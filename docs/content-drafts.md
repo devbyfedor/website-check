@@ -630,6 +630,100 @@ The panel of "Bericht öffnen" with its own heading and line and the button "Neu
 - Title of the tab (`<title>`): "Prüfung läuft, Website-Check DE" while the scan waits or runs (part 1), "Bericht bereit, Website-Check DE" with the report, "Prüfung beendet, Website-Check DE" after a scan without a report.
 - Status: Entwurf
 
+## Session B3 part 1
+
+The upper part of the report (head, Prüfmaße, "Drei Dinge" with the plan, Zeitschnitt A–A). The texts of `design/reference/bericht.html` are final and are not listed; these are the texts the reference does not have (in `web/lib/report-texts.ts`). Every one is an Entwurf.
+
+### Title of the report page
+
+- `<title>`: Prüfbericht, Website-Check DE (the reference: "Prüfbericht, Bauplan").
+
+### Head
+
+- "Geprüfte Seiten" when only the homepage was checked: Startseite.
+- "System" when the system was not recognised: unbekannt (the word of the brief).
+- "System" for Shopware with a known version: Shopware 5, Shopware 6.
+
+### Prüfmaße
+
+- Ergebnis of a row the scan is unsure about: bitte manuell prüfen (the mark of "teilweise", the dash, in grey). Product rule 3: the accessibility statement the scan did not find is "nicht gefunden" in the column Ist and "bitte manuell prüfen" in the column Ergebnis, never "fehlt" and "nicht erfüllt" as in the reference (Fedor, 23.11.2026, `docs/report-schema.md`, conflict 14).
+- Ergebnis of a row that was not checked, and Ist without a value: nicht geprüft (B3 part 2 shows these states).
+- Ist of the accessibility statement: nicht gefunden; Link gefunden, bitte prüfen (a link that names only the topic). Ist of the encryption: HTTP, unbekannt.
+- A failing contrast is written with one decimal, rounded down (4,47 : 1 is "4,4 : 1"), so it never reads as the required value.
+
+### "Drei Dinge sollten Sie zuerst beheben"
+
+- Title of a finding about a third-party service other than Google Fonts and Google Analytics (the two titles of the reference): {Dienst} startet vor der Einwilligung.
+- Title of the finding about the security headers: {n} von {gesamt} Sicherheits-Headern gesetzt.
+- The other titles are those of the drafts above (`a11y-*`, `security-https-missing`, `security-http-no-redirect`, `legal-impressum-no-link`).
+- A text id without a title: Vorrangiger Punkt (never the id).
+- Area: Pflichtangaben (mandatory information), Sicherheit (security); risk: niedriges Risiko (the reference has "Datenschutz", "Barrierefreiheit", "hohes Risiko" and "mittleres Risiko").
+- The accessible name of the plan names the marks of the design by their place, as the reference does ("Überschrift in Feld B2", "Quelltext am Seitenende in Feld A3", "Unterzeile in Feld A2"); a code mark without a field (a request made by the page's own code) is "Quelltext am Seitenende". Two priorities at one place share the mark ("1, 2"), and the place is named once.
+
+### Zeitschnitt A–A
+
+- The small line of the site's own files: Ihre Dateien. The reference says "Ihre Dateien: Design und Skripte"; the report does not say which kind of files they are (schema v1 has the row kind `files` only). Since B3 part 2 only for a report made before or files of other types; see "Session B3 part 2".
+- The small line of a third-party host without a known provider: fremder Server; of a consent tool loaded from its provider: {Anbieter}, fremder Server (the row label is then its host; the reference's "Einwilligungstool, Ihr Server" is the tool on the site's own server).
+
+## Session B3 part 2
+
+The report page of a real scan (`/bericht?id=…`) and the states of the upper part of the report that the design does not show, built only from elements of `design/reference/bericht.html` (Fedor, B3 part 2). All texts live in `web/lib/report-texts.ts`; every one is an Entwurf. Each state opens at an address of its own in `npm run preview:examples`: `/bericht/beispiel/<state>`.
+
+### The page without a report to show
+
+Built from the head of the report ("Prüfbericht für {domain}" when the address is known), the heading of a section, a paragraph and the outlined link of the sheet (`.gl`, "Arbeitsauftrag für Ihren Entwickler").
+
+- While the report loads: Der Bericht wird geladen.
+- The status region of the live page (not shown, read by a screen reader when the content changes): "Der Bericht ist geladen." with the report, otherwise the heading of the state.
+- Not ready yet (the scan waits or runs): "Der Bericht ist noch nicht fertig." / "Die Prüfung läuft noch. Auf der Seite der Prüfung sehen Sie, wie weit sie ist, und öffnen den Bericht, sobald er fertig ist." / link "Zur Prüfung" (to `/pruefung?id=…`).
+- Ended without a report, cancelled: "Zu dieser Prüfung gibt es keinen Bericht." / "Sie wurde aus der Warteschlange genommen, bevor sie begann." / "Neue Prüfung".
+- Ended without a report, the day's cap: "Zu dieser Prüfung gibt es keinen Bericht." / "Sie konnte nicht beginnen, weil an diesem Tag alle Prüfungen vergeben waren." / "Neue Prüfung".
+- Ended without a report, our error: "Die Prüfung ist bei uns fehlgeschlagen." / "Deshalb gibt es keinen Bericht. Bitte starten Sie eine neue Prüfung." (the draft of B2 part 3) / "Neue Prüfung".
+- Unknown id: "Diesen Bericht finden wir nicht." / "Der Link ist unvollständig, oder der Bericht ist nicht mehr gespeichert." / "Neue Prüfung".
+- No usable answer after three tries, or a report that fails the validator: "Den Bericht können wir gerade nicht anzeigen." / "Bitte laden Sie diese Seite in einigen Minuten neu." / "Neu laden" (this page again).
+- Status: Entwurf
+
+### Head
+
+- The fifth fact, when the report knows the country of the visit (Fedor, 21.11.2026): "Aufgerufen aus" with the German name of the country ("Deutschland", "Niederlande").
+- "System" when the homepage did not load: nicht geprüft (never "unbekannt").
+- "Geprüfte Seiten" when the homepage did not load: keine.
+- Status: Entwurf
+
+### The note under the head
+
+Built from the dashed box of the "Revisionen" ("So erscheint ein erledigter Fund …"): the small grey label "Hinweis" and one line per point.
+
+- Quick check: Schnellprüfung ohne Browser: Wir haben nur den Quelltext Ihrer Startseite gelesen, so wie Ihr Server ihn ausliefert. Fremde Dienste und Barrierefreiheit sind deshalb nicht geprüft. Die vollständige Prüfung ist morgen wieder möglich. (The last sentence is the brief's.)
+- Blocked: Ihre Website hat unseren Browser nicht durchgelassen (Antwort {Status}). Deshalb zeigt der Bericht keine Funde. A block met by the quick check: "… unsere Abfrage nicht durchgelassen (Antwort {Status}). Deshalb zeigt der Bericht keine Funde. Die vollständige Prüfung ist morgen wieder möglich."
+- Failed: Ihre Startseite ließ sich nicht prüfen: {Grund}. Deshalb zeigt der Bericht keine Funde. {Grund} is the phrase of the scan screen (B2 part 3): "sie hat nicht rechtzeitig geantwortet", "der Server war nicht erreichbar", "der Server hat mit dem Fehler {Status} geantwortet", "unter dieser Adresse gibt es keine Website", "sie stellt mehr Anfragen oder liefert mehr Daten, als die Prüfung aufzeichnet", "unter der Adresse liegt keine Webseite, sondern eine Datei", "bei der Prüfung ist ein Fehler aufgetreten".
+- Refused address: Diese Adresse dürfen wir nicht prüfen: {Grund}. Deshalb zeigt der Bericht keine Funde. {Grund} as on the scan screen ("die Seite leitet mehr als fünfmal weiter", …).
+- Almost empty page: the text of `report-page-almost-empty` (fix-a1, fix-a2). A page still loading after 15 s: the text of `report-page-still-loading` (fix-a6). Texts read only in part: the texts of `report-truncated-page` (fix-a4).
+- Lists cut (instead of `report-truncated-findings` and `-services` of fix-a4, which name the Stückliste and the list of findings that the page shows only from B4 on; review of B3 part 2): "Der Bericht enthält nur die wichtigsten {shown} von {total} Punkten." and "Der Bericht enthält nur {shown} von {total} fremden Diensten."
+- A notice the page does not know: Der Bericht zeigt, was wir prüfen konnten. (B2 part 3)
+- Status: Entwurf
+
+### Prüfmaße
+
+- "Ist" of "Bilder mit Beschreibung" on a page without images: keine Bilder (Fedor, 24.11.2026).
+- "Ist" of a row that was checked but has no value (an unsure result, or a report of a capture made before a fix): nicht ermittelt. "nicht geprüft" stays for a row that did not run.
+- A report whose homepage did not load (blocked, refused, failed) has no Prüfmaße table.
+- Status: Entwurf
+
+### "Drei Dinge"
+
+- Heading with two priorities: Zwei Dinge sollten Sie zuerst beheben. With one: Das sollten Sie zuerst beheben. With none: "Keine vorrangigen Punkte" and the line "In den geprüften Teilen hat die automatische Prüfung keinen Punkt mit Risiko gefunden."
+- A report that measured no homepage (blocked, refused, failed, almost empty page) has no such section and no plan; an almost empty page has no Zeitschnitt either (review of B3 part 2).
+- Status: Entwurf
+
+### Zeitschnitt A–A
+
+- No banner seen: "Kein Einwilligungsbanner erkannt." (no cut, and no key of the cut in the legend).
+- A banner after the window: "Einwilligungsbanner erscheint nach {s} s, nach diesem Ausschnitt."
+- No third party in the window: "In den ersten drei Sekunden keine Anfrage an fremde Server."
+- The small line of the site's own files (Fedor's answer 1 of B3 part 1): "Ihre Dateien: {Arten}" with the words of the types the report gives, each once, joined with ", " and " und ": "Design" (style sheets and fonts) and "Skripte" are the reference's words; "Bilder", "Medien" (video and audio), "Daten" (xhr, fetch, event streams, web sockets) and "Weiteres" (anything else) are drafts. Without types (a report made before) or with other files only: "Ihre Dateien" (the draft of B3 part 1).
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/

@@ -4,3 +4,11 @@
   X-Robots-Tag: noindex, nofollow
 /pruefung.html
   X-Robots-Tag: noindex, nofollow
+# Session B3 part 2: the report of a real scan is never indexed, and its address (with the id) never leaves the page in
+# a Referer (docs/report-schema.md, "The page of the report").
+/bericht
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+/bericht.html
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer

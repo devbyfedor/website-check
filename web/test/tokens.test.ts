@@ -58,11 +58,12 @@ const MAP: Record<string, string> = {
   '--wc-pop-duration': '--wc-pop-duration',
 };
 
-// The font families are the self-hosted ones from next/font (app/fonts.ts).
+// The font families are the self-hosted ones from next/font (app/fonts.ts): each its latin-ext subset first (only for
+// letters in its unicode-range, session B3 part 2), then its latin subset.
 function fontFamiliesAsInApp(value: string): string {
   return value
-    .replace(/'Barlow Semi Condensed'/g, 'var(--font-barlow-semi-condensed)')
-    .replace(/'Barlow'/g, 'var(--font-barlow)');
+    .replace(/'Barlow Semi Condensed'/g, 'var(--font-barlow-semi-condensed-ext), var(--font-barlow-semi-condensed)')
+    .replace(/'Barlow'/g, 'var(--font-barlow-ext), var(--font-barlow)');
 }
 
 describe('design tokens', () => {

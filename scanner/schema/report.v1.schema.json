@@ -246,7 +246,8 @@
             "status": { "type": ["integer", "null"], "minimum": 0, "maximum": 999 },
             "reachedServer": { "type": "boolean" },
             "beforeBanner": { "type": ["boolean", "null"] },
-            "via": { "type": ["string", "null"], "maxLength": 300, "pattern": "^(https?|wss?)://", "description": "Address taken from the scanned page (untrusted): render as text only, never as a link." }
+            "via": { "type": ["string", "null"], "maxLength": 300, "pattern": "^(https?|wss?)://", "description": "Address taken from the scanned page (untrusted): render as text only, never as a link." },
+            "initiatorType": { "enum": ["parser", "script", "preload", "preflight", "other", null], "description": "Session B3 part 2: how the browser came to the request (its initiator type, from a closed list; another type is other; null when the capture does not say). parser: the HTML or CSS parser found it in the served source of the document or style sheet that via names; script: a script made it. Missing in reports made before." }
           }
         },
         {
@@ -342,7 +343,11 @@
               "startMs": { "$ref": "#/$defs/ms" },
               "endMs": { "anyOf": [{ "$ref": "#/$defs/ms" }, { "type": "null" }] },
               "requestCount": { "$ref": "#/$defs/count" },
-              "beforeBanner": { "type": ["boolean", "null"] }
+              "beforeBanner": { "type": ["boolean", "null"] },
+              "fileTypes": {
+                "anyOf": [{ "type": "array", "maxItems": 7, "items": { "enum": ["stylesheet", "font", "script", "image", "media", "data", "other"] } }, { "type": "null" }],
+                "description": "Session B3 part 2: rows of kind files only: which types the site's own files of the row are (by the browser's resource type, each once, in this order; data: xhr, fetch, event streams and web sockets); null for the other rows. Missing in reports made before."
+              }
             }
           }
         },

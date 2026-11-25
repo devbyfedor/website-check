@@ -1,0 +1,741 @@
+{
+  "schemaVersion": 1,
+  "id": "beispielbeispielbeispielaa",
+  "createdAt": "2026-11-19T17:41:58.000Z",
+  "state": "complete",
+  "site": {
+    "url": "https://roesterei-muster.de/",
+    "host": "roesterei-muster.de",
+    "displayHost": "roesterei-muster.de",
+    "finalUrl": "https://roesterei-muster.de/"
+  },
+  "scan": {
+    "mode": "full",
+    "scannedAt": "2026-11-19T17:42:00.000Z",
+    "durationMs": 6200,
+    "scannerVersion": "0.1.0",
+    "rulesUpdated": "2026-11-21",
+    "axeVersion": "4.14.1",
+    "stopReason": "network-quiet",
+    "requests": {
+      "total": 17,
+      "thirdParty": 9
+    }
+  },
+  "visit": {
+    "country": null,
+    "colo": null,
+    "adapter": "playwright-local",
+    "browser": "chromium example",
+    "locale": "de-DE",
+    "timezone": "Europe/Berlin",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    }
+  },
+  "notice": null,
+  "failure": null,
+  "pages": {
+    "homepage": "checked",
+    "impressum": "checked"
+  },
+  "revision": {
+    "letter": "A",
+    "kind": "initial"
+  },
+  "sections": {
+    "thirdParty": {
+      "status": "checked",
+      "reason": null
+    },
+    "accessibility": {
+      "status": "checked",
+      "reason": null
+    },
+    "security": {
+      "status": "checked",
+      "reason": null
+    },
+    "legal": {
+      "status": "checked",
+      "reason": null
+    },
+    "platform": {
+      "status": "checked",
+      "reason": null
+    }
+  },
+  "platform": {
+    "system": "wordpress",
+    "woocommerce": true,
+    "shopwareVersion": null,
+    "shop": true
+  },
+  "measures": [
+    {
+      "id": "third-party-before-consent",
+      "result": "fail",
+      "target": {
+        "type": "count",
+        "count": 0
+      },
+      "actual": {
+        "type": "count",
+        "count": 3
+      }
+    },
+    {
+      "id": "impressum-fields",
+      "result": "pass",
+      "target": {
+        "type": "of",
+        "count": 4,
+        "total": 4
+      },
+      "actual": {
+        "type": "of",
+        "count": 4,
+        "total": 4
+      }
+    },
+    {
+      "id": "lowest-contrast",
+      "result": "fail",
+      "target": {
+        "type": "ratio",
+        "ratio": 4.5,
+        "expected": "4.5:1"
+      },
+      "actual": {
+        "type": "ratio",
+        "ratio": 2.9,
+        "expected": "4.5:1"
+      }
+    },
+    {
+      "id": "images-described",
+      "result": "fail",
+      "target": {
+        "type": "all"
+      },
+      "actual": {
+        "type": "of",
+        "count": 12,
+        "total": 17
+      }
+    },
+    {
+      "id": "accessibility-statement",
+      "result": "manual",
+      "target": {
+        "type": "state",
+        "state": "present"
+      },
+      "actual": {
+        "type": "state",
+        "state": "not-found"
+      }
+    },
+    {
+      "id": "https",
+      "result": "pass",
+      "target": {
+        "type": "state",
+        "state": "https"
+      },
+      "actual": {
+        "type": "state",
+        "state": "https"
+      }
+    },
+    {
+      "id": "security-headers",
+      "result": "partial",
+      "target": {
+        "type": "of",
+        "count": 5,
+        "total": 5
+      },
+      "actual": {
+        "type": "of",
+        "count": 2,
+        "total": 5
+      }
+    }
+  ],
+  "findings": [
+    {
+      "risk": "high",
+      "params": {
+        "service": "Google Fonts",
+        "provider": "Google",
+        "category": "fonts",
+        "count": 2,
+        "firstStartMs": 309,
+        "beforeBanner": true
+      },
+      "field": "B2",
+      "serviceKey": "google-fonts",
+      "beforeConsent": true,
+      "evidence": [
+        {
+          "type": "request",
+          "url": "https://fonts.googleapis.com/css2?family=Lato:wght@400;700",
+          "startMs": 309,
+          "status": 200,
+          "reachedServer": true,
+          "beforeBanner": true,
+          "via": "https://roesterei-muster.de/",
+          "initiatorType": "parser"
+        },
+        {
+          "type": "request",
+          "url": "https://fonts.gstatic.com/s/lato/v24/S6uyw4BMUTPHjx4wXg.woff2",
+          "startMs": 441,
+          "status": 200,
+          "reachedServer": true,
+          "beforeBanner": true,
+          "via": "https://fonts.googleapis.com/css2?family=Lato:wght@400;700",
+          "initiatorType": "parser"
+        }
+      ],
+      "fixTextId": "fix-google-fonts",
+      "id": "third-party:google-fonts",
+      "area": "privacy",
+      "kind": "finding",
+      "textId": "third-party-precedent"
+    },
+    {
+      "risk": "high",
+      "params": {
+        "service": "Google Tag Manager / Google tag (gtag.js)",
+        "provider": "Google",
+        "category": "tag-manager",
+        "count": 1,
+        "firstStartMs": 861,
+        "beforeBanner": true
+      },
+      "field": null,
+      "serviceKey": "google-tag-manager",
+      "beforeConsent": true,
+      "evidence": [
+        {
+          "type": "request",
+          "url": "https://www.googletagmanager.com/gtag/js",
+          "startMs": 861,
+          "status": 200,
+          "reachedServer": true,
+          "beforeBanner": true,
+          "via": "https://roesterei-muster.de/",
+          "initiatorType": "parser"
+        }
+      ],
+      "fixTextId": "fix-google-tag-manager",
+      "id": "third-party:google-tag-manager",
+      "area": "privacy",
+      "kind": "finding",
+      "textId": "third-party-consent-required"
+    },
+    {
+      "risk": "high",
+      "params": {
+        "service": "Google Analytics",
+        "provider": "Google",
+        "category": "analytics",
+        "count": 3,
+        "firstStartMs": 3210,
+        "beforeBanner": false
+      },
+      "field": "A3",
+      "serviceKey": "google-analytics",
+      "beforeConsent": true,
+      "evidence": [
+        {
+          "type": "request",
+          "url": "https://region1.google-analytics.com/g/collect",
+          "startMs": 3210,
+          "status": 200,
+          "reachedServer": true,
+          "beforeBanner": false,
+          "via": "https://www.googletagmanager.com/gtag/js",
+          "initiatorType": "script"
+        },
+        {
+          "type": "request",
+          "url": "https://region1.google-analytics.com/g/collect",
+          "startMs": 3400,
+          "status": 200,
+          "reachedServer": true,
+          "beforeBanner": false,
+          "via": "https://www.googletagmanager.com/gtag/js",
+          "initiatorType": "script"
+        },
+        {
+          "type": "request",
+          "url": "https://region1.google-analytics.com/g/collect",
+          "startMs": 3800,
+          "status": 200,
+          "reachedServer": true,
+          "beforeBanner": false,
+          "via": "https://www.googletagmanager.com/gtag/js",
+          "initiatorType": "script"
+        }
+      ],
+      "fixTextId": "fix-google-analytics",
+      "id": "third-party:google-analytics",
+      "area": "privacy",
+      "kind": "finding",
+      "textId": "third-party-consent-required"
+    },
+    {
+      "risk": "medium",
+      "params": {
+        "count": 14,
+        "ratio": 2.9,
+        "expected": "4.5:1"
+      },
+      "field": "A2",
+      "serviceKey": null,
+      "beforeConsent": false,
+      "evidence": [
+        {
+          "type": "element",
+          "target": [
+            ".hero .sub"
+          ],
+          "html": "<p class=\"sub\">Frisch geröstet in Musterhausen</p>",
+          "ratio": 2.9,
+          "expected": "4.5:1"
+        }
+      ],
+      "fixTextId": null,
+      "id": "a11y:color-contrast",
+      "area": "accessibility",
+      "kind": "finding",
+      "textId": "a11y-color-contrast"
+    },
+    {
+      "risk": "medium",
+      "params": {
+        "count": 5
+      },
+      "field": "B3",
+      "serviceKey": null,
+      "beforeConsent": false,
+      "evidence": [
+        {
+          "type": "element",
+          "target": [
+            ".produkte img:nth-child(1)"
+          ],
+          "html": "<img src=\"/wp-content/uploads/2026/10/bohnen.jpg\">",
+          "ratio": null,
+          "expected": null
+        }
+      ],
+      "fixTextId": null,
+      "id": "a11y:image-alt",
+      "area": "accessibility",
+      "kind": "finding",
+      "textId": "a11y-image-alt"
+    },
+    {
+      "risk": "low",
+      "params": {
+        "present": 2,
+        "total": 5
+      },
+      "field": null,
+      "serviceKey": null,
+      "beforeConsent": false,
+      "evidence": [
+        {
+          "type": "header",
+          "name": "content-security-policy",
+          "status": "missing",
+          "value": null
+        },
+        {
+          "type": "header",
+          "name": "referrer-policy",
+          "status": "missing",
+          "value": null
+        },
+        {
+          "type": "header",
+          "name": "permissions-policy",
+          "status": "missing",
+          "value": null
+        }
+      ],
+      "fixTextId": null,
+      "id": "security:headers",
+      "area": "security",
+      "kind": "finding",
+      "textId": "security-headers"
+    },
+    {
+      "risk": null,
+      "params": {},
+      "field": null,
+      "serviceKey": null,
+      "beforeConsent": false,
+      "evidence": [],
+      "fixTextId": null,
+      "id": "legal:accessibility-statement",
+      "area": "mandatory-information",
+      "kind": "manual",
+      "textId": "legal-accessibility-statement-not-found"
+    },
+    {
+      "risk": null,
+      "params": {
+        "service": "jsDelivr (incl. BootstrapCDN)",
+        "provider": "jsDelivr",
+        "category": "cdn",
+        "count": 3,
+        "firstStartMs": 3050,
+        "beforeBanner": false
+      },
+      "field": null,
+      "serviceKey": "jsdelivr",
+      "beforeConsent": true,
+      "evidence": [
+        {
+          "type": "request",
+          "url": "https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css",
+          "startMs": 3050,
+          "status": 200,
+          "reachedServer": true,
+          "beforeBanner": false,
+          "via": "https://roesterei-muster.de/",
+          "initiatorType": "script"
+        },
+        {
+          "type": "request",
+          "url": "https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js",
+          "startMs": 3060,
+          "status": 200,
+          "reachedServer": true,
+          "beforeBanner": false,
+          "via": "https://roesterei-muster.de/",
+          "initiatorType": "script"
+        },
+        {
+          "type": "request",
+          "url": "https://cdn.jsdelivr.net/npm/glightbox@3/dist/js/glightbox.min.js",
+          "startMs": 3070,
+          "status": 200,
+          "reachedServer": true,
+          "beforeBanner": false,
+          "via": "https://roesterei-muster.de/",
+          "initiatorType": "script"
+        }
+      ],
+      "fixTextId": null,
+      "id": "third-party:jsdelivr",
+      "area": "privacy",
+      "kind": "hint",
+      "textId": "third-party-grey-zone"
+    }
+  ],
+  "priorities": [
+    "third-party:google-fonts",
+    "third-party:google-analytics",
+    "a11y:color-contrast"
+  ],
+  "services": [
+    {
+      "position": 1,
+      "key": "google-fonts",
+      "known": true,
+      "name": "Google Fonts",
+      "provider": "Google",
+      "category": "fonts",
+      "riskClass": "precedent",
+      "dataLocation": "us-possible",
+      "severity": "finding",
+      "consent": "missing",
+      "starts": "before-consent",
+      "requestCount": 2,
+      "firstStartMs": 309,
+      "startsBeforeBanner": true,
+      "hosts": [
+        "fonts.googleapis.com",
+        "fonts.gstatic.com"
+      ],
+      "sources": [
+        "lg-muenchen-2022-google-fonts",
+        "lfd-nds-2022-google-fonts",
+        "tlfdi-2022-google-fonts",
+        "baylfd-aki42-web-fonts",
+        "dsk-oh-digitale-dienste",
+        "eugh-fashion-id",
+        "lg-muenchen-2023-google-fonts-crawler"
+      ],
+      "findingId": "third-party:google-fonts"
+    },
+    {
+      "position": 2,
+      "key": "google-tag-manager",
+      "known": true,
+      "name": "Google Tag Manager / Google tag (gtag.js)",
+      "provider": "Google",
+      "category": "tag-manager",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "severity": "finding",
+      "consent": "missing",
+      "starts": "before-consent",
+      "requestCount": 1,
+      "firstStartMs": 861,
+      "startsBeforeBanner": true,
+      "hosts": [
+        "www.googletagmanager.com"
+      ],
+      "sources": [
+        "vg-hannover-2025-10-a-5385-22",
+        "dsk-2020-google-analytics",
+        "google-tag-install",
+        "google-eu-user-consent-policy",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ],
+      "findingId": "third-party:google-tag-manager"
+    },
+    {
+      "position": 3,
+      "key": "google-analytics",
+      "known": true,
+      "name": "Google Analytics",
+      "provider": "Google",
+      "category": "analytics",
+      "riskClass": "consent-required",
+      "dataLocation": "us-possible",
+      "severity": "finding",
+      "consent": "missing",
+      "starts": "before-consent",
+      "requestCount": 3,
+      "firstStartMs": 3210,
+      "startsBeforeBanner": false,
+      "hosts": [
+        "region1.google-analytics.com"
+      ],
+      "sources": [
+        "dsk-2020-google-analytics",
+        "google-eu-user-consent-policy",
+        "tdddg-25",
+        "dsk-oh-digitale-dienste"
+      ],
+      "findingId": "third-party:google-analytics"
+    },
+    {
+      "position": 4,
+      "key": "jsdelivr",
+      "known": true,
+      "name": "jsDelivr (incl. BootstrapCDN)",
+      "provider": "jsDelivr",
+      "category": "cdn",
+      "riskClass": "grey-zone",
+      "dataLocation": "worldwide-cdn",
+      "severity": "hint",
+      "consent": "grey-zone",
+      "starts": "before-consent",
+      "requestCount": 3,
+      "firstStartMs": 3050,
+      "startsBeforeBanner": false,
+      "hosts": [
+        "cdn.jsdelivr.net"
+      ],
+      "sources": [
+        "jsdelivr-readme",
+        "bootstrapcdn-site",
+        "dsk-oh-digitale-dienste"
+      ],
+      "findingId": "third-party:jsdelivr"
+    }
+  ],
+  "timeline": {
+    "windowMs": 3000,
+    "bannerVisibleAtMs": 1400,
+    "bannerToolId": "borlabs-cookie",
+    "rows": [
+      {
+        "label": "roesterei-muster.de",
+        "party": "own",
+        "kind": "document",
+        "serviceKey": null,
+        "provider": null,
+        "startMs": 0,
+        "endMs": 279,
+        "requestCount": 1,
+        "beforeBanner": true,
+        "fileTypes": null
+      },
+      {
+        "label": "roesterei-muster.de/wp-content",
+        "party": "own",
+        "kind": "files",
+        "serviceKey": null,
+        "provider": null,
+        "startMs": 300,
+        "endMs": 1050,
+        "requestCount": 4,
+        "beforeBanner": true,
+        "fileTypes": [
+          "stylesheet",
+          "font",
+          "script"
+        ]
+      },
+      {
+        "label": "fonts.googleapis.com",
+        "party": "third",
+        "kind": "service",
+        "serviceKey": "google-fonts",
+        "provider": "Google",
+        "startMs": 309,
+        "endMs": 420,
+        "requestCount": 1,
+        "beforeBanner": true,
+        "fileTypes": null
+      },
+      {
+        "label": "fonts.gstatic.com",
+        "party": "third",
+        "kind": "service",
+        "serviceKey": "google-fonts",
+        "provider": "Google",
+        "startMs": 441,
+        "endMs": 711,
+        "requestCount": 1,
+        "beforeBanner": true,
+        "fileTypes": null
+      },
+      {
+        "label": "www.googletagmanager.com",
+        "party": "third",
+        "kind": "service",
+        "serviceKey": "google-tag-manager",
+        "provider": "Google",
+        "startMs": 861,
+        "endMs": 1122,
+        "requestCount": 1,
+        "beforeBanner": true,
+        "fileTypes": null
+      },
+      {
+        "label": "roesterei-muster.de",
+        "party": "own",
+        "kind": "consent-tool",
+        "serviceKey": null,
+        "provider": null,
+        "startMs": 1179,
+        "endMs": 1401,
+        "requestCount": 1,
+        "beforeBanner": true,
+        "fileTypes": null
+      }
+    ],
+    "rowsTruncated": false
+  },
+  "legal": {
+    "impressumLink": {
+      "href": "https://roesterei-muster.de/impressum/",
+      "text": "Impressum"
+    },
+    "datenschutzLink": {
+      "href": "https://roesterei-muster.de/datenschutz/",
+      "text": "Datenschutz"
+    },
+    "accessibilityStatement": null,
+    "impressum": {
+      "state": "analyzed",
+      "url": "https://roesterei-muster.de/impressum/",
+      "crossSite": false
+    },
+    "fields": {
+      "address": {
+        "status": "found",
+        "quote": "Bohnenweg 12\n87654 Musterhausen",
+        "source": "text"
+      },
+      "email": {
+        "status": "found",
+        "quote": "kontakt@roesterei-muster.de",
+        "source": "text"
+      },
+      "handelsregister": {
+        "status": "found",
+        "quote": "HRB 12345, Amtsgericht Musterhausen",
+        "source": "text"
+      },
+      "ustId": {
+        "status": "found",
+        "quote": "DE123456789",
+        "source": "text"
+      }
+    }
+  },
+  "security": {
+    "https": "pass",
+    "httpRedirect": "pass",
+    "headers": [
+      {
+        "key": "hsts",
+        "header": "strict-transport-security",
+        "status": "present",
+        "counts": true,
+        "value": "max-age=31536000",
+        "textId": null
+      },
+      {
+        "key": "csp",
+        "header": "content-security-policy",
+        "status": "missing",
+        "counts": false,
+        "value": null,
+        "textId": "security-header-csp-missing"
+      },
+      {
+        "key": "xcto",
+        "header": "x-content-type-options",
+        "status": "present",
+        "counts": true,
+        "value": "nosniff",
+        "textId": null
+      },
+      {
+        "key": "referrer-policy",
+        "header": "referrer-policy",
+        "status": "missing",
+        "counts": false,
+        "value": null,
+        "textId": "security-header-referrer-policy-missing"
+      },
+      {
+        "key": "permissions-policy",
+        "header": "permissions-policy",
+        "status": "missing",
+        "counts": false,
+        "value": null,
+        "textId": "security-header-permissions-policy-missing"
+      }
+    ],
+    "headersPresent": 2,
+    "headersTotal": 5
+  },
+  "counts": {
+    "findings": 6,
+    "manual": 1,
+    "hints": 1,
+    "notChecked": 0,
+    "services": 4
+  },
+  "truncated": {
+    "findings": false,
+    "services": false,
+    "page": []
+  }
+}

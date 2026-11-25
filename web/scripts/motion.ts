@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { PNG } from 'pngjs';
 import { ROOT, VIEWPORT_HEIGHT, nextFrames, routeHosts, settle, startCheckServer } from './browser-setup.ts';
-import { diffImages, percent } from './image-diff.ts';
+import { cropTop, decidedWording, diffImages, percent, regionBottom, REPORT_REGION } from './image-diff.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'motion');
 const DRAWING = 'svg[viewBox="0 0 600 450"]';
@@ -30,6 +30,8 @@ interface PageSpec {
   times: number[]; // seconds after loading
   shot: string | null; // the part photographed; null for the whole page
   layers: boolean; // the four layer buttons of the home page
+  region?: string; // the whole page down to the bottom of this block only (a page built in part, as in npm run visual)
+  decided?: boolean; // the reference gets the wording a product rule decides before its frames (image-diff.ts, decidedWording)
 }
 
 const PAGES: PageSpec[] = [
@@ -43,6 +45,18 @@ const PAGES: PageSpec[] = [
     times: [0.35, 1.2, 2.3, 3.3, 4.2, 5.0, 5.6, 6.1, 6.6, 7.0, 7.6, 8.0],
     shot: null,
     layers: false,
+  },
+  // The report with the example of the reference, its upper part (B3 part 1): the three red marks of the plan and
+  // their numbers draw from 0.4 to 2.35 s; each phase hit at least once.
+  {
+    name: 'bericht',
+    reference: 'bericht.html',
+    app: '/bericht/beispiel',
+    times: [0.3, 0.6, 0.9, 1.15, 1.3, 1.5, 1.75, 2.0, 2.2, 2.5],
+    shot: null,
+    layers: false,
+    region: REPORT_REGION,
+    decided: true,
   },
 ];
 
@@ -181,12 +195,16 @@ async function open(
   return { context, page, blocked };
 }
 
-async function shot(page: Page, selector: string | null): Promise<PNG> {
+async function shot(page: Page, selector: string | null, region?: string): Promise<PNG> {
   await nextFrames(page);
   const buffer = selector
     ? await page.locator(selector).screenshot({ animations: 'allow', caret: 'initial' })
     : await page.screenshot({ fullPage: true, animations: 'allow', caret: 'initial' });
-  return PNG.sync.read(buffer);
+  const png = PNG.sync.read(buffer);
+  if (region === undefined) return png;
+  const bottom = await page.evaluate(regionBottom, region);
+  if (bottom === null) throw new Error(`no element ${region}`);
+  return cropTop(png, bottom);
 }
 
 const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -251,14 +269,19 @@ async function checkPage(browser: Browser, origin: string, spec: PageSpec, width
   // 2. Frames at fixed moments, on a second pair of pages paused from the start, and no sideways
   // scrolling at any of them.
   const frames: Record<string, unknown>[] = [];
-  const part = spec.shot ? 'drawing' : 'page';
+  const part = spec.shot ? 'drawing' : spec.region ? 'blocks of the page so far' : 'page';
   const refF = await open(browser, refUrl, width, origin, 'local', false, true);
   const appF = await open(browser, appUrl, width, origin, 'none', false, true);
+  if (spec.decided) {
+    const rows = await refF.page.evaluate(decidedWording);
+    if (rows !== 1) failures++;
+    console.log(`  frames of the reference with the decided wording of the row "Erklärung zur Barrierefreiheit" (product rule 3): ${rows} row`);
+  }
   for (const t of args.times ?? spec.times) {
     const nRef = await refF.page.evaluate(freeze, [t, 'CSSAnimation'] as const);
     const nApp = await appF.page.evaluate(freeze, [t, 'CSSAnimation'] as const);
-    const a = await shot(refF.page, spec.shot);
-    const b = await shot(appF.page, spec.shot);
+    const a = await shot(refF.page, spec.shot, spec.region);
+    const b = await shot(appF.page, spec.shot, spec.region);
     const scroll = [await sideways(refF.page), await sideways(appF.page)];
     const d = diffImages(a, b);
     const tag = `${spec.name}-${width}-t${t.toFixed(2)}`;

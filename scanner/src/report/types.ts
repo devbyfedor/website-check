@@ -78,6 +78,12 @@ export type Evidence =
       beforeBanner: boolean | null;
       /** The iframe or script that made the request, when it was attributed through one. */
       via: string | null;
+      /**
+       * Session B3 part 2: how the browser came to the request (its initiator type). `parser`: the HTML or CSS parser
+       * found it in the served source of the document or style sheet `via` names, so it was not inserted by a script;
+       * `script`: a script made it. Null when the capture does not say; missing in reports made before.
+       */
+      initiatorType?: InitiatorType | null;
     }
   | {
       type: 'element';
@@ -89,6 +95,10 @@ export type Evidence =
       expected: string | null;
     }
   | { type: 'header'; name: string; status: string; value: string | null };
+
+/** The initiator types of the browser the report keeps (Chrome DevTools Protocol, `Network.Initiator.type`); another is `other`. */
+export const INITIATOR_TYPES = ['parser', 'script', 'preload', 'preflight', 'other'] as const;
+export type InitiatorType = (typeof INITIATOR_TYPES)[number];
 
 export interface Finding {
   /** Stable within the report and between reports of the same site, for example `third-party:google-fonts` or `a11y:color-contrast`. */
@@ -189,7 +199,17 @@ export interface TimelineRow {
   endMs: number | null;
   requestCount: number;
   beforeBanner: boolean | null;
+  /**
+   * Session B3 part 2 (Fedor's answer 1 of B3 part 1): rows of kind `files` only: the types of the site's own files of
+   * the row, each once, in the order of `FILE_TYPES` ("Ihre Dateien: Design und Skripte" only when it is true); null
+   * for the other rows. Missing in reports made before.
+   */
+  fileTypes?: FileType[] | null;
 }
+
+/** The types of the site's own files by the browser's resource type; `data` is xhr, fetch, event streams and web sockets. */
+export const FILE_TYPES = ['stylesheet', 'font', 'script', 'image', 'media', 'data', 'other'] as const;
+export type FileType = (typeof FILE_TYPES)[number];
 
 /** "Zeitschnitt A–A: die ersten drei Sekunden". */
 export interface Timeline {

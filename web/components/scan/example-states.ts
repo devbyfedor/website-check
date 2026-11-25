@@ -8,15 +8,15 @@ import type { LiveScanState } from '../../lib/scan-view';
 // (roesterei-muster.de), so the pages show what the real code makes of such a report. Built only with WC_EXAMPLES=1;
 // a production build that contains this data fails (web/scripts/next.ts).
 
-const SHOP = 'https://roesterei-muster.de/';
-const ID = 'beispielbeispielbeispielaa';
+export const SHOP = 'https://roesterei-muster.de/';
+export const ID = 'beispielbeispielbeispielaa';
 /** The moment of the examples, so the times in their texts do not change between builds (Tuesday, 24.11.2026, 14:03 in Berlin). */
 export const EXAMPLE_NOW = Date.UTC(2026, 10, 24, 13, 3, 20);
 export const EXAMPLE_TIME_ZONE = 'Europe/Berlin';
 
-type RequestInput = Partial<CapturedRequest> & { url: string };
+export type RequestInput = Partial<CapturedRequest> & { url: string };
 
-const IMPRESSUM_TEXT = [
+export const IMPRESSUM_TEXT = [
   'Impressum',
   'Rösterei Muster GmbH',
   'Bohnenweg 12',
@@ -26,7 +26,7 @@ const IMPRESSUM_TEXT = [
   'USt-IdNr.: DE123456789',
 ].join('\n');
 
-const page = (links: { href: string; text: string; footer?: boolean }[], text = 'Rösterei Muster\nFrisch geröstet in Musterhausen\nShop Kontakt\nImpressum Datenschutz') => ({
+export const page = (links: { href: string; text: string; footer?: boolean }[], text = 'Rösterei Muster\nFrisch geröstet in Musterhausen\nShop Kontakt\nImpressum Datenschutz') => ({
   url: SHOP,
   title: 'Rösterei Muster',
   lang: 'de',
@@ -38,12 +38,12 @@ const page = (links: { href: string; text: string; footer?: boolean }[], text = 
   platform: { generators: ['WordPress 6.9'], globals: [], selectors: [] },
 });
 
-const LEGAL_LINKS = [
+export const LEGAL_LINKS = [
   { href: `${SHOP}impressum/`, text: 'Impressum', footer: true },
   { href: `${SHOP}datenschutz/`, text: 'Datenschutz', footer: true },
 ];
 
-const axe = (violations: { contrast?: number; alt?: number } = {}) => {
+export const axe = (violations: { contrast?: number; alt?: number } = {}) => {
   const rule = (n: number, html: string) => ({ violations: n, incomplete: 0, passes: 10, impact: n > 0 ? ('serious' as const) : null, examples: n > 0 ? [{ target: ['main p'], html, contrast: null, field: 'A2' }] : [], incompleteExamples: [] });
   return {
     status: 'ok' as const,
@@ -66,7 +66,7 @@ const axe = (violations: { contrast?: number; alt?: number } = {}) => {
   };
 };
 
-function capture(requests: RequestInput[], over: Partial<Capture> = {}): Capture {
+export function capture(requests: RequestInput[], over: Partial<Capture> = {}): Capture {
   return {
     schemaVersion: 1,
     adapter: 'playwright-local',
@@ -111,10 +111,10 @@ function capture(requests: RequestInput[], over: Partial<Capture> = {}): Capture
   } as Capture;
 }
 
-const DOCUMENT: RequestInput = { url: SHOP, resourceType: 'document', isNavigation: true, startMs: 0, endMs: 280 };
+export const DOCUMENT: RequestInput = { url: SHOP, resourceType: 'document', isNavigation: true, startMs: 0, endMs: 280 };
 
 /** A failed capture: nothing of the page, only the reason. */
-const failed = (reason: NonNullable<Capture['failure']>['reason'], message: string, status?: number): Capture =>
+export const failed = (reason: NonNullable<Capture['failure']>['reason'], message: string, status?: number): Capture =>
   capture(status === undefined ? [] : [{ ...DOCUMENT, status }], {
     ok: false,
     failure: { reason, message, ...(status !== undefined ? { status } : {}) },
@@ -126,11 +126,11 @@ const failed = (reason: NonNullable<Capture['failure']>['reason'], message: stri
     timings: { domContentLoadedMs: null, loadMs: null, networkQuietMs: null, endMs: 20_000, stopReason: 'error' },
   } as Partial<Capture>);
 
-function report(c: Capture, mode: 'full' | 'quick' = 'full'): Report {
+export function report(c: Capture, mode: 'full' | 'quick' = 'full'): Report {
   return buildReport({ id: ID, createdAt: '2026-11-24T13:02:38.000Z', siteUrl: SHOP, mode, capture: c, rules: DEFAULT_RULES, scannerVersion: SCANNER_VERSION, rulesUpdated: RULES_FILE.updated, visit: { country: 'DE', colo: 'FRA' } }).report;
 }
 
-const REPORTS = {
+export const REPORTS = {
   /** Two requests, one to a public CDN (a hint), no banner, no finding among the services; an image without text. */
   ohneFunde: () => report(capture([DOCUMENT, { url: 'https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js', resourceType: 'script', startMs: 300, endMs: 420 }], { axe: axe({ alt: 2 }) })),
   /** One request (the homepage), the Impressum is a section of the homepage (an anchor): one page asked for. */

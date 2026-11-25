@@ -1,0 +1,357 @@
+/* The report sheet of design/reference/bericht.html, upper part (session B3 part 1): the rules of the reference for
+   the sheet, the head, the Prüfmaße table, "Drei Dinge" with the plan and the Zeitschnitt A–A, with the values of
+   design/tokens.css. Lengths and timings are those of the reference. */
+
+.sheet {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-sheet);
+}
+.sheet a {
+  color: var(--color-link);
+}
+.sheet a:hover {
+  color: var(--color-ink);
+}
+.sheet a:focus-visible,
+.sheet button:focus-visible {
+  outline-color: var(--color-link);
+}
+
+.sec {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+/* The head of the report: its blocks 22 px apart (a CSS module beats a Tailwind utility of the same property). */
+.headSec {
+  gap: 22px;
+}
+.sech {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.h2s {
+  margin: 0;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 32px;
+  line-height: 1.1;
+  color: var(--color-ink);
+}
+.bodys {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--color-ink-body);
+}
+.mut {
+  color: var(--color-ink-muted);
+}
+
+/* The buttons of the head. */
+.gb {
+  height: 44px;
+  padding: 0 16px;
+  border: 1.5px solid var(--color-ink);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 17px;
+  cursor: pointer;
+}
+.gb:hover {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+/* The red number of a priority. */
+.pencil {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 2px solid var(--color-pencil);
+  border-radius: 50% 44% 52% 46%;
+  color: var(--color-pencil);
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 19px;
+  box-sizing: border-box;
+  transform: rotate(-6deg);
+}
+.feld {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid var(--color-line);
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--color-line);
+  white-space: nowrap;
+}
+
+/* The plan of the homepage. */
+.sk {
+  fill: none;
+  stroke: var(--color-line);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.skt {
+  fill: none;
+  stroke: var(--color-line);
+  stroke-width: 1;
+  stroke-opacity: 0.5;
+}
+.skh {
+  fill: none;
+  stroke: var(--color-line);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.zt {
+  fill: none;
+  stroke: var(--color-line);
+  stroke-width: 1;
+}
+.zone {
+  fill: var(--color-ink-muted);
+  font-family: var(--font-head);
+  font-size: 13px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.rp {
+  fill: none;
+  stroke: var(--color-pencil);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rpt {
+  fill: var(--color-pencil);
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 18px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 0.9s cubic-bezier(0.6, 0, 0.3, 1) forwards;
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.pop {
+  opacity: 0;
+  animation: pop 0.35s ease-out forwards;
+}
+@keyframes pop {
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .draw {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+  .pop {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+/* Tables and the Zeitschnitt scroll sideways inside their box only (WCAG 1.4.10 allows it for data tables). */
+.tw {
+  overflow-x: auto;
+}
+/* Not in the reference: the box that scrolls takes focus (scroll-box.tsx); its ring is the ring of the sheet. */
+.tw:focus-visible {
+  outline: 3px solid var(--color-link);
+  outline-offset: 3px;
+}
+.mt {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 16px;
+  min-width: 640px;
+}
+.mt th {
+  text-align: left;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--color-ink-muted);
+  padding: 10px 14px;
+  border-bottom: 1.5px solid var(--color-ink);
+}
+.mt td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-rule);
+  vertical-align: middle;
+  color: var(--color-ink);
+}
+.mt td.num {
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 18px;
+  white-space: nowrap;
+}
+.mt td.bad {
+  color: var(--color-pencil);
+}
+.res {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.res svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.res path {
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rBad {
+  color: var(--color-pencil);
+}
+.rBad path {
+  stroke: var(--color-pencil);
+}
+.rOk {
+  color: var(--color-link);
+}
+.rOk path {
+  stroke: var(--color-link);
+}
+.rMid {
+  color: var(--color-ink-muted);
+}
+.rMid path {
+  stroke: var(--color-ink-muted);
+}
+
+/* Zeitschnitt A–A. */
+.trow {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  align-items: center;
+  min-height: 48px;
+}
+/* The rows of the axis and of the cut label: 44 px. */
+.trowShort {
+  min-height: 44px;
+}
+.tlab {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-right: 16px;
+  font-size: 14.5px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tlab small {
+  font-size: 12.5px;
+  color: var(--color-ink-muted);
+}
+.track {
+  position: relative;
+  height: 48px;
+  background-image: linear-gradient(90deg, rgba(44, 91, 196, 0.2) 1px, transparent 1px);
+  background-size: 16.6667% 100%;
+  border-bottom: 1px solid #e1e8f4;
+}
+.bar {
+  position: absolute;
+  top: 15px;
+  height: 18px;
+  box-sizing: border-box;
+}
+.own {
+  background: var(--color-own-request);
+  border: 1.5px solid var(--color-line);
+}
+.ext {
+  background: repeating-linear-gradient(45deg, rgba(200, 52, 43, 0.85) 0 2px, transparent 2px 6px);
+  border: 1.5px solid var(--color-pencil);
+}
+.cut {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed var(--color-ink);
+}
+.cutl {
+  position: absolute;
+  transform: translateX(-50%);
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--color-ink);
+  background: var(--color-paper);
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--color-ink);
+  box-sizing: border-box;
+}
+/* The key of the cut in the legend: a dashed line of 16 px. */
+.cutKey {
+  width: 0;
+  height: 16px;
+  border-left: 2px dashed var(--color-ink);
+}
+
+/* Session B3 part 2, the states without design, from elements of the lower part of bericht.html. */
+/* The outlined link of the sheet (".sheet a.gl", "Arbeitsauftrag für Ihren Entwickler"). */
+.sheet a.gl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 58px;
+  padding: 0 22px;
+  border: 1.5px solid var(--color-ink);
+  color: var(--color-ink);
+  text-decoration: none;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 19px;
+  box-sizing: border-box;
+}
+.sheet a.gl:hover {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+/* The dashed box of the "Revisionen" ("So erscheint ein erledigter Fund …"): a note of the report. */
+.note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  border: 1.5px dashed var(--color-line);
+}

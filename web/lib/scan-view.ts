@@ -1,5 +1,6 @@
 import type { Finding, Report } from '@website-check/scanner/report';
 import type { MarkPlace, Phrase, PlotMark, ScanScreenData, ScanStep } from '../components/scan/scan-data';
+import { lookup } from './report-texts';
 import { nextUtcDay, SCAN_TEXTS as T, SYSTEM_NAMES, whenText } from './scan-texts';
 
 // What the real scan screen shows (session B2 part 2, Fedor's answers 1 and 3; the states without design of part 3): before the report no row with a
@@ -112,10 +113,10 @@ function notLoadedRow(report: Report): Omit<ScanStep, 'delay'> {
   if (report.state === 'blocked') return { title: T.blockedPage, detail: T.blockedPageDetail(report.failure?.status ?? null, report.scan.mode === 'quick'), unchecked: true };
   if (report.state === 'not-allowed') {
     const rejection = typeof report.notice?.params.rejection === 'string' ? report.notice.params.rejection : 'other';
-    return { title: T.notAllowedPage, detail: T.notAllowedReason[rejection] ?? T.notAllowedReason.other!, unchecked: true };
+    return { title: T.notAllowedPage, detail: lookup(T.notAllowedReason, rejection) ?? T.notAllowedReason.other!, unchecked: true };
   }
   const reason = report.failure?.reason ?? 'other';
-  const detail = reason === 'http-error' ? T.failedHttp(report.failure?.status ?? null) : (T.failedReason[reason] ?? T.failedReason.other!);
+  const detail = reason === 'http-error' ? T.failedHttp(report.failure?.status ?? null) : (lookup(T.failedReason, reason) ?? T.failedReason.other!);
   return { title: T.failedPage, detail, unchecked: true };
 }
 
@@ -223,21 +224,30 @@ export function summaryOf(report: Report): Phrase {
 export type MarkWhere = { place: MarkPlace; field: string } | { place: 'source'; field: null };
 
 
-/** True when a request of the finding was made by the page's own code: the homepage or a file of the site's hosts. */
-function fromPageCode(finding: Finding, report: Report): boolean {
-  const own = [report.site.host, parsed(report.site.finalUrl)?.hostname].filter((h): h is string => typeof h === 'string' && h.length > 0).map(baseHost);
-  return finding.evidence.some((e) => {
-    if (e.type !== 'request') return false;
-    const host = parsed(e.via)?.hostname.toLowerCase();
-    return host !== undefined && own.some((base) => host === base || host.endsWith(`.${base}`));
-  });
+/** An address without query and fragment ("https://example.de/"), for comparing the document of a request. */
+const documentOf = (href: string | null): string | null => {
+  const url = parsed(href);
+  return url === null ? null : `${url.origin}${url.pathname}`;
+};
+
+/**
+ * True when a request of the finding truly stands in the source code of the homepage (session B3 part 2, Fedor): the
+ * browser's HTML parser found it in the served page (`initiatorType` parser) and the document that holds it (`via`) is
+ * the homepage itself. A request a script made (also an inline script that a tag manager inserted) or one of a style
+ * sheet or a frame is not; neither is a request of a report made before the initiator type existed.
+ */
+export function inPageSource(finding: Finding, report: Report): boolean {
+  const page = documentOf(report.site.finalUrl);
+  if (page === null) return false;
+  return finding.evidence.some((e) => e.type === 'request' && e.initiatorType === 'parser' && documentOf(e.via) === page);
 }
 
 /**
  * The place of one priority on the drawing (Fedor, B2 part 3, answer 1): a mark stands only where it shows the place
  * of the finding truly. That is its measured field ("Feld"), when the design has a mark in that field; otherwise the
  * place of the drawing that is the place of the finding by its meaning: the source code, for a third party whose
- * request the page's own code made, and for the language of the page. Anything else gets no mark.
+ * request stands in the source code of the homepage (B3 part 2: by the initiator type, not inserted by a script), and
+ * for the language of the page. Anything else gets no mark.
  */
 export function markWhere(finding: Finding, report: Report): MarkWhere | null {
   if (PAGE_LANGUAGE.has(finding.id)) return { place: 'source', field: null };
@@ -245,7 +255,7 @@ export function markWhere(finding: Finding, report: Report): MarkWhere | null {
     const place = FIELD_PLACES[finding.field];
     return place === undefined ? null : { place, field: finding.field };
   }
-  if (finding.area === 'privacy' && finding.serviceKey !== null && fromPageCode(finding, report)) return { place: 'source', field: null };
+  if (finding.area === 'privacy' && finding.serviceKey !== null && inPageSource(finding, report)) return { place: 'source', field: null };
   return null;
 }
 
