@@ -11,6 +11,7 @@ import {
   DATA_LOCATION_TEXTS,
   DETAIL_TEXTS as T,
   FINDING_TEXTS,
+  FIX_SYSTEM_NAMES,
   FIX_SYSTEMS,
   FIX_TEXTS,
   secondsText,
@@ -64,6 +65,8 @@ export type FixView =
       selected: FixSystem;
       /** The steps without a system, for a tab without its own (null when there are none). */
       general: readonly string[] | null;
+      /** The name of each system in the line of a tab without steps ("Shopware 5" for a detected Shopware 5). */
+      names: Record<FixSystem, string>;
     }
   | { kind: 'general'; steps: readonly string[] };
 
@@ -97,7 +100,9 @@ function thirdPartyHappens(f: Finding): string | null {
   const fact = THIRD_PARTY_FILES.has(f.textId)
     ? THIRD_PARTY_HAPPENS.files(countWords(count, 'Datei', 'Dateien'), provider, seconds)
     : THIRD_PARTY_REQUESTS.has(f.textId)
-      ? THIRD_PARTY_HAPPENS.requests(countWords(count, 'Anfrage', 'Anfragen'), provider, seconds)
+      ? count === 1
+        ? THIRD_PARTY_HAPPENS.request(provider, seconds)
+        : THIRD_PARTY_HAPPENS.requests(countWords(count, 'Anfrage', 'Anfragen'), provider, seconds)
       : null;
   if (fact === null) return null;
   const consent = f.params.beforeBanner === true ? THIRD_PARTY_HAPPENS.beforeBanner(provider) : THIRD_PARTY_HAPPENS.noConsent(provider);
@@ -141,13 +146,24 @@ function targetActual(f: Finding, report: Report): FindingCard['targetActual'] {
     const provider = str(f.params.provider);
     const count = num(f.params.count);
     if (provider === null || count === null || !f.beforeConsent) return null;
-    const after = f.params.beforeBanner === true ? THIRD_PARTY_TARGET.beforeBanner : THIRD_PARTY_TARGET.noConsent;
+    // `beforeBanner` says it of the first request (review of B4 part 1): "vor dem Banner" for all of them only when the
+    // report keeps every request of the count and each one started before the banner.
+    const requests = f.evidence.filter((e) => e.type === 'request');
+    const all = requests.length === count && requests.every((e) => e.beforeBanner === true);
+    const after = f.params.beforeBanner !== true ? THIRD_PARTY_TARGET.noConsent : all ? THIRD_PARTY_TARGET.beforeBanner : THIRD_PARTY_TARGET.firstBeforeBanner;
     return { target: THIRD_PARTY_TARGET.target(provider), actual: `${THIRD_PARTY_TARGET.requests(count)}${after}`, bad: true };
+  }
+  // A ratio stays on one line in the narrow box ("4,5 : 1"); the table of the Prüfmaße does not wrap its values at all.
+  const keep = (v: string) => v.replace(/ : /g, ' : ');
+  // The contrast card names the values of its own text ("2,9 : 1 statt mindestens 3 : 1" for large text), not the 4,5 : 1
+  // of the Prüfmaß (review of B4 part 1).
+  if (f.textId === 'a11y-color-contrast') {
+    const ratio = num(f.params.ratio);
+    const expected = expectedText(f.params.expected);
+    if (ratio !== null && expected !== null) return { target: keep(`mind. ${expected}`), actual: keep(`${ratioText(ratio)} : 1`), bad: true };
   }
   const id = lookup(MEASURE_OF, f.textId);
   const row = id === undefined ? undefined : measureRows(report).find((r) => r.id === id);
-  // A ratio stays on one line in the narrow box ("4,5 : 1"); the table of the Prüfmaße does not wrap its values at all.
-  const keep = (v: string) => v.replace(/ : /g, ' : ');
   return row === undefined ? null : { target: keep(row.target), actual: keep(row.actual), bad: row.bad };
 }
 
@@ -174,8 +190,15 @@ function fixView(f: Finding, report: Report): FixView | null {
   const bySystem = f.fixTextId === null ? undefined : lookup(FIX_TEXTS, f.fixTextId);
   if (bySystem !== undefined) {
     const steps = Object.fromEntries(FIX_SYSTEMS.map((s) => [s, bySystem[s] ?? null])) as Record<FixSystem, readonly string[] | null>;
+    const names = { ...FIX_SYSTEM_NAMES };
     const detected = detectedSystem(report);
-    return { kind: 'systems', steps, detected, selected: detected ?? FIX_SYSTEMS[0], general };
+    // The Shopware steps are for Shopware 6 (the reference: "In Shopware 6 bindet das Theme die Schriften ein."); a
+    // detected Shopware 5 gets none of them (review of B4 part 1).
+    if (detected === 'shopware' && report.platform?.shopwareVersion === 5) {
+      steps.shopware = null;
+      names.shopware = 'Shopware 5';
+    }
+    return { kind: 'systems', steps, detected, selected: detected ?? FIX_SYSTEMS[0], general, names };
   }
   return general === null ? null : { kind: 'general', steps: general };
 }

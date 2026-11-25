@@ -198,7 +198,10 @@ function facts(r: Report): string[] {
   // Session B4 part 1 (Fedor's answer 3): with a note on where the browser runs and how it is set.
   const eu = ['AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'].includes(r.visit.country ?? '');
   const german = r.visit.locale === 'de-DE' && r.visit.timezone === 'Europe/Berlin';
-  const note = `Unser Prüfbrowser läuft in einem Rechenzentrum${eu ? ' in der EU' : ''}${german ? ' und ist eingestellt wie ein Besucher aus Deutschland: deutsche Sprache, Zeitzone Berlin' : ''}.`;
+  const note =
+    r.visit.browser === null
+      ? `Unsere Abfrage kam aus einem Rechenzentrum${eu ? ' in der EU' : ''}.`
+      : `Unser Prüfbrowser läuft in einem Rechenzentrum${eu ? ' in der EU' : ''}${german ? ' und ist eingestellt wie ein Besucher aus Deutschland: deutsche Sprache, Zeitzone Berlin' : ''}.`;
   if (country !== undefined && country !== r.visit.country) out.push(`Aufgerufen aus|${country}|${note}`);
   return out;
 }

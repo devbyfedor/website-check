@@ -20,7 +20,8 @@ export function Services({ report }: { report: Report }) {
         <h2 id="stueckliste" className={s.h2s}>
           {T.servicesHeading}
         </h2>
-        <span className={`${s.mut} text-[15px]`}>{T.servicesFound(rows.length)}</span>
+        {/* A cut list (more than 80 services) counts every service found; the note under the head says it is cut. */}
+        <span className={`${s.mut} text-[15px]`}>{T.servicesFound(report.truncated.services ? report.counts.services : rows.length)}</span>
       </div>
       <ScrollBox labelledBy="stueckliste">
         <table className={s.mt}>

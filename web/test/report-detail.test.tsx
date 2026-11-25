@@ -67,6 +67,14 @@ describe('the Stückliste of the example', () => {
     expect(rows.map((r) => r.position)).toEqual([1, 2, 3, 4]);
   });
 
+  it('a cut list counts every service found (review of B4 part 1)', () => {
+    const r = clone();
+    r.truncated.services = true;
+    r.counts.services = 95;
+    expect(render(r)).toContain('95 Dienste gefunden');
+    expect(render(EXAMPLE)).toContain('4 Dienste gefunden');
+  });
+
   it('shows the name of an unknown service as a string of the page, never as markup', () => {
     const r = clone();
     r.services[0] = { ...r.services[0]!, known: false, name: '<img src=x onerror=alert(1)>‮evil', provider: null, category: 'unknown', dataLocation: 'unknown' };
@@ -136,6 +144,38 @@ describe('the finding details of the example', () => {
     }
   });
 
+  it('"vor dem Banner" for every request only when each kept request started before it (review of B4 part 1)', () => {
+    const r = clone();
+    r.findings[0]!.params.count = 5; // the report keeps two of five requests
+    expect(findingCards(r)[0]!.targetActual?.actual).toBe('5 Anfragen, die erste vor dem Banner');
+    const s = clone();
+    const second = s.findings[0]!.evidence[1]!;
+    if (second.type === 'request') second.beforeBanner = false;
+    expect(findingCards(s)[0]!.targetActual?.actual).toBe('2 Anfragen, die erste vor dem Banner');
+    expect(findingCards(EXAMPLE)[0]!.targetActual?.actual).toBe('2 Anfragen, vor dem Banner');
+  });
+
+  it('one request has no "die erste" (review of B4 part 1)', () => {
+    const r = clone();
+    const ga = r.findings.find((f) => f.id === 'third-party:google-analytics')!;
+    ga.params.count = 1;
+    ga.evidence = ga.evidence.slice(0, 1);
+    expect(findingCards(r)[1]!.happens).toBe(
+      'Ihre Startseite stellt eine Anfrage an Server von Google, 3,2 Sekunden nach dem Aufruf. Google erhält dabei die IP-Adresse jedes Besuchers, ohne dass dieser zugestimmt hat.',
+    );
+    expect(findingCards(r)[1]!.targetActual?.actual).toBe('1 Anfrage, ohne Einwilligung');
+  });
+
+  it('the contrast card names the values of its own text, also for large text (review of B4 part 1)', () => {
+    const r = clone();
+    const c = r.findings.find((f) => f.id === 'a11y:color-contrast')!;
+    c.params.expected = '3:1';
+    c.params.ratio = 2.2;
+    const card = findingCards(r)[2]!;
+    expect(text(card.happens!)).toContain('liegt bei 2,2 : 1 statt mindestens 3 : 1.');
+    expect(card.targetActual).toEqual({ target: 'mind. 3 : 1', actual: '2,2 : 1', bad: true });
+  });
+
   it('"Gefunden im Quelltext" only for a request the parser found in the homepage itself', () => {
     const f = structuredClone(EXAMPLE.findings[0]!) as Finding;
     for (const e of f.evidence) if (e.type === 'request') e.initiatorType = 'script';
@@ -194,6 +234,20 @@ describe('the system tabs', () => {
     const r = clone();
     r.sections.platform = { status: 'not-checked', reason: 'quick-check' };
     expect(detectedSystem(r)).toBeNull();
+  });
+
+  it('a detected Shopware 5 gets none of the Shopware 6 steps (review of B4 part 1)', () => {
+    const r = clone();
+    r.platform = { system: 'shopware', woocommerce: false, shopwareVersion: 5, shop: true };
+    const fix = findingCards(r)[0]!.fix;
+    if (fix?.kind !== 'systems') throw new Error('no tabs');
+    expect(fix.selected).toBe('shopware');
+    expect(fix.steps.shopware).toBeNull();
+    const html = render(r);
+    expect(html).toContain('Für Shopware 5 haben wir noch keine eigene Anleitung.');
+    expect(html).not.toContain('In Shopware 6 bindet das Theme');
+    r.platform = { ...r.platform, shopwareVersion: 6 };
+    expect(render(r)).toContain('In Shopware 6 bindet das Theme');
   });
 
   it('have steps for Google Fonts only (the reference); every other fix text is still missing', () => {

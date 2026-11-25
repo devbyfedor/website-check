@@ -30,6 +30,8 @@ export function FixTabs({ cardId, fix }: { cardId: string; fix: SystemsFix }) {
   const tabId = (system: FixSystem) => `${cardId}-tab-${system}`;
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, current: FixSystem) => {
+    // Alt+Arrow (back and forward) and the other shortcuts stay the browser's (review of B4 part 1).
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     const i = FIX_SYSTEMS.indexOf(current);
     const n = FIX_SYSTEMS.length;
     const next =
@@ -82,7 +84,7 @@ export function FixTabs({ cardId, fix }: { cardId: string; fix: SystemsFix }) {
         </div>
       </div>
       <div role="tabpanel" id={panelId} aria-labelledby={tabId(selected)} tabIndex={0} className={`${s.panel} px-[22px] pt-[22px] pb-6`}>
-        {steps === null ? <p className={s.bodys}>{T.noSystemFix(FIX_SYSTEM_NAMES[selected])}</p> : <Steps steps={steps} />}
+        {steps === null ? <p className={s.bodys}>{T.noSystemFix(fix.names[selected])}</p> : <Steps steps={steps} />}
       </div>
     </>
   );

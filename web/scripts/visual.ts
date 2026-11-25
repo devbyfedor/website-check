@@ -185,9 +185,10 @@ async function shoot(
     if (n !== EXAMPLE_DATA_CHANGES) throw new Error(`${url}: ${n} changes for the data of the example, expected ${EXAMPLE_DATA_CHANGES}`);
     await settle(page);
   }
+  // The layout of the whole page, the hidden cards too (review of B4 part 1), before they are hidden for the pixels.
+  const layout = await page.evaluate(layoutCheck);
   const hidden = opts.hide === undefined ? null : await page.evaluate(hideAll, opts.hide);
   if (hidden !== null) await settle(page);
-  const layout = await page.evaluate(layoutCheck);
   const bottom = opts.region === undefined ? null : await page.evaluate(regionBottom, opts.region);
   if (opts.region !== undefined && bottom === null) throw new Error(`${url}: no element ${opts.region}`);
   const buffer = await page.screenshot({

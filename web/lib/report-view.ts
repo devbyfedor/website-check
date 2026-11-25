@@ -44,10 +44,14 @@ export const EU_COUNTRIES: ReadonlySet<string> = new Set(['AT', 'BE', 'BG', 'CY'
 
 /**
  * The note next to "Aufgerufen aus …" (Fedor, B4 part 1, answer 3): the browser of the scan runs in a data centre (in
- * the EU when the country is one of the EU) and is set like a visitor from Germany, when the report says so.
+ * the EU when the country is one of the EU) and is set like a visitor from Germany, when the report says so. A quick
+ * check has no browser (`visit.browser` null): only where its request came from (review of B4 part 1).
  */
-export const visitNote = (visit: Report['visit']): string =>
-  D.visitNote(visit.country !== null && EU_COUNTRIES.has(visit.country), visit.locale === 'de-DE' && visit.timezone === 'Europe/Berlin');
+export function visitNote(visit: Report['visit']): string {
+  const eu = visit.country !== null && EU_COUNTRIES.has(visit.country);
+  if (visit.browser === null) return D.visitNoteQuick(eu);
+  return D.visitNote(eu, visit.locale === 'de-DE' && visit.timezone === 'Europe/Berlin');
+}
 
 /** "19. November 2026, 18:42 Uhr" in Berlin, from `scan.scannedAt` (UTC). */
 export function scannedAtText(iso: string, timeZone = REPORT_TIME_ZONE): string {

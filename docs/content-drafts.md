@@ -732,6 +732,7 @@ The lower part of the report (Stückliste, the finding details with the system t
 
 - A second line under the country, small and grey: "Unser Prüfbrowser läuft in einem Rechenzentrum in der EU und ist eingestellt wie ein Besucher aus Deutschland: deutsche Sprache, Zeitzone Berlin."
 - Without "in der EU" for a country outside the EU; without the part after "Rechenzentrum" when the report does not say `de-DE` and `Europe/Berlin`: "Unser Prüfbrowser läuft in einem Rechenzentrum in der EU."
+- The quick check has no browser: "Unsere Abfrage kam aus einem Rechenzentrum in der EU." (review of B4 part 1).
 - Status: Entwurf
 
 ### Stückliste
@@ -747,7 +748,10 @@ The lower part of the report (Stückliste, the finding details with the system t
 
 - "Was passiert" of a service of the classes consent-required and usually-consent, after the reference's sentence for Google Fonts: "Ihre Startseite stellt {Anzahl} an Server von {Anbieter}, die erste {Sekunden} nach dem Aufruf. {Anbieter} erhält dabei die IP-Adresse jedes Besuchers, bevor dieser zustimmen kann." ({Anzahl}: "eine Anfrage", "zwei Anfragen" … "zwölf Anfragen", then digits; {Sekunden}: "0,3 Sekunden", "1 Sekunde", "weniger als 0,1 Sekunden".)
 - When the first request came after the banner, or no banner was seen, the second sentence (also of Google Fonts) is: "{Anbieter} erhält dabei die IP-Adresse jedes Besuchers, ohne dass dieser zugestimmt hat." The reference's "bevor dieser zustimmen kann" is true only before the banner.
-- Ist next to "0 Anfragen an {Anbieter}" in the same case: "{n} Anfragen, ohne Einwilligung" (the reference: "2 Anfragen, vor dem Banner"); "1 Anfrage, …".
+- One request: "Ihre Startseite stellt eine Anfrage an Server von {Anbieter}, {Sekunden} nach dem Aufruf." (no "die erste").
+- Ist next to "0 Anfragen an {Anbieter}" in the same case: "{n} Anfragen, ohne Einwilligung" (the reference: "2 Anfragen, vor dem Banner"); "1 Anfrage, …". When only the first request started before the banner (or the report keeps fewer requests than it counts): "{n} Anfragen, die erste vor dem Banner".
+- The Soll and Ist of the contrast card are the values of its own text ("mind. 3 : 1" for large text), not the 4,5 : 1 of the Prüfmaß.
+- A detected Shopware 5: its tab shows "Für Shopware 5 haben wir noch keine eigene Anleitung." (the Shopware steps of the reference are for Shopware 6).
 - "Warum das wichtig ist", consent-required: "Für Dienste zur Statistik, Werbung und ähnliche Zwecke verlangen die deutschen Datenschutzbehörden eine Einwilligung, bevor sie im Browser des Besuchers starten. Ein Einwilligungsbanner allein genügt dafür nicht: Der Dienst darf erst nach der Zustimmung laden." (Sources: `dsk-oh-digitale-dienste`, `tdddg-25` in `docs/rules-sources.md`.)
 - "Warum das wichtig ist", usually-consent: "Karten, Videos, Chat- und Bewertungsfenster fremder Anbieter brauchen nach Ansicht der deutschen Datenschutzbehörden meist eine Einwilligung, bevor sie laden. Eine gängige Lösung ist ein Platzhalter, der den Dienst erst nach einem Klick lädt."
 - The cards of accessibility, HTTPS, the redirect and the Impressum link take the drafts above: "Fact and risk" split into "Was passiert" (the fact) and "Warum das wichtig ist" (the risk), and "Fix" as the steps of the "Montageanleitung" (one step per sentence, without tabs).

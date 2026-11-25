@@ -52,6 +52,9 @@ describe('head', () => {
     expect(headFacts(swiss).at(-1)?.note).toBe('Unser Prüfbrowser läuft in einem Rechenzentrum und ist eingestellt wie ein Besucher aus Deutschland: deutsche Sprache, Zeitzone Berlin.');
     const english = { ...reportOf('land'), visit: { ...reportOf('land').visit, locale: 'en-US' } } as Report;
     expect(headFacts(english).at(-1)?.note).toBe('Unser Prüfbrowser läuft in einem Rechenzentrum in der EU.');
+    // The quick check has no browser (review of B4 part 1).
+    const quick = { ...reportOf('land'), visit: { ...reportOf('land').visit, browser: null } } as Report;
+    expect(headFacts(quick).at(-1)?.note).toBe('Unsere Abfrage kam aus einem Rechenzentrum in der EU.');
     expect(headFacts(EXAMPLE).map((f) => f.label)).toEqual(['Geprüft am', 'System', 'Geprüfte Seiten', 'Revision']);
     expect(countryName('DE')).toBe('Deutschland');
     // Codes that name no country: Cloudflare's XX (unknown), ZZ, and a code the browser has no name for (review of B3 part 2).

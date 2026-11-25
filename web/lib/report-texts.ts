@@ -101,6 +101,8 @@ export const STATE_DRAFTS = {
    */
   visitNote: (eu: boolean, german: boolean) =>
     `Unser Prüfbrowser läuft in einem Rechenzentrum${eu ? ' in der EU' : ''}${german ? ' und ist eingestellt wie ein Besucher aus Deutschland: deutsche Sprache, Zeitzone Berlin' : ''}.`,
+  /** The quick check has no browser (review of B4 part 1): only where the request came from. */
+  visitNoteQuick: (eu: boolean) => `Unsere Abfrage kam aus einem Rechenzentrum${eu ? ' in der EU' : ''}.`,
   /** "System" when the part was not checked (the page did not load). */
   systemNotChecked: 'nicht geprüft',
   /** "Geprüfte Seiten" when the homepage was not checked. */

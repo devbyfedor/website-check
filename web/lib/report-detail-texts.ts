@@ -130,6 +130,8 @@ export function secondsText(ms: number): string {
 export const THIRD_PARTY_HAPPENS = {
   files: (count: string, provider: string, seconds: string) => `Ihre Startseite lädt ${count} direkt von ${provider}-Servern, ${seconds} nach dem Aufruf.`,
   requests: (count: string, provider: string, seconds: string) => `Ihre Startseite stellt ${count} an Server von ${provider}, die erste ${seconds} nach dem Aufruf.`,
+  /** One request: no "die erste" (review of B4 part 1). */
+  request: (provider: string, seconds: string) => `Ihre Startseite stellt eine Anfrage an Server von ${provider}, ${seconds} nach dem Aufruf.`,
   beforeBanner: (provider: string) => `${provider} erhält dabei die IP-Adresse jedes Besuchers, bevor dieser zustimmen kann.`,
   noConsent: (provider: string) => `${provider} erhält dabei die IP-Adresse jedes Besuchers, ohne dass dieser zugestimmt hat.`,
 } as const;
@@ -150,6 +152,8 @@ export const THIRD_PARTY_TARGET = {
   target: (provider: string) => `0 Anfragen an ${provider}`,
   requests: (n: number) => (n === 1 ? '1 Anfrage' : `${n} Anfragen`),
   beforeBanner: ', vor dem Banner',
+  /** Draft: the first request before the banner, not every one (or the report keeps fewer requests than it counts). */
+  firstBeforeBanner: ', die erste vor dem Banner',
   /** Draft: after the banner, or no banner seen; still without consent. */
   noConsent: ', ohne Einwilligung',
 } as const;
