@@ -815,6 +815,14 @@ The BFSG page (design/reference/bfsg.html). Every text on the page is the refere
 - The title of the browser tab: "BFSG-Prüfschema, Website-Check DE" (the reference: "BFSG-Prüfschema, Bauplan", as the other pages: "Prüfbericht, Website-Check DE").
 - Status: Entwurf
 
+## Session texts-fix (25.11.2026)
+
+### The five services with a risk found most often (step 3)
+
+Counted in the latest analysis of each of the 30 test sites (`local/results`, no site visited): a service counts once per site, only a known service of the classes precedent, consent-required and usually-consent. Google Tag Manager 8 sites, Google Analytics 6, Google Fonts 5, Google Ads / AdSense 3, YouTube (erweiterter Datenschutzmodus) 2; every other such service at most 1 (Meta Pixel, Google Analytics (Werbefunktionen), Facebook Social Plugins, Instagram, Google Maps, Microsoft Advertising, Pinterest Tag). The 30 reports of `check:report --reports` (27 different sites) give the same first four and a tie of 1 for the fifth place; the analysis of the 30 sites decides it. These five get steps by system in this session (Fedor: only the five most frequent); every other service the general text of its class.
+
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/
