@@ -35,13 +35,88 @@ const AXE_FILE = join(ROOT, 'node_modules', 'axe-core', 'axe.min.js');
 // WAI-ARIA tabs pattern (brief, B4): the reference gets the same Tab stops before its walk (only the selected tab, and
 // the panel), and the arrow keys are tried in the app. `extraInApp`: parts of the app the reference shows only once as
 // a pattern (the finding details after the first): their Tab stops are measured but left out of the order comparison.
-const PAGES: { name: string; path: string; reference: string; layers: boolean; midRun?: number; notBuilt?: string; tabs?: boolean; extraInApp?: string }[] = [
+// `bfsg` (session B5 part 1): the BFSG scheme. Tab is also walked with all three questions open; every path and "Neu
+// beginnen" are taken by keyboard in the app and in the reference, and their states compared; axe and the contrast by
+// pixels run in the start state and at the end of each of the four paths.
+const PAGES: { name: string; path: string; reference: string; layers: boolean; midRun?: number; notBuilt?: string; tabs?: boolean; extraInApp?: string; bfsg?: boolean }[] = [
   { name: 'start', path: '/', reference: 'start.html', layers: true },
   // The scan screen with the example of the reference (the example build, WC_EXAMPLES=1).
   { name: 'pruefung', path: '/pruefung/beispiel', reference: 'pruefung.html', layers: false, midRun: 3.3 },
   // B3 and B4 part 1: the report with the example, the whole page.
   { name: 'bericht', path: '/bericht/beispiel', reference: 'bericht.html', layers: false, tabs: true, extraInApp: 'article section[id^="fund-"]:not(#fund-1)' },
+  // B5 part 1: the BFSG page.
+  { name: 'bfsg', path: '/bfsg', reference: 'bfsg.html', layers: false, bfsg: true },
 ];
+
+// The BFSG page: the buttons in the order of the page (0 and 1 "Ja" and "Nein" of question 1, 2 and 3 of question 2, 4
+// and 5 of question 3, 6 "Neu beginnen"), the four paths, and the clicks that open all three questions.
+const BFSG_PATHS: { name: string; buttons: number[] }[] = [
+  { name: 'path 1', buttons: [1] },
+  { name: 'path 2', buttons: [0, 2] },
+  { name: 'path 3', buttons: [0, 3, 4] },
+  { name: 'path 4', buttons: [0, 3, 5] },
+];
+const BFSG_ALL_OPEN = [0, 3];
+
+// Runs in the page: what the BFSG scheme shows (the same in the app and the reference).
+function bfsgState(): string {
+  const buttons = Array.from(document.querySelectorAll('section[aria-labelledby="schema-titel"] button'));
+  const pressed = buttons.map((b) => (b.getAttribute('aria-pressed') === 'true' ? 'p' : b.hasAttribute('aria-pressed') ? '-' : '')).join('');
+  const disabled = buttons.map((b) => ((b as HTMLButtonElement).disabled ? 'd' : '-')).join('');
+  // The filled exit: the box of an h3 whose background is the chalk white.
+  const hit = Array.from(document.querySelectorAll('section[aria-labelledby="schema-titel"] div'))
+    .filter((d) => d.firstElementChild?.tagName === 'H3' && getComputedStyle(d).backgroundColor === 'rgb(242, 246, 255)')
+    .map((d) => d.firstElementChild!.textContent)
+    .join(' / ');
+  const verdict = document.querySelector('[aria-live="polite"]')?.textContent ?? '';
+  return `pressed ${pressed}, disabled ${disabled}, exit "${hit}", verdict "${verdict}"`;
+}
+
+// Clicks buttons of the BFSG page one by one (one round trip each, so that the app draws the answer before the next).
+// By the click of the element, not of the mouse: a mouse click moves the place where the next Tab starts to the button,
+// and the walk of the keyboard must start at the top of the page.
+async function bfsgClick(page: Page, buttons: number[]): Promise<void> {
+  for (const i of buttons) {
+    const ok = await page.evaluate((n) => {
+      const button = document.querySelectorAll('section[aria-labelledby="schema-titel"] button')[n];
+      if (!(button instanceof HTMLButtonElement) || button.disabled) return false;
+      button.click();
+      return true;
+    }, i);
+    if (!ok) throw new Error(`BFSG button ${i} not there or disabled`);
+    await nextFrames(page);
+  }
+}
+
+// Every path and "Neu beginnen" of the BFSG page by keyboard (Enter and Space by turns), in the app and in the reference
+// with the same keys; after each key both must show the same state.
+async function bfsgKeys(page: Page, ref: Page, label: string): Promise<{ problems: string[]; done: string[] }> {
+  const problems: string[] = [];
+  const done: string[] = [];
+  const keys = ['Enter', 'Space'] as const;
+  let k = 0;
+  const press = async (i: number) => {
+    const key = keys[k++ % 2]!;
+    for (const p of [page, ref]) {
+      await p.locator('section[aria-labelledby="schema-titel"] button').nth(i).focus();
+      await p.keyboard.press(key);
+      await nextFrames(p);
+    }
+    const [a, r] = [await page.evaluate(bfsgState), await ref.evaluate(bfsgState)];
+    const focused = await page.evaluate(() => document.activeElement?.textContent ?? '');
+    return { key, a, r, focused };
+  };
+  const start = [await page.evaluate(bfsgState), await ref.evaluate(bfsgState)];
+  if (start[0] !== start[1]) problems.push(`${label}: start: app ${start[0]}, reference ${start[1]}`);
+  for (const path of BFSG_PATHS) {
+    for (const i of [...path.buttons, 6]) {
+      const s = await press(i);
+      done.push(`${path.name}: button ${i} by ${s.key}: ${s.a}${s.a === s.r ? ' (as the reference)' : ''}; focus on "${s.focused}"`);
+      if (s.a !== s.r) problems.push(`${label}: ${path.name}, button ${i} by ${s.key}: app ${s.a}, reference ${s.r}`);
+    }
+  }
+  return { problems, done };
+}
 const RING_MARGIN = 10; // px around the element: the ring is 3 px wide at an offset of 3 px
 
 interface Args {
@@ -407,6 +482,9 @@ export interface TextContrast {
   lowest: number; // contrast against the lightest background pixel behind the text (a grid line)
   below: number; // background pixels behind the text where the contrast is under `required`
   pixels: number;
+  // Session B5 part 1: the text lies in a dimmed part (opacity under 1) whose controls are all disabled, a user
+  // interface component that cannot be used yet (a question of the BFSG scheme not reached); WCAG 1.4.3 exempts it.
+  inactive?: boolean;
 }
 
 // axe leaves color-contrast "incomplete" where the background is an image (the blueprint grid). For those
@@ -438,6 +516,10 @@ export async function contrastByPixels(page: Page): Promise<TextContrast[]> {
       const large = size >= 24 || (Number(cs.fontWeight) >= 700 && size >= 18.66);
       let opacity = 1;
       for (let e: Element | null = el; e; e = e.parentElement) opacity *= Number(getComputedStyle(e).opacity);
+      let dimmed: Element | null = el;
+      while (dimmed && Number(getComputedStyle(dimmed).opacity) >= 1) dimmed = dimmed.parentElement;
+      const controls = dimmed ? Array.from(dimmed.querySelectorAll('button, input, select, textarea')) : [];
+      const inactive = controls.length > 0 && controls.every((c) => (c as HTMLButtonElement).disabled);
       return {
         element: n.target.join(' '),
         text: (el.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 40),
@@ -446,6 +528,7 @@ export async function contrastByPixels(page: Page): Promise<TextContrast[]> {
         color: el instanceof SVGElement ? cs.fill : cs.color,
         required: large ? 3 : 4.5,
         opacity,
+        inactive,
       };
     });
     return { items, steps };
@@ -493,7 +576,7 @@ export async function contrastByPixels(page: Page): Promise<TextContrast[]> {
 }
 
 function measure(
-  item: { element: string; text: string; reason: string; color: string; required: number; opacity: number },
+  item: { element: string; text: string; reason: string; color: string; required: number; opacity: number; inactive: boolean },
   rects: { x: number; y: number; w: number; h: number }[],
   shot: PNG,
 ): TextContrast {
@@ -527,6 +610,7 @@ function measure(
     lowest: Number((pixels ? lowest : 0).toFixed(2)),
     below,
     pixels,
+    ...(item.inactive ? { inactive: true } : {}),
   };
 }
 
@@ -566,15 +650,42 @@ async function main(): Promise<void> {
         const k = await newPage(browser, `${server.origin}${p.path}`, width, server.origin, true, 'none');
         const walk = await keyboard(k.page, label);
         const extra = p.extraInApp === undefined ? [] : await k.page.evaluate(idsInside, p.extraInApp);
-        const act = p.layers ? await activation(k.page, label) : p.tabs ? await tabKeys(k.page, label) : { problems: [], done: [] };
+        const rk = await newPage(browser, `${server.origin}/__reference/${p.reference}`, width, server.origin, true, 'local');
+        const act = p.layers
+          ? await activation(k.page, label)
+          : p.tabs
+            ? await tabKeys(k.page, label)
+            : p.bfsg
+              ? await bfsgKeys(k.page, rk.page, label)
+              : { problems: [], done: [] };
         problems = problems.concat(walk.problems, act.problems);
         blocked += k.blocked.length;
         await k.context.close();
-        const rk = await newPage(browser, `${server.origin}/__reference/${p.reference}`, width, server.origin, true, 'local');
+        await rk.page.reload({ waitUntil: 'networkidle' });
+        await settle(rk.page);
         if (p.tabs) console.log(`  reference: the Tab stops of the WAI-ARIA tabs pattern in ${await rk.page.evaluate(tabsPattern)} tab list (only the selected tab and the panel)`);
         const refWalk = await keyboard(rk.page, `reference ${label}`);
         const notBuilt = p.notBuilt === undefined ? [] : await rk.page.evaluate(idsInside, p.notBuilt);
         await rk.context.close();
+        // The BFSG page with all three questions open: Tab reaches all six answer buttons, in the order of the reference.
+        if (p.bfsg) {
+          const open: { stops: { key: string }[]; problems: string[] }[] = [];
+          for (const [url, fonts, who] of [
+            [`${server.origin}${p.path}`, 'none', label],
+            [`${server.origin}/__reference/${p.reference}`, 'local', `reference ${label}`],
+          ] as const) {
+            const o = await newPage(browser, url, width, server.origin, true, fonts);
+            await bfsgClick(o.page, BFSG_ALL_OPEN);
+            const w = await keyboard(o.page, `${who}, all three questions open`);
+            open.push({ stops: w.stops as { key: string }[], problems: w.problems });
+            if (fonts === 'none') blocked += o.blocked.length;
+            await o.context.close();
+          }
+          problems = problems.concat(open[0]!.problems);
+          const same = open[0]!.stops.map((s) => s.key).join('\n') === open[1]!.stops.map((s) => s.key).join('\n');
+          if (!same) problems.push(`${label}, all three questions open: Tab order differs from the reference`);
+          console.log(`  all three questions open: Tab stops ${open[0]!.stops.length}, reference ${open[1]!.stops.length}, ${same ? 'same controls in the same order' : 'ORDER DIFFERS'}; problems ${open[0]!.problems.length}`);
+        }
         const allStops = walk.stops as { id: string; text: string; key: string; ring: RingMeasure; ringCut: boolean }[];
         const stops = allStops.filter((s) => !extra.includes(s.id));
         if (p.extraInApp !== undefined) {
@@ -622,6 +733,18 @@ async function main(): Promise<void> {
         }
         blocked += a.blocked.length;
         await a.context.close();
+        // The BFSG page: axe and the contrast by pixels at the end of each path too.
+        const pathContrast: Record<string, TextContrast[]> = {};
+        if (p.bfsg) {
+          for (const path of BFSG_PATHS) {
+            const s = await newPage(browser, `${server.origin}${p.path}`, width, server.origin, true, 'none');
+            await bfsgClick(s.page, path.buttons);
+            runs.push(await axe(s.page, `reduced motion, ${path.name}`, axeSource));
+            pathContrast[path.name] = await contrastByPixels(s.page);
+            blocked += s.blocked.length;
+            await s.context.close();
+          }
+        }
         const m = await newPage(browser, `${server.origin}${p.path}`, width, server.origin, false, 'none');
         await m.page.evaluate(() => document.getAnimations().forEach((x) => x.finish()));
         runs.push(await axe(m.page, 'motion, every animation finished', axeSource));
@@ -651,7 +774,20 @@ async function main(): Promise<void> {
               `rules passed ${r.passes} of ${r.rules}`,
           );
         }
-        printContrast(`color-contrast incomplete, by pixels (${p.layers ? 'layer 1' : 'reduced motion'})`, textContrast);
+        printContrast(`color-contrast incomplete, by pixels (${p.layers ? 'layer 1' : p.bfsg ? 'reduced motion, start' : 'reduced motion'})`, textContrast);
+        for (const [name, list] of Object.entries(pathContrast)) printContrast(`color-contrast incomplete, by pixels (reduced motion, ${name})`, list);
+        // The BFSG page (B5): a text under the required ratio against its usual background is a problem, except the text
+        // of a question card that cannot be answered yet (dimmed to 45 % with its buttons disabled, as in the reference):
+        // WCAG 1.4.3 asks no contrast of the text of an inactive user interface component. Those are listed apart.
+        if (p.bfsg) {
+          const all: [string, TextContrast[]][] = [['start', textContrast], ...Object.entries(pathContrast)];
+          for (const [state, list] of all) {
+            for (const t of list.filter((x) => x.typical < x.required)) {
+              if (t.inactive) console.log(`    ${state}: "${t.text}" ${t.typical}:1 (needs ${t.required}), in a question card that cannot be answered yet`);
+              else problems.push(`${label}, ${state}: "${t.text}" ${t.typical}:1, needs ${t.required}`);
+            }
+          }
+        }
         for (const r of midRun) {
           console.log(
             `  observation, axe ${r.state}: violations ${r.violations.map((x) => `${x.id} (${x.nodes})`).join(', ') || 0}, ` +

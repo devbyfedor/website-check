@@ -32,11 +32,25 @@ const RESULT_DIR = join(ROOT, 'local', 'visual');
 // the app before its screenshot. `exampleData` (B4 part 1): the page is also compared with the reference that has, besides
 // the decided wording, the data of the example where schema v1 cannot hold the reference's data (image-diff.ts,
 // exampleData); printed next to the main number, which stays the one with the decided wording only.
-const PAGES: { name: string; reference: string; app: string | null; region?: string; decided?: boolean; hideInApp?: string; exampleData?: boolean }[] = [
+// `states` (session B5 part 1): the page is also compared after these clicks (the index of each button among the buttons
+// of the page, the same in both pages), one comparison per state.
+const PAGES: { name: string; reference: string; app: string | null; region?: string; decided?: boolean; hideInApp?: string; exampleData?: boolean; states?: { name: string; clicks: number[] }[] }[] = [
   { name: 'start', reference: 'start.html', app: '/' },
   { name: 'pruefung', reference: 'pruefung.html', app: '/pruefung/beispiel' }, // B2
   { name: 'bericht', reference: 'bericht.html', app: '/bericht/beispiel', decided: true, hideInApp: EXTRA_CARDS, exampleData: true }, // B3, B4: the whole report
-  { name: 'bfsg', reference: 'bfsg.html', app: null }, // B5
+  // B5 part 1: the start state (no answer), then the four paths. The buttons in the order of the page: 0 and 1 "Ja" and
+  // "Nein" of question 1, 2 and 3 of question 2, 4 and 5 of question 3, 6 "Neu beginnen".
+  {
+    name: 'bfsg',
+    reference: 'bfsg.html',
+    app: '/bfsg',
+    states: [
+      { name: 'pfad1', clicks: [1] },
+      { name: 'pfad2', clicks: [0, 2] },
+      { name: 'pfad3', clicks: [0, 3, 4] },
+      { name: 'pfad4', clicks: [0, 3, 5] },
+    ],
+  },
 ];
 
 // Places of the reference that Fedor decides (layout faults of the reference itself). They are painted
@@ -165,7 +179,7 @@ async function shoot(
   url: string,
   width: number,
   origin: string,
-  opts: { fonts: FontRouting; mask: string[]; file: string; region?: string | undefined; decided?: boolean | undefined; hide?: string | undefined; data?: boolean | undefined },
+  opts: { fonts: FontRouting; mask: string[]; file: string; region?: string | undefined; decided?: boolean | undefined; hide?: string | undefined; data?: boolean | undefined; clicks?: number[] | undefined },
 ): Promise<Shot> {
   const context = await browser.newContext({
     viewport: { width, height: VIEWPORT_HEIGHT[width] ?? 900 },
@@ -178,6 +192,17 @@ async function shoot(
   const page = await context.newPage();
   await page.goto(url, { waitUntil: 'networkidle' });
   await settle(page);
+  // One click per round trip, so that the app has drawn the answer (and enabled the next question) before the next click.
+  for (const index of opts.clicks ?? []) {
+    const ok = await page.evaluate((i) => {
+      const button = document.querySelectorAll('button')[i];
+      if (!(button instanceof HTMLButtonElement) || button.disabled) return false;
+      button.click();
+      return true;
+    }, index);
+    if (!ok) throw new Error(`${url}: button ${index} not there or disabled`);
+    await settle(page);
+  }
   if (opts.decided && (await page.evaluate(decidedWording)) !== 1) throw new Error(`${url}: the row of the decided wording was not found`);
   if (opts.decided) await settle(page);
   if (opts.data) {
@@ -336,6 +361,33 @@ async function main(): Promise<void> {
         }
         if (asIs !== null) console.log('  against the reference with the decided wording of the row "Erklärung zur Barrierefreiheit" (product rule 3):');
         results.push(result);
+        for (const st of p.states ?? []) {
+          const stTag = `${p.name}-${st.name}-${width}`;
+          const r = await shoot(browser, `${server.origin}/__reference/${p.reference}`, width, server.origin, {
+            fonts: args.googleFonts ? 'google' : 'local',
+            mask: excluded,
+            file: join(RESULT_DIR, `${stTag}-reference.png`),
+            clicks: st.clicks,
+          });
+          const a = await shoot(browser, `${server.origin}${p.app}`, width, server.origin, {
+            fonts: 'none',
+            mask: excluded,
+            file: join(RESULT_DIR, `${stTag}-app.png`),
+            clicks: st.clicks,
+          });
+          appBlocked += a.blocked.length;
+          layouts[`${stTag}-reference`] = r.layout;
+          layouts[`${stTag}-app`] = a.layout;
+          const c = compare(`${p.name} ${st.name}`, width, r.png, a.png, excluded);
+          await writeFile(join(RESULT_DIR, `${stTag}-diff.png`), PNG.sync.write(c.diff));
+          results.push(c.result);
+          printLayout(`${st.name}, reference`, r.layout);
+          printLayout(`${st.name}, app`, a.layout);
+          console.log(
+            `  ${st.name} (buttons ${st.clicks.join(', ')} clicked): size reference ${c.result.referenceSize.join(' x ')}, app ${c.result.appSize.join(' x ')}; ` +
+              `different pixels ${c.result.percent.toFixed(3)} % (${c.result.differentPixels} of ${c.result.totalPixels}), strict ${c.result.strictPercent.toFixed(3)} %; requests to other hosts ${a.blocked.length}`,
+          );
+        }
         if (p.region !== undefined) console.log(`  compared area: from the top of the page to the bottom of ${p.region} (reference ${ref.regionHeight} px, app ${app.regionHeight} px high)`);
         console.log(
           `  size reference ${result.referenceSize.join(' x ')}, app ${result.appSize.join(' x ')}; ` +

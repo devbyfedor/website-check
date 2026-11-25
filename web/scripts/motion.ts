@@ -7,9 +7,14 @@
 //    screen) is photographed and compared pixel by pixel; at each moment the page must not scroll sideways.
 // 3. Home only, the layer switch: a click on layer 2 in both pages, the transitions paused at fixed moments.
 // 4. With reduced motion: no animation and no transition runs, on load (and, on the home page, on a switch).
+// 5. Session B5 part 1, the BFSG page: nothing moves on load; its only motion is the transitions of 0.2 s of the
+//    question cards and the exits when an answer is given. Both pages get the same clicks, one after the other along
+//    every path and "Neu beginnen"; after each click the transitions are paused at once, compared (target by its text,
+//    property, duration, delay, easing), and the scheme is photographed at fixed moments. With reduced motion no
+//    transition runs after a click.
 //
 //   npm run motion                  builds web/ with the example pages first
-//   node web/scripts/motion.ts [--only start,pruefung] [--widths 1440,390] [--times 0.6,1.4] [--switch-times 0.08,0.16]
+//   node web/scripts/motion.ts [--only start,pruefung,bericht,bfsg] [--widths 1440,390] [--times 0.6,1.4] [--switch-times 0.08,0.16]
 //
 // --times replaces the moments of every page checked. Frames and diff images go to local/motion/.
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -36,7 +41,15 @@ interface PageSpec {
   // the reference's frames get the data of the example where schema v1 cannot hold the reference's (image-diff.ts,
   // exampleData): motion compares motion; the difference of the data is measured by npm run visual
   exampleData?: boolean;
+  // Session B5 part 1: the page has no animation on load, only transitions after a click: the buttons (their index
+  // among the page's buttons, the same in both pages) clicked one after the other, the part photographed after each
+  // click, and the moments (seconds after the click) of its frames.
+  clicks?: { buttons: { index: number; label: string }[]; shot: string; times: number[] };
 }
+
+// The six answer buttons and "Neu beginnen" of the BFSG page, in the order of the page (bfsg.html).
+const BFSG_BUTTONS = ['1 Ja', '1 Nein', '2 Ja', '2 Nein', '3 Ja', '3 Nein', 'Neu beginnen'];
+const bfsgButton = (label: string) => ({ index: BFSG_BUTTONS.indexOf(label), label });
 
 const PAGES: PageSpec[] = [
   { name: 'start', reference: 'start.html', app: '/', times: [0.6, 1.4, 2.5, 3.45], shot: DRAWING, layers: true },
@@ -62,6 +75,22 @@ const PAGES: PageSpec[] = [
     decided: true,
     hideInApp: EXTRA_CARDS,
     exampleData: true,
+  },
+  // Session B5 part 1: the BFSG scheme. The clicks walk every path, every card state and every exit, and back: 1 Ja
+  // (card 1 answered, card 2 to answer), 2 Nein, 3 Nein (exit 4), 3 Ja (exit 4 to exit 3), 2 Ja (card 3 dimmed again,
+  // exit 2), 1 Nein (exit 1), Neu beginnen.
+  {
+    name: 'bfsg',
+    reference: 'bfsg.html',
+    app: '/bfsg',
+    times: [],
+    shot: null,
+    layers: false,
+    clicks: {
+      buttons: ['1 Ja', '2 Nein', '3 Nein', '3 Ja', '2 Ja', '1 Nein', 'Neu beginnen'].map(bfsgButton),
+      shot: 'section[aria-labelledby="schema-titel"]',
+      times: [0, 0.05, 0.1, 0.15, 0.2],
+    },
   },
 ];
 
@@ -133,6 +162,65 @@ function describeAnimations(kind: 'CSSAnimation' | 'CSSTransition'): AnimationIn
         startTime: typeof a.startTime === 'number' ? a.startTime : null,
       };
     });
+}
+
+// Runs in the page (session B5 part 1): clicks a button (by its index among the buttons of the page), waits until the
+// page has applied the answer (the reference at once, React in a microtask after the click), then pauses every
+// transition the change started at its beginning and keeps them for `freezeClicked`. Returns how many there are,
+// or -1 without such a button.
+async function clickAndPause(index: number): Promise<number> {
+  const button = document.querySelectorAll('button')[index];
+  if (!(button instanceof HTMLButtonElement)) return -1;
+  await new Promise<void>((done) => {
+    const observer = new MutationObserver(() => {
+      observer.disconnect();
+      done();
+    });
+    observer.observe(document.body, { attributes: true, childList: true, characterData: true, subtree: true });
+    button.click();
+    setTimeout(() => {
+      observer.disconnect();
+      done();
+    }, 100);
+  });
+  const list = document.getAnimations().filter((a) => a.constructor.name === 'CSSTransition');
+  for (const a of list) {
+    a.pause();
+    a.currentTime = 0;
+  }
+  (window as unknown as { __wcClicked: Animation[] }).__wcClicked = list;
+  return list.length;
+}
+
+// Runs in the page: the transitions kept by `clickAndPause`, the target named by its tag and text (the elements of the
+// scheme have no attributes that place them, and the class names of the app are those of its CSS modules).
+function describeClicked(): AnimationInfo[] {
+  return (window as unknown as { __wcClicked: Animation[] }).__wcClicked.map((a) => {
+    const effect = a.effect as KeyframeEffect;
+    const t = effect.getTiming();
+    const el = effect.target;
+    return {
+      kind: 'CSSTransition',
+      target: el ? `${el.tagName.toLowerCase()} "${(el.textContent ?? '').replace(/\s+/g, '').slice(0, 40)}"` : '?',
+      property: (a as unknown as { transitionProperty?: string }).transitionProperty ?? '',
+      keyframes: '',
+      duration: Number(t.duration),
+      delay: t.delay ?? 0,
+      easing: t.easing ?? '',
+      fill: t.fill ?? '',
+      startTime: null,
+    };
+  });
+}
+
+// Runs in the page: sets the kept transitions to one moment, or finishes them (null).
+function freezeClicked(seconds: number | null): number {
+  const list = (window as unknown as { __wcClicked: Animation[] }).__wcClicked;
+  for (const a of list) {
+    if (seconds === null) a.finish();
+    else a.currentTime = seconds * 1000;
+  }
+  return list.length;
 }
 
 // Runs in the page: pauses every animation of one kind and sets it to the same time.
@@ -253,7 +341,8 @@ async function checkPage(browser: Browser, origin: string, spec: PageSpec, width
     `  in real time after loading: reference ${liveRef.running} of ${liveRef.total} running at ${liveRef.clock} ms, ` +
       `app ${liveApp.running} of ${liveApp.total} running at ${liveApp.clock} ms`,
   );
-  if (liveApp.running === 0) failures++;
+  // The BFSG page (B5) has no animation on load, like its reference; the other pages start theirs at once.
+  if (spec.clicks ? liveApp.total !== liveRef.total : liveApp.running === 0) failures++;
 
   // 1. The list of animations.
   const refList = await ref.page.evaluate(describeAnimations, 'CSSAnimation' as const);
@@ -370,6 +459,54 @@ async function checkPage(browser: Browser, origin: string, spec: PageSpec, width
     }
     layerSummary = { refTr, appTr, trProblems, switches, layers };
   }
+  // 5. The BFSG page (session B5 part 1): the same clicks in both pages, the transitions of each click and its frames.
+  let clickSummary: Record<string, unknown> = {};
+  if (spec.clicks) {
+    const c = spec.clicks;
+    const steps: Record<string, unknown>[] = [];
+    let frameCount = 0;
+    let worst = 0;
+    for (const button of c.buttons) {
+      const nRef = await ref.page.evaluate(clickAndPause, button.index);
+      const nApp = await app.page.evaluate(clickAndPause, button.index);
+      const refTr = await ref.page.evaluate(describeClicked);
+      const appTr = await app.page.evaluate(describeClicked);
+      const trProblems = sameList(refTr, appTr);
+      if (nRef < 0 || nApp < 0) trProblems.push(`no button ${button.label}`);
+      failures += trProblems.length;
+      const shares: number[] = [];
+      for (const t of c.times) {
+        await ref.page.evaluate(freezeClicked, t);
+        await app.page.evaluate(freezeClicked, t);
+        const a = await shot(ref.page, c.shot);
+        const b = await shot(app.page, c.shot);
+        const scroll = [await sideways(ref.page), await sideways(app.page)];
+        const d = diffImages(a, b);
+        const tag = `${spec.name}-${width}-${button.label.replace(/\s+/g, '-').toLowerCase()}-t${t.toFixed(2)}`;
+        await writeFile(join(RESULT_DIR, `${tag}-reference.png`), PNG.sync.write(a));
+        await writeFile(join(RESULT_DIR, `${tag}-app.png`), PNG.sync.write(b));
+        await writeFile(join(RESULT_DIR, `${tag}-diff.png`), PNG.sync.write(d.diff));
+        const share = (100 * d.differentPixels) / d.totalPixels;
+        shares.push(share);
+        frameCount++;
+        worst = Math.max(worst, share);
+        if (share > MAX_FRAME_PERCENT) failures++;
+        if (scroll[1]! > 0) failures++;
+      }
+      await ref.page.evaluate(freezeClicked, null);
+      await app.page.evaluate(freezeClicked, null);
+      steps.push({ button: button.label, refTr, appTr, trProblems, shares });
+      const kinds = [...new Set(appTr.map((x) => x.property))].join(', ');
+      console.log(
+        `  click "${button.label}": transitions reference ${refTr.length}, app ${appTr.length} (${kinds || 'none'}; ` +
+          `${[...new Set(appTr.map((x) => `${x.duration} ms ${x.easing}, delay ${x.delay} ms`))].join('; ') || '-'}); differences ${trProblems.length}; ` +
+          `frames at ${c.times.map((t) => `${t.toFixed(2)} s`).join(', ')}: ${shares.map((x) => `${x.toFixed(3)} %`).join(', ')}`,
+      );
+      for (const p of trProblems.slice(0, 10)) console.log(`    ${p}`);
+    }
+    console.log(`  clicks: ${c.buttons.length}, frames ${frameCount}, the largest difference ${worst.toFixed(3)} % (at most ${MAX_FRAME_PERCENT} %)`);
+    clickSummary = { clicks: steps };
+  }
   const blocked = app.blocked.length + framesBlocked;
   if (blocked) failures++;
   await ref.context.close();
@@ -388,15 +525,22 @@ async function checkPage(browser: Browser, origin: string, spec: PageSpec, width
       await r.page.locator('button[aria-pressed]').nth(2).click();
       still[`${name}OnSwitch`] = await r.page.evaluate(() => document.getAnimations().length);
     }
+    // The BFSG page: every click of the walk; the transitions each one starts are counted.
+    if (spec.clicks) {
+      let n = 0;
+      for (const button of spec.clicks.buttons) n += Math.max(0, await r.page.evaluate(clickAndPause, button.index));
+      still[`${name}OnSwitch`] = n;
+    }
     if (name === 'app' && onLoad + (still.appOnSwitch ?? 0) > 0) failures++;
     await r.context.close();
   }
   console.log(
     `  reduced motion: animations on load reference ${still.referenceOnLoad}, app ${still.appOnLoad}` +
-      (spec.layers ? `; after a switch reference ${still.referenceOnSwitch}, app ${still.appOnSwitch}` : ''),
+      (spec.layers ? `; after a switch reference ${still.referenceOnSwitch}, app ${still.appOnSwitch}` : '') +
+      (spec.clicks ? `; transitions after the ${spec.clicks.buttons.length} clicks reference ${still.referenceOnSwitch}, app ${still.appOnSwitch}` : ''),
   );
   console.log(`  app requests to other hosts: ${blocked}`);
-  return { failures, summary: { refList, appList, listProblems, frames, ...layerSummary, still, blocked } };
+  return { failures, summary: { refList, appList, listProblems, frames, ...layerSummary, ...clickSummary, still, blocked } };
 }
 
 async function main(): Promise<void> {
