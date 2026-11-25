@@ -48,6 +48,11 @@ export interface DevOptions {
   build?: boolean;
   /** Print wrangler's output (the command line does, the test does not). */
   echo?: boolean;
+  /**
+   * Session B5 part 2: the site's own origin passes the address rules too (`http://localhost:<port>`), so that our
+   * scanner can check our own site (web/scripts/self-scan.ts). Local only, like the fixture origins.
+   */
+  self?: boolean;
 }
 
 const page = (title: string, body: string): string =>
@@ -120,7 +125,7 @@ export async function startDevSite(options: DevOptions = {}): Promise<DevSite> {
   const ports = options.fixturePorts ?? [8791, 8792, 8793];
   const started = await Promise.all((['plain', 'slow', 'queued'] as const).map((kind, i) => startFixture(kind, ports[i]!)));
   const fixtures = Object.fromEntries(started.map((s) => [s.site.kind, s.site])) as Record<FixtureKind, FixtureSite>;
-  const origins = started.map((s) => s.site.origin).join(',');
+  const origins = [...started.map((s) => s.site.origin), ...(options.self ? [`http://localhost:${port}`] : [])].join(',');
 
   // A fresh local database each time: the cache, the rate limit and the queue start empty.
   const persist = mkdtempSync(join(tmpdir(), 'wc-dev-'));

@@ -30,6 +30,7 @@
     "preview": "npm run build:web && node web/scripts/serve.ts",
     "preview:examples": "npm run build:examples --workspace web && node web/scripts/serve.ts",
     "dev:local": "node web/scripts/dev-local.ts",
+    "self-scan": "node web/scripts/self-scan.ts",
     "check:scan": "npm run build:web && node web/scripts/scan-check.ts",
     "check:report": "npm run build:web && node web/scripts/report-check.ts"
   },
