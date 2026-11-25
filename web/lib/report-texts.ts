@@ -30,7 +30,6 @@ export const REPORT_TEXTS = {
   headingFor: 'Prüfbericht für',
   savePdf: 'Als PDF speichern',
   copyLink: 'Link kopieren',
-  forDeveloper: 'An Entwickler weitergeben',
   scannedAt: 'Geprüft am',
   system: 'System',
   pages: 'Geprüfte Seiten',

@@ -33,9 +33,29 @@ export const DETAIL_TEXTS = {
   /** Draft: a tab of a system our texts have no steps for (and no general steps either). */
   noSystemFix: (system: string) => `Für ${system} haben wir noch keine eigene Anleitung.`,
 
+  // Session B4 part 2, drafts: the country of the visit next to a finding about data sent before consent (Fedor,
+  // 21.11.2026), a card whose texts are missing, the copying.
+  /** The small line under "vor der Einwilligung" of the Stückliste and under "Was passiert" of a card. */
+  countryLine: (country: string) => `Land des Aufrufs: ${country}`,
+  /** "Was passiert" of a card whose finding has no text yet: the fact that the scan found it. */
+  factOnly: 'Die Prüfung hat diesen Punkt gefunden. Eine Beschreibung dazu schreiben wir noch.',
+  /** The box of the "Montageanleitung" of a finding without a fix text yet (the texts are a session after B4). */
+  noFix: 'Für diesen Punkt haben wir noch keine Anleitung.',
+  /** The label of the copy button after copying (reference). */
+  copiedList: 'Liste kopiert',
+  copyListFailed: 'Die Liste konnte nicht kopiert werden.', // draft
+  /** The copied list (reference: "Externe Dienste auf roesterei-muster.de (Prüfung vom 19.11.2026):"). */
+  copyHeading: (domain: string, date: string) => `Externe Dienste auf ${domain} (Prüfung vom ${date}):`,
+  /** Draft: the last line of a cut list. */
+  copyMore: (n: number) => (n === 1 ? '… und 1 weiterer Dienst, den der Bericht nicht einzeln aufführt.' : `… und ${n} weitere Dienste, die der Bericht nicht einzeln aufführt.`),
+
   // Help block (reference). Its line about the "Arbeitsauftrag" and that button are stage D (report-stage-d-texts.ts).
   helpHeading: 'Sie möchten das nicht selbst umsetzen?',
-  helpText: 'Ich behebe die Funde für Sie: Schriften lokal einbinden, die Einwilligung richtig einstellen, Barrieren entfernen. Antwort per E-Mail.',
+  /** Reference: "Ich behebe die Funde für Sie: Schriften lokal einbinden, die Einwilligung richtig einstellen, Barrieren entfernen. Antwort per E-Mail." */
+  helpText: (tasks: readonly string[]) => (tasks.length === 0 ? 'Ich behebe die Funde für Sie. Antwort per E-Mail.' : `Ich behebe die Funde für Sie: ${tasks.join(', ')}. Antwort per E-Mail.`),
+  /** Drafts: a report without priorities (nothing to fix first, an almost empty page). */
+  helpHeadingNone: 'Sie möchten Ihre Website genauer prüfen lassen?',
+  helpTextNone: 'Unsere automatische Prüfung sieht nur die Startseite und das Impressum. Ich sehe mir Ihre Website gern genauer an. Antwort per E-Mail.',
   helpRequest: 'Hilfe bei der Umsetzung anfragen',
 
   // Title block (reference).
@@ -48,6 +68,26 @@ export const DETAIL_TEXTS = {
   stampSheetValue: '1 von 1',
   stampChecked: 'Geprüft',
   stampCheckedValue: 'automatisch',
+} as const;
+
+/**
+ * What the help block offers to do, by the priorities of the report, in their order (session B4 part 2): "Schriften
+ * lokal einbinden", "die Einwilligung richtig einstellen" and "Barrieren entfernen" are the reference's (its priorities
+ * are Google Fonts, Google Analytics and the contrast); the others are drafts. A priority of another kind adds nothing.
+ */
+export const HELP_TASKS = {
+  fonts: 'Schriften lokal einbinden',
+  consent: 'die Einwilligung richtig einstellen',
+  barriers: 'Barrieren entfernen',
+  https: 'HTTPS einrichten',
+  headers: 'Sicherheits-Header setzen',
+  impressum: 'den Link zum Impressum setzen',
+} as const;
+
+/** The head of the report (B4 part 2): "Link kopiert" is Fedor's (B3 part 2, answer 2); the failure is a draft. */
+export const HEAD_ACTION_TEXTS = {
+  copiedLink: 'Link kopiert',
+  copyLinkFailed: 'Der Link konnte nicht kopiert werden.',
 } as const;
 
 /**

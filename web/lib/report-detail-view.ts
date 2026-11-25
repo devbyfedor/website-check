@@ -14,6 +14,7 @@ import {
   FIX_SYSTEM_NAMES,
   FIX_SYSTEMS,
   FIX_TEXTS,
+  HELP_TASKS,
   secondsText,
   THIRD_PARTY_HAPPENS,
   THIRD_PARTY_TARGET,
@@ -21,7 +22,7 @@ import {
   type FixSystem,
 } from './report-detail-texts';
 import { decimal, fill, lookup } from './report-texts';
-import { findingTitle, measured, measureRows, ratioText, REPORT_TIME_ZONE } from './report-view';
+import { countryName, findingTitle, measured, measureRows, ratioText, REPORT_TIME_ZONE } from './report-view';
 import { documentOf } from './scan-view';
 
 // ---------------------------------------------------------------------------------------------
@@ -35,20 +36,82 @@ export interface ServiceRow {
   provider: string;
   data: string;
   starts: string;
+  /** "Land des Aufrufs: …" under "vor der Einwilligung", for a service whose finding has `beforeConsent` (B4 part 2). */
+  country: string | null;
   tag: { text: string; tone: 'bad' | 'ok' | 'mid' };
 }
 
+/** The lower part (Stückliste, finding details, help block) only for a report whose homepage was checked (B3 part 2). */
+export const showsLowerPart = (report: Report): boolean => report.pages.homepage === 'checked';
+
+/**
+ * The country of the visit, named next to every finding about data sent before consent (Fedor, 21.11.2026): the
+ * line, or null when the finding sent nothing before consent or the report names no country.
+ */
+function countryLine(f: Finding | undefined, report: Report): string | null {
+  if (f === undefined || !f.beforeConsent || report.visit.country === null) return null;
+  const name = countryName(report.visit.country);
+  return name === null ? null : T.countryLine(name);
+}
+
 /** The rows of the Stückliste, in the order of `services` (its `position`). */
-export const serviceRows = (report: Report): ServiceRow[] =>
-  report.services.map((s) => ({
+export function serviceRows(report: Report): ServiceRow[] {
+  const byId = new Map(report.findings.map((f) => [f.id, f]));
+  return report.services.map((s) => ({
     position: s.position,
     name: s.known ? s.name : [{ page: s.name }],
     small: CATEGORY_WORDS[s.category],
     provider: s.provider ?? T.providerUnknown,
     data: DATA_LOCATION_TEXTS[s.dataLocation],
     starts: T.startsBeforeConsent,
+    country: s.findingId === null ? null : countryLine(byId.get(s.findingId), report),
     tag: CONSENT_TAGS[s.consent],
   }));
+}
+
+/** Bidirectional and other control characters of a string of the page, which plain text would act on. */
+const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+const plain = (v: string): string => v.replace(CONTROLS, '');
+
+/**
+ * The text "Liste für die Datenschutzerklärung kopieren" puts on the clipboard, in the form of the reference's
+ * script: "Externe Dienste auf {domain} (Prüfung vom {Datum}):", then one line per row of the Stückliste,
+ * "{Pos.}. {Dienst} ({Anbieter}), {small line}", without the provider when it is the name itself ("5. jsDelivr,
+ * Skripte") or unknown. Plain text: strings of the page lose their control characters; every line after the first
+ * starts with its number or "…", so no line can start a formula when it is pasted into a spreadsheet.
+ */
+export function copyListText(report: Report, timeZone = REPORT_TIME_ZONE): string {
+  const lines = [T.copyHeading(plain(report.site.displayHost), shortDate(report.scan.scannedAt ?? report.createdAt, timeZone))];
+  for (const s of report.services) {
+    const name = plain(s.name);
+    const provider = s.provider === null ? null : plain(s.provider);
+    const by = provider === null || provider === '' || provider.toLowerCase() === name.toLowerCase() ? '' : ` (${provider})`;
+    lines.push(`${s.position}. ${name}${by}, ${CATEGORY_WORDS[s.category]}`);
+  }
+  const rest = report.truncated.services ? report.counts.services - report.services.length : 0;
+  if (rest > 0) lines.push(T.copyMore(rest));
+  return lines.join('\n');
+}
+
+/** The help block: what it offers, by the priorities shown in "Drei Dinge" (session B4 part 2). */
+export function helpView(report: Report): { heading: string; text: string } {
+  if (!measured(report) || report.priorities.length === 0) return { heading: T.helpHeadingNone, text: T.helpTextNone };
+  const byId = new Map(report.findings.map((f) => [f.id, f]));
+  const tasks: string[] = [];
+  for (const id of report.priorities.slice(0, 3)) {
+    const f = byId.get(id);
+    if (f === undefined) continue;
+    const task =
+      f.area === 'privacy' && f.textId.startsWith('third-party-') ? (f.params.category === 'fonts' ? HELP_TASKS.fonts : HELP_TASKS.consent)
+      : f.area === 'accessibility' ? HELP_TASKS.barriers
+      : f.textId === 'security-https-missing' || f.textId === 'security-http-no-redirect' ? HELP_TASKS.https
+      : f.textId === 'security-headers' ? HELP_TASKS.headers
+      : f.textId === 'legal-impressum-no-link' ? HELP_TASKS.impressum
+      : null;
+    if (task !== null && !tasks.includes(task)) tasks.push(task);
+  }
+  return { heading: T.helpHeading, text: T.helpText(tasks) };
+}
 
 // ---------------------------------------------------------------------------------------------
 // The finding details ("fund-1" of the reference: one card per priority, so that every link of "Drei Dinge" leads to
@@ -68,7 +131,9 @@ export type FixView =
       /** The name of each system in the line of a tab without steps ("Shopware 5" for a detected Shopware 5). */
       names: Record<FixSystem, string>;
     }
-  | { kind: 'general'; steps: readonly string[] };
+  | { kind: 'general'; steps: readonly string[] }
+  /** No fix text yet (session B4 part 2): the box says so; the texts are a session of their own after B4. */
+  | { kind: 'missing' };
 
 export interface FindingCard {
   number: number;
@@ -81,7 +146,9 @@ export interface FindingCard {
   why: string | null;
   /** "Gefunden im Quelltext": the addresses of the requests that stand in the source of the homepage (strings of the page). */
   source: string[];
-  fix: FixView | null;
+  /** "Land des Aufrufs: …" for a finding about data sent before consent (B4 part 2). */
+  country: string | null;
+  fix: FixView;
 }
 
 const THIRD_PARTY_FILES = new Set(['third-party-precedent']);
@@ -185,7 +252,7 @@ export function detectedSystem(report: Report): FixSystem | null {
   return (FIX_SYSTEMS as readonly string[]).includes(s) ? (s as FixSystem) : null;
 }
 
-function fixView(f: Finding, report: Report): FixView | null {
+function fixView(f: Finding, report: Report): FixView {
   const general = lookup(FINDING_TEXTS, f.textId)?.fix ?? null;
   const bySystem = f.fixTextId === null ? undefined : lookup(FIX_TEXTS, f.fixTextId);
   if (bySystem !== undefined) {
@@ -200,7 +267,7 @@ function fixView(f: Finding, report: Report): FixView | null {
     }
     return { kind: 'systems', steps, detected, selected: detected ?? FIX_SYSTEMS[0], general, names };
   }
-  return general === null ? null : { kind: 'general', steps: general };
+  return general === null ? { kind: 'missing' } : { kind: 'general', steps: general };
 }
 
 /** One card per priority of "Drei Dinge" (at most three), numbered as there. */
@@ -211,16 +278,23 @@ export function findingCards(report: Report): FindingCard[] {
     const f = byId.get(id);
     if (f === undefined) return [];
     const thirdParty = f.area === 'privacy' && f.serviceKey !== null && f.textId.startsWith('third-party-');
+    const happens = thirdParty ? thirdPartyHappens(f) : otherHappens(f);
+    const ta = targetActual(f, report);
+    const why = thirdParty ? (lookup(THIRD_PARTY_WHY, f.textId) ?? null) : (lookup(FINDING_TEXTS, f.textId)?.why ?? null);
+    const source = thirdParty ? sourceAddresses(f, report) : [];
+    // A card is never empty (Fedor, B4 part 2): without any text or value it says that the scan found the point.
+    const empty = happens === null && ta === null && why === null && source.length === 0;
     return [
       {
         number: i + 1,
         id: `fund-${i + 1}`,
         title: findingTitle(f),
         field: f.field,
-        happens: thirdParty ? thirdPartyHappens(f) : otherHappens(f),
-        targetActual: targetActual(f, report),
-        why: thirdParty ? (lookup(THIRD_PARTY_WHY, f.textId) ?? null) : (lookup(FINDING_TEXTS, f.textId)?.why ?? null),
-        source: thirdParty ? sourceAddresses(f, report) : [],
+        happens: empty ? T.factOnly : happens,
+        targetActual: ta,
+        why,
+        source,
+        country: countryLine(f, report),
         fix: fixView(f, report),
       },
     ];

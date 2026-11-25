@@ -8,10 +8,10 @@ import { FixTabs, Steps } from './fix-tabs';
 import s from './report.module.css';
 
 // The box of the "Montageanleitung" (bericht.html): with the system tabs when our texts have steps by system, else the
-// steps without a system under the same heading (a state the design does not show, from its elements).
+// steps without a system under the same heading (a state the design does not show, from its elements). Session B4
+// part 2: a finding without a fix text yet gets the box with the heading and a line that says so.
 function Fix({ card }: { card: FindingCard }) {
   const fix = card.fix;
-  if (fix === null) return null;
   return (
     <div className={s.fixBox}>
       {fix.kind === 'systems' ? (
@@ -21,13 +21,16 @@ function Fix({ card }: { card: FindingCard }) {
           <div className="px-[18px] pt-4">
             <h3 className={`${s.h3s} m-0!`}>{T.fixHeading}</h3>
           </div>
-          <div className="px-[22px] pt-[22px] pb-6">
-            <Steps steps={fix.steps} />
-          </div>
+          <div className="px-[22px] pt-[22px] pb-6">{fix.kind === 'general' ? <Steps steps={fix.steps} /> : <p className={s.bodys}>{T.noFix}</p>}</div>
         </>
       )}
     </div>
   );
+}
+
+/** "Land des Aufrufs: …", the small grey line of the sheet (B4 part 2). */
+function Country({ line }: { line: string }) {
+  return <p className={`${s.mut} m-0 mt-1.5 text-[13px]`}>{line}</p>;
 }
 
 // "Gefunden im Quelltext": the addresses of the requests that stand in the source of the homepage, each a string of the
@@ -47,7 +50,8 @@ function Source({ addresses }: { addresses: string[] }) {
 
 // One finding detail ("fund-1" of bericht.html): number, title and field, then what happens, Soll and Ist, why it
 // matters and the place in the source on the left, the "Montageanleitung" on the right. A part without data or text
-// is left out, never filled with a made-up value.
+// is left out, never filled with a made-up value. Session B4 part 2: the country of the visit under "Was passiert" of
+// a finding about data sent before consent; a card is never empty (without any text it says that the scan found it).
 function Card({ card }: { card: FindingCard }) {
   return (
     <section id={card.id} className={`${s.sec} ${s.card}`}>
@@ -62,12 +66,15 @@ function Card({ card }: { card: FindingCard }) {
       </div>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,400px),1fr))] gap-10">
         <div className="flex min-w-0 flex-col gap-[22px]">
-          {card.happens === null ? null : (
+          {card.happens === null ? (
+            card.country === null ? null : <Country line={card.country} />
+          ) : (
             <div>
               <h3 className={s.h3s}>{T.happens}</h3>
               <p className={s.bodys}>
                 <PhraseText phrase={card.happens} />
               </p>
+              {card.country === null ? null : <Country line={card.country} />}
             </div>
           )}
           {card.targetActual === null ? null : (

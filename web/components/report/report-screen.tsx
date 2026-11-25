@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Report } from '@website-check/scanner/report';
+import { showsLowerPart } from '../../lib/report-detail-view';
 import { REPORT_TEXTS as T } from '../../lib/report-texts';
 import { SiteFooter } from '../site-footer';
 import { HeaderAction, SiteHeader, SiteNav } from '../site-header';
@@ -52,41 +53,31 @@ export function ReportFrame({ children, status, stamp }: { children: ReactNode; 
 export interface StageDParts {
   revisions: ReactNode;
   workOrder: { line: ReactNode; link: ReactNode };
+  /** "An Entwickler weitergeben", the third action of the head (B4 part 2). */
+  developer: ReactNode;
 }
 
 // The report (design/reference/bericht.html), rendered from a report that passed `validateReport`. The upper part
 // (session B3): the head, the notices of a report that is not a plain complete check, the Prüfmaße, "Drei Dinge" with the
-// plan and the Zeitschnitt A–A. The lower part (session B4 part 1, `details`): the Stückliste, one finding detail per
-// priority, the help block and the title block, with the "Revisionen" and the "Arbeitsauftrag" of stage D where the
-// example page passes them. In part 1 only the example page shows the lower part; its data from the API, its states and
-// its actions are part 2. The last line of every report is here (product rule 4).
-export function ReportScreen({
-  report,
-  timeZone,
-  status,
-  details = false,
-  stageD,
-}: {
-  report: Report;
-  timeZone?: string;
-  status?: string;
-  details?: boolean;
-  stageD?: StageDParts;
-}) {
+// plan and the Zeitschnitt A–A. The lower part (session B4): the Stückliste, one finding detail per priority, the help
+// block, for a report whose homepage was checked (a report without it shows its head and the note, B3 part 2); the
+// title block at the foot of every sheet. The "Revisionen", the "Arbeitsauftrag" and "An Entwickler weitergeben" of
+// stage D only where the example page passes them. The last line of every report is here (product rule 4).
+export function ReportScreen({ report, timeZone, status, stageD }: { report: Report; timeZone?: string; status?: string; stageD?: StageDParts }) {
   const zone = timeZone !== undefined ? { timeZone } : {};
   return (
-    <ReportFrame {...(status !== undefined ? { status } : {})} {...(details ? { stamp: <TitleBlock report={report} {...zone} /> } : {})}>
-      <ReportHead report={report} {...zone} />
+    <ReportFrame {...(status !== undefined ? { status } : {})} stamp={<TitleBlock report={report} {...zone} />}>
+      <ReportHead report={report} {...zone} developer={stageD?.developer} />
       <Notices report={report} />
       <Measures report={report} />
       <Priorities report={report} />
       <Timeline report={report} />
-      {details ? (
+      {showsLowerPart(report) ? (
         <>
-          <Services report={report} />
+          <Services report={report} {...zone} />
           <FindingCards report={report} />
           {stageD?.revisions}
-          <HelpBlock workOrder={stageD?.workOrder} />
+          <HelpBlock report={report} workOrder={stageD?.workOrder} />
         </>
       ) : null}
       <p className={`${s.mut} m-0 text-[14px]`}>{T.disclaimer}</p>

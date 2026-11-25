@@ -29,8 +29,13 @@ export const WORK_ORDER_TEXTS = {
   href: '#arbeitsauftrag',
 } as const;
 
+/** The third action of the head (Fedor, B3 part 2, answer 2: hidden until stage D; session B4 part 2). */
+export const DEVELOPER_TEXTS = {
+  handOver: 'An Entwickler weitergeben',
+} as const;
+
 /**
  * Strings that only these parts have: a production build of web/ must not contain any of them (web/scripts/next.ts).
  * Not the word "Revisionen" alone: the home page names revisions among the features of the report (start.html).
  */
-export const STAGE_D_MARKERS = ['Jede neue Prüfung wird eine Revision', 'Arbeitsauftrag', 'Erneut prüfen', 'behoben in Rev.'] as const;
+export const STAGE_D_MARKERS = ['Jede neue Prüfung wird eine Revision', 'Arbeitsauftrag', 'Erneut prüfen', 'behoben in Rev.', 'An Entwickler weitergeben'] as const;

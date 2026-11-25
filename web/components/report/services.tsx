@@ -1,17 +1,20 @@
 import type { Report } from '@website-check/scanner/report';
 import { PhraseText } from '../scan/phrase';
 import { DETAIL_TEXTS as T } from '../../lib/report-detail-texts';
-import { serviceRows } from '../../lib/report-detail-view';
+import { copyListText, serviceRows } from '../../lib/report-detail-view';
+import { CopyListButton } from './copy-actions';
 import s from './report.module.css';
 import { ScrollBox } from './scroll-box';
 
 const TONE = { bad: s.tBad, ok: s.tOk, mid: s.tMid } as const;
 
 // "Stückliste der fremden Dienste" (bericht.html): one row per service of the report, in its order. The name of a known
-// service is ours (the rules data); the name of an unknown one is a string of the page (<bdi>). The table scrolls sideways
-// inside its box when the window is narrow (WCAG 1.4.10 allows it for a data table). The copy button has no behaviour yet
-// (B4 part 2). Session B4 part 1: shown for the example of the reference; a report without services is part 2.
-export function Services({ report }: { report: Report }) {
+// service is ours (the short name of the rules data); the name of an unknown one is a string of the page (<bdi>). The
+// table scrolls sideways inside its box when the window is narrow (WCAG 1.4.10 allows it for a data table).
+// Session B4 part 2: the copy button puts the list on the clipboard as the reference's script does ("Liste kopiert");
+// a service whose finding sent data before consent names the country of the visit under "vor der Einwilligung"; a
+// report without services has no Stückliste.
+export function Services({ report, timeZone }: { report: Report; timeZone?: string }) {
   const rows = serviceRows(report);
   if (rows.length === 0) return null;
   return (
@@ -49,7 +52,15 @@ export function Services({ report }: { report: Report }) {
                 </td>
                 <td>{row.provider}</td>
                 <td>{row.data}</td>
-                <td>{row.starts}</td>
+                <td>
+                  {row.starts}
+                  {row.country === null ? null : (
+                    <>
+                      <br />
+                      <span className={`${s.mut} text-[14px]`}>{row.country}</span>
+                    </>
+                  )}
+                </td>
                 <td>
                   <span className={`${s.tag} ${TONE[row.tag.tone]}`}>{row.tag.text}</span>
                 </td>
@@ -59,9 +70,7 @@ export function Services({ report }: { report: Report }) {
         </table>
       </ScrollBox>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-        <button type="button" className={s.gb}>
-          {T.copyList}
-        </button>
+        <CopyListButton text={copyListText(report, timeZone)} />
         <span className={`${s.mut} text-[15px]`}>{T.copyNote}</span>
       </div>
     </section>

@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest';
 import type { Finding, Report } from '@website-check/scanner/report';
 import exampleJson from '../components/report/example-report.json';
 import { ReportScreen } from '../components/report/report-screen';
-import { Revisions, WORK_ORDER } from '../components/report/stage-d';
+import { HAND_OVER, Revisions, WORK_ORDER } from '../components/report/stage-d';
 import { countWords, FIX_TEXTS, secondsText } from '../lib/report-detail-texts';
-import { detectedSystem, findingCards, serviceRows, sourceAddresses, titleBlock } from '../lib/report-detail-view';
+import { copyListText, detectedSystem, findingCards, helpView, serviceRows, showsLowerPart, sourceAddresses, titleBlock } from '../lib/report-detail-view';
 import { STAGE_D_MARKERS } from '../lib/report-stage-d-texts';
 
 // The lower part of the report (session B4 part 1) with the example of the reference: every text and value must be the
@@ -21,13 +21,12 @@ const strip = (html: string): string => html.replace(/<[^>]+>/g, '').replace(/\s
 const decode = (s: string): string => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
 const text = (p: string | readonly (string | { page: string })[]): string => (typeof p === 'string' ? p : p.map((x) => (typeof x === 'string' ? x : x.page)).join(''));
 const clone = (): Report => structuredClone(EXAMPLE);
-const render = (report: Report, opts: { details?: boolean; stageD?: boolean } = {}): string =>
+const render = (report: Report, opts: { stageD?: boolean } = {}): string =>
   renderToStaticMarkup(
     <ReportScreen
       report={report}
       timeZone="Europe/Berlin"
-      details={opts.details ?? true}
-      {...(opts.stageD ? { stageD: { revisions: <Revisions report={report} timeZone="Europe/Berlin" />, workOrder: WORK_ORDER } } : {})}
+      {...(opts.stageD ? { stageD: { revisions: <Revisions report={report} timeZone="Europe/Berlin" />, workOrder: WORK_ORDER, developer: HAND_OVER } } : {})}
     />,
   );
 
@@ -127,7 +126,7 @@ describe('the finding details of the example', () => {
     );
     expect(ga!.targetActual).toEqual({ target: '0 Anfragen an Google', actual: '3 Anfragen, ohne Einwilligung', bad: true });
     expect(ga!.source).toEqual([]); // the requests of Google Analytics are made by the Google tag
-    expect(ga!.fix).toBeNull(); // fix-google-analytics is not written yet
+    expect(ga!.fix).toEqual({ kind: 'missing' }); // fix-google-analytics is not written yet (a session after B4)
     expect(text(contrast!.happens!)).toBe('An 14 Stellen hebt sich der Text zu wenig vom Hintergrund ab, der schwächste Wert liegt bei 2,9 : 1 statt mindestens 4,5 : 1.');
     // The ratio with no-break spaces, so it never wraps inside the narrow box at 390 px.
     expect(contrast!.targetActual).toEqual({ target: 'mind. 4,5 : 1', actual: '2,9 : 1', bad: true });
@@ -202,8 +201,25 @@ describe('the finding details of the example', () => {
     const c = findingCards(r)[0]!;
     expect(c.happens).toBeNull();
     expect(c.why).toBeNull();
-    expect(c.fix).toBeNull();
+    expect(c.fix).toEqual({ kind: 'missing' });
     expect(render(r)).not.toContain('third-party-something-new');
+    expect(render(r)).toContain('Für diesen Punkt haben wir noch keine Anleitung.');
+  });
+
+  // Session B4 part 2 (Fedor): a card is never empty; without a text it shows the fact that the scan found the point.
+  it('a card without any text or value says that the scan found the point', () => {
+    const r = clone();
+    const f = r.findings.find((x) => x.id === r.priorities[0])!;
+    f.textId = 'something-new';
+    f.area = 'security';
+    f.serviceKey = null;
+    f.fixTextId = null;
+    const c = findingCards(r)[0]!;
+    expect(c.happens).toBe('Die Prüfung hat diesen Punkt gefunden. Eine Beschreibung dazu schreiben wir noch.');
+    expect([c.targetActual, c.why, c.source, c.fix]).toEqual([null, null, [], { kind: 'missing' }]);
+    const html = render(r);
+    expect(html).toContain('Die Prüfung hat diesen Punkt gefunden.');
+    expect(html).not.toContain('something-new');
   });
 });
 
@@ -292,11 +308,26 @@ describe('help block, title block and stage D', () => {
     for (const m of STAGE_D_MARKERS) expect(html).not.toContain(m);
   });
 
-  it('the live page of part 1 shows the upper part only (its lower part is B4 part 2)', () => {
-    const html = render(EXAMPLE, { details: false });
+  it('every page shows the lower part (B4 part 2), without the parts of stage D', () => {
+    const html = render(EXAMPLE);
+    expect(html).toContain('Stückliste der fremden Dienste');
+    expect(html).toContain('id="fund-1"');
+    expect(html).toContain('Benennung');
+    expect(html).toContain('Hilfe bei der Umsetzung anfragen');
+    expect(html).not.toContain('An Entwickler weitergeben');
+    expect([...html.matchAll(/<button type="button" class="[^"]*">(Als PDF speichern|Link kopieren|Liste für die Datenschutzerklärung kopieren)</g)]).toHaveLength(3);
+    expect(render(EXAMPLE, { stageD: true })).toContain('An Entwickler weitergeben');
+  });
+
+  it('a report whose homepage was not checked shows its head, the note and the title block, no lower part', () => {
+    const r = clone();
+    r.pages.homepage = 'not-checked' as Report['pages']['homepage'];
+    expect(showsLowerPart(r)).toBe(false);
+    const html = render(r);
     expect(html).not.toContain('Stückliste');
     expect(html).not.toContain('id="fund-1"');
-    expect(html).not.toContain('class="stb');
+    expect(html).not.toContain('Hilfe bei der Umsetzung anfragen');
+    expect(html).toContain('Benennung');
     expect(html).toContain('Automatische Schnellprüfung. Keine Rechtsberatung und kein vollständiges Audit.');
   });
 });
@@ -311,5 +342,77 @@ describe('numbers in words and seconds', () => {
     expect(secondsText(1000)).toBe('1 Sekunde');
     expect(secondsText(3210)).toBe('3,2 Sekunden');
     expect(secondsText(20)).toBe('weniger als 0,1 Sekunden');
+  });
+});
+
+// Session B4 part 2: the copied list, the help text and the country next to the findings before consent.
+describe('the copied list of the Stückliste', () => {
+  it('has the form of the reference\'s script, with the data schema v1 holds', () => {
+    // The reference: "Externe Dienste auf roesterei-muster.de (Prüfung vom 19.11.2026):", "1. Google Fonts (Google),
+    // Schriften" … "5. jsDelivr, Skripte". The example has no YouTube row (gap 3) and "Google Analytics" (no version).
+    expect(copyListText(EXAMPLE, 'Europe/Berlin')).toBe(
+      [
+        'Externe Dienste auf roesterei-muster.de (Prüfung vom 19.11.2026):',
+        '1. Google Fonts (Google), Schriften',
+        '2. Google Tag Manager (Google), lädt weitere Skripte',
+        '3. Google Analytics (Google), Statistik',
+        '4. jsDelivr, Skripte',
+      ].join('\n'),
+    );
+    for (const line of ['Externe Dienste auf roesterei-muster.de (Prüfung vom 19.11.2026):', '1. Google Fonts (Google), Schriften', '2. Google Tag Manager (Google), lädt weitere Skripte', '5. jsDelivr, Skripte']) {
+      expect(reference).toContain(`'${line}'`);
+    }
+  });
+
+  it('keeps strings of the page plain: no control or direction characters, no line that starts a formula', () => {
+    const r = clone();
+    r.site.displayHost = 'evil\u202e.de';
+    r.services[3] = { ...r.services[3]!, known: false, name: '=cmd|\u202ecalc\n2. fake', provider: null, category: 'unknown' };
+    r.truncated.services = true;
+    r.counts.services = 7;
+    const lines = copyListText(r, 'Europe/Berlin').split('\n');
+    expect(lines[0]).toBe('Externe Dienste auf evil.de (Prüfung vom 19.11.2026):');
+    expect(lines[4]).toBe('4. =cmd|calc2. fake, unbekannter Dienst');
+    expect(lines[5]).toBe('… und 3 weitere Dienste, die der Bericht nicht einzeln aufführt.');
+    expect(lines).toHaveLength(6);
+    for (const line of lines.slice(1)) expect(line).toMatch(/^(\d+\. |… )/);
+  });
+});
+
+describe('the help block', () => {
+  it('names what the priorities are about: the reference\'s text for those of the example', () => {
+    expect(helpView(EXAMPLE)).toEqual({
+      heading: 'Sie möchten das nicht selbst umsetzen?',
+      text: 'Ich behebe die Funde für Sie: Schriften lokal einbinden, die Einwilligung richtig einstellen, Barrieren entfernen. Antwort per E-Mail.',
+    });
+    expect(strip(reference)).toContain('Ich behebe die Funde für Sie: Schriften lokal einbinden, die Einwilligung richtig einstellen, Barrieren entfernen. Antwort per E-Mail.');
+  });
+
+  it('only what applies, and a text of its own without priorities', () => {
+    const r = clone();
+    r.priorities = r.priorities.filter((id) => id.startsWith('a11y'));
+    expect(helpView(r).text).toBe('Ich behebe die Funde für Sie: Barrieren entfernen. Antwort per E-Mail.');
+    r.priorities = [];
+    expect(helpView(r)).toEqual({ heading: 'Sie möchten Ihre Website genauer prüfen lassen?', text: 'Unsere automatische Prüfung sieht nur die Startseite und das Impressum. Ich sehe mir Ihre Website gern genauer an. Antwort per E-Mail.' });
+  });
+});
+
+describe('the country next to a finding about data sent before consent', () => {
+  it('stands under "vor der Einwilligung" and under "Was passiert" of such a finding only', () => {
+    expect(serviceRows(EXAMPLE).map((x) => x.country)).toEqual([null, null, null, null]); // the reference names no country
+    const r = clone();
+    r.visit = { ...r.visit, country: 'IT' };
+    const rows = serviceRows(r);
+    const before = new Set(r.findings.filter((f) => f.beforeConsent).map((f) => f.id));
+    rows.forEach((row, i) => expect(row.country).toBe(before.has(r.services[i]!.findingId ?? '') ? 'Land des Aufrufs: Italien' : null));
+    expect(rows.filter((x) => x.country !== null).length).toBeGreaterThan(0);
+    const cards = findingCards(r);
+    for (const c of cards) {
+      const f = r.findings.find((x) => x.id === r.priorities[c.number - 1])!;
+      expect(c.country).toBe(f.beforeConsent ? 'Land des Aufrufs: Italien' : null);
+    }
+    expect(render(r)).toContain('Land des Aufrufs: Italien');
+    r.visit = { ...r.visit, country: 'XX' };
+    expect(serviceRows(r).every((x) => x.country === null)).toBe(true);
   });
 });

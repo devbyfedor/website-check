@@ -1,7 +1,7 @@
 import type { Report } from '@website-check/scanner/report';
 import { PhraseText } from '../scan/phrase';
 import { shortDate } from '../../lib/report-detail-view';
-import { REVISION_TEXTS as R, WORK_ORDER_TEXTS as W } from '../../lib/report-stage-d-texts';
+import { DEVELOPER_TEXTS, REVISION_TEXTS as R, WORK_ORDER_TEXTS as W } from '../../lib/report-stage-d-texts';
 import { priorityItems, REPORT_TIME_ZONE } from '../../lib/report-view';
 import s from './report.module.css';
 import { ScrollBox } from './scroll-box';
@@ -98,3 +98,10 @@ export const WORK_ORDER = {
     </a>
   ),
 };
+
+/** "An Entwickler weitergeben", the third action of the head: stage D, without behaviour, as in the reference. */
+export const HAND_OVER = (
+  <button type="button" className={s.gb}>
+    {DEVELOPER_TEXTS.handOver}
+  </button>
+);
