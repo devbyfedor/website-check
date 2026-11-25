@@ -565,3 +565,58 @@
   font-size: 17px;
   color: var(--color-ink);
 }
+
+/*
+  Session B4 part 2: the print styles of the whole report (the page around the sheet is in app/globals.css). The sheet
+  on white without its shadow and its padding; no buttons (the actions of the head, the copy button, the help button,
+  the parts of stage D); of the system tabs only the selected one, as the label of its steps; the boxes that scroll
+  sideways show everything; every drawing in its final state; the colours of the Zeitschnitt and the tags printed as
+  they are (light colours, the text stays dark on light).
+*/
+@media print {
+  .sheet {
+    background: #fff;
+    box-shadow: none;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .sheet > div:first-child {
+    padding: 0 0 28px;
+  }
+  .gb,
+  .sheet a.btns,
+  .sheet a.gl {
+    display: none;
+  }
+  .tab:not(.tabOn) {
+    display: none;
+  }
+  .tw {
+    overflow: visible;
+  }
+  .tw > * {
+    min-width: 0 !important;
+  }
+  .mt {
+    min-width: 0;
+  }
+  .draw {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+  .pop {
+    opacity: 1;
+    animation: none;
+  }
+  .mt tr,
+  .trow,
+  .ta,
+  .stb,
+  .help {
+    break-inside: avoid;
+  }
+  .h2s,
+  .h3s {
+    break-after: avoid;
+  }
+}

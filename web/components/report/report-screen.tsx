@@ -30,7 +30,7 @@ export function ReportFrame({ children, status, stamp }: { children: ReactNode; 
           <HeaderAction href="/">{T.newScan}</HeaderAction>
         </div>
       </SiteHeader>
-      <main className="mx-auto box-border w-full max-w-report flex-1 px-8 pt-2 pb-[72px]">
+      <main data-print="report" className="mx-auto box-border w-full max-w-report flex-1 px-8 pt-2 pb-[72px]">
         {status === undefined ? null : (
           <p role="status" className="sr-only">
             {status}
