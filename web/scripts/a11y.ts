@@ -31,14 +31,16 @@ const AXE_FILE = join(ROOT, 'node_modules', 'axe-core', 'axe.min.js');
 // `layers`: the home page's four layer buttons and its form. `midRun`: a moment (seconds) at which axe
 // also runs with every animation paused, as an observation that does not count.
 // `notBuilt`: the parts of the reference the app does not have yet; their controls are left out of the reference's Tab
-// order before the orders are compared (the report of B3 part 1 has its upper part only; B4 builds the rest).
-const PAGES: { name: string; path: string; reference: string; layers: boolean; midRun?: number; notBuilt?: string }[] = [
+// order before the orders are compared. `tabs` (session B4 part 1): the page has the system tabs of the report, by the
+// WAI-ARIA tabs pattern (brief, B4): the reference gets the same Tab stops before its walk (only the selected tab, and
+// the panel), and the arrow keys are tried in the app. `extraInApp`: parts of the app the reference shows only once as
+// a pattern (the finding details after the first): their Tab stops are measured but left out of the order comparison.
+const PAGES: { name: string; path: string; reference: string; layers: boolean; midRun?: number; notBuilt?: string; tabs?: boolean; extraInApp?: string }[] = [
   { name: 'start', path: '/', reference: 'start.html', layers: true },
   // The scan screen with the example of the reference (the example build, WC_EXAMPLES=1).
   { name: 'pruefung', path: '/pruefung/beispiel', reference: 'pruefung.html', layers: false, midRun: 3.3 },
-  // B3 part 1: the report with the example, its upper part; the Stückliste, the finding, the revisions, the help
-  // block and the title block of bericht.html are B4.
-  { name: 'bericht', path: '/bericht/beispiel', reference: 'bericht.html', layers: false, notBuilt: 'article section:nth-of-type(n+5), article .stb' },
+  // B3 and B4 part 1: the report with the example, the whole page.
+  { name: 'bericht', path: '/bericht/beispiel', reference: 'bericht.html', layers: false, tabs: true, extraInApp: 'article section[id^="fund-"]:not(#fund-1)' },
 ];
 const RING_MARGIN = 10; // px around the element: the ring is 3 px wide at an offset of 3 px
 
@@ -73,8 +75,10 @@ function activeElement(): { id: string; tag: string; text: string; key: string; 
     // The whole text without white space, to compare the order with the reference: the reference has line
     // breaks between the parts of a control, React writes none. A box that scrolls sideways (Chrome puts it in the Tab
     // order by itself when nothing in it can take focus) is compared by what it is, not by the whole text inside it.
-    key:
-      el.matches('a[href], button, input, select, textarea') || !(['auto', 'scroll'].includes(cs.overflowX) && el.scrollWidth > el.clientWidth + 1)
+    // The panel of tabs (B4) is compared by what it is too: the reference's panel holds the hidden steps of every system.
+    key: el.matches('[role="tabpanel"]')
+      ? '[tab panel]'
+      : el.matches('a[href], button, input, select, textarea') || !(['auto', 'scroll'].includes(cs.overflowX) && el.scrollWidth > el.clientWidth + 1)
         ? (el.getAttribute('aria-label') ?? el.textContent ?? '').replace(/\s+/g, '')
         : `[scroll box ${el.tagName.toLowerCase()}]`,
     focusVisible: el.matches(':focus-visible'),
@@ -237,6 +241,70 @@ export async function keyboard(page: Page, label: string): Promise<{ problems: s
   if (missing.length) problems.push(`${label}: not reached by Tab: ${missing.join(', ')}`);
   if (reached.join() !== expected.filter((id) => reached.includes(id)).join()) problems.push(`${label}: Tab order differs from document order`);
   return { problems, stops };
+}
+
+// Runs in the page of the reference: the Tab stops of the WAI-ARIA tabs pattern (brief, B4), which the reference does not
+// follow (every tab is a Tab stop there, its panel none): only the selected tab and the panel. Returns the tab lists.
+function tabsPattern(): number {
+  const lists = Array.from(document.querySelectorAll('[role="tablist"]'));
+  for (const tab of Array.from(document.querySelectorAll('[role="tab"]'))) tab.setAttribute('tabindex', tab.getAttribute('aria-selected') === 'true' ? '0' : '-1');
+  for (const panel of Array.from(document.querySelectorAll('[role="tabpanel"]'))) panel.setAttribute('tabindex', '0');
+  return lists.length;
+}
+
+// The system tabs of the first finding detail by keyboard (WAI-ARIA tabs pattern): the arrow keys, Home and End move to
+// a tab and select it, focus and the panel follow, only the selected tab is a Tab stop, Tab goes on to the panel; a
+// click selects too.
+async function tabKeys(page: Page, label: string): Promise<{ problems: string[]; done: string[] }> {
+  const problems: string[] = [];
+  const done: string[] = [];
+  if ((await page.locator('[role="tablist"]').count()) === 0) {
+    problems.push(`${label}: no tab list`);
+    return { problems, done };
+  }
+  const state = () =>
+    page.evaluate(() => {
+      const list = document.querySelector('[role="tablist"]')!;
+      const tabs = Array.from(list.querySelectorAll('[role="tab"]'));
+      const panel = document.getElementById(tabs[0]!.getAttribute('aria-controls') ?? '');
+      return {
+        selected: tabs.filter((t) => t.getAttribute('aria-selected') === 'true').map((t) => t.id).join(','),
+        stops: tabs.filter((t) => t.getAttribute('tabindex') === '0').map((t) => t.id).join(','),
+        focus: document.activeElement?.id ?? '',
+        labelledBy: panel?.getAttribute('aria-labelledby') ?? '',
+        step: panel?.querySelector('li, p')?.textContent?.slice(0, 48) ?? '',
+      };
+    });
+  await page.locator('[role="tablist"] [role="tab"][aria-selected="true"]').first().focus();
+  const steps = new Map<string, string>();
+  steps.set('wordpress', (await state()).step);
+  for (const [key, system] of [
+    ['ArrowRight', 'shopify'],
+    ['ArrowRight', 'wix'],
+    ['ArrowRight', 'jimdo'],
+    ['End', 'shopware'],
+    ['ArrowRight', 'wordpress'],
+    ['ArrowLeft', 'shopware'],
+    ['Home', 'wordpress'],
+  ] as const) {
+    await page.keyboard.press(key);
+    await nextFrames(page);
+    const s = await state();
+    steps.set(system, s.step);
+    const ok = s.selected.endsWith(`-tab-${system}`) && s.focus === s.selected && s.labelledBy === s.selected && s.stops === s.selected;
+    done.push(`tabs: ${key} to ${system}: selected and focused ${ok ? 'yes' : 'NO'}, panel "${s.step}"`);
+    if (!ok) problems.push(`${label}: tabs: ${key} should select and focus ${system}: ${JSON.stringify(s)}`);
+  }
+  if (new Set(steps.values()).size !== steps.size) problems.push(`${label}: tabs: two systems show the same first step`);
+  await page.keyboard.press('Tab');
+  const role = await page.evaluate(() => document.activeElement?.getAttribute('role') ?? document.activeElement?.tagName ?? '');
+  done.push(`tabs: Tab from the selected tab to: ${role}`);
+  if (role !== 'tabpanel') problems.push(`${label}: tabs: Tab from the selected tab went to ${role}, not to the panel`);
+  await page.locator('[role="tablist"] [role="tab"]').nth(2).click();
+  const clicked = await state();
+  done.push(`tabs: click on the third tab: selected ${clicked.selected}`);
+  if (!clicked.selected.endsWith('-tab-wix')) problems.push(`${label}: tabs: a click on Wix selected ${clicked.selected}`);
+  return { problems, done };
 }
 
 // The layer buttons by Space and Enter, the form by Enter in the field and on the button.
@@ -472,15 +540,21 @@ async function main(): Promise<void> {
         // Keyboard and focus, on the app and on the reference: the same controls in the same order.
         const k = await newPage(browser, `${server.origin}${p.path}`, width, server.origin, true, 'none');
         const walk = await keyboard(k.page, label);
-        const act = p.layers ? await activation(k.page, label) : { problems: [], done: [] };
+        const extra = p.extraInApp === undefined ? [] : await k.page.evaluate(idsInside, p.extraInApp);
+        const act = p.layers ? await activation(k.page, label) : p.tabs ? await tabKeys(k.page, label) : { problems: [], done: [] };
         problems = problems.concat(walk.problems, act.problems);
         blocked += k.blocked.length;
         await k.context.close();
         const rk = await newPage(browser, `${server.origin}/__reference/${p.reference}`, width, server.origin, true, 'local');
+        if (p.tabs) console.log(`  reference: the Tab stops of the WAI-ARIA tabs pattern in ${await rk.page.evaluate(tabsPattern)} tab list (only the selected tab and the panel)`);
         const refWalk = await keyboard(rk.page, `reference ${label}`);
         const notBuilt = p.notBuilt === undefined ? [] : await rk.page.evaluate(idsInside, p.notBuilt);
         await rk.context.close();
-        const stops = walk.stops as { id: string; text: string; key: string; ring: RingMeasure; ringCut: boolean }[];
+        const allStops = walk.stops as { id: string; text: string; key: string; ring: RingMeasure; ringCut: boolean }[];
+        const stops = allStops.filter((s) => !extra.includes(s.id));
+        if (p.extraInApp !== undefined) {
+          console.log(`  app: ${allStops.length - stops.length} of ${allStops.length} Tab stops are in the finding details after the first (${p.extraInApp}), measured but left out of the order comparison`);
+        }
         const allRefStops = refWalk.stops as { id: string; text: string; key: string; ringCut: boolean }[];
         const refStops = allRefStops.filter((s) => !notBuilt.includes(s.id));
         if (p.notBuilt !== undefined) {

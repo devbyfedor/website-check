@@ -57,9 +57,63 @@ export function regionBottom(selector: string): number | null {
   return el === null ? null : el.getBoundingClientRect().bottom + scrollY;
 }
 
-// The report of B3 part 1 has its upper part only: head, Prüfmaße, "Drei Dinge" with the plan and the Zeitschnitt A–A,
-// the first four sections of the sheet in bericht.html and in the app. npm run visual, motion and a11y compare that area.
-export const REPORT_REGION = 'article section:nth-of-type(4)';
+// Session B4 part 1: the report is compared whole. bericht.html shows one finding detail (#fund-1) as the pattern of
+// every card: its "Drei Dinge" link to #fund-2 and #fund-3, which the file does not have. The app shows one card per
+// priority, so npm run visual and motion hide the app's cards after the first (and print how many) and compare the rest
+// of the page; npm run a11y checks every card.
+export const EXTRA_CARDS = 'article section[id^="fund-"]:not(#fund-1)';
+
+// Runs in the page of design/reference/bericht.html after `decidedWording` (session B4 part 1): the data of the example
+// where schema v1 cannot hold the data of the reference (docs/report-schema.md, "What is missing"), so that a comparison
+// can tell a fault of the page from a gap of the data. The YouTube row of the Stückliste ("erst nach Klick", "wird
+// eingeholt": a service that waits for a click, gap 3) is left out, so jsDelivr is position 4 of "4 Dienste gefunden";
+// the names of our rules data stand for the reference's shorter names ("Google Analytics 4": the scan does not tell the
+// version); "Gefunden im Quelltext" holds the address of the request, not the tag (gap 2). npm run visual prints this
+// comparison next to the one with the decided wording only. Returns the changes made (7 on bericht.html).
+export const EXAMPLE_DATA_CHANGES = 7;
+export function exampleData(): number {
+  let changed = 0;
+  const section = Array.from(document.querySelectorAll('section')).find((s) => s.querySelector('h2')?.textContent === 'Stückliste der fremden Dienste');
+  if (!section) return 0;
+  const count = section.querySelector('.sech .mut');
+  if (count?.textContent === '5 Dienste gefunden') {
+    count.textContent = '4 Dienste gefunden';
+    changed += 1;
+  }
+  const names: Record<string, string> = { 'Google Tag Manager': 'Google Tag Manager / Google tag (gtag.js)', 'Google Analytics 4': 'Google Analytics', jsDelivr: 'jsDelivr (incl. BootstrapCDN)' };
+  for (const tr of Array.from(section.querySelectorAll('tbody tr'))) {
+    const b = tr.querySelector('td b');
+    const name = b?.textContent ?? '';
+    if (name === 'YouTube') {
+      tr.remove();
+      changed += 1;
+      continue;
+    }
+    if (b && Object.hasOwn(names, name)) {
+      b.textContent = names[name]!;
+      changed += 1;
+    }
+    const pos = tr.querySelector('.pos');
+    if (pos?.textContent === '5') {
+      pos.textContent = '4';
+      changed += 1;
+    }
+  }
+  const code = document.querySelector('#fund-1 pre.code');
+  const href = /href="([^"]+)"/.exec(code?.textContent ?? '');
+  if (code && href) {
+    code.textContent = href[1]!;
+    changed += 1;
+  }
+  return changed;
+}
+
+// Runs in the page: hides every element of the selector (display none) and returns how many there were.
+export function hideAll(selector: string): number {
+  const list = Array.from(document.querySelectorAll<HTMLElement>(selector));
+  for (const el of list) el.style.display = 'none';
+  return list.length;
+}
 
 // Runs in the page of design/reference/bericht.html before a screenshot: the one place where a product rule decides
 // against the reference. Product rule 3 and Fedor's decision of 23.11.2026 (docs/report-schema.md, conflict 14): an
