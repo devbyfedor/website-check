@@ -367,7 +367,10 @@ async function main(): Promise<void> {
     }
   }
   if (!args.referenceOnly) console.log(`Requests of the app to other hosts: ${appBlocked}`);
-  if (appBlocked > 0) process.exitCode = 1;
+  // The 1 % of the session messages (review of B4 part 2): for the report the measure with the data of schema v1.
+  const over = results.filter((r) => (r.dataPercent ?? r.percent) > 1);
+  if (over.length > 0) console.log(`Above 1 %: ${over.map((r) => `${r.page} ${r.width} px`).join(', ')}`);
+  if (appBlocked > 0 || over.length > 0) process.exitCode = 1;
 }
 
 await main();

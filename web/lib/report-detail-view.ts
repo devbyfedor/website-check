@@ -70,24 +70,34 @@ export function serviceRows(report: Report): ServiceRow[] {
   }));
 }
 
-/** Bidirectional and other control characters of a string of the page, which plain text would act on. */
-const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+/** "Google Fonts (Google)", "jsDelivr", "Mouseflow (Ladeskript)", "YouTube (erweiterter Datenschutzmodus, Google)". */
+function withProvider(name: string, provider: string | null): string {
+  if (provider === null || provider === '') return name;
+  const bracket = /^(.*\S) \(([^()]+)\)$/.exec(name);
+  const base = bracket === null ? name : (bracket[1] as string);
+  if (base.toLowerCase() === provider.toLowerCase()) return name;
+  return bracket === null ? `${name} (${provider})` : `${base} (${bracket[2] as string}, ${provider})`;
+}
+
+/** Bidirectional, line and other control characters of a string of the page, which plain text would act on. */
+const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g;
 const plain = (v: string): string => v.replace(CONTROLS, '');
 
 /**
  * The text "Liste für die Datenschutzerklärung kopieren" puts on the clipboard, in the form of the reference's
  * script: "Externe Dienste auf {domain} (Prüfung vom {Datum}):", then one line per row of the Stückliste,
  * "{Pos.}. {Dienst} ({Anbieter}), {small line}", without the provider when it is the name itself ("5. jsDelivr,
- * Skripte") or unknown. Plain text: strings of the page lose their control characters; every line after the first
- * starts with its number or "…", so no line can start a formula when it is pasted into a spreadsheet.
+ * Skripte") or unknown. A short name with a word in brackets takes the provider into its brackets, or none when the
+ * name before the brackets is the provider ("Mouseflow (Ladeskript)", "YouTube (erweiterter Datenschutzmodus,
+ * Google)"; review of B4 part 2). Plain text: strings of the page lose their control and line characters; every line
+ * after the first starts with its number or "…", so no line can start a formula when it is pasted into a spreadsheet.
  */
 export function copyListText(report: Report, timeZone = REPORT_TIME_ZONE): string {
   const lines = [T.copyHeading(plain(report.site.displayHost), shortDate(report.scan.scannedAt ?? report.createdAt, timeZone))];
   for (const s of report.services) {
     const name = plain(s.name);
     const provider = s.provider === null ? null : plain(s.provider);
-    const by = provider === null || provider === '' || provider.toLowerCase() === name.toLowerCase() ? '' : ` (${provider})`;
-    lines.push(`${s.position}. ${name}${by}, ${CATEGORY_WORDS[s.category]}`);
+    lines.push(`${s.position}. ${withProvider(name, provider)}, ${CATEGORY_WORDS[s.category]}`);
   }
   const rest = report.truncated.services ? report.counts.services - report.services.length : 0;
   if (rest > 0) lines.push(T.copyMore(rest));
@@ -101,7 +111,9 @@ export function helpView(report: Report): { heading: string; text: string } {
   const tasks: string[] = [];
   for (const id of report.priorities.slice(0, 3)) {
     const f = byId.get(id);
-    if (f === undefined) continue;
+    // Only a finding: a point to check by hand (the Impressum link not found) is not a fault we offer to fix (product
+    // rule 3; review of B4 part 2).
+    if (f === undefined || f.kind !== 'finding') continue;
     const task =
       f.area === 'privacy' && f.textId.startsWith('third-party-') ? (f.params.category === 'fonts' ? HELP_TASKS.fonts : HELP_TASKS.consent)
       : f.area === 'accessibility' ? HELP_TASKS.barriers

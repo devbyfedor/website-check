@@ -253,7 +253,14 @@ const LOCATION: Record<string, string> = { 'us-possible': 'Server in den USA mö
 const TAG: Record<string, string> = { missing: 'fehlt', 'grey-zone': 'Graubereich', 'not-needed': 'nicht nötig', 'not-reached': 'keine Antwort', manual: 'bitte manuell prüfen' };
 const FIVE: Record<string, string> = { wordpress: 'WordPress', shopify: 'Shopify', wix: 'Wix', jimdo: 'Jimdo', shopware: 'Shopware' };
 const shortDateOf = (iso: string): string => new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Berlin' }).format(new Date(iso));
-const strip = (v: string): string => v.replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '');
+const strip = (v: string): string => v.replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g, '');
+/** The provider in the copied list (review of B4 part 2): left out when the name before its brackets is the provider. */
+function namedBy(name: string, provider: string | null): string {
+  if (provider === null || provider === '') return name;
+  const m = /^(.*\S) \(([^()]+)\)$/.exec(name);
+  if ((m === null ? name : m[1]!).toLowerCase() === provider.toLowerCase()) return name;
+  return m === null ? `${name} (${provider})` : `${m[1]} (${m[2]}, ${provider})`;
+}
 
 function countryOf(r: Report): string | null {
   if (r.visit.country === null || ['XX', 'ZZ'].includes(r.visit.country)) return null;
@@ -316,9 +323,7 @@ function expectedLower(r: Report, measuredPage: boolean): ExpectedLower {
   if (lower && r.services.length > 0) {
     const lines = [`Externe Dienste auf ${strip(r.site.displayHost)} (Prüfung vom ${shortDateOf(r.scan.scannedAt ?? r.createdAt)}):`];
     for (const s of r.services) {
-      const name = strip(s.name);
-      const by = s.provider === null || strip(s.provider) === '' || strip(s.provider).toLowerCase() === name.toLowerCase() ? '' : ` (${strip(s.provider)})`;
-      lines.push(`${s.position}. ${name}${by}, ${CATEGORY[s.category]}`);
+      lines.push(`${s.position}. ${namedBy(strip(s.name), s.provider === null ? null : strip(s.provider))}, ${CATEGORY[s.category]}`);
     }
     const rest = r.truncated.services ? r.counts.services - r.services.length : 0;
     if (rest > 0) lines.push(rest === 1 ? '… und 1 weiterer Dienst, den der Bericht nicht einzeln aufführt.' : `… und ${rest} weitere Dienste, die der Bericht nicht einzeln aufführt.`);
@@ -426,7 +431,11 @@ function shown() {
     const cells = Array.from(sec.querySelectorAll('[class*="taCell"]'));
     const value = (c: Element | undefined) => txt(c?.querySelector('div'));
     const selected = sec.querySelector('[role="tab"][aria-selected="true"]');
-    const body = txt(sec).length - txt(sec.querySelector('h2')).length;
+    // The left column of the card (what happens, Soll and Ist, why, the source); the box of the Montageanleitung is the
+    // right one (review of B4 part 2: the whole card always had the box's text).
+    const left = txt(sec.querySelector('[class*="grid"] > div:first-child'));
+    // The text of the card without the addresses of "Gefunden im Quelltext" (strings of the page).
+    const own = Array.from(sec.querySelectorAll('h2, h3, p, li, [class*="taCell"], [role="tab"]'), (e) => txt(e)).join(' ');
     return {
       id: sec.id,
       field: field === undefined ? null : txt(field),
@@ -436,8 +445,8 @@ function shown() {
       tab: selected === null ? null : txt(selected),
       noFix: txt(sec).includes('Für diesen Punkt haben wir noch keine Anleitung.'),
       steps: sec.querySelectorAll('ol li').length,
-      body,
-      text: txt(sec),
+      left,
+      own,
     };
   });
   const stamp = Array.from(document.querySelectorAll('article [class*="stb"] > div')).map((d) => `${txt(d.querySelector('span'))}|${txt(d.querySelector('strong'))}`);
@@ -485,8 +494,8 @@ async function compareValues(page: Page, report: Report, label: string): Promise
     same(`selected system tab of card ${c.id}`, g.tab, c.tab);
     same(`"noch keine Anleitung" of card ${c.id}`, g.noFix, c.noFix);
     if (c.tab === null && !c.noFix && g.steps === 0) problems.push(`${label}: card ${c.id} without steps`);
-    if (g.body < 40) problems.push(`${label}: card ${c.id} is empty`);
-    if (/\{[a-zA-Z]+\}|\b(?:third-party|a11y|security|legal|fix)-[a-z-]+\b/.test(g.text)) problems.push(`${label}: card ${c.id} shows a placeholder or a text id`);
+    if (g.left.length < 20) problems.push(`${label}: card ${c.id} has nothing in its left column (${JSON.stringify(g.left)})`);
+    if (/\{[a-zA-Z]+\}|\b(?:third-party|a11y|security|legal|fix)-[a-z-]+\b/.test(g.own)) problems.push(`${label}: card ${c.id} shows a placeholder or a text id`);
   });
   same('help button', got.help, low.lower ? ['Hilfe bei der Umsetzung anfragen'] : []);
   same('title block', got.stamp, low.stamp);
@@ -597,7 +606,7 @@ async function printCheck(page: Page, label: string, axeSource: string, name: st
       const cs = getComputedStyle(el);
       return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
     };
-    const controls = Array.from(document.querySelectorAll('button, a[class*="btns"], a[class*="gl"]'))
+    const controls = Array.from(document.querySelectorAll('button, input, select, textarea, a[class*="btns"], a[class*="gl"], a[class*="newb"]'))
       .filter(visible)
       .filter((b) => !(b.getAttribute('role') === 'tab' && b.getAttribute('aria-selected') === 'true'))
       .map((b) => (b.textContent ?? '').trim().slice(0, 40));
@@ -611,6 +620,8 @@ async function printCheck(page: Page, label: string, axeSource: string, name: st
       return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
     };
     const pageBackgrounds = [document.documentElement, document.body, document.querySelector('.paper'), document.querySelector('article')].map((e) => (e === null ? 'none' : getComputedStyle(e).backgroundColor));
+    // The blueprint grid is a background image (review of B4 part 2).
+    const pageImages = [document.documentElement, document.body, document.querySelector('.paper'), document.querySelector('article')].map((e) => (e === null ? 'none' : getComputedStyle(e).backgroundImage));
     // A dark background: a box with text of its own on a background colour darker than mid grey (the small badge
     // "erkannt" of a tab is one: light text on the line colour, as on the screen).
     const dark = Array.from(document.querySelectorAll('body *'))
@@ -620,11 +631,12 @@ async function printCheck(page: Page, label: string, axeSource: string, name: st
         return c !== null && lum(c) < 0.18 && Array.from(e.childNodes).some((n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').trim() !== '');
       })
       .map((e) => (e.textContent ?? '').trim().slice(0, 30));
-    return { controls, chrome, pageBackgrounds, dark };
+    return { controls, chrome, pageBackgrounds, pageImages, dark };
   });
   if (seen.controls.length > 0) problems.push(`${label}, print: buttons ${seen.controls.join(' | ')}`);
   if (seen.chrome.length > 0) problems.push(`${label}, print: ${seen.chrome.join(', ')} visible`);
   if (seen.pageBackgrounds.some((b) => b !== 'rgb(255, 255, 255)' && b !== 'rgba(0, 0, 0, 0)')) problems.push(`${label}, print: page backgrounds ${seen.pageBackgrounds.join(', ')}`);
+  if (seen.pageImages.some((b) => b !== 'none')) problems.push(`${label}, print: page background images ${seen.pageImages.join(', ')}`);
   const darkOther = seen.dark.filter((t) => t !== 'erkannt');
   if (darkOther.length > 0) problems.push(`${label}, print: dark backgrounds behind ${darkOther.join(' | ')}`);
   const run = await axe(page, `print, ${name}`, axeSource);
@@ -650,21 +662,30 @@ async function actions(page: Page, origin: string, label: string, copy: string |
       w.__printed += 1;
     };
   });
+  // The status regions must be there, empty, before the first click, so a screen reader hears what comes into them
+  // (review of B4 part 2): each is marked now and must be the one that says the result.
+  const before = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('[role="status"]')).map((s) => {
+      (s as HTMLElement).dataset.wcBefore = (s.textContent ?? '') === '' ? 'empty' : 'text';
+      return s.textContent ?? '';
+    }),
+  );
+  if (before.filter((t) => t === '').length < (copy === null ? 1 : 2)) problems.push(`${label}: ${before.filter((t) => t === '').length} empty status regions before the first click`);
   await page.getByRole('button', { name: 'Als PDF speichern' }).click();
   if ((await page.evaluate(() => (window as unknown as { __printed: number }).__printed)) !== 1) problems.push(`${label}: "Als PDF speichern" did not open the print dialog`);
-  const status = (text: string) => page.evaluate((t) => Array.from(document.querySelectorAll('[role="status"]')).some((s) => (s.textContent ?? '').includes(t)), text);
+  const status = (text: string) => page.evaluate((t) => Array.from(document.querySelectorAll('[role="status"][data-wc-before="empty"]')).some((s) => (s.textContent ?? '').includes(t)), text);
   await page.getByRole('button', { name: 'Link kopieren' }).click();
   await page.getByRole('button', { name: 'Link kopiert' }).waitFor({ timeout: 3000 }).catch(() => problems.push(`${label}: "Link kopieren" did not change to "Link kopiert"`));
   const link = await page.evaluate(() => navigator.clipboard.readText());
   if (link !== `${origin}/bericht?id=${ID}`) problems.push(`${label}: "Link kopieren" copied ${JSON.stringify(link)}`);
-  if (!(await status('Link kopiert'))) problems.push(`${label}: no status region says "Link kopiert"`);
+  if (!(await status('Link kopiert'))) problems.push(`${label}: no status region that was empty before says "Link kopiert"`);
   if (copy !== null) {
     await page.getByRole('button', { name: 'Liste für die Datenschutzerklärung kopieren' }).click();
     await page.getByRole('button', { name: 'Liste kopiert' }).waitFor({ timeout: 3000 }).catch(() => problems.push(`${label}: the copy button did not change to "Liste kopiert"`));
     // The clipboard of Windows gives line breaks back as CR LF.
     const list = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n');
     if (list !== copy) problems.push(`${label}: the copied list differs from the report: ${JSON.stringify(list.slice(0, 200))}`);
-    if (!(await status('Liste kopiert'))) problems.push(`${label}: no status region says "Liste kopiert"`);
+    if (!(await status('Liste kopiert'))) problems.push(`${label}: no status region that was empty before says "Liste kopiert"`);
   } else if ((await page.getByRole('button', { name: 'Liste für die Datenschutzerklärung kopieren' }).count()) > 0) problems.push(`${label}: a copy button without services`);
   return problems;
 }

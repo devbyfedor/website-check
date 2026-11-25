@@ -211,9 +211,12 @@ export async function keyboard(page: Page, label: string): Promise<{ problems: s
     // Session B4 part 2: an element larger than the window (the box of a Stückliste of 80 rows at 390 px, 9,657 px high)
     // can never be whole in view. For it, Tab must leave it across the window, and its ring is measured along those of
     // its edges that lie in the window (below), with the place where the browser put it.
-    const larger = placed.bottom - placed.top > placed.height - 2 * placed.ring || placed.right - placed.left > placed.width - 2 * placed.ring;
+    // Only taller than the window (review of B4 part 2): its sides and their ring must still be in the window.
+    const larger = placed.bottom - placed.top > placed.height - 2 * placed.ring;
     if (larger) {
-      if (placed.bottom <= 0 || placed.top >= placed.height || placed.right <= 0 || placed.left >= placed.width) problems.push(`${label}: ${active.id} "${active.text}" (larger than the window) is not in view after Tab`);
+      if (placed.bottom <= 0 || placed.top >= placed.height || placed.left < placed.ring - 0.5 || placed.right > placed.width - placed.ring + 0.5) {
+        problems.push(`${label}: ${active.id} "${active.text}" (taller than the window) is not in view across the window after Tab, or its sides are cut`);
+      }
     } else if (placed.top < -0.5 || placed.bottom > placed.height + 0.5 || placed.left < -0.5 || placed.right > placed.width + 0.5) {
       problems.push(`${label}: ${active.id} "${active.text}" is not fully in view after Tab`);
     }

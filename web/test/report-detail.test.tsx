@@ -364,15 +364,24 @@ describe('the copied list of the Stückliste', () => {
     }
   });
 
+  it('takes the provider into the brackets of a short name, or leaves it out when the name before them is the provider', () => {
+    const r = clone();
+    r.services[0] = { ...r.services[0]!, name: 'Mouseflow (Ladeskript)', provider: 'Mouseflow', category: 'session-recording' };
+    r.services[1] = { ...r.services[1]!, name: 'YouTube (erweiterter Datenschutzmodus)', provider: 'Google', category: 'video' };
+    const lines = copyListText(r, 'Europe/Berlin').split('\n');
+    expect(lines[1]).toBe('1. Mouseflow (Ladeskript), Aufzeichnung von Besuchen');
+    expect(lines[2]).toBe('2. YouTube (erweiterter Datenschutzmodus, Google), Video');
+  });
+
   it('keeps strings of the page plain: no control or direction characters, no line that starts a formula', () => {
     const r = clone();
     r.site.displayHost = 'evil\u202e.de';
-    r.services[3] = { ...r.services[3]!, known: false, name: '=cmd|\u202ecalc\n2. fake', provider: null, category: 'unknown' };
+    r.services[3] = { ...r.services[3]!, known: false, name: '=cmd|\u202ecalc\n2. fake\u2028=x', provider: null, category: 'unknown' };
     r.truncated.services = true;
     r.counts.services = 7;
     const lines = copyListText(r, 'Europe/Berlin').split('\n');
     expect(lines[0]).toBe('Externe Dienste auf evil.de (Prüfung vom 19.11.2026):');
-    expect(lines[4]).toBe('4. =cmd|calc2. fake, unbekannter Dienst');
+    expect(lines[4]).toBe('4. =cmd|calc2. fake=x, unbekannter Dienst');
     expect(lines[5]).toBe('… und 3 weitere Dienste, die der Bericht nicht einzeln aufführt.');
     expect(lines).toHaveLength(6);
     for (const line of lines.slice(1)) expect(line).toMatch(/^(\d+\. |… )/);
@@ -386,6 +395,16 @@ describe('the help block', () => {
       text: 'Ich behebe die Funde für Sie: Schriften lokal einbinden, die Einwilligung richtig einstellen, Barrieren entfernen. Antwort per E-Mail.',
     });
     expect(strip(reference)).toContain('Ich behebe die Funde für Sie: Schriften lokal einbinden, die Einwilligung richtig einstellen, Barrieren entfernen. Antwort per E-Mail.');
+  });
+
+  it('no task for a point to check by hand (the Impressum link not found is "bitte manuell prüfen")', () => {
+    const r = clone();
+    const f = r.findings.find((x) => x.id === r.priorities[2])!;
+    f.textId = 'legal-impressum-no-link';
+    f.area = 'mandatory-information' as Finding['area'];
+    f.kind = 'manual';
+    r.priorities = [f.id];
+    expect(helpView(r).text).toBe('Ich behebe die Funde für Sie. Antwort per E-Mail.');
   });
 
   it('only what applies, and a text of its own without priorities', () => {

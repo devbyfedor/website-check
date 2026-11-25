@@ -133,13 +133,24 @@ describe('home → scan screen → ready → "Bericht öffnen" (local wrangler d
     expect(new URL(page.url()).searchParams.get('id')).toBe(id);
 
     // Session B3 part 2: the report page of the real id shows the report of the API: the domain, the facts of the head,
-    // one row per Prüfmaß, the Zeitschnitt with one row per row of the report, the last line of every report.
-    const report = (await api(`/api/scans/${id}/report`)).json as { site: { displayHost: string }; measures: unknown[]; timeline: { rows: unknown[] } | null; pages: { impressum: string } };
+    // one row per Prüfmaß, the Zeitschnitt with one row per row of the report, the last line of every report. Session B4
+    // part 2: the lower part too (one row of the Stückliste per service, the help button, the title block with the domain).
+    const report = (await api(`/api/scans/${id}/report`)).json as {
+      site: { displayHost: string };
+      measures: unknown[];
+      services: unknown[];
+      timeline: { rows: unknown[] } | null;
+      pages: { impressum: string };
+    };
     await page.waitForSelector('h1 bdi', { timeout: 15_000 });
     expect(await page.locator('h1').textContent()).toBe(`Prüfbericht für${report.site.displayHost}`);
     const facts = await page.locator('dl > div').allTextContents();
     expect(facts[2]).toBe(`Geprüfte Seiten${report.pages.impressum === 'checked' ? 'Startseite und Impressum' : 'Startseite'}`);
-    expect(await page.locator('table tbody tr').count()).toBe(report.measures.length);
+    expect(await page.locator('section:has(#pruefmasse) table tbody tr').count()).toBe(report.measures.length);
+    expect(await page.locator('section:has(#stueckliste) table tbody tr').count()).toBe(report.services.length);
+    expect(await page.locator('main a[href="/anfrage"]').textContent()).toBe('Hilfe bei der Umsetzung anfragen');
+    expect(await page.locator('article [class*="stb"]').textContent()).toContain(`Objekt${report.site.displayHost}`);
+    expect(await page.getByRole('button', { name: 'An Entwickler weitergeben' }).count()).toBe(0);
     expect(await page.locator('[class*="trow"] [class*="bar"]').count()).toBe(report.timeline?.rows.length ?? 0);
     expect(await page.locator('main').textContent()).toContain('Automatische Schnellprüfung. Keine Rechtsberatung und kein vollständiges Audit.');
     expect(await page.locator('meta[name="robots"]').getAttribute('content')).toBe('noindex, nofollow');
