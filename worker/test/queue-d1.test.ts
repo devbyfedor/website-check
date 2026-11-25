@@ -5,7 +5,7 @@ import { runScanJob, WRITE_PAUSES_MS } from '../src/queue/job.ts';
 import { D1_TEST_TIMEOUT_MS, localD1, type LocalD1 } from './d1.ts';
 
 // Tests against the local D1 measure no time; the timeout only stops one whose local D1 never answers (test/d1.ts).
-vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS });
+vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS, hookTimeout: D1_TEST_TIMEOUT_MS });
 
 /**
  * Review findings 44 and 42 (session fix-a5), from the review's reproduction of the queue path on D1 (local D1,

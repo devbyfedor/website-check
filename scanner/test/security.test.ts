@@ -4,6 +4,7 @@ import { httpVariantOf, probeHttpRedirect, type HttpProbeOptions } from '../src/
 import { createUrlGuard } from '../src/security/ssrf.ts';
 import type { HttpProbe } from '../src/security/types.ts';
 import { makeCapture } from './helpers.ts';
+import { endsBefore } from './speed.ts';
 
 describe('header checks', () => {
   it('Strict-Transport-Security needs max-age > 0 on HTTPS', () => {
@@ -241,9 +242,11 @@ describe('probeHttpRedirect', () => {
     // which a busy machine could break (test/speed.ts).
     let answered = false;
     const slow = createUrlGuard({ resolve: () => new Promise<string[]>((resolve) => setTimeout(() => ((answered = true), resolve(['93.184.215.14'])), 1_500)) });
-    const result = await probe('http://www.example.de/', { fetch: fakeFetch({}).fetch, guard: slow, timeoutMs: 150 });
+    // And before a timer of 1 s started with it, the bound of the earlier test (review of B5 part 1).
+    const { value: result, first } = await endsBefore(1_000, () => probe('http://www.example.de/', { fetch: fakeFetch({}).fetch, guard: slow, timeoutMs: 150 }));
     expect(result.outcome).toBe('timeout');
     expect(answered).toBe(false);
+    expect(first).toBe(true);
   });
 
   it('httpVariantOf', () => {

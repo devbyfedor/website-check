@@ -11,7 +11,7 @@ import { localApi } from './api-local.ts';
 import { D1_TEST_TIMEOUT_MS, localD1, TABLES, WORKER_ROOT, type LocalD1 } from './d1.ts';
 
 // Tests against the local D1 measure no time; the timeout only stops one whose local D1 never answers (test/d1.ts).
-vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS });
+vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS, hookTimeout: D1_TEST_TIMEOUT_MS });
 
 /**
  * The API on the local D1 (session A5 part 2): cache, rate limit, refusals before the queue, ids,

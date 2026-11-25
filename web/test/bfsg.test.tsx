@@ -132,6 +132,38 @@ describe('the logic is the reference script', () => {
   });
 });
 
+// Review of B5 part 1: the markup of every state, element by element, against the reference's script. The reference
+// marks each element it changes with `data-dc-class` (c1, y1, n1, h1, x1, v12, …); in the unit tests the CSS modules
+// give the plain class names, so each element of the app carries the class string the reference's script would set.
+describe('the markup of every state is the reference script', () => {
+  const keys = [...reference.matchAll(/data-dc-class="(\w+)"/g)].map((m) => m[1]!);
+  const answers: Answer[] = ['', 'ja', 'nein'];
+  const states: BfsgState[] = answers.flatMap((q1) => answers.flatMap((q2) => answers.map((q3) => ({ q1, q2, q3 }))));
+
+  it('the reference marks 19 elements of the scheme', () => {
+    expect(keys).toEqual(['c1', 'y1', 'n1', 'h1', 'x1', 'v12', 'c2', 'y2', 'n2', 'h2', 'x2', 'v23', 'c3', 'y3', 'n3', 'h3', 'x3', 'v34', 'x4']);
+  });
+
+  it.each(states.map((s) => [`${s.q1 || '-'} ${s.q2 || '-'} ${s.q3 || '-'}`, s] as const))('answers %s', (_name, state) => {
+    const r = referenceVals(state);
+    const html = renderToStaticMarkup(<BfsgScreen initial={state} />);
+    // Cards, buttons, arrows and exits in the order of the page, with their classes (the CSS modules of the unit tests
+    // name a class "_yn_f77ee0"; its name is "yn").
+    const plain = html.replace(/class="([^"]*)"/g, (_m, c: string) => `class="${c.replace(/_([a-z]+)_[0-9a-f]+/g, '$1')}"`);
+    const classes = [...plain.matchAll(/class="((?:qc|yn|hline|ex|vline)(?: [a-z]+)?)"/g)].map((m) => m[1]);
+    expect(classes).toEqual(keys.map((k) => r[k]));
+    const buttons = [...plain.matchAll(/<button type="button" class="yn(?: sel)?" aria-pressed="(true|false)"( disabled="")?/g)].map((m) => [m[1] === 'true', m[2] !== undefined]);
+    expect(buttons).toEqual([
+      [r.y1p, false],
+      [r.n1p, false],
+      [r.y2p, r.d2],
+      [r.n2p, r.d2],
+      [r.y3p, r.d3],
+      [r.n3p, r.d3],
+    ]);
+  });
+});
+
 // The text of the page between the header and the end of the footer, without tags and white space.
 const text = (html: string): string =>
   html

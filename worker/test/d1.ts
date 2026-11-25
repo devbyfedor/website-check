@@ -37,6 +37,7 @@ export const TABLES = ['network_requests', 'findings', 'leads', 'scans', 'sites'
  * the default failed tests that were right. This timeout only stops a test whose local D1 never answers. (The speed
  * checks of the scanner measure CPU time instead, `scanner/test/speed.ts`.)
  */
+// Also the timeout of the hooks of these files (clearing the tables before each test, closing the runtime).
 export const D1_TEST_TIMEOUT_MS = 60_000;
 
 export interface LocalD1 {

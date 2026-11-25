@@ -6,7 +6,7 @@ import { startScan, type StartDeps } from '../src/api/start.ts';
 import { D1_TEST_TIMEOUT_MS, localD1, type LocalD1 } from './d1.ts';
 
 // Tests against the local D1 measure no time; the timeout only stops one whose local D1 never answers (test/d1.ts).
-vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS });
+vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS, hookTimeout: D1_TEST_TIMEOUT_MS });
 
 /**
  * The rate limit of the scan start (session fix-a4): findings 8 and 9 of the review. A start that outlives

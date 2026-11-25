@@ -295,7 +295,7 @@ describe('finding 19: an answer 200 on http:// that redirects inside the page', 
     expect(analyzeSecurity(shopCapture({ httpProbe: p })).httpRedirect.result).toBe('manual');
     // A hostile start of a page is read in linear time.
     const hostile = `<meta ${'a="b" '.repeat(8_000)}`.slice(0, HTTP_PROBE_BODY_LIMIT) + '<'.repeat(20_000);
-    // Session B5 part 1: by the CPU time of the process, which does not count the waiting for a core (test/speed.ts).
+    // Session B5 part 1: by the CPU time of this thread, which does not count the waiting for a core (test/speed.ts).
     const { ms } = cpuMs(() => {
       scanPageStart(hostile);
       scriptMayRedirect(`location${' '.repeat(60_000)}`);

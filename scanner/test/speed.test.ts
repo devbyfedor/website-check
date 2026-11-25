@@ -23,11 +23,13 @@ describe('speed checks independent of the machine', () => {
   it('relativeSpeed flags work far above the ordinary input and lets work of the same order pass', () => {
     // About 60 ms each: well above the 15.6 ms steps in which Windows counts the CPU time of a thread.
     const ordinary = () => spin(15_000_000);
-    const flagged = relativeSpeed(() => spin(45_000_000), ordinary, { factor: 2, floorMs: 0 });
+    // Six times the ordinary work against a limit of two, and the same work against a limit of four: a margin of three
+    // for the steps of 15.6 ms, also on a machine four times faster (review of B5 part 1).
+    const flagged = relativeSpeed(() => spin(90_000_000), ordinary, { factor: 2, floorMs: 0 });
     // Over its limit in the best of the three tries, so in every try.
     expect(flagged.ms).toBeGreaterThanOrEqual(flagged.limit);
     expect([1, 2, 3]).toContain(flagged.tries);
-    const passed = relativeSpeed(() => spin(15_000_000), ordinary, { factor: 2, floorMs: 0 });
+    const passed = relativeSpeed(() => spin(15_000_000), ordinary, { factor: 4, floorMs: 0 });
     expect(passed.ms).toBeLessThan(passed.limit);
     expect(passed.value).toBe(spin(15_000_000));
   }, HANG_GUARD_MS);

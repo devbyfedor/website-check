@@ -201,7 +201,7 @@ describe('cases from the code review of the templates (22.11.2026)', () => {
   });
 
   it('stays fast on one long line with many postcodes or third-party candidates', () => {
-    // Session B5 part 1: by the CPU time of the process, which does not count the waiting for a core (test/speed.ts).
+    // Session B5 part 1: by the CPU time of this thread, which does not count the waiting for a core (test/speed.ts).
     for (const text of ['12345 Musterstadt, '.repeat(5_000), `Webdesign: ${'a@b.de '.repeat(14_000)}`, `Webdesign: ${'HRB 12345 '.repeat(10_000)}`]) {
       expect(cpuMs(() => extractImpressumFields(text)).ms).toBeLessThan(1_000);
     }

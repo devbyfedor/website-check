@@ -11,7 +11,7 @@ import { shopCapture } from '../../scanner/test/report-helpers.ts';
 import { D1_TEST_TIMEOUT_MS, localD1, type LocalD1 } from './d1.ts';
 
 // Tests against the local D1 measure no time; the timeout only stops one whose local D1 never answers (test/d1.ts).
-vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS });
+vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS, hookTimeout: D1_TEST_TIMEOUT_MS });
 
 /**
  * Session A5 part 3: one scan from the queue to D1 (`runScanJob`) on the local D1 with a synthetic capture

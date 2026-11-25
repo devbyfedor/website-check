@@ -58,18 +58,36 @@ const BFSG_PATHS: { name: string; buttons: number[] }[] = [
 ];
 const BFSG_ALL_OPEN = [0, 3];
 
-// Runs in the page: what the BFSG scheme shows (the same in the app and the reference).
+// Runs in the page: what the BFSG scheme shows (the same in the app and the reference). Review of B5 part 1: also the
+// look of each button (filled or not), of each question card (its opacity, border and ring) and of each arrow (solid,
+// dashed or hidden), so that a highlight on the wrong card, button or arrow differs from the reference.
 function bfsgState(): string {
-  const buttons = Array.from(document.querySelectorAll('section[aria-labelledby="schema-titel"] button'));
+  const scheme = document.querySelector('section[aria-labelledby="schema-titel"]')!;
+  const buttons = Array.from(scheme.querySelectorAll('button'));
   const pressed = buttons.map((b) => (b.getAttribute('aria-pressed') === 'true' ? 'p' : b.hasAttribute('aria-pressed') ? '-' : '')).join('');
   const disabled = buttons.map((b) => ((b as HTMLButtonElement).disabled ? 'd' : '-')).join('');
+  const filled = buttons.map((b) => (getComputedStyle(b).backgroundColor === 'rgb(242, 246, 255)' ? 'f' : '-')).join('');
+  const cards = Array.from(scheme.querySelectorAll('div'))
+    .filter((d) => d.querySelector(':scope > h3') !== null && d.querySelector(':scope > div > button') !== null)
+    .map((d) => {
+      const cs = getComputedStyle(d);
+      return `${cs.opacity} ${cs.borderTopColor}${cs.boxShadow === 'none' ? '' : ' ring'}`;
+    })
+    .join(' | ');
+  const arrows = Array.from(scheme.querySelectorAll('[aria-hidden="true"] span'))
+    .map((label) => {
+      const cs = getComputedStyle(label.parentElement!);
+      if (cs.display === 'none') return 'x';
+      return cs.borderTopStyle === 'solid' || cs.borderLeftStyle === 'solid' ? 'S' : '-';
+    })
+    .join('');
   // The filled exit: the box of an h3 whose background is the chalk white.
   const hit = Array.from(document.querySelectorAll('section[aria-labelledby="schema-titel"] div'))
     .filter((d) => d.firstElementChild?.tagName === 'H3' && getComputedStyle(d).backgroundColor === 'rgb(242, 246, 255)')
     .map((d) => d.firstElementChild!.textContent)
     .join(' / ');
   const verdict = document.querySelector('[aria-live="polite"]')?.textContent ?? '';
-  return `pressed ${pressed}, disabled ${disabled}, exit "${hit}", verdict "${verdict}"`;
+  return `pressed ${pressed}, filled ${filled}, disabled ${disabled}, arrows ${arrows}, exit "${hit}", verdict "${verdict}", cards ${cards}`;
 }
 
 // Clicks buttons of the BFSG page one by one (one round trip each, so that the app draws the answer before the next).
@@ -77,6 +95,7 @@ function bfsgState(): string {
 // and the walk of the keyboard must start at the top of the page.
 async function bfsgClick(page: Page, buttons: number[]): Promise<void> {
   for (const i of buttons) {
+    const before = await page.evaluate(bfsgState);
     const ok = await page.evaluate((n) => {
       const button = document.querySelectorAll('section[aria-labelledby="schema-titel"] button')[n];
       if (!(button instanceof HTMLButtonElement) || button.disabled) return false;
@@ -85,6 +104,8 @@ async function bfsgClick(page: Page, buttons: number[]): Promise<void> {
     }, i);
     if (!ok) throw new Error(`BFSG button ${i} not there or disabled`);
     await nextFrames(page);
+    // Review of B5 part 1: a click that changed nothing (the page not yet hydrated) must not pass as a state.
+    if ((await page.evaluate(bfsgState)) === before) throw new Error(`BFSG button ${i}: the click changed nothing`);
   }
 }
 
@@ -518,8 +539,10 @@ export async function contrastByPixels(page: Page): Promise<TextContrast[]> {
       for (let e: Element | null = el; e; e = e.parentElement) opacity *= Number(getComputedStyle(e).opacity);
       let dimmed: Element | null = el;
       while (dimmed && Number(getComputedStyle(dimmed).opacity) >= 1) dimmed = dimmed.parentElement;
-      const controls = dimmed ? Array.from(dimmed.querySelectorAll('button, input, select, textarea')) : [];
-      const inactive = controls.length > 0 && controls.every((c) => (c as HTMLButtonElement).disabled);
+      // Review of B5 part 1: every element of the dimmed part that could take focus counts; a link or any other
+      // focusable element in it (they have no disabled state) makes the part active.
+      const controls = dimmed ? Array.from(dimmed.querySelectorAll('a[href], button, input, select, textarea, [tabindex], [role="button"]')) : [];
+      const inactive = controls.length > 0 && controls.every((c) => (c as HTMLButtonElement).disabled === true);
       return {
         element: n.target.join(' '),
         text: (el.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 40),

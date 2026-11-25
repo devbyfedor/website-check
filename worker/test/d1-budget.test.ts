@@ -5,7 +5,7 @@ import { CACHE_MS, createScan, findCachedScan, markRunning, purgeBefore, saveRes
 import { D1_TEST_TIMEOUT_MS, countingD1, localD1, type LocalD1 } from './d1.ts';
 
 // Tests against the local D1 measure no time; the timeout only stops one whose local D1 never answers (test/d1.ts).
-vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS });
+vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS, hookTimeout: D1_TEST_TIMEOUT_MS });
 
 /**
  * Rows written per scan on the local D1 (the same runtime as `wrangler dev`), for the free plan's
