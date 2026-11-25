@@ -30,7 +30,7 @@ import type { Report } from '../../scanner/src/report/types.ts';
 import { EXAMPLE_REPORT_STATES } from '../components/report/example-report-states.ts';
 import { FIX_TEXTS, HEADER_STEPS } from '../lib/report-detail-texts.ts';
 import { axe, contrastByPixels, keyboard, type AxeSummary } from './a11y.ts';
-import { nextFrames, printConsoleLog, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer } from './browser-setup.ts';
+import { documentHeaderProblems, nextFrames, printConsoleLog, productionHeaderRules, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer, watchDocuments } from './browser-setup.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'report-check');
 const AXE_FILE = join(ROOT, 'node_modules', 'axe-core', 'axe.min.js');
@@ -117,6 +117,7 @@ function exampleStates(): CheckState[] {
 async function open(browser: Browser, origin: string, width: number, reduced: boolean, api: Api): Promise<{ page: Page; close: () => Promise<void>; blocked: string[] }> {
   const context = await browser.newContext({ viewport: { width, height: VIEWPORT_HEIGHT[width] ?? 900 }, deviceScaleFactor: 1, reducedMotion: reduced ? 'reduce' : 'no-preference', locale: 'de-DE', timezoneId: 'Europe/Berlin' });
   const blocked = await routeHosts(context, origin, 'none');
+  watchDocuments(context, origin);
   // Session B4 part 2: the copy buttons are checked by reading the clipboard.
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
   const waiting: Route[] = [];
@@ -434,6 +435,14 @@ function expected(r: Report): Expected {
 /** Runs in the page: what it shows, in the shape of `Expected`. */
 function shown() {
   const txt = (el: Element | null | undefined): string => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  // Session C0: our own text of an element, without the strings of the scanned page (each in a <bdi>), so that the search
+  // for a placeholder or a text id cannot hit a host name of the page that only looks like one.
+  const ownText = (el: Element | null | undefined): string => {
+    if (el === null || el === undefined) return '';
+    const copy = el.cloneNode(true) as Element;
+    for (const b of Array.from(copy.querySelectorAll('bdi'))) b.replaceWith(' ');
+    return txt(copy);
+  };
   const h1 = document.querySelector('h1')?.textContent ?? '';
   const facts = Array.from(document.querySelectorAll('main dl > div')).map((d) => [txt(d.querySelector('dt')), ...Array.from(d.querySelectorAll('dd'), (dd) => txt(dd))].join('|'));
   // Session B4 part 2: the Prüfmaße and the priorities by their sections (the Stückliste and the steps have rows and items too).
@@ -473,8 +482,8 @@ function shown() {
     // The left column of the card (what happens, Soll and Ist, why, the source); the box of the Montageanleitung is the
     // right one (review of B4 part 2: the whole card always had the box's text).
     const left = txt(sec.querySelector('[class*="grid"] > div:first-child'));
-    // The text of the card without the addresses of "Gefunden im Quelltext" (strings of the page).
-    const own = Array.from(sec.querySelectorAll('h2, h3, p, li, [class*="taCell"], [role="tab"]'), (e) => txt(e)).join(' ');
+    // The text of the card without the addresses of "Gefunden im Quelltext" and the other strings of the page.
+    const own = Array.from(sec.querySelectorAll('h2, h3, p, li, [class*="taCell"], [role="tab"]'), (e) => ownText(e)).join(' ');
     return {
       id: sec.id,
       field: field === undefined ? null : txt(field),
@@ -492,7 +501,7 @@ function shown() {
   const help = Array.from(document.querySelectorAll('main a[href="/anfrage"]'), (a) => txt(a));
   // Session B5 part 2: the list of manual checks and hints.
   const checksSection = document.querySelector('main section[data-part="checks"]');
-  const checks = checksSection === null ? null : { items: checksSection.querySelectorAll('li').length, text: txt(checksSection), count: txt(checksSection.querySelector('[class*="sech"] > span')), focusable: checksSection.querySelectorAll('a, button, [tabindex]').length };
+  const checks = checksSection === null ? null : { items: checksSection.querySelectorAll('li').length, text: txt(checksSection), own: ownText(checksSection), count: txt(checksSection.querySelector('[class*="sech"] > span')), focusable: checksSection.querySelectorAll('a, button, [tabindex]').length };
   return { h1, facts, measures, priorities, marks, rows, cut, note, services, servicesCount, cards, stamp, help, checks, main, robots: document.querySelector('meta[name="robots"]')?.getAttribute('content') ?? null, referrer: document.querySelector('meta[name="referrer"]')?.getAttribute('content') ?? null };
 }
 
@@ -547,7 +556,7 @@ async function compareValues(page: Page, report: Report, label: string): Promise
     if (got.checks.items < 1 || got.checks.items > low.checks.count) problems.push(`${label}: ${got.checks.items} items in the list of manual checks and hints for ${low.checks.count} findings`);
     same('count of the list of manual checks and hints', got.checks.count, got.checks.items === 1 ? '1 Punkt' : `${got.checks.items} Punkte`);
     for (const n of low.checks.names) if (!got.checks.text.includes(n)) problems.push(`${label}: the list of manual checks and hints does not name ${JSON.stringify(n)}`);
-    if (/\{[a-zA-Z]+\}|\b(?:third-party|a11y|security|legal|fix)-[a-z-]+\b/.test(got.checks.text)) problems.push(`${label}: the list of manual checks and hints shows a placeholder or a text id`);
+    if (/\{[a-zA-Z]+\}|\b(?:third-party|a11y|security|legal|fix)-[a-z-]+\b/.test(got.checks.own)) problems.push(`${label}: the list of manual checks and hints shows a placeholder or a text id`);
     if (got.checks.focusable > 0) problems.push(`${label}: ${got.checks.focusable} elements in the list of manual checks and hints take focus`);
   }
   same('help button', got.help, low.lower ? ['Hilfe bei der Umsetzung anfragen'] : []);
@@ -875,6 +884,8 @@ async function main(): Promise<void> {
   const only = onlyArg >= 0 ? (process.argv[onlyArg + 1] ?? '').split(',') : null;
   await mkdir(RESULT_DIR, { recursive: true });
   const axeSource = await readFile(AXE_FILE, 'utf8');
+  // Session C0: only on the production build (also --reports, which does not build), every page with its CSP.
+  const rules = productionHeaderRules();
   const server = await startCheckServer();
   const browser = await chromium.launch({ channel: 'chromium', headless: true });
   const problems: string[] = [];
@@ -925,6 +936,7 @@ async function main(): Promise<void> {
     await browser.close();
     await server.close();
   }
+  problems.push(...(await documentHeaderProblems(rules)));
   summary.problems = problems;
   summary.blocked = blocked;
   await writeFile(join(RESULT_DIR, reportsDir === null ? 'summary.json' : 'summary-reports.json'), JSON.stringify(summary, null, 2) + '\n');

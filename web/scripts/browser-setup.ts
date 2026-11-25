@@ -1,10 +1,11 @@
 // What the browser checks of web/ share (npm run visual, npm run motion, npm run a11y): the folders,
 // the static server with the app, the reference and the font files, the answer to the reference's
 // Google Fonts stylesheet and the count of requests to other hosts.
+import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { BrowserContext, Page } from 'playwright';
-import { startStaticServer, type StaticServer } from './static-server.ts';
+import type { BrowserContext, Page, Response } from 'playwright';
+import { headersFor, parseHeaderRules, startStaticServer, type HeaderRule, type StaticServer } from './static-server.ts';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const OUT_DIR = join(ROOT, 'web', 'out');
@@ -77,6 +78,50 @@ export function printConsoleLog(): number {
   for (const line of unique(CONSOLE_LOG.csp).slice(0, 20)) console.log(`  CSP: ${line}`);
   for (const line of unique(CONSOLE_LOG.errors).slice(0, 20)) console.log(`  error: ${line}`);
   return CONSOLE_LOG.csp.length;
+}
+
+/**
+ * Session C0 (Fedor: check:report on every state and on the saved reports, and check:scan, with the headers of
+ * production): `productionHeaderRules` reads `web/out/_headers` and throws when it is the example build's (a rule of an
+ * example page, which only `build:examples` writes), so a check that runs without its own build never runs on the
+ * example headers; `watchDocuments` notes every page of ours the browser loads (the main document of each tab and
+ * navigation) with the Content-Security-Policy it came with; `documentHeaderProblems` names each one whose CSP is not
+ * the one the production rules give its path.
+ */
+export function productionHeaderRules(): HeaderRule[] {
+  const rules = parseHeaderRules(readFileSync(join(OUT_DIR, '_headers'), 'utf8'));
+  const example = rules.filter((r) => /beispiel/.test(r.path));
+  if (example.length > 0) throw new Error(`web/out/_headers is the example build's (${example.length} rules of example pages): run npm run build:web first`);
+  if (!rules.some((r) => r.path === '/bericht') || !rules.some((r) => r.path === '/pruefung')) throw new Error('web/out/_headers has no rule for /bericht or /pruefung');
+  return rules;
+}
+
+const DOCUMENTS: Promise<{ path: string; csp: string | undefined }>[] = [];
+
+export function watchDocuments(context: BrowserContext, origin: string): void {
+  context.on('response', (response: Response) => {
+    if (response.request().resourceType() !== 'document') return;
+    const url = new URL(response.url());
+    if (url.origin !== origin || url.pathname.startsWith('/__')) return;
+    DOCUMENTS.push(response.allHeaders().then((h) => ({ path: url.pathname, csp: h['content-security-policy'] })));
+  });
+}
+
+/** Prints how many pages of ours came with the CSP of production; returns a problem for each that did not. */
+export async function documentHeaderProblems(rules: readonly HeaderRule[]): Promise<string[]> {
+  const docs = await Promise.all(DOCUMENTS);
+  const problems: string[] = [];
+  const paths = new Map<string, number>();
+  for (const d of docs) {
+    const want = headersFor(rules, d.path).get('content-security-policy') ?? undefined;
+    if (want === undefined) problems.push(`${d.path}: no CSP in the production rules`);
+    else if (d.csp !== want) problems.push(`${d.path}: ${d.csp === undefined ? 'no CSP' : 'a CSP other than production'} on the page`);
+    paths.set(d.path, (paths.get(d.path) ?? 0) + 1);
+  }
+  const list = [...paths].map(([p, n]) => `${p} ${n}`).join(', ');
+  console.log(`Pages of ours loaded: ${docs.length} (${list}); with the CSP of the production _headers: ${docs.length - problems.length}.`);
+  if (docs.length === 0) problems.push('no page of ours was loaded');
+  return [...new Set(problems)];
 }
 
 /**
