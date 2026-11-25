@@ -22,7 +22,7 @@ import { join } from 'node:path';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { PNG } from 'pngjs';
 import { ROOT, VIEWPORT_HEIGHT, nextFrames, routeHosts, settle, startCheckServer } from './browser-setup.ts';
-import { cropTop, decidedDimming, decidedWording, diffImages, DIMMED_CARDS_CSS, EXAMPLE_DATA_CHANGES, exampleData, EXTRA_CARDS, hideAll, percent, regionBottom } from './image-diff.ts';
+import { cropTop, decidedDimming, DECIDED_CHANGES, decidedWording, diffImages, DIMMED_CARDS_CSS, EXAMPLE_DATA_CHANGES, exampleData, EXTRA_PARTS, hideAll, WORDPRESS_FONTS_STEP_1, percent, regionBottom } from './image-diff.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'motion');
 const DRAWING = 'svg[viewBox="0 0 600 450"]';
@@ -76,7 +76,7 @@ const PAGES: PageSpec[] = [
     shot: null,
     layers: false,
     decided: true,
-    hideInApp: EXTRA_CARDS,
+    hideInApp: EXTRA_PARTS,
     exampleData: true,
   },
   // Session B5 part 1: the BFSG scheme. The clicks walk every path, every card state and every exit, and back: 1 Ja
@@ -377,9 +377,9 @@ async function checkPage(browser: Browser, origin: string, spec: PageSpec, width
   if (spec.css !== undefined && (await refF.page.evaluate(decidedDimming, spec.css)) !== 3) failures++;
   const appF = await open(browser, appUrl, width, origin, 'none', false, true);
   if (spec.decided) {
-    const rows = await refF.page.evaluate(decidedWording);
-    if (rows !== 1) failures++;
-    console.log(`  frames of the reference with the decided wording of the row "Erklärung zur Barrierefreiheit" (product rule 3): ${rows} row`);
+    const rows = await refF.page.evaluate(decidedWording, WORDPRESS_FONTS_STEP_1);
+    if (rows !== DECIDED_CHANGES) failures++;
+    console.log(`  frames of the reference with the decided wording of the row "Erklärung zur Barrierefreiheit" (product rule 3) and of the first WordPress step of Google Fonts (B5 part 2): ${rows} places`);
   }
   if (spec.exampleData) {
     const n = await refF.page.evaluate(exampleData);
@@ -388,7 +388,7 @@ async function checkPage(browser: Browser, origin: string, spec: PageSpec, width
   }
   if (spec.hideInApp !== undefined) {
     const n = await appF.page.evaluate(hideAll, spec.hideInApp);
-    console.log(`  frames of the app with ${n} finding details after the first hidden (the reference shows one card as the pattern)`);
+    console.log(`  frames of the app with ${n} parts hidden: the finding details after the first (the reference shows one card as the pattern) and the list of manual checks and hints (B5 part 2)`);
   }
   for (const t of args.times ?? spec.times) {
     const nRef = await refF.page.evaluate(freeze, [t, 'CSSAnimation'] as const);

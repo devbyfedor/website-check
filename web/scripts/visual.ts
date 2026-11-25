@@ -17,7 +17,7 @@ import { mkdir, writeFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { chromium, type Browser } from 'playwright';
 import { PNG } from 'pngjs';
-import { cropTop, decidedDimming, decidedWording, diffImages, DIMMED_CARDS_CSS, EXAMPLE_DATA_CHANGES, exampleData, EXTRA_CARDS, hideAll, regionBottom } from './image-diff.ts';
+import { cropTop, decidedDimming, DECIDED_CHANGES, decidedWording, diffImages, DIMMED_CARDS_CSS, EXAMPLE_DATA_CHANGES, exampleData, EXTRA_PARTS, hideAll, regionBottom, WORDPRESS_FONTS_STEP_1 } from './image-diff.ts';
 import { OUT_DIR, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer, type FontRouting } from './browser-setup.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'visual');
@@ -39,7 +39,7 @@ const RESULT_DIR = join(ROOT, 'local', 'visual');
 const PAGES: { name: string; reference: string; app: string | null; region?: string; decided?: boolean; hideInApp?: string; exampleData?: boolean; css?: string; states?: { name: string; clicks: number[] }[] }[] = [
   { name: 'start', reference: 'start.html', app: '/' },
   { name: 'pruefung', reference: 'pruefung.html', app: '/pruefung/beispiel' }, // B2
-  { name: 'bericht', reference: 'bericht.html', app: '/bericht/beispiel', decided: true, hideInApp: EXTRA_CARDS, exampleData: true }, // B3, B4: the whole report
+  { name: 'bericht', reference: 'bericht.html', app: '/bericht/beispiel', decided: true, hideInApp: EXTRA_PARTS, exampleData: true }, // B3, B4: the whole report
   // B5 part 1: the start state (no answer), then the four paths. The buttons in the order of the page: 0 and 1 "Ja" and
   // "Nein" of question 1, 2 and 3 of question 2, 4 and 5 of question 3, 6 "Neu beginnen".
   {
@@ -208,7 +208,7 @@ async function shoot(
     if (!ok) throw new Error(`${url}: button ${index} not there or disabled`);
     await settle(page);
   }
-  if (opts.decided && (await page.evaluate(decidedWording)) !== 1) throw new Error(`${url}: the row of the decided wording was not found`);
+  if (opts.decided && (await page.evaluate(decidedWording, WORDPRESS_FONTS_STEP_1)) !== DECIDED_CHANGES) throw new Error(`${url}: the places of the decided wording were not all found`);
   if (opts.decided) await settle(page);
   if (opts.data) {
     const n = await page.evaluate(exampleData);

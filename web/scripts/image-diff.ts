@@ -62,6 +62,9 @@ export function regionBottom(selector: string): number | null {
 // priority, so npm run visual and motion hide the app's cards after the first (and print how many) and compare the rest
 // of the page; npm run a11y checks every card.
 export const EXTRA_CARDS = 'article section[id^="fund-"]:not(#fund-1)';
+// Session B5 part 2: the list of manual checks and hints under the cards (Fedor's decision, a state without design); the
+// reference has none, so the comparisons of the whole report hide it too (and print how many parts were hidden).
+export const EXTRA_PARTS = `${EXTRA_CARDS}, article section[data-part="checks"]`;
 
 // Runs in the page of design/reference/bericht.html after `decidedWording` (session B4 part 1): the data of the example
 // where schema v1 cannot hold the data of the reference (docs/report-schema.md, "What is missing"), so that a comparison
@@ -139,9 +142,23 @@ export function decidedDimming(css: string): number {
 // accessibility statement the scan did not find is "nicht gefunden" and "bitte manuell prüfen", never "fehlt" and
 // "nicht erfüllt". The app follows the rule; so that the comparison measures everything else, the check writes the
 // decided wording into that row of the reference (Ist, Ergebnis with the dash of "teilweise"). The file in design/
-// stays as it is, and npm run visual prints the difference against the unchanged reference too. Returns the rows changed.
-export function decidedWording(): number {
+// stays as it is, and npm run visual prints the difference against the unchanged reference too. Returns the places changed.
+// Session B5 part 2 (Fedor: the three WordPress steps of Google Fonts by the rules of the session of the fix texts): the
+// first step in the narrower wording the second check confirmed ("Oft … in den Theme-Einstellungen" had no source;
+// the label „Typografie“ is the German WordPress core's, docs/content-drafts.md), so 2 places (DECIDED_CHANGES). The step is an
+// argument (WORDPRESS_FONTS_STEP_1), because the function runs in the page.
+export const DECIDED_CHANGES = 2;
+export const WORDPRESS_FONTS_STEP_1 = {
+  reference: 'Finden Sie heraus, ob Ihr Theme oder ein Plugin die Schrift einbindet. Oft steht es in den Theme-Einstellungen unter „Typografie“.',
+  decided: 'Finden Sie heraus, ob Ihr Theme oder ein Plugin die Schrift einbindet. Bei Block-Themes stehen die Schriften in den Stilen des Website-Editors unter „Typografie“.',
+} as const;
+export function decidedWording(step: { reference: string; decided: string }): number {
   let changed = 0;
+  for (const li of Array.from(document.querySelectorAll('ol.steps li'))) {
+    if (li.textContent !== step.reference) continue;
+    li.textContent = step.decided;
+    changed += 1;
+  }
   for (const tr of Array.from(document.querySelectorAll('table.mt tbody tr'))) {
     const cells = tr.querySelectorAll('td');
     if (cells[0]?.textContent !== 'Erklärung zur Barrierefreiheit') continue;

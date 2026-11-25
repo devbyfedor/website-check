@@ -149,6 +149,46 @@ const STATE_REPORTS = {
     }
     return r;
   },
+  /**
+   * Session B5 part 2: the list of manual checks and hints under the finding details (Fedor's decision): two Impressum
+   * fields not found (one item), no Datenschutz link, a link that names only the topic of accessibility, a large iframe,
+   * images marked as decoration, links and buttons and the contrast the accessibility check could not decide, three
+   * public CDNs and two unknown services (one item each), a service without an answer, a request whose document the
+   * capture does not know, http:// not reachable; Google Fonts as the one card above.
+   */
+  checksAndHints: () => {
+    const run = axe() as unknown as { rules: Record<string, Record<string, unknown>>; images: unknown; scope: unknown };
+    const incomplete = (n: number, html: string) => ({ incomplete: n, incompleteExamples: [{ target: ['main a'], html, contrast: null, field: 'C3' }] });
+    run.rules['link-name'] = { ...run.rules['link-name'], ...incomplete(3, '<a href="/shop"><svg></svg></a>') };
+    run.rules['button-name'] = { ...run.rules['button-name'], ...incomplete(1, '<button class="menu"></button>') };
+    run.rules['color-contrast'] = { ...run.rules['color-contrast'], ...incomplete(6, '<h1 class="hero">Frisch geröstet</h1>') };
+    run.images = { described: 7, decorative: 3 }; // the 10 images that pass image-alt of the example run
+    run.scope = { frameset: false, frames: 1, largestFrameShare: 0.6 };
+    const c = capture(
+      [
+        DOCUMENT,
+        { url: 'https://fonts.googleapis.com/css2?family=Lato', resourceType: 'stylesheet', startMs: 300, endMs: 420, initiator: { type: 'parser', url: SHOP } },
+        { url: 'https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js', resourceType: 'script', startMs: 500, endMs: 620 },
+        { url: 'https://unpkg.com/alpinejs@3/dist/cdn.min.js', resourceType: 'script', startMs: 520, endMs: 640 },
+        { url: 'https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.4/js/lightbox.min.js', resourceType: 'script', startMs: 540, endMs: 660 },
+        { url: 'https://widgets.bewertung-muster.example/badge.js', resourceType: 'script', startMs: 700, endMs: 820 },
+        { url: 'https://cdn.termin-muster.example/embed.js', resourceType: 'script', startMs: 720, endMs: 860 },
+        { url: 'https://static.hotjar.com/c/hotjar-1234567.js?sv=6', resourceType: 'script', startMs: 950, endMs: null, status: null, failure: 'net::ERR_CONNECTION_REFUSED' },
+        { url: 'https://connect.facebook.net/signals/config/1234567890?v=2.9', resourceType: 'script', startMs: 1000, endMs: 1100, frameKnown: false },
+      ],
+      {
+        axe: run as unknown as Capture['axe'],
+        page: page([
+          { href: `${SHOP}impressum/`, text: 'Impressum', footer: true },
+          { href: `${SHOP}barrierefreiheit/`, text: 'Barrierefreiheit', footer: true },
+        ]),
+        httpProbe: { url: 'http://roesterei-muster.de/', startedAt: '2026-11-24T13:02:40.000Z', outcome: 'unavailable', hops: [], httpsTarget: null, durationMs: 60 },
+      } as Partial<Capture>,
+    );
+    const imp = c.impressum;
+    if (imp?.page) imp.page = { ...imp.page, text: ['Impressum', 'Rösterei Muster GmbH', 'Handelsregister: HRB 12345, Amtsgericht Musterhausen', 'USt-IdNr.: DE123456789'].join('\n') };
+    return report(c);
+  },
   /** Lists and texts read only in part: 85 unknown services, the page text and links cut, the page still loading after 15 s. */
   truncated: () =>
     report(
@@ -196,6 +236,7 @@ export const EXAMPLE_REPORT_STATES: readonly ExampleReportState[] = [
   { slug: 'gekuerzt', what: 'gekürzte Listen und Texte, Seite lud nach 15 s noch; Stückliste mit 80 von 85 Diensten', show: r(STATE_REPORTS.truncated) },
   { slug: 'dienste-markierungen', what: 'Stückliste: fehlt, bitte manuell prüfen, keine Antwort, Graubereich, nicht nötig; ein langer Name', show: r(STATE_REPORTS.serviceTags) },
   { slug: 'fund-ohne-systeme', what: 'Fund-Details nur mit allgemeinen Schritten, ohne Systemreiter', show: r(STATE_REPORTS.generalSteps) },
+  { slug: 'pruefen-und-hinweise', what: 'Liste „Bitte selbst prüfen“: manuelle Prüfungen und Hinweise, gleiche Hinweise zusammengefasst', show: r(STATE_REPORTS.checksAndHints) },
   { slug: 'fund-ohne-anleitung', what: 'Fund-Details ohne Anleitung: Text-ids, die die Seite noch nicht kennt (wie von einer neueren Prüfung), Land des Aufrufs', show: r(STATE_REPORTS.noFixText) },
   { slug: 'laedt', what: 'Seite: der Bericht wird geladen', show: p({ kind: 'loading' }) },
   { slug: 'nicht-fertig', what: 'Seite: Bericht noch nicht fertig (Prüfung läuft)', show: p({ kind: 'not-ready', id: ID, displayHost: 'roesterei-muster.de' }) },
