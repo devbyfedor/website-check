@@ -107,8 +107,18 @@
 .qc.done {
   border-color: var(--color-cyan);
 }
+/*
+  Session texts-fix (Fedor's answer 1 of B5 part 1, a deviation from the reference): the reference dims the card to 0.45
+  (its text 2.45 to 3.23 : 1); here 0.8, so that its text reaches 4.5 : 1 (the cyan "Frage 2" 4.78 : 1), while the frame
+  and the disabled buttons keep about the look of the reference (0.2 × 0.8 and 0.28 × 0.8). The same rules are put into
+  the reference by the checks (DIMMED_CARDS_CSS in web/scripts/image-diff.ts).
+*/
 .qc.off {
-  opacity: 0.45;
+  opacity: 0.8;
+  border-color: rgba(242, 246, 255, 0.2);
+}
+.qc.off .yn:disabled {
+  opacity: 0.28;
 }
 .qn {
   font-family: var(--font-head);

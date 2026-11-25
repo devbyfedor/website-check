@@ -17,7 +17,7 @@ import { mkdir, writeFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { chromium, type Browser } from 'playwright';
 import { PNG } from 'pngjs';
-import { cropTop, decidedWording, diffImages, EXAMPLE_DATA_CHANGES, exampleData, EXTRA_CARDS, hideAll, regionBottom } from './image-diff.ts';
+import { cropTop, decidedDimming, decidedWording, diffImages, DIMMED_CARDS_CSS, EXAMPLE_DATA_CHANGES, exampleData, EXTRA_CARDS, hideAll, regionBottom } from './image-diff.ts';
 import { OUT_DIR, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer, type FontRouting } from './browser-setup.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'visual');
@@ -33,8 +33,10 @@ const RESULT_DIR = join(ROOT, 'local', 'visual');
 // the decided wording, the data of the example where schema v1 cannot hold the reference's data (image-diff.ts,
 // exampleData); printed next to the main number, which stays the one with the decided wording only.
 // `states` (session B5 part 1): the page is also compared after these clicks (the index of each button among the buttons
-// of the page, the same in both pages), one comparison per state.
-const PAGES: { name: string; reference: string; app: string | null; region?: string; decided?: boolean; hideInApp?: string; exampleData?: boolean; states?: { name: string; clicks: number[] }[] }[] = [
+// of the page, the same in both pages), one comparison per state. `css` (session texts-fix): rules of a decided deviation
+// put into the reference before every screenshot (image-diff.ts, DIMMED_CARDS_CSS); the difference against the
+// unchanged reference is printed too, for the start state and every state.
+const PAGES: { name: string; reference: string; app: string | null; region?: string; decided?: boolean; hideInApp?: string; exampleData?: boolean; css?: string; states?: { name: string; clicks: number[] }[] }[] = [
   { name: 'start', reference: 'start.html', app: '/' },
   { name: 'pruefung', reference: 'pruefung.html', app: '/pruefung/beispiel' }, // B2
   { name: 'bericht', reference: 'bericht.html', app: '/bericht/beispiel', decided: true, hideInApp: EXTRA_CARDS, exampleData: true }, // B3, B4: the whole report
@@ -44,6 +46,7 @@ const PAGES: { name: string; reference: string; app: string | null; region?: str
     name: 'bfsg',
     reference: 'bfsg.html',
     app: '/bfsg',
+    css: DIMMED_CARDS_CSS,
     states: [
       { name: 'pfad1', clicks: [1] },
       { name: 'pfad2', clicks: [0, 2] },
@@ -179,7 +182,7 @@ async function shoot(
   url: string,
   width: number,
   origin: string,
-  opts: { fonts: FontRouting; mask: string[]; file: string; region?: string | undefined; decided?: boolean | undefined; hide?: string | undefined; data?: boolean | undefined; clicks?: number[] | undefined },
+  opts: { fonts: FontRouting; mask: string[]; file: string; region?: string | undefined; decided?: boolean | undefined; hide?: string | undefined; data?: boolean | undefined; clicks?: number[] | undefined; css?: string | undefined },
 ): Promise<Shot> {
   const context = await browser.newContext({
     viewport: { width, height: VIEWPORT_HEIGHT[width] ?? 900 },
@@ -192,6 +195,8 @@ async function shoot(
   const page = await context.newPage();
   await page.goto(url, { waitUntil: 'networkidle' });
   await settle(page);
+  if (opts.css !== undefined && (await page.evaluate(decidedDimming, opts.css)) !== 3) throw new Error(`${url}: the three question cards were not found`);
+  if (opts.css !== undefined) await settle(page);
   // One click per round trip, so that the app has drawn the answer (and enabled the next question) before the next click.
   for (const index of opts.clicks ?? []) {
     const ok = await page.evaluate((i) => {
@@ -297,10 +302,11 @@ async function main(): Promise<void> {
           file: join(RESULT_DIR, `${tag}-reference.png`),
           region: args.referenceOnly ? undefined : p.region,
           decided: !args.referenceOnly && p.decided === true,
+          css: args.referenceOnly ? undefined : p.css,
         });
         printLayout('reference', ref.layout);
         // The unchanged reference as well, for the number against the file as it is.
-        const asIs = p.decided && !args.referenceOnly && p.app
+        const asIs = (p.decided || p.css !== undefined) && !args.referenceOnly && p.app
           ? await shoot(browser, `${server.origin}/__reference/${p.reference}`, width, server.origin, {
               fonts: args.googleFonts ? 'google' : 'local',
               mask: excluded,
@@ -345,7 +351,7 @@ async function main(): Promise<void> {
           await writeFile(join(RESULT_DIR, `${tag}-diff-as-is.png`), PNG.sync.write(plain.diff));
           result.asIsPercent = plain.result.percent;
           console.log(
-            `  against the reference as it is (without the decided wording): reference ${plain.result.referenceSize.join(' x ')}, ` +
+            `  against the reference as it is (without the decided ${p.css === undefined ? 'wording' : 'dimming of the question cards'}): reference ${plain.result.referenceSize.join(' x ')}, ` +
               `different pixels ${plain.result.percent.toFixed(3)} % (${plain.result.differentPixels} of ${plain.result.totalPixels})`,
           );
         }
@@ -359,7 +365,7 @@ async function main(): Promise<void> {
               `reference ${data.result.referenceSize.join(' x ')}, different pixels ${data.result.percent.toFixed(3)} % (${data.result.differentPixels} of ${data.result.totalPixels}), strict ${data.result.strictPercent.toFixed(3)} %`,
           );
         }
-        if (asIs !== null) console.log('  against the reference with the decided wording of the row "Erklärung zur Barrierefreiheit" (product rule 3):');
+        if (asIs !== null) console.log(p.css === undefined ? '  against the reference with the decided wording of the row "Erklärung zur Barrierefreiheit" (product rule 3):' : '  against the reference with the question cards dimmed as decided (Fedor, answer 1 of B5 part 1):');
         results.push(result);
         for (const st of p.states ?? []) {
           const stTag = `${p.name}-${st.name}-${width}`;
@@ -367,6 +373,13 @@ async function main(): Promise<void> {
             fonts: args.googleFonts ? 'google' : 'local',
             mask: excluded,
             file: join(RESULT_DIR, `${stTag}-reference.png`),
+            clicks: st.clicks,
+            css: p.css,
+          });
+          const plainRef = p.css === undefined ? null : await shoot(browser, `${server.origin}/__reference/${p.reference}`, width, server.origin, {
+            fonts: args.googleFonts ? 'google' : 'local',
+            mask: excluded,
+            file: join(RESULT_DIR, `${stTag}-reference-as-is.png`),
             clicks: st.clicks,
           });
           const a = await shoot(browser, `${server.origin}${p.app}`, width, server.origin, {
@@ -380,12 +393,17 @@ async function main(): Promise<void> {
           layouts[`${stTag}-app`] = a.layout;
           const c = compare(`${p.name} ${st.name}`, width, r.png, a.png, excluded);
           await writeFile(join(RESULT_DIR, `${stTag}-diff.png`), PNG.sync.write(c.diff));
+          if (plainRef !== null) {
+            const plain = compare(`${p.name} ${st.name}`, width, plainRef.png, a.png, excluded);
+            await writeFile(join(RESULT_DIR, `${stTag}-diff-as-is.png`), PNG.sync.write(plain.diff));
+            c.result.asIsPercent = plain.result.percent;
+          }
           results.push(c.result);
           printLayout(`${st.name}, reference`, r.layout);
           printLayout(`${st.name}, app`, a.layout);
           console.log(
             `  ${st.name} (buttons ${st.clicks.join(', ')} clicked): size reference ${c.result.referenceSize.join(' x ')}, app ${c.result.appSize.join(' x ')}; ` +
-              `different pixels ${c.result.percent.toFixed(3)} % (${c.result.differentPixels} of ${c.result.totalPixels}), strict ${c.result.strictPercent.toFixed(3)} %; requests to other hosts ${a.blocked.length}`,
+              `different pixels ${c.result.percent.toFixed(3)} % (${c.result.differentPixels} of ${c.result.totalPixels}), strict ${c.result.strictPercent.toFixed(3)} %${c.result.asIsPercent === undefined ? '' : ` (against the reference as it is ${c.result.asIsPercent.toFixed(3)} %)`}; requests to other hosts ${a.blocked.length}`,
           );
         }
         if (p.region !== undefined) console.log(`  compared area: from the top of the page to the bottom of ${p.region} (reference ${ref.regionHeight} px, app ${app.regionHeight} px high)`);

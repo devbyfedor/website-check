@@ -25,6 +25,7 @@ import { pathToFileURL } from 'node:url';
 import { chromium, type Browser, type Page } from 'playwright';
 import { PNG } from 'pngjs';
 import { ROOT, VIEWPORT_HEIGHT, nextFrames, routeHosts, settle, startCheckServer } from './browser-setup.ts';
+import { DIMMED_CARDS_CSS, decidedDimming } from './image-diff.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'a11y');
 const AXE_FILE = join(ROOT, 'node_modules', 'axe-core', 'axe.min.js');
@@ -503,9 +504,6 @@ export interface TextContrast {
   lowest: number; // contrast against the lightest background pixel behind the text (a grid line)
   below: number; // background pixels behind the text where the contrast is under `required`
   pixels: number;
-  // Session B5 part 1: the text lies in a dimmed part (opacity under 1) whose controls are all disabled, a user
-  // interface component that cannot be used yet (a question of the BFSG scheme not reached); WCAG 1.4.3 exempts it.
-  inactive?: boolean;
 }
 
 // axe leaves color-contrast "incomplete" where the background is an image (the blueprint grid). For those
@@ -537,12 +535,6 @@ export async function contrastByPixels(page: Page): Promise<TextContrast[]> {
       const large = size >= 24 || (Number(cs.fontWeight) >= 700 && size >= 18.66);
       let opacity = 1;
       for (let e: Element | null = el; e; e = e.parentElement) opacity *= Number(getComputedStyle(e).opacity);
-      let dimmed: Element | null = el;
-      while (dimmed && Number(getComputedStyle(dimmed).opacity) >= 1) dimmed = dimmed.parentElement;
-      // Review of B5 part 1: every element of the dimmed part that could take focus counts; a link or any other
-      // focusable element in it (they have no disabled state) makes the part active.
-      const controls = dimmed ? Array.from(dimmed.querySelectorAll('a[href], button, input, select, textarea, [tabindex], [role="button"]')) : [];
-      const inactive = controls.length > 0 && controls.every((c) => (c as HTMLButtonElement).disabled === true);
       return {
         element: n.target.join(' '),
         text: (el.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 40),
@@ -551,7 +543,6 @@ export async function contrastByPixels(page: Page): Promise<TextContrast[]> {
         color: el instanceof SVGElement ? cs.fill : cs.color,
         required: large ? 3 : 4.5,
         opacity,
-        inactive,
       };
     });
     return { items, steps };
@@ -599,7 +590,7 @@ export async function contrastByPixels(page: Page): Promise<TextContrast[]> {
 }
 
 function measure(
-  item: { element: string; text: string; reason: string; color: string; required: number; opacity: number; inactive: boolean },
+  item: { element: string; text: string; reason: string; color: string; required: number; opacity: number },
   rects: { x: number; y: number; w: number; h: number }[],
   shot: PNG,
 ): TextContrast {
@@ -633,7 +624,6 @@ function measure(
     lowest: Number((pixels ? lowest : 0).toFixed(2)),
     below,
     pixels,
-    ...(item.inactive ? { inactive: true } : {}),
   };
 }
 
@@ -674,6 +664,9 @@ async function main(): Promise<void> {
         const walk = await keyboard(k.page, label);
         const extra = p.extraInApp === undefined ? [] : await k.page.evaluate(idsInside, p.extraInApp);
         const rk = await newPage(browser, `${server.origin}/__reference/${p.reference}`, width, server.origin, true, 'local');
+        // Session texts-fix: the question cards of the reference dimmed as decided (Fedor, answer 1 of B5 part 1), so
+        // that the look of the cards after every key is compared with the decided one.
+        if (p.bfsg && (await rk.page.evaluate(decidedDimming, DIMMED_CARDS_CSS)) !== 3) throw new Error(`${label}: the three question cards of the reference were not found`);
         const act = p.layers
           ? await activation(k.page, label)
           : p.tabs
@@ -799,16 +792,14 @@ async function main(): Promise<void> {
         }
         printContrast(`color-contrast incomplete, by pixels (${p.layers ? 'layer 1' : p.bfsg ? 'reduced motion, start' : 'reduced motion'})`, textContrast);
         for (const [name, list] of Object.entries(pathContrast)) printContrast(`color-contrast incomplete, by pixels (reduced motion, ${name})`, list);
-        // The BFSG page (B5): a text under the required ratio against its usual background is a problem, except the text
-        // of a question card that cannot be answered yet (dimmed to 45 % with its buttons disabled, as in the reference):
-        // WCAG 1.4.3 asks no contrast of the text of an inactive user interface component. Those are listed apart.
+        // The BFSG page (B5): a text under the required ratio against its usual background is a problem. Session
+        // texts-fix (Fedor, answer 1 of B5 part 1): also the text of a question card that cannot be answered yet; the
+        // exemption of WCAG 1.4.3 for inactive components is disputed for the text of a question. The disabled buttons
+        // themselves stay exempt: axe leaves disabled controls out of color-contrast.
         if (p.bfsg) {
           const all: [string, TextContrast[]][] = [['start', textContrast], ...Object.entries(pathContrast)];
           for (const [state, list] of all) {
-            for (const t of list.filter((x) => x.typical < x.required)) {
-              if (t.inactive) console.log(`    ${state}: "${t.text}" ${t.typical}:1 (needs ${t.required}), in a question card that cannot be answered yet`);
-              else problems.push(`${label}, ${state}: "${t.text}" ${t.typical}:1, needs ${t.required}`);
-            }
+            for (const t of list.filter((x) => x.typical < x.required)) problems.push(`${label}, ${state}: "${t.text}" ${t.typical}:1, needs ${t.required}`);
           }
         }
         for (const r of midRun) {

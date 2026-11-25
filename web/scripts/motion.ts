@@ -22,7 +22,7 @@ import { join } from 'node:path';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { PNG } from 'pngjs';
 import { ROOT, VIEWPORT_HEIGHT, nextFrames, routeHosts, settle, startCheckServer } from './browser-setup.ts';
-import { cropTop, decidedWording, diffImages, EXAMPLE_DATA_CHANGES, exampleData, EXTRA_CARDS, hideAll, percent, regionBottom } from './image-diff.ts';
+import { cropTop, decidedDimming, decidedWording, diffImages, DIMMED_CARDS_CSS, EXAMPLE_DATA_CHANGES, exampleData, EXTRA_CARDS, hideAll, percent, regionBottom } from './image-diff.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'motion');
 const DRAWING = 'svg[viewBox="0 0 600 450"]';
@@ -45,6 +45,9 @@ interface PageSpec {
   // among the page's buttons, the same in both pages) clicked one after the other, the part photographed after each
   // click, and the moments (seconds after the click) of its frames.
   clicks?: { buttons: { index: number; label: string }[]; shot: string; times: number[] };
+  // Session texts-fix: rules of a decided deviation put into the reference before its transitions and frames
+  // (image-diff.ts, DIMMED_CARDS_CSS: the question cards that cannot be answered yet, dimmed to 0.8).
+  css?: string;
 }
 
 // The six answer buttons and "Neu beginnen" of the BFSG page, in the order of the page (bfsg.html).
@@ -83,6 +86,7 @@ const PAGES: PageSpec[] = [
     name: 'bfsg',
     reference: 'bfsg.html',
     app: '/bfsg',
+    css: DIMMED_CARDS_CSS,
     times: [],
     shot: null,
     layers: false,
@@ -325,6 +329,11 @@ async function checkPage(browser: Browser, origin: string, spec: PageSpec, width
   const refUrl = `${origin}/__reference/${spec.reference}`;
   const appUrl = `${origin}${spec.app}`;
   const ref = await open(browser, refUrl, width, origin, 'local', false);
+  if (spec.css !== undefined) {
+    const cards = await ref.page.evaluate(decidedDimming, spec.css);
+    if (cards !== 3) failures++;
+    console.log(`  reference with the question cards dimmed as decided (Fedor, answer 1 of B5 part 1): ${cards} cards`);
+  }
   const app = await open(browser, appUrl, width, origin, 'none', false);
 
   // 0. In real time, right after the page is ready: how many animations run and their clock.
@@ -365,6 +374,7 @@ async function checkPage(browser: Browser, origin: string, spec: PageSpec, width
   const frames: Record<string, unknown>[] = [];
   const part = spec.shot ? 'drawing' : spec.region ? 'blocks of the page so far' : 'page';
   const refF = await open(browser, refUrl, width, origin, 'local', false, true);
+  if (spec.css !== undefined && (await refF.page.evaluate(decidedDimming, spec.css)) !== 3) failures++;
   const appF = await open(browser, appUrl, width, origin, 'none', false, true);
   if (spec.decided) {
     const rows = await refF.page.evaluate(decidedWording);

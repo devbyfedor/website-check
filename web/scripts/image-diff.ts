@@ -116,6 +116,24 @@ export function hideAll(selector: string): number {
   return list.length;
 }
 
+// Session texts-fix (Fedor's answer 1 of B5 part 1, a deviation from the reference, docs/decisions.md): the question
+// cards of the BFSG page that cannot be answered yet are dimmed to 0.8, not 0.45, so that their text reaches 4.5 : 1
+// (the cyan "Frage 2" is the weakest: 4.78 : 1 against the plain background); the frame and the disabled buttons keep
+// about the look of the reference (0.2 × 0.8 = 0.16 for the 0.35 × 0.45 of the frame, 0.28 × 0.8 = 0.22 for the
+// 0.5 × 0.45 of the buttons). The same rules as `.qc.off` in web/components/bfsg/bfsg.module.css, with the class names
+// of bfsg.html. npm run visual, motion and a11y put them into the reference (the file in design/ stays as it is), and
+// npm run visual prints the difference against the unchanged reference too.
+export const DIMMED_CARDS_CSS =
+  '.qc.off { opacity: 0.8; border-color: rgba(242, 246, 255, 0.2); } .qc.off .yn:disabled { opacity: 0.28; }';
+
+// Runs in the page of design/reference/bfsg.html: adds the rules above and returns the number of question cards (3).
+export function decidedDimming(css: string): number {
+  const style = document.createElement('style');
+  style.textContent = css;
+  document.head.append(style);
+  return document.querySelectorAll('.qc').length;
+}
+
 // Runs in the page of design/reference/bericht.html before a screenshot: the one place where a product rule decides
 // against the reference. Product rule 3 and Fedor's decision of 23.11.2026 (docs/report-schema.md, conflict 14): an
 // accessibility statement the scan did not find is "nicht gefunden" and "bitte manuell prüfen", never "fehlt" and
