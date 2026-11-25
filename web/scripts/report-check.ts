@@ -159,6 +159,8 @@ const STATES: Record<string, string> = { present: 'vorhanden', found: 'vorhanden
 const SYSTEMS: Record<string, string> = { wordpress: 'WordPress', shopify: 'Shopify', shopware: 'Shopware', wix: 'Wix', jimdo: 'Jimdo' };
 const AREAS: Record<string, string> = { privacy: 'Datenschutz', 'mandatory-information': 'Pflichtangaben', accessibility: 'Barrierefreiheit', security: 'Sicherheit' };
 const RISKS: Record<string, string> = { high: 'hohes Risiko', medium: 'mittleres Risiko', low: 'niedriges Risiko' };
+/** The accessibility titles with the number of places in them (the language of the page has none). */
+const COUNTED = new Set(['a11y-color-contrast', 'a11y-image-alt', 'a11y-label', 'a11y-link-name', 'a11y-button-name']);
 const comma = (n: number): string => String(n).replace('.', ',');
 
 type Value = Report['measures'][number]['actual'];
@@ -253,7 +255,7 @@ function expected(r: Report): Expected {
     h1: `Prüfbericht für${r.site.displayHost}`,
     facts: facts(r),
     measures: r.measures.map((m) => [NAMES[m.id], value(m.target, m, 'target'), value(m.actual, m, 'actual'), RESULTS[m.result]].join('|')),
-    priorities: prios.map((f) => ({ meta: f.risk === null ? AREAS[f.area]! : `${AREAS[f.area]}, ${RISKS[f.risk]}`, field: f.field, count: typeof f.params.count === 'number' && f.area === 'accessibility' ? f.params.count : null })),
+    priorities: prios.map((f) => ({ meta: f.risk === null ? AREAS[f.area]! : `${AREAS[f.area]}, ${RISKS[f.risk]}`, field: f.field, count: typeof f.params.count === 'number' && COUNTED.has(f.textId) ? f.params.count : null })),
     marks: places.size,
     rows,
     cut: t !== null && banner !== null && banner <= t.windowMs ? `Einwilligungsbanner erscheint nach ${comma(Math.round(banner / 100) / 10)} s` : null,
