@@ -65,8 +65,14 @@ export type DataLocation = (typeof DATA_LOCATIONS)[number];
 export interface ServiceRule {
   /** kebab-case, unique */
   id: string;
-  /** Display name, e.g. "Google Fonts" */
+  /** Descriptive name for the rules documentation, e.g. "Google Tag Manager / Google tag (gtag.js)" */
   name: string;
+  /**
+   * The name the report shows (session B4 part 2, Fedor's answer 2): short, the brand as the brand writes it, without a
+   * version the scan does not tell ("Google Analytics", not "Google Analytics 4"); a German word in brackets only where
+   * one brand has several rules. Unique. Drafts (docs/content-drafts.md, "Session B4 part 2").
+   */
+  shortName: string;
   /** Short provider name, e.g. "Google" */
   provider: string;
   /** Legal entity for users in the EU, if known */

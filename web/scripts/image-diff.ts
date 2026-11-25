@@ -67,10 +67,11 @@ export const EXTRA_CARDS = 'article section[id^="fund-"]:not(#fund-1)';
 // where schema v1 cannot hold the data of the reference (docs/report-schema.md, "What is missing"), so that a comparison
 // can tell a fault of the page from a gap of the data. The YouTube row of the Stückliste ("erst nach Klick", "wird
 // eingeholt": a service that waits for a click, gap 3) is left out, so jsDelivr is position 4 of "4 Dienste gefunden";
-// the names of our rules data stand for the reference's shorter names ("Google Analytics 4": the scan does not tell the
-// version); "Gefunden im Quelltext" holds the address of the request, not the tag (gap 2). npm run visual prints this
-// comparison next to the one with the decided wording only. Returns the changes made (7 on bericht.html).
-export const EXAMPLE_DATA_CHANGES = 7;
+// "Google Analytics" of our rules data stands for the reference's "Google Analytics 4" (the scan does not tell the
+// version; the other names of the reference are the short names of the rules data since B4 part 2); "Gefunden im
+// Quelltext" holds the address of the request, not the tag (gap 2). npm run visual prints this comparison next to the
+// one with the decided wording only. Returns the changes made (5 on bericht.html; docs/decisions.md lists them).
+export const EXAMPLE_DATA_CHANGES = 5;
 export function exampleData(): number {
   let changed = 0;
   const section = Array.from(document.querySelectorAll('section')).find((s) => s.querySelector('h2')?.textContent === 'Stückliste der fremden Dienste');
@@ -80,7 +81,7 @@ export function exampleData(): number {
     count.textContent = '4 Dienste gefunden';
     changed += 1;
   }
-  const names: Record<string, string> = { 'Google Tag Manager': 'Google Tag Manager / Google tag (gtag.js)', 'Google Analytics 4': 'Google Analytics', jsDelivr: 'jsDelivr (incl. BootstrapCDN)' };
+  const names: Record<string, string> = { 'Google Analytics 4': 'Google Analytics' };
   for (const tr of Array.from(section.querySelectorAll('tbody tr'))) {
     const b = tr.querySelector('td b');
     const name = b?.textContent ?? '';

@@ -22,9 +22,9 @@ const rules = compileRules(
     version: 1,
     updated: '2026-11-23',
     services: [
-      { id: 'x-player', name: 'X Player', provider: 'PlayerCo', category: 'video', riskClass: 'usually-consent', dataLocation: 'unknown', hosts: ['embed.playerco.test'], sources: ['test'] },
-      { id: 'x-tracker', name: 'X Tracker', provider: 'TrackCo', category: 'analytics', riskClass: 'consent-required', dataLocation: 'unknown', hosts: ['px.trackco.test'], sources: ['test'] },
-      { id: 'x-fonts', name: 'X Fonts', provider: 'FontCo', category: 'fonts', riskClass: 'precedent', dataLocation: 'unknown', hosts: ['css.fontco.test'], sources: ['test'] },
+      { id: 'x-player', name: 'X Player', shortName: 'X Player', provider: 'PlayerCo', category: 'video', riskClass: 'usually-consent', dataLocation: 'unknown', hosts: ['embed.playerco.test'], sources: ['test'] },
+      { id: 'x-tracker', name: 'X Tracker', shortName: 'X Tracker', provider: 'TrackCo', category: 'analytics', riskClass: 'consent-required', dataLocation: 'unknown', hosts: ['px.trackco.test'], sources: ['test'] },
+      { id: 'x-fonts', name: 'X Fonts', shortName: 'X Fonts', provider: 'FontCo', category: 'fonts', riskClass: 'precedent', dataLocation: 'unknown', hosts: ['css.fontco.test'], sources: ['test'] },
     ],
   }),
 );

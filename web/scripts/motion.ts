@@ -285,7 +285,7 @@ async function checkPage(browser: Browser, origin: string, spec: PageSpec, width
   if (spec.exampleData) {
     const n = await refF.page.evaluate(exampleData);
     if (n !== EXAMPLE_DATA_CHANGES) failures++;
-    console.log(`  frames of the reference with the data of the example where schema v1 cannot hold the reference's (${n} changes: the Stückliste without the YouTube row, the names of the rules data, the address in "Gefunden im Quelltext")`);
+    console.log(`  frames of the reference with the data of the example where schema v1 cannot hold the reference's (${n} changes: the Stückliste without the YouTube row, "Google Analytics" for "Google Analytics 4", the address in "Gefunden im Quelltext")`);
   }
   if (spec.hideInApp !== undefined) {
     const n = await appF.page.evaluate(hideAll, spec.hideInApp);

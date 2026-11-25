@@ -271,7 +271,8 @@ export function analyzeThirdParty(capture: Capture, rules: CompiledRules): Third
       key: owner.key,
       known: rule !== null,
       serviceId: rule?.id ?? null,
-      name: rule?.name ?? (owner.kind === 'unknown' ? owner.site : owner.key),
+      // The short name of the rules data (B4 part 2), the one the report shows; an unknown service keeps its site.
+      name: rule?.shortName ?? (owner.kind === 'unknown' ? owner.site : owner.key),
       provider: rule?.provider ?? null,
       category: rule?.category ?? 'unknown',
       riskClass,

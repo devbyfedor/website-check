@@ -138,9 +138,13 @@ Session B3 part 2 (two optional fields; reports made before stay valid, the sche
 - The states of the upper part that the design does not show (gaps 7 to 12, 16, 17) are built in B3 part 2 (`docs/content-drafts.md`, "Session B3 part 2"); the country of the visit is the fifth fact of the head. Next to the findings with `beforeConsent` it follows in B4 with the finding details.
 
 Session B4 part 1 (the lower part of the report with the example; no change of the schema):
-- The Stückliste reads `services` as listed above: `name` (ours for `known`, a string of the page otherwise), `category` for the small line, `provider`, `dataLocation`, `starts` and `consent`. Not expressible, as before: the YouTube row of the design (gap 3), so the example has four services; the short names of the design ("Google Tag Manager", "Google Analytics 4", "jsDelivr") are not in the rules data.
+- The Stückliste reads `services` as listed above: `name` (ours for `known`, a string of the page otherwise), `category` for the small line, `provider`, `dataLocation`, `starts` and `consent`. Not expressible, as before: the YouTube row of the design (gap 3), so the example has four services; the short names of the design ("Google Tag Manager", "Google Analytics 4", "jsDelivr") were not in the rules data (since B4 part 2 they are, without the "4").
 - One finding detail per id of `priorities` (`#fund-1` to `#fund-3`, the targets of the links of "Drei Dinge"): `textId` with `params.count`, `firstStartMs`, `provider`, `beforeBanner` (third parties), `count`, `ratio`, `expected`, `value` (the others); Soll and Ist of a finding that is not about a third party come from the Prüfmaß of the same thing; "Gefunden im Quelltext" lists the `evidence` addresses with `initiatorType` parser and `via` the homepage (the tag stays gap 2); the tabs from `fixTextId` and `platform.system` (selected and "erkannt" only when `sections.platform` was checked).
 - Title block: `site.displayHost`, `scan.scannedAt` (or `createdAt` when the homepage did not load), `revision.letter`. "Revisionen" (example only): `counts.findings` plus `counts.manual` ("7 Funde"), `priorities.length`.
+
+Session B4 part 2 (no change of the schema):
+- `services[].name` and `findings[].params.service` of a known service are the short name of the rules data (`shortName`, Fedor's answer 2): "Google Tag Manager" and "jsDelivr" as in the design; "Google Analytics" for the design's "Google Analytics 4" (the scan does not tell the version). Reports built before B4 part 2 (24 h in the cache) carry the descriptive names; the page shows them as they are.
+- Fedor's answers to the gaps: the YouTube row ("erst nach Klick", gap 3) waits in the backlog until the scan recognises consent placeholders; "Gefunden im Quelltext" shows the address of the request, the tag (gap 2) is not needed.
 
 ## Strings of the scanned page (requirements for stage B)
 

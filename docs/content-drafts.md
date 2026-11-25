@@ -765,6 +765,38 @@ The lower part of the report (Stückliste, the finding details with the system t
 - `security-headers` (low risk, can be among "Drei Dinge" when fewer findings have a higher risk): no "Was passiert", no "Warum das wichtig ist", no fix at all; its card shows only the title and Soll and Ist.
 - Status: offen
 
+## Session B4 part 2
+
+The lower part of the report for a real id, its states without design, the copying and the actions of the head. Every text here is an Entwurf; the texts of `design/reference/bericht.html` are final and not listed.
+
+### Short names of the services (Fedor, answer 2)
+
+The name the report shows for a known service (Stückliste, the titles of "Drei Dinge" and of the finding details, the scan screen, the copied list), the field `shortName` of `scanner/data/third-party-services.json`. Brand names as the brands write them, without a version the scan does not tell ("Google Analytics", not "Google Analytics 4"). A German word in brackets only where one brand has several rules: "(Ladeskript)", "(Ereignisse)", "(Werbefunktionen)", "(erweiterter Datenschutzmodus)" (Google's German name of the Privacy Enhanced Mode), "(Telemetrie)", "(Skripte)", "(Cookie-Banner)". "Google Übersetzer" is the German name of Google Translate; "Jetpack CDN" stands for the image and file CDN of Jetpack (formerly "Site Accelerator"); "Cookie Compliance" is the product of Hu-manity.co. To be checked against the brands' own pages before the launch.
+
+- fonts: Adobe Fonts (`adobe-fonts`), Bunny Fonts (`bunny-fonts`), Font Awesome (`font-awesome`), Google Fonts (`google-fonts`).
+- tag-manager: Google Tag Manager (`google-tag-manager`).
+- analytics: Cloudflare Web Analytics (`cloudflare-web-analytics`), etracker Analytics (`etracker`), Fathom Analytics (`fathom`), Google Analytics (`google-analytics`), Jetpack Stats (`jetpack-stats`), Matomo Cloud (`matomo-cloud`), Plausible Analytics (`plausible`), Yandex Metrica (`yandex-metrica`).
+- session-recording: Hotjar (`hotjar`), Microsoft Clarity (`microsoft-clarity`), Mouseflow (`mouseflow`), Mouseflow (Ladeskript) (`mouseflow-loader`).
+- marketing-automation: Brevo (`brevo-tracker`), HubSpot (`hubspot-tracking-code`), Klaviyo (Ereignisse) (`klaviyo-client-events`), Klaviyo (`klaviyo-onsite-js`), Leadfeeder (`leadfeeder`).
+- advertising: Awin (`awin`), Criteo (`criteo`), Google Ads / AdSense (`google-ads`), Google Analytics (Werbefunktionen) (`google-analytics-advertising-features`), Microsoft Advertising (`microsoft-advertising-uet`).
+- social-pixel: LinkedIn Insight Tag (`linkedin-insight-tag`), Meta Pixel (`meta-pixel`), Pinterest Tag (`pinterest-tag`), Snap Pixel (`snap-pixel`), TikTok Pixel (`tiktok-pixel`), X Pixel (`x-pixel`).
+- maps: Google Maps (`google-maps`), OpenStreetMap (`openstreetmap-tiles`).
+- video: Vimeo (`vimeo`), YouTube (`youtube`), YouTube (erweiterter Datenschutzmodus) (`youtube-nocookie`).
+- social-embed: Facebook Social Plugins (`facebook-social-plugins`), Instagram (`instagram-embeds`), X (`x-embeds`).
+- chat: Crisp (`crisp`), Intercom (`intercom`), LiveChat (`livechat`), Smartsupp (`smartsupp`), tawk.to (`tawk-to`), Tidio (`tidio`), Userlike (`userlike`), Zendesk (`zendesk-web-widget`).
+- reviews: Judge.me (`judge-me`), ProvenExpert (`provenexpert`), Trusted Shops (`trusted-shops`), Trustpilot (`trustpilot`).
+- booking: Calendly (`calendly`).
+- widget-platform: Elfsight (`elfsight`), Trustindex (`trustindex`).
+- payment: Klarna (`klarna`), PayPal (`paypal`), Stripe (`stripe`).
+- captcha: Cloudflare Turnstile (`cloudflare-turnstile`), Friendly Captcha (`friendly-captcha`), Google reCAPTCHA (`google-recaptcha`), hCaptcha (`hcaptcha`).
+- accessibility-overlay: accessiBe (`accessibe`), Eye-Able (`eye-able`), UserWay (`userway`).
+- translation: Google Übersetzer (`google-translate-widget`), GTranslate (`gtranslate`).
+- cdn: cdnjs (`cdnjs`), Google Hosted Libraries (`google-hosted-libraries`), Jetpack CDN (`jetpack-site-accelerator`), jQuery CDN (`jquery-cdn`), jsDelivr (`jsdelivr`), unpkg (`unpkg`), WordPress-Emojis (`wordpress-emoji`).
+- platform: Jimdo (`jimdo-static-assets`), Shopify (`shopify-cdn`), Shopify (Telemetrie) (`shopify-platform-telemetry`), Wix (`wix-media`), Wix (Skripte) (`wix-platform-other`).
+- consent: CCM19 (`ccm19`), consentmanager (`consentmanager`), Cookiebot (`cookiebot`), CookieFirst (`cookiefirst`), CookieYes (`cookieyes`), Didomi (`didomi`), Cookie Compliance (`hu-manity`), iubenda (`iubenda`), Klaro! (`klaro`), OneTrust (`onetrust`), Shopify (Cookie-Banner) (`shopify-privacy-banner`), Sourcepoint (`sourcepoint`), TrustArc (`trustarc`), Usercentrics (`usercentrics`).
+- other: Gravatar (`gravatar`).
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/

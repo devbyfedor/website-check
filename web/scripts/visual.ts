@@ -327,7 +327,7 @@ async function main(): Promise<void> {
           await writeFile(join(RESULT_DIR, `${tag}-diff-data.png`), PNG.sync.write(data.diff));
           result.dataPercent = data.result.percent;
           console.log(
-            `  against the reference with the decided wording and the data schema v1 holds (Stückliste without the YouTube row, the names of the rules data, the address in "Gefunden im Quelltext"): ` +
+            `  against the reference with the decided wording and the data schema v1 holds (Stückliste without the YouTube row, "Google Analytics" for "Google Analytics 4", the address in "Gefunden im Quelltext"): ` +
               `reference ${data.result.referenceSize.join(' x ')}, different pixels ${data.result.percent.toFixed(3)} % (${data.result.differentPixels} of ${data.result.totalPixels}), strict ${data.result.strictPercent.toFixed(3)} %`,
           );
         }

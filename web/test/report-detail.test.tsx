@@ -43,14 +43,14 @@ describe('the Stückliste of the example', () => {
   it('is the reference, except what schema v1 does not express', () => {
     const rows = serviceRows(EXAMPLE).map((r) => ({ ...r, name: text(r.name) }));
     // Each app row with the reference row it stands for. Not expressible: the YouTube row ("erst nach Klick", "wird
-    // eingeholt": a service that waits for a click, gap 3), so jsDelivr is position 4, not 5; the names of the rules
-    // data ("Google Tag Manager / Google tag (gtag.js)", "Google Analytics", "jsDelivr (incl. BootstrapCDN)") where
-    // the reference has shorter names, and "Google Analytics 4", which the scan does not tell.
+    // eingeholt": a service that waits for a click, gap 3), so jsDelivr is position 4, not 5; "Google Analytics" of
+    // the rules data (the short names of B4 part 2) for the reference's "Google Analytics 4", a version the scan does
+    // not tell.
     const pairs: [number, number, string | null][] = [
       [0, 0, null],
-      [1, 1, 'Google Tag Manager / Google tag (gtag.js)'],
+      [1, 1, null],
       [2, 2, 'Google Analytics'],
-      [3, 4, 'jsDelivr (incl. BootstrapCDN)'],
+      [3, 4, null],
     ];
     expect(rows).toHaveLength(4);
     for (const [a, r, name] of pairs) {

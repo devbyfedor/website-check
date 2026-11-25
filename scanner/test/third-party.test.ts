@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { analyzeThirdParty, type DetectedService, type ThirdPartyAnalysis } from '../src/analyzers/third-party.ts';
 import type { Capture } from '../src/capture/types.ts';
+import { DEFAULT_RULES } from '../src/data.ts';
 import { loadTestRules, makeCapture, SITE, type RequestInput } from './helpers.ts';
 
 const rules = loadTestRules();
@@ -310,5 +311,28 @@ describe('evidence limits', () => {
     expect(ga.evidence).toHaveLength(20);
     expect(ga.evidenceTruncated).toBe(true);
     expect(ga.evidence[0]?.url.length).toBe(500);
+  });
+});
+
+// Session B4 part 2 (Fedor's answer 2): a known service carries the short name of the rules data, the one the report
+// shows; the descriptive name stays in the rules documentation.
+describe('analyzeThirdParty: the name of a known service', () => {
+  it('is the short name of the shipped rules data', () => {
+    const analysis = analyzeThirdParty(
+      makeCapture({
+        requests: [
+          doc,
+          { url: 'https://www.googletagmanager.com/gtag/js?id=G-TEST', resourceType: 'script', startMs: 100, initiator: { type: 'parser', url: SITE } },
+          { url: 'https://cdn.jsdelivr.net/npm/bootstrap@5/dist/js/bootstrap.min.js', resourceType: 'script', startMs: 120, initiator: { type: 'parser', url: SITE } },
+          { url: 'https://www.youtube.com/embed/abc', resourceType: 'document', startMs: 140, initiator: { type: 'parser', url: SITE } },
+        ],
+      }),
+      DEFAULT_RULES,
+    );
+    expect(analysis.services.map((s) => [s.key, s.name]).sort()).toEqual([
+      ['google-tag-manager', 'Google Tag Manager'],
+      ['jsdelivr', 'jsDelivr'],
+      ['youtube', 'YouTube'],
+    ]);
   });
 });

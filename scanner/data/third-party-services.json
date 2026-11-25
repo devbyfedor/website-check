@@ -5,6 +5,7 @@
     {
       "id": "adobe-fonts",
       "name": "Adobe Fonts (Typekit)",
+      "shortName": "Adobe Fonts",
       "provider": "Adobe",
       "category": "fonts",
       "riskClass": "grey-zone",
@@ -21,6 +22,7 @@
     {
       "id": "bunny-fonts",
       "name": "Bunny Fonts",
+      "shortName": "Bunny Fonts",
       "provider": "bunny.net",
       "providerLegal": "BunnyWay d.o.o. (EU-based company, per the provider)",
       "category": "fonts",
@@ -39,6 +41,7 @@
     {
       "id": "font-awesome",
       "name": "Font Awesome (Kits / CDN)",
+      "shortName": "Font Awesome",
       "provider": "Font Awesome",
       "category": "fonts",
       "riskClass": "grey-zone",
@@ -55,6 +58,7 @@
     {
       "id": "google-fonts",
       "name": "Google Fonts",
+      "shortName": "Google Fonts",
       "provider": "Google",
       "category": "fonts",
       "riskClass": "precedent",
@@ -76,6 +80,7 @@
     {
       "id": "google-tag-manager",
       "name": "Google Tag Manager / Google tag (gtag.js)",
+      "shortName": "Google Tag Manager",
       "provider": "Google",
       "providerLegal": "Google Ireland Limited",
       "category": "tag-manager",
@@ -96,6 +101,7 @@
     {
       "id": "cloudflare-web-analytics",
       "name": "Cloudflare Web Analytics",
+      "shortName": "Cloudflare Web Analytics",
       "provider": "Cloudflare",
       "category": "analytics",
       "riskClass": "grey-zone",
@@ -114,6 +120,7 @@
     {
       "id": "etracker",
       "name": "etracker Analytics",
+      "shortName": "etracker Analytics",
       "provider": "etracker",
       "providerLegal": "JustRelate Deutschland GmbH",
       "category": "analytics",
@@ -132,6 +139,7 @@
     {
       "id": "fathom",
       "name": "Fathom Analytics",
+      "shortName": "Fathom Analytics",
       "provider": "Fathom",
       "category": "analytics",
       "riskClass": "grey-zone",
@@ -148,6 +156,7 @@
     {
       "id": "google-analytics",
       "name": "Google Analytics",
+      "shortName": "Google Analytics",
       "provider": "Google",
       "providerLegal": "Google Ireland Limited",
       "category": "analytics",
@@ -167,6 +176,7 @@
     {
       "id": "jetpack-stats",
       "name": "Jetpack Stats (WordPress.com Stats)",
+      "shortName": "Jetpack Stats",
       "provider": "Automattic",
       "category": "analytics",
       "riskClass": "grey-zone",
@@ -185,6 +195,7 @@
     {
       "id": "matomo-cloud",
       "name": "Matomo Cloud",
+      "shortName": "Matomo Cloud",
       "provider": "Matomo",
       "category": "analytics",
       "riskClass": "grey-zone",
@@ -204,6 +215,7 @@
     {
       "id": "plausible",
       "name": "Plausible Analytics",
+      "shortName": "Plausible Analytics",
       "provider": "Plausible",
       "category": "analytics",
       "riskClass": "grey-zone",
@@ -220,6 +232,7 @@
     {
       "id": "yandex-metrica",
       "name": "Yandex Metrica",
+      "shortName": "Yandex Metrica",
       "provider": "Yandex",
       "category": "analytics",
       "riskClass": "consent-required",
@@ -255,6 +268,7 @@
     {
       "id": "hotjar",
       "name": "Hotjar",
+      "shortName": "Hotjar",
       "provider": "Hotjar",
       "providerLegal": "Hotjar Ltd",
       "category": "session-recording",
@@ -273,6 +287,7 @@
     {
       "id": "microsoft-clarity",
       "name": "Microsoft Clarity",
+      "shortName": "Microsoft Clarity",
       "provider": "Microsoft",
       "category": "session-recording",
       "riskClass": "consent-required",
@@ -290,6 +305,7 @@
     {
       "id": "mouseflow",
       "name": "Mouseflow (session recording traffic)",
+      "shortName": "Mouseflow",
       "provider": "Mouseflow",
       "category": "session-recording",
       "riskClass": "grey-zone",
@@ -308,6 +324,7 @@
     {
       "id": "mouseflow-loader",
       "name": "Mouseflow script loader",
+      "shortName": "Mouseflow (Ladeskript)",
       "provider": "Mouseflow",
       "category": "session-recording",
       "riskClass": "grey-zone",
@@ -322,6 +339,7 @@
     {
       "id": "brevo-tracker",
       "name": "Brevo (Sendinblue) tracker",
+      "shortName": "Brevo",
       "provider": "Brevo",
       "category": "marketing-automation",
       "riskClass": "consent-required",
@@ -338,6 +356,7 @@
     {
       "id": "hubspot-tracking-code",
       "name": "HubSpot tracking code",
+      "shortName": "HubSpot",
       "provider": "HubSpot",
       "category": "marketing-automation",
       "riskClass": "grey-zone",
@@ -356,6 +375,7 @@
     {
       "id": "klaviyo-client-events",
       "name": "Klaviyo onsite tracking events",
+      "shortName": "Klaviyo (Ereignisse)",
       "provider": "Klaviyo",
       "category": "marketing-automation",
       "riskClass": "consent-required",
@@ -373,6 +393,7 @@
     {
       "id": "klaviyo-onsite-js",
       "name": "Klaviyo onsite JavaScript (klaviyo.js)",
+      "shortName": "Klaviyo",
       "provider": "Klaviyo",
       "category": "marketing-automation",
       "riskClass": "grey-zone",
@@ -388,6 +409,7 @@
     {
       "id": "leadfeeder",
       "name": "Leadfeeder / Dealfront Web Visitors",
+      "shortName": "Leadfeeder",
       "provider": "Dealfront",
       "category": "marketing-automation",
       "riskClass": "grey-zone",
@@ -405,6 +427,7 @@
     {
       "id": "awin",
       "name": "AWIN (affiliate tracking: MasterTag and conversion tag)",
+      "shortName": "Awin",
       "provider": "Awin",
       "providerLegal": "AWIN AG",
       "category": "advertising",
@@ -426,6 +449,7 @@
     {
       "id": "criteo",
       "name": "Criteo (OneTag retargeting)",
+      "shortName": "Criteo",
       "provider": "Criteo",
       "providerLegal": "Criteo SA",
       "category": "advertising",
@@ -446,6 +470,7 @@
     {
       "id": "google-ads",
       "name": "Google Ads / DoubleClick / AdSense",
+      "shortName": "Google Ads / AdSense",
       "provider": "Google",
       "providerLegal": "Google Ireland Limited",
       "category": "advertising",
@@ -472,6 +497,7 @@
     {
       "id": "google-analytics-advertising-features",
       "name": "Google Analytics advertising features (Google signals / remarketing audiences)",
+      "shortName": "Google Analytics (Werbefunktionen)",
       "provider": "Google",
       "providerLegal": "Google Ireland Limited",
       "category": "advertising",
@@ -493,6 +519,7 @@
     {
       "id": "microsoft-advertising-uet",
       "name": "Microsoft Advertising UET (Bing Ads)",
+      "shortName": "Microsoft Advertising",
       "provider": "Microsoft",
       "providerLegal": "Microsoft Ireland Operations Limited",
       "category": "advertising",
@@ -514,6 +541,7 @@
     {
       "id": "linkedin-insight-tag",
       "name": "LinkedIn Insight Tag",
+      "shortName": "LinkedIn Insight Tag",
       "provider": "LinkedIn",
       "providerLegal": "LinkedIn Ireland Unlimited Company",
       "category": "social-pixel",
@@ -541,6 +569,7 @@
     {
       "id": "meta-pixel",
       "name": "Meta Pixel (Facebook Pixel)",
+      "shortName": "Meta Pixel",
       "provider": "Meta",
       "providerLegal": "Meta Platforms Ireland Limited",
       "category": "social-pixel",
@@ -567,6 +596,7 @@
     {
       "id": "pinterest-tag",
       "name": "Pinterest Tag",
+      "shortName": "Pinterest Tag",
       "provider": "Pinterest",
       "providerLegal": "Pinterest Europe Limited",
       "category": "social-pixel",
@@ -590,6 +620,7 @@
     {
       "id": "snap-pixel",
       "name": "Snap Pixel (Snapchat)",
+      "shortName": "Snap Pixel",
       "provider": "Snap Inc.",
       "category": "social-pixel",
       "riskClass": "consent-required",
@@ -611,6 +642,7 @@
     {
       "id": "tiktok-pixel",
       "name": "TikTok Pixel",
+      "shortName": "TikTok Pixel",
       "provider": "TikTok",
       "category": "social-pixel",
       "riskClass": "consent-required",
@@ -633,6 +665,7 @@
     {
       "id": "x-pixel",
       "name": "X (Twitter) Pixel",
+      "shortName": "X Pixel",
       "provider": "X",
       "category": "social-pixel",
       "riskClass": "consent-required",
@@ -654,6 +687,7 @@
     {
       "id": "google-maps",
       "name": "Google Maps (embed and Maps JavaScript API)",
+      "shortName": "Google Maps",
       "provider": "Google",
       "providerLegal": "Google Ireland Limited",
       "category": "maps",
@@ -673,6 +707,7 @@
     {
       "id": "openstreetmap-tiles",
       "name": "OpenStreetMap standard tile server",
+      "shortName": "OpenStreetMap",
       "provider": "OpenStreetMap Foundation",
       "providerLegal": "OpenStreetMap Foundation (UK)",
       "category": "maps",
@@ -690,6 +725,7 @@
     {
       "id": "vimeo",
       "name": "Vimeo embedded player",
+      "shortName": "Vimeo",
       "provider": "Vimeo",
       "category": "video",
       "riskClass": "usually-consent",
@@ -708,6 +744,7 @@
     {
       "id": "youtube",
       "name": "YouTube embedded player (standard domain)",
+      "shortName": "YouTube",
       "provider": "Google",
       "providerLegal": "Google Ireland Limited",
       "category": "video",
@@ -729,6 +766,7 @@
     {
       "id": "youtube-nocookie",
       "name": "YouTube Privacy Enhanced Mode (youtube-nocookie.com)",
+      "shortName": "YouTube (erweiterter Datenschutzmodus)",
       "provider": "Google",
       "providerLegal": "Google Ireland Limited",
       "category": "video",
@@ -750,6 +788,7 @@
     {
       "id": "facebook-social-plugins",
       "name": "Facebook social plugins (Like/Share button, Page plugin, embedded posts, JS SDK)",
+      "shortName": "Facebook Social Plugins",
       "provider": "Meta",
       "providerLegal": "Meta Platforms Ireland Limited",
       "category": "social-embed",
@@ -771,6 +810,7 @@
     {
       "id": "instagram-embeds",
       "name": "Instagram embeds and Instagram content images",
+      "shortName": "Instagram",
       "provider": "Meta",
       "providerLegal": "Meta Platforms Ireland Limited",
       "category": "social-embed",
@@ -789,6 +829,7 @@
     {
       "id": "x-embeds",
       "name": "X (Twitter) embedded posts and timelines",
+      "shortName": "X",
       "provider": "X",
       "category": "social-embed",
       "riskClass": "usually-consent",
@@ -806,6 +847,7 @@
     {
       "id": "crisp",
       "name": "Crisp chat widget",
+      "shortName": "Crisp",
       "provider": "Crisp",
       "providerLegal": "Crisp IM SARL",
       "category": "chat",
@@ -823,6 +865,7 @@
     {
       "id": "intercom",
       "name": "Intercom Messenger",
+      "shortName": "Intercom",
       "provider": "Intercom",
       "category": "chat",
       "riskClass": "usually-consent",
@@ -845,6 +888,7 @@
     {
       "id": "livechat",
       "name": "LiveChat widget",
+      "shortName": "LiveChat",
       "provider": "LiveChat (Text)",
       "category": "chat",
       "riskClass": "usually-consent",
@@ -860,6 +904,7 @@
     {
       "id": "smartsupp",
       "name": "Smartsupp chat widget",
+      "shortName": "Smartsupp",
       "provider": "Smartsupp",
       "category": "chat",
       "riskClass": "usually-consent",
@@ -876,6 +921,7 @@
     {
       "id": "tawk-to",
       "name": "tawk.to chat widget",
+      "shortName": "tawk.to",
       "provider": "tawk.to",
       "category": "chat",
       "riskClass": "usually-consent",
@@ -891,6 +937,7 @@
     {
       "id": "tidio",
       "name": "Tidio chat widget",
+      "shortName": "Tidio",
       "provider": "Tidio",
       "category": "chat",
       "riskClass": "grey-zone",
@@ -908,6 +955,7 @@
     {
       "id": "userlike",
       "name": "Userlike chat widget (Lime Connect since Sept. 2025)",
+      "shortName": "Userlike",
       "provider": "Userlike / Lime Connect (Lime Technologies)",
       "category": "chat",
       "riskClass": "grey-zone",
@@ -927,6 +975,7 @@
     {
       "id": "zendesk-web-widget",
       "name": "Zendesk Web Widget (messaging/classic)",
+      "shortName": "Zendesk",
       "provider": "Zendesk",
       "category": "chat",
       "riskClass": "usually-consent",
@@ -945,6 +994,7 @@
     {
       "id": "judge-me",
       "name": "Judge.me product review widgets",
+      "shortName": "Judge.me",
       "provider": "Judge.me",
       "providerLegal": "Judge.me Ltd (per Tracker Radar)",
       "category": "reviews",
@@ -961,6 +1011,7 @@
     {
       "id": "provenexpert",
       "name": "ProvenExpert review seal and widgets",
+      "shortName": "ProvenExpert",
       "provider": "ProvenExpert",
       "providerLegal": "Expert Systems AG (per Tracker Radar)",
       "category": "reviews",
@@ -976,6 +1027,7 @@
     {
       "id": "trusted-shops",
       "name": "Trusted Shops Trustbadge and review widgets",
+      "shortName": "Trusted Shops",
       "provider": "Trusted Shops",
       "category": "reviews",
       "riskClass": "grey-zone",
@@ -991,6 +1043,7 @@
     {
       "id": "trustpilot",
       "name": "Trustpilot TrustBox widgets",
+      "shortName": "Trustpilot",
       "provider": "Trustpilot",
       "providerLegal": "Trustpilot A/S",
       "category": "reviews",
@@ -1009,6 +1062,7 @@
     {
       "id": "calendly",
       "name": "Calendly scheduling embed",
+      "shortName": "Calendly",
       "provider": "Calendly",
       "category": "booking",
       "riskClass": "grey-zone",
@@ -1023,6 +1077,7 @@
     {
       "id": "elfsight",
       "name": "Elfsight widget platform",
+      "shortName": "Elfsight",
       "provider": "Elfsight",
       "category": "widget-platform",
       "riskClass": "grey-zone",
@@ -1037,6 +1092,7 @@
     {
       "id": "trustindex",
       "name": "Trustindex review widgets",
+      "shortName": "Trustindex",
       "provider": "Trustindex",
       "category": "widget-platform",
       "riskClass": "grey-zone",
@@ -1051,6 +1107,7 @@
     {
       "id": "klarna",
       "name": "Klarna (Web SDK / On-Site Messaging)",
+      "shortName": "Klarna",
       "provider": "Klarna",
       "category": "payment",
       "riskClass": "grey-zone",
@@ -1074,6 +1131,7 @@
     {
       "id": "paypal",
       "name": "PayPal (JavaScript SDK)",
+      "shortName": "PayPal",
       "provider": "PayPal",
       "category": "payment",
       "riskClass": "grey-zone",
@@ -1092,6 +1150,7 @@
     {
       "id": "stripe",
       "name": "Stripe (Stripe.js, Link)",
+      "shortName": "Stripe",
       "provider": "Stripe",
       "category": "payment",
       "riskClass": "grey-zone",
@@ -1114,6 +1173,7 @@
     {
       "id": "cloudflare-turnstile",
       "name": "Cloudflare Turnstile",
+      "shortName": "Cloudflare Turnstile",
       "provider": "Cloudflare",
       "category": "captcha",
       "riskClass": "grey-zone",
@@ -1130,6 +1190,7 @@
     {
       "id": "friendly-captcha",
       "name": "Friendly Captcha",
+      "shortName": "Friendly Captcha",
       "provider": "Friendly Captcha",
       "category": "captcha",
       "riskClass": "grey-zone",
@@ -1152,6 +1213,7 @@
     {
       "id": "google-recaptcha",
       "name": "Google reCAPTCHA",
+      "shortName": "Google reCAPTCHA",
       "provider": "Google",
       "providerLegal": "Google Ireland Limited",
       "category": "captcha",
@@ -1172,6 +1234,7 @@
     {
       "id": "hcaptcha",
       "name": "hCaptcha",
+      "shortName": "hCaptcha",
       "provider": "hCaptcha (Intuition Machines)",
       "category": "captcha",
       "riskClass": "grey-zone",
@@ -1189,6 +1252,7 @@
     {
       "id": "accessibe",
       "name": "accessiBe",
+      "shortName": "accessiBe",
       "provider": "accessiBe",
       "category": "accessibility-overlay",
       "riskClass": "grey-zone",
@@ -1205,6 +1269,7 @@
     {
       "id": "eye-able",
       "name": "Eye-Able",
+      "shortName": "Eye-Able",
       "provider": "Eye-Able",
       "category": "accessibility-overlay",
       "riskClass": "grey-zone",
@@ -1223,6 +1288,7 @@
     {
       "id": "userway",
       "name": "UserWay accessibility widget",
+      "shortName": "UserWay",
       "provider": "UserWay",
       "category": "accessibility-overlay",
       "riskClass": "grey-zone",
@@ -1239,6 +1305,7 @@
     {
       "id": "google-translate-widget",
       "name": "Google Translate (website widget, legacy)",
+      "shortName": "Google Übersetzer",
       "provider": "Google",
       "providerLegal": "Google Ireland Limited",
       "category": "translation",
@@ -1258,6 +1325,7 @@
     {
       "id": "gtranslate",
       "name": "GTranslate widget",
+      "shortName": "GTranslate",
       "provider": "GTranslate",
       "providerLegal": "GTranslate, Inc.",
       "category": "translation",
@@ -1274,6 +1342,7 @@
     {
       "id": "cdnjs",
       "name": "cdnjs",
+      "shortName": "cdnjs",
       "provider": "Cloudflare",
       "category": "cdn",
       "riskClass": "grey-zone",
@@ -1289,6 +1358,7 @@
     {
       "id": "google-hosted-libraries",
       "name": "Google Hosted Libraries",
+      "shortName": "Google Hosted Libraries",
       "provider": "Google",
       "providerLegal": "Google Ireland Limited",
       "category": "cdn",
@@ -1305,6 +1375,7 @@
     {
       "id": "jetpack-site-accelerator",
       "name": "Jetpack Site Accelerator (image and asset CDN)",
+      "shortName": "Jetpack CDN",
       "provider": "Automattic",
       "category": "cdn",
       "riskClass": "grey-zone",
@@ -1325,6 +1396,7 @@
     {
       "id": "jquery-cdn",
       "name": "jQuery CDN",
+      "shortName": "jQuery CDN",
       "provider": "OpenJS Foundation",
       "category": "cdn",
       "riskClass": "grey-zone",
@@ -1340,6 +1412,7 @@
     {
       "id": "jsdelivr",
       "name": "jsDelivr (incl. BootstrapCDN)",
+      "shortName": "jsDelivr",
       "provider": "jsDelivr",
       "category": "cdn",
       "riskClass": "grey-zone",
@@ -1358,6 +1431,7 @@
     {
       "id": "unpkg",
       "name": "unpkg",
+      "shortName": "unpkg",
       "provider": "unpkg",
       "category": "cdn",
       "riskClass": "grey-zone",
@@ -1374,6 +1448,7 @@
     {
       "id": "wordpress-emoji",
       "name": "WordPress emoji images (s.w.org)",
+      "shortName": "WordPress-Emojis",
       "provider": "WordPress.org",
       "category": "cdn",
       "riskClass": "grey-zone",
@@ -1389,6 +1464,7 @@
     {
       "id": "jimdo-static-assets",
       "name": "Jimdo (platform assets)",
+      "shortName": "Jimdo",
       "provider": "Jimdo",
       "providerLegal": "Jimdo GmbH",
       "category": "platform",
@@ -1406,6 +1482,7 @@
     {
       "id": "shopify-cdn",
       "name": "Shopify (store hosting CDN)",
+      "shortName": "Shopify",
       "provider": "Shopify",
       "category": "platform",
       "riskClass": "not-flagged",
@@ -1426,6 +1503,7 @@
     {
       "id": "shopify-platform-telemetry",
       "name": "Shopify (platform telemetry)",
+      "shortName": "Shopify (Telemetrie)",
       "provider": "Shopify",
       "category": "platform",
       "riskClass": "grey-zone",
@@ -1442,6 +1520,7 @@
     {
       "id": "wix-media",
       "name": "Wix (site media hosting)",
+      "shortName": "Wix",
       "provider": "Wix",
       "category": "platform",
       "riskClass": "not-flagged",
@@ -1458,6 +1537,7 @@
     {
       "id": "wix-platform-other",
       "name": "Wix (platform scripts and telemetry)",
+      "shortName": "Wix (Skripte)",
       "provider": "Wix",
       "category": "platform",
       "riskClass": "grey-zone",
@@ -1475,6 +1555,7 @@
     {
       "id": "ccm19",
       "name": "CCM19 (cloud)",
+      "shortName": "CCM19",
       "provider": "CCM19",
       "providerLegal": "Papoo Software & Media GmbH",
       "category": "consent",
@@ -1493,6 +1574,7 @@
     {
       "id": "consentmanager",
       "name": "consentmanager.net CMP",
+      "shortName": "consentmanager",
       "provider": "consentmanager",
       "category": "consent",
       "riskClass": "not-flagged",
@@ -1509,6 +1591,7 @@
     {
       "id": "cookiebot",
       "name": "Cookiebot CMP",
+      "shortName": "Cookiebot",
       "provider": "Usercentrics",
       "category": "consent",
       "riskClass": "not-flagged",
@@ -1528,6 +1611,7 @@
     {
       "id": "cookiefirst",
       "name": "CookieFirst",
+      "shortName": "CookieFirst",
       "provider": "CookieFirst",
       "category": "consent",
       "riskClass": "not-flagged",
@@ -1544,6 +1628,7 @@
     {
       "id": "cookieyes",
       "name": "CookieYes",
+      "shortName": "CookieYes",
       "provider": "CookieYes",
       "category": "consent",
       "riskClass": "not-flagged",
@@ -1561,6 +1646,7 @@
     {
       "id": "didomi",
       "name": "Didomi CMP",
+      "shortName": "Didomi",
       "provider": "Didomi",
       "providerLegal": "Didomi SAS",
       "category": "consent",
@@ -1579,6 +1665,7 @@
     {
       "id": "hu-manity",
       "name": "Cookie Compliance by Hu-manity.co (Cookie Notice plugin, Compliance mode)",
+      "shortName": "Cookie Compliance",
       "provider": "Hu-manity.co",
       "category": "consent",
       "riskClass": "not-flagged",
@@ -1595,6 +1682,7 @@
     {
       "id": "iubenda",
       "name": "iubenda Cookie Solution",
+      "shortName": "iubenda",
       "provider": "iubenda",
       "providerLegal": "iubenda s.r.l.",
       "category": "consent",
@@ -1612,6 +1700,7 @@
     {
       "id": "klaro",
       "name": "Klaro! (KIProtect CDN)",
+      "shortName": "Klaro!",
       "provider": "KIProtect",
       "category": "consent",
       "riskClass": "not-flagged",
@@ -1628,6 +1717,7 @@
     {
       "id": "onetrust",
       "name": "OneTrust Cookie Consent / CookiePro",
+      "shortName": "OneTrust",
       "provider": "OneTrust",
       "category": "consent",
       "riskClass": "not-flagged",
@@ -1646,6 +1736,7 @@
     {
       "id": "shopify-privacy-banner",
       "name": "Shopify cookie banner / Customer Privacy API scripts",
+      "shortName": "Shopify (Cookie-Banner)",
       "provider": "Shopify",
       "category": "consent",
       "riskClass": "not-flagged",
@@ -1663,6 +1754,7 @@
     {
       "id": "sourcepoint",
       "name": "Sourcepoint CMP",
+      "shortName": "Sourcepoint",
       "provider": "Sourcepoint",
       "category": "consent",
       "riskClass": "not-flagged",
@@ -1680,6 +1772,7 @@
     {
       "id": "trustarc",
       "name": "TrustArc Consent Manager",
+      "shortName": "TrustArc",
       "provider": "TrustArc",
       "category": "consent",
       "riskClass": "not-flagged",
@@ -1696,6 +1789,7 @@
     {
       "id": "usercentrics",
       "name": "Usercentrics CMP (Browser UI v2 / Web CMP v3)",
+      "shortName": "Usercentrics",
       "provider": "Usercentrics",
       "category": "consent",
       "riskClass": "not-flagged",
@@ -1712,6 +1806,7 @@
     {
       "id": "gravatar",
       "name": "Gravatar",
+      "shortName": "Gravatar",
       "provider": "Automattic",
       "category": "other",
       "riskClass": "grey-zone",
