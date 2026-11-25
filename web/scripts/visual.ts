@@ -217,6 +217,8 @@ interface Result {
   asIsPercent?: number;
   /** Pages with `exampleData`: the share against the reference with the decided wording and the data of schema v1. */
   dataPercent?: number;
+  /** Session B4 part 2: the strict pixels of that comparison (threshold 0). */
+  dataStrictPercent?: number;
 }
 
 function compare(name: string, width: number, ref: PNG, app: PNG, excluded: string[]): { result: Result; diff: PNG } {
@@ -326,6 +328,7 @@ async function main(): Promise<void> {
           const data = compare(p.name, width, withData.png, app.png, excluded);
           await writeFile(join(RESULT_DIR, `${tag}-diff-data.png`), PNG.sync.write(data.diff));
           result.dataPercent = data.result.percent;
+          result.dataStrictPercent = data.result.strictPercent;
           console.log(
             `  against the reference with the decided wording and the data schema v1 holds (Stückliste without the YouTube row, "Google Analytics" for "Google Analytics 4", the address in "Gefunden im Quelltext"): ` +
               `reference ${data.result.referenceSize.join(' x ')}, different pixels ${data.result.percent.toFixed(3)} % (${data.result.differentPixels} of ${data.result.totalPixels}), strict ${data.result.strictPercent.toFixed(3)} %`,
@@ -350,10 +353,17 @@ async function main(): Promise<void> {
   if (results.length) {
     console.log('Different pixels (threshold 0.1, anti-aliasing not counted):');
     for (const r of results) {
-      console.log(
-        `  ${r.page} ${r.width} px: ${r.percent.toFixed(3)} %${r.asIsPercent === undefined ? '' : ` (against the reference as it is ${r.asIsPercent.toFixed(3)} %)`}` +
-          `${r.dataPercent === undefined ? '' : `; with the data of schema v1 ${r.dataPercent.toFixed(3)} %`}`,
-      );
+      // Session B4 part 2 (Fedor's answer 1): the measure of the report is the comparison with the reference into which
+      // the data schema v1 holds is put (docs/decisions.md lists the places); the strict number, against the reference
+      // with the decided wording only, stands next to it.
+      if (r.dataPercent !== undefined) {
+        console.log(
+          `  ${r.page} ${r.width} px: ${r.dataPercent.toFixed(3)} % against the reference with the data of schema v1 (the measure, at most 1 %: ${r.dataPercent <= 1 ? 'yes' : 'NO'}; strict pixels ${(r.dataStrictPercent ?? 0).toFixed(3)} %); ` +
+            `strict number ${r.percent.toFixed(3)} % against the reference with the decided wording only${r.asIsPercent === undefined ? '' : `, ${r.asIsPercent.toFixed(3)} % against the reference as it is`}`,
+        );
+        continue;
+      }
+      console.log(`  ${r.page} ${r.width} px: ${r.percent.toFixed(3)} %${r.asIsPercent === undefined ? '' : ` (against the reference as it is ${r.asIsPercent.toFixed(3)} %)`}`);
     }
   }
   if (!args.referenceOnly) console.log(`Requests of the app to other hosts: ${appBlocked}`);

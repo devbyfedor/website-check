@@ -403,13 +403,14 @@ describe('the country next to a finding about data sent before consent', () => {
     const r = clone();
     r.visit = { ...r.visit, country: 'IT' };
     const rows = serviceRows(r);
-    const before = new Set(r.findings.filter((f) => f.beforeConsent).map((f) => f.id));
+    const before = new Set(r.findings.filter((f) => f.kind === 'finding' && f.beforeConsent).map((f) => f.id));
     rows.forEach((row, i) => expect(row.country).toBe(before.has(r.services[i]!.findingId ?? '') ? 'Land des Aufrufs: Italien' : null));
-    expect(rows.filter((x) => x.country !== null).length).toBeGreaterThan(0);
+    expect(rows.filter((x) => x.country !== null).length).toBe(3); // Google Fonts, the Google tag, Google Analytics
+    expect(rows[3]!.country).toBeNull(); // jsDelivr: a hint (Graubereich), its data before consent is not a finding
     const cards = findingCards(r);
     for (const c of cards) {
       const f = r.findings.find((x) => x.id === r.priorities[c.number - 1])!;
-      expect(c.country).toBe(f.beforeConsent ? 'Land des Aufrufs: Italien' : null);
+      expect(c.country).toBe(f.kind === 'finding' && f.beforeConsent ? 'Land des Aufrufs: Italien' : null);
     }
     expect(render(r)).toContain('Land des Aufrufs: Italien');
     r.visit = { ...r.visit, country: 'XX' };

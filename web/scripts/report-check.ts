@@ -6,9 +6,15 @@
 // - with reduced motion: axe-core 0 violations (every rule on by default); the text contrast by pixels where axe could
 //   not decide; Tab through every control with the focus ring measured as in B1 and whole in the window, in the order
 //   of the reference (header, the actions of the head, the Prüfmaße, the BFSG link, "Drei Dinge", the Zeitschnitt,
-//   footer); 0 animations; every value on the page equal to the report (an independent reading of the JSON, not the
-//   page's own view functions); at 390 px no text outside the window except inside a box that scrolls sideways, and
-//   no sideways scrolling of the page;
+//   footer; session B4 part 2: then the Stückliste box, the copy button, the system tabs and panels of the finding
+//   details, the help button); 0 animations; every value on the page equal to the report (an independent reading of
+//   the JSON, not the page's own view functions; since B4 part 2 also the Stückliste, the finding details, the help
+//   block and the title block); at 390 px no text outside the window except inside a box that scrolls sideways, and no
+//   sideways scrolling of the page; the system tabs by keyboard (WAI-ARIA tabs pattern); the actions (B4 part 2):
+//   "Als PDF speichern" calls the print dialog, "Link kopieren" and the copy button of the Stückliste put the right text
+//   on the clipboard, change their label and say it in a status region;
+// - with the print media emulated (B4 part 2): no visible button but the selected tab, no header, navigation or footer,
+//   a white page and no dark background, axe 0 and the contrast by pixels; a screenshot of each state;
 // - with motion: every animation ends within 5 s;
 // - the page is noindex and sends no Referer (meta elements); 0 requests to other hosts.
 //
@@ -16,14 +22,14 @@
 // without a visit, local/ only): values, axe and the text at 390 px for each, at both widths.
 //
 //   npm run check:report                      builds web/ (production), then checks every state
-//   node web/scripts/report-check.ts [--widths 1440,390] [--reports <folder of report files>]
+//   node web/scripts/report-check.ts [--widths 1440,390] [--only <state,…>] [--reports <folder of report files>]
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { chromium, type Browser, type Page, type Route } from 'playwright';
 import type { Report } from '../../scanner/src/report/types.ts';
 import { EXAMPLE_REPORT_STATES } from '../components/report/example-report-states.ts';
 import { axe, contrastByPixels, keyboard, type AxeSummary } from './a11y.ts';
-import { ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer } from './browser-setup.ts';
+import { nextFrames, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer } from './browser-setup.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'report-check');
 const AXE_FILE = join(ROOT, 'node_modules', 'axe-core', 'axe.min.js');
@@ -110,6 +116,8 @@ function exampleStates(): CheckState[] {
 async function open(browser: Browser, origin: string, width: number, reduced: boolean, api: Api): Promise<{ page: Page; close: () => Promise<void>; blocked: string[] }> {
   const context = await browser.newContext({ viewport: { width, height: VIEWPORT_HEIGHT[width] ?? 900 }, deviceScaleFactor: 1, reducedMotion: reduced ? 'reduce' : 'no-preference', locale: 'de-DE', timezoneId: 'Europe/Berlin' });
   const blocked = await routeHosts(context, origin, 'none');
+  // Session B4 part 2: the copy buttons are checked by reading the clipboard.
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
   const waiting: Route[] = [];
   await context.route(/\/api\/scans\//, async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -215,6 +223,110 @@ const docOf = (href: string | null): string | null => {
   }
 };
 
+// Session B4 part 2: the lower part, read from the JSON as independently of the page as the upper part.
+const CATEGORY: Record<string, string> = {
+  fonts: 'Schriften',
+  'tag-manager': 'lädt weitere Skripte',
+  analytics: 'Statistik',
+  'session-recording': 'Aufzeichnung von Besuchen',
+  'marketing-automation': 'Marketing',
+  advertising: 'Werbung',
+  'social-pixel': 'Werbung in sozialen Netzwerken',
+  maps: 'Karte',
+  video: 'Video',
+  'social-embed': 'Beiträge aus sozialen Netzwerken',
+  chat: 'Chat',
+  reviews: 'Bewertungen',
+  booking: 'Terminbuchung',
+  'widget-platform': 'Widgets',
+  payment: 'Zahlung',
+  captcha: 'Schutz vor Bots',
+  'accessibility-overlay': 'Werkzeug für Barrierefreiheit',
+  translation: 'Übersetzung',
+  cdn: 'Skripte',
+  platform: 'Dienst Ihres Systems',
+  consent: 'Einwilligungstool',
+  other: 'Weiteres',
+  unknown: 'unbekannter Dienst',
+};
+const LOCATION: Record<string, string> = { 'us-possible': 'Server in den USA möglich', 'worldwide-cdn': 'weltweites Servernetz', eu: 'Server in der EU', unknown: 'nicht bekannt' };
+const TAG: Record<string, string> = { missing: 'fehlt', 'grey-zone': 'Graubereich', 'not-needed': 'nicht nötig', 'not-reached': 'keine Antwort', manual: 'bitte manuell prüfen' };
+const FIVE: Record<string, string> = { wordpress: 'WordPress', shopify: 'Shopify', wix: 'Wix', jimdo: 'Jimdo', shopware: 'Shopware' };
+const shortDateOf = (iso: string): string => new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Berlin' }).format(new Date(iso));
+const strip = (v: string): string => v.replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '');
+
+function countryOf(r: Report): string | null {
+  if (r.visit.country === null || ['XX', 'ZZ'].includes(r.visit.country)) return null;
+  const name = new Intl.DisplayNames(['de'], { type: 'region', fallback: 'none' }).of(r.visit.country);
+  return name === undefined || name === r.visit.country ? null : name;
+}
+
+interface ExpectedCard {
+  id: string;
+  field: string | null;
+  country: string | null;
+  /** Soll and Ist of a third party before consent: "0 Anfragen an Google", "2 Anfragen…". */
+  ta: { target: string; actual: string } | null;
+  source: string[];
+  /** The system tabs: the name of the selected tab ("WordPress erkannt"), or null without tabs. */
+  tab: string | null;
+  /** The box says "noch keine Anleitung". */
+  noFix: boolean;
+}
+interface ExpectedLower {
+  lower: boolean;
+  servicesCount: string | null;
+  services: string[];
+  cards: ExpectedCard[];
+  stamp: string[];
+  copy: string | null;
+}
+
+function expectedLower(r: Report, measuredPage: boolean): ExpectedLower {
+  const lower = r.pages.homepage === 'checked';
+  const byId = new Map(r.findings.map((f) => [f.id, f]));
+  const country = countryOf(r);
+  const line = (f: Report['findings'][number] | undefined) => (f !== undefined && f.kind === 'finding' && f.beforeConsent && country !== null ? `Land des Aufrufs: ${country}` : null);
+  const services = lower
+    ? r.services.map((s) => {
+        const c = line(s.findingId === null ? undefined : byId.get(s.findingId));
+        return [s.position, s.name, CATEGORY[s.category], s.provider ?? 'unbekannt', LOCATION[s.dataLocation], `vor der Einwilligung${c === null ? '' : ` ${c}`}`, TAG[s.consent]].join('|');
+      })
+    : [];
+  const total = r.truncated.services ? r.counts.services : r.services.length;
+  const detected = r.sections.platform.status === 'checked' && r.platform !== null && r.platform.system in FIVE ? r.platform.system : null;
+  const cards: ExpectedCard[] = [];
+  if (lower && measuredPage) {
+    r.priorities.slice(0, 3).forEach((id, i) => {
+      const f = byId.get(id);
+      if (f === undefined) return;
+      const third = f.area === 'privacy' && f.serviceKey !== null && f.textId.startsWith('third-party-');
+      const provider = typeof f.params.provider === 'string' ? f.params.provider : null;
+      const count = typeof f.params.count === 'number' ? f.params.count : null;
+      const ta = third && ['third-party-precedent', 'third-party-consent-required', 'third-party-usually-consent'].includes(f.textId) && f.beforeConsent && provider !== null && count !== null ? { target: `0 Anfragen an ${provider}`, actual: count === 1 ? '1 Anfrage' : `${count} Anfragen` } : null;
+      const page = docOf(r.site.finalUrl);
+      const source = third && page !== null ? [...new Set(f.evidence.filter((e) => e.type === 'request' && e.initiatorType === 'parser' && docOf(e.via) === page).map((e) => (e as { url: string }).url))] : [];
+      const tabs = f.fixTextId === 'fix-google-fonts';
+      const general = ['a11y-color-contrast', 'a11y-image-alt', 'a11y-label', 'a11y-link-name', 'a11y-button-name', 'a11y-html-has-lang', 'a11y-html-lang-valid', 'security-https-missing', 'security-http-no-redirect', 'legal-impressum-no-link'].includes(f.textId);
+      cards.push({ id: `fund-${i + 1}`, field: f.field === null ? null : `Feld ${f.field}`, country: line(f), ta, source, tab: tabs ? (detected === null ? 'WordPress' : `${FIVE[detected]} erkannt`) : null, noFix: !tabs && !general });
+    });
+  }
+  const stamp = ['Benennung|Prüfbericht', `Objekt|${r.site.displayHost}`, `Datum|${shortDateOf(r.scan.scannedAt ?? r.createdAt)}`, `Revision|${r.revision.letter}`, 'Blatt|1 von 1', 'Geprüft|automatisch'];
+  let copy: string | null = null;
+  if (lower && r.services.length > 0) {
+    const lines = [`Externe Dienste auf ${strip(r.site.displayHost)} (Prüfung vom ${shortDateOf(r.scan.scannedAt ?? r.createdAt)}):`];
+    for (const s of r.services) {
+      const name = strip(s.name);
+      const by = s.provider === null || strip(s.provider) === '' || strip(s.provider).toLowerCase() === name.toLowerCase() ? '' : ` (${strip(s.provider)})`;
+      lines.push(`${s.position}. ${name}${by}, ${CATEGORY[s.category]}`);
+    }
+    const rest = r.truncated.services ? r.counts.services - r.services.length : 0;
+    if (rest > 0) lines.push(rest === 1 ? '… und 1 weiterer Dienst, den der Bericht nicht einzeln aufführt.' : `… und ${rest} weitere Dienste, die der Bericht nicht einzeln aufführt.`);
+    copy = lines.join('\n');
+  }
+  return { lower, servicesCount: lower && r.services.length > 0 ? (total === 1 ? '1 Dienst gefunden' : `${total} Dienste gefunden`) : null, services, cards, stamp, copy };
+}
+
 interface Expected {
   h1: string;
   facts: string[];
@@ -224,6 +336,7 @@ interface Expected {
   rows: { label: string; small: string }[];
   cut: string | null;
   note: boolean;
+  lower: ExpectedLower;
 }
 
 const FILE_WORDS: [string, string[]][] = [
@@ -270,6 +383,7 @@ function expected(r: Report): Expected {
     rows,
     cut: t !== null && banner !== null && banner <= t.windowMs ? `Einwilligungsbanner erscheint nach ${comma(Math.round(banner / 100) / 10)} s` : null,
     note: r.state !== 'complete' || r.notice !== null || r.scan.stopReason === 'max-wait' || r.truncated.findings || r.truncated.services || r.truncated.page.length > 0,
+    lower: expectedLower(r, measuredPage),
   };
 }
 
@@ -278,8 +392,9 @@ function shown() {
   const txt = (el: Element | null | undefined): string => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
   const h1 = document.querySelector('h1')?.textContent ?? '';
   const facts = Array.from(document.querySelectorAll('main dl > div')).map((d) => [txt(d.querySelector('dt')), ...Array.from(d.querySelectorAll('dd'), (dd) => txt(dd))].join('|'));
-  const measures = Array.from(document.querySelectorAll('main table tbody tr')).map((tr) => Array.from(tr.querySelectorAll('td'), (td) => txt(td)).join('|'));
-  const priorities = Array.from(document.querySelectorAll('main ol > li')).map((li) => {
+  // Session B4 part 2: the Prüfmaße and the priorities by their sections (the Stückliste and the steps have rows and items too).
+  const measures = Array.from(document.querySelectorAll('main section:has(#pruefmasse) table tbody tr')).map((tr) => Array.from(tr.querySelectorAll('td'), (td) => txt(td)).join('|'));
+  const priorities = Array.from(document.querySelectorAll('main ol:has(a[href^="#fund-"]) > li')).map((li) => {
     const meta = li.querySelector('div > span');
     const field = meta?.querySelector('span');
     const metaText = Array.from(meta?.childNodes ?? []).filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join('').trim();
@@ -296,7 +411,38 @@ function shown() {
   const main = txt(document.querySelector('main'));
   const cut = /Einwilligungsbanner erscheint nach [\d,]+ s(?!,)/.exec(main)?.[0] ?? null;
   const note = Array.from(document.querySelectorAll('main span')).some((s) => s.textContent === 'Hinweis');
-  return { h1, facts, measures, priorities, marks, rows, cut, note, main, robots: document.querySelector('meta[name="robots"]')?.getAttribute('content') ?? null, referrer: document.querySelector('meta[name="referrer"]')?.getAttribute('content') ?? null };
+  // The lower part (session B4 part 2).
+  const servicesSection = document.querySelector('main section:has(#stueckliste)');
+  const services = Array.from(servicesSection?.querySelectorAll('tbody tr') ?? []).map((tr) => {
+    const td = tr.querySelectorAll('td');
+    // The two lines of "Startet" (the country under it) with a space, as the page shows them.
+    const starts = Array.from(td[4]?.childNodes ?? [], (n) => txt(n as Element)).filter((x) => x !== '').join(' ');
+    return [txt(td[0]), txt(td[1]?.querySelector('b')), txt(td[1]?.querySelector('span')), txt(td[2]), txt(td[3]), starts, txt(td[5])].join('|');
+  });
+  const servicesCount = servicesSection === null ? null : txt(servicesSection.querySelector('[class*="sech"] > span'));
+  const cards = Array.from(document.querySelectorAll('main section[id^="fund-"]')).map((sec) => {
+    const field = Array.from(sec.querySelectorAll('span')).find((x) => /^Feld /.test(x.textContent ?? ''));
+    const country = Array.from(sec.querySelectorAll('p')).find((x) => (x.textContent ?? '').startsWith('Land des Aufrufs'));
+    const cells = Array.from(sec.querySelectorAll('[class*="taCell"]'));
+    const value = (c: Element | undefined) => txt(c?.querySelector('div'));
+    const selected = sec.querySelector('[role="tab"][aria-selected="true"]');
+    const body = txt(sec).length - txt(sec.querySelector('h2')).length;
+    return {
+      id: sec.id,
+      field: field === undefined ? null : txt(field),
+      country: country === undefined ? null : txt(country),
+      ta: cells.length === 2 ? { target: value(cells[0]), actual: value(cells[1]) } : null,
+      source: Array.from(sec.querySelectorAll('pre bdi'), (b) => b.textContent ?? ''),
+      tab: selected === null ? null : txt(selected),
+      noFix: txt(sec).includes('Für diesen Punkt haben wir noch keine Anleitung.'),
+      steps: sec.querySelectorAll('ol li').length,
+      body,
+      text: txt(sec),
+    };
+  });
+  const stamp = Array.from(document.querySelectorAll('article [class*="stb"] > div')).map((d) => `${txt(d.querySelector('span'))}|${txt(d.querySelector('strong'))}`);
+  const help = Array.from(document.querySelectorAll('main a[href="/anfrage"]'), (a) => txt(a));
+  return { h1, facts, measures, priorities, marks, rows, cut, note, services, servicesCount, cards, stamp, help, main, robots: document.querySelector('meta[name="robots"]')?.getAttribute('content') ?? null, referrer: document.querySelector('meta[name="referrer"]')?.getAttribute('content') ?? null };
 }
 
 async function compareValues(page: Page, report: Report, label: string): Promise<string[]> {
@@ -322,6 +468,28 @@ async function compareValues(page: Page, report: Report, label: string): Promise
   same('rows of the Zeitschnitt', got.rows, want.rows);
   same('cut A–A', got.cut, want.cut);
   same('note', got.note, want.note);
+  // The lower part (session B4 part 2).
+  const low = want.lower;
+  same('rows of the Stückliste', got.services, low.services);
+  same('count of the Stückliste', got.servicesCount, low.servicesCount);
+  same('finding details', got.cards.map((c) => c.id), low.cards.map((c) => c.id));
+  low.cards.forEach((c, i) => {
+    const g = got.cards[i];
+    if (g === undefined) return;
+    same(`field of card ${c.id}`, g.field, c.field);
+    same(`country of card ${c.id}`, g.country, c.country);
+    if (c.ta !== null) {
+      if (g.ta === null || g.ta.target !== c.ta.target || !g.ta.actual.startsWith(`${c.ta.actual}, `)) problems.push(`${label}: Soll and Ist of card ${c.id} ${JSON.stringify(g.ta)}, in the report ${JSON.stringify(c.ta)}`);
+    }
+    same(`Gefunden im Quelltext of card ${c.id}`, g.source, c.source);
+    same(`selected system tab of card ${c.id}`, g.tab, c.tab);
+    same(`"noch keine Anleitung" of card ${c.id}`, g.noFix, c.noFix);
+    if (c.tab === null && !c.noFix && g.steps === 0) problems.push(`${label}: card ${c.id} without steps`);
+    if (g.body < 40) problems.push(`${label}: card ${c.id} is empty`);
+    if (/\{[a-zA-Z]+\}|\b(?:third-party|a11y|security|legal|fix)-[a-z-]+\b/.test(g.text)) problems.push(`${label}: card ${c.id} shows a placeholder or a text id`);
+  });
+  same('help button', got.help, low.lower ? ['Hilfe bei der Umsetzung anfragen'] : []);
+  same('title block', got.stamp, low.stamp);
   if (!got.main.includes(DISCLAIMER)) problems.push(`${label}: without the last line of every report`);
   if (got.robots !== 'noindex, nofollow') problems.push(`${label}: robots ${got.robots}`);
   if (got.referrer !== 'no-referrer') problems.push(`${label}: referrer ${got.referrer}`);
@@ -359,15 +527,147 @@ function kinds(ids: string[]): string[] {
     if (el === undefined) return '?';
     if (el.closest('header') !== null) return 'header';
     if (el.closest('footer') !== null) return 'footer';
-    if (el.tagName === 'BUTTON') return 'action';
-    if (el.getAttribute('role') === 'region') return el.getAttribute('aria-labelledby') === 'pruefmasse' ? 'measures-box' : 'timeline-box';
+    // Session B4 part 2: the system tabs and their panels, the copy button, the help button, the box of the Stückliste.
+    if (el.getAttribute('role') === 'tab') return 'tab';
+    if (el.getAttribute('role') === 'tabpanel') return 'panel';
+    if (el.tagName === 'BUTTON') return el.closest('section')?.querySelector('h1') ? 'action' : 'copy';
+    if (el.getAttribute('role') === 'region') {
+      const by = el.getAttribute('aria-labelledby');
+      return by === 'pruefmasse' ? 'measures-box' : by === 'stueckliste' ? 'services-box' : 'timeline-box';
+    }
     const href = el.getAttribute('href') ?? '';
     if (href === '/bfsg') return 'bfsg';
     if (href.startsWith('#fund-')) return 'priority';
+    if (href === '/anfrage') return 'help';
     return 'state-action';
   });
 }
-const ORDER = ['header', 'action', 'state-action', 'measures-box', 'bfsg', 'priority', 'timeline-box', 'footer'];
+// The tab and the panel of a finding detail are one place of the order (the cards one after the other).
+const ORDER = ['header', 'action', 'state-action', 'measures-box', 'bfsg', 'priority', 'timeline-box', 'services-box', 'copy', 'tab', 'help', 'footer'];
+const rankOf = (k: string): number => ORDER.indexOf(k === 'panel' ? 'tab' : k);
+
+// Session B4 part 2: the system tabs of every finding detail by keyboard (WAI-ARIA tabs pattern): ArrowRight and
+// ArrowLeft move to the next and the previous tab (round), Home and End to the first and the last, and each selects
+// it; focus and the panel follow; only the selected tab is a Tab stop; Tab goes on to the panel.
+async function tabKeys(page: Page, label: string): Promise<string[]> {
+  const problems: string[] = [];
+  const lists = await page.locator('[role="tablist"]').count();
+  for (let n = 0; n < lists; n++) {
+    const state = () =>
+      page.evaluate((i) => {
+        const list = document.querySelectorAll('[role="tablist"]')[i]!;
+        const tabs = Array.from(list.querySelectorAll('[role="tab"]'));
+        const panel = document.getElementById(tabs[0]!.getAttribute('aria-controls') ?? '');
+        return {
+          selected: tabs.findIndex((t) => t.getAttribute('aria-selected') === 'true'),
+          stops: tabs.map((t, k) => (t.getAttribute('tabindex') === '0' ? k : -1)).filter((k) => k >= 0),
+          focus: tabs.findIndex((t) => t === document.activeElement),
+          labelledBy: tabs.findIndex((t) => t.id === panel?.getAttribute('aria-labelledby')),
+          count: tabs.length,
+        };
+      }, n);
+    const first = await state();
+    await page.locator('[role="tablist"]').nth(n).locator('[role="tab"][aria-selected="true"]').focus();
+    let at = first.selected;
+    for (const key of ['ArrowRight', 'ArrowRight', 'End', 'ArrowRight', 'ArrowLeft', 'Home', 'ArrowLeft']) {
+      await page.keyboard.press(key);
+      at = key === 'ArrowRight' ? (at + 1) % first.count : key === 'ArrowLeft' ? (at + first.count - 1) % first.count : key === 'Home' ? 0 : first.count - 1;
+      const s = await state();
+      if (s.selected !== at || s.focus !== at || s.labelledBy !== at || s.stops.join() !== String(at)) problems.push(`${label}: tab list ${n + 1}: ${key} should select and focus tab ${at + 1}: ${JSON.stringify(s)}`);
+    }
+    await page.keyboard.press('Tab');
+    const role = await page.evaluate(() => document.activeElement?.getAttribute('role') ?? '');
+    if (role !== 'tabpanel') problems.push(`${label}: tab list ${n + 1}: Tab from the selected tab went to "${role}", not to the panel`);
+    // Back to the tab selected on load, so the rest of the checks see the page as loaded.
+    await page.locator('[role="tablist"]').nth(n).locator('[role="tab"]').nth(first.selected).click();
+  }
+  return problems;
+}
+
+// Session B4 part 2: the page with the print media emulated: no visible button but the selected system tab, no header,
+// navigation or footer, a white page and no dark background behind text, axe 0 (with the contrast of every text) and
+// the contrast by pixels where axe could not decide; a screenshot of each state.
+async function printCheck(page: Page, label: string, axeSource: string, name: string, width: number): Promise<{ problems: string[]; result: Record<string, unknown> }> {
+  const problems: string[] = [];
+  await page.emulateMedia({ media: 'print' });
+  await nextFrames(page);
+  const seen = await page.evaluate(() => {
+    const visible = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
+    };
+    const controls = Array.from(document.querySelectorAll('button, a[class*="btns"], a[class*="gl"]'))
+      .filter(visible)
+      .filter((b) => !(b.getAttribute('role') === 'tab' && b.getAttribute('aria-selected') === 'true'))
+      .map((b) => (b.textContent ?? '').trim().slice(0, 40));
+    const chrome = Array.from(document.querySelectorAll('header, footer, nav')).filter(visible).map((e) => e.tagName);
+    const rgb = (c: string): number[] | null => {
+      const m = /rgba?\(([\d.]+), ([\d.]+), ([\d.]+)(?:, ([\d.]+))?\)/.exec(c);
+      return m === null || (m[4] !== undefined && Number(m[4]) < 0.5) ? null : [Number(m[1]), Number(m[2]), Number(m[3])];
+    };
+    const lum = (c: number[]) => {
+      const [r, g, b] = c.map((v) => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const pageBackgrounds = [document.documentElement, document.body, document.querySelector('.paper'), document.querySelector('article')].map((e) => (e === null ? 'none' : getComputedStyle(e).backgroundColor));
+    // A dark background: a box with text of its own on a background colour darker than mid grey (the small badge
+    // "erkannt" of a tab is one: light text on the line colour, as on the screen).
+    const dark = Array.from(document.querySelectorAll('body *'))
+      .filter(visible)
+      .filter((e) => {
+        const c = rgb(getComputedStyle(e).backgroundColor);
+        return c !== null && lum(c) < 0.18 && Array.from(e.childNodes).some((n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').trim() !== '');
+      })
+      .map((e) => (e.textContent ?? '').trim().slice(0, 30));
+    return { controls, chrome, pageBackgrounds, dark };
+  });
+  if (seen.controls.length > 0) problems.push(`${label}, print: buttons ${seen.controls.join(' | ')}`);
+  if (seen.chrome.length > 0) problems.push(`${label}, print: ${seen.chrome.join(', ')} visible`);
+  if (seen.pageBackgrounds.some((b) => b !== 'rgb(255, 255, 255)' && b !== 'rgba(0, 0, 0, 0)')) problems.push(`${label}, print: page backgrounds ${seen.pageBackgrounds.join(', ')}`);
+  const darkOther = seen.dark.filter((t) => t !== 'erkannt');
+  if (darkOther.length > 0) problems.push(`${label}, print: dark backgrounds behind ${darkOther.join(' | ')}`);
+  const run = await axe(page, `print, ${name}`, axeSource);
+  if (run.violations.length > 0) problems.push(`${label}, print: axe violations ${run.violations.map((v) => `${v.id} (${v.nodes})`).join(', ')}`);
+  const contrast = await contrastByPixels(page);
+  for (const x of contrast.filter((c) => c.typical < c.required)) problems.push(`${label}, print: "${x.text}" ${x.typical}:1, needs ${x.required}`);
+  await page.screenshot({ path: join(RESULT_DIR, `print-${name}-${width}.png`), fullPage: true });
+  await page.emulateMedia({ media: 'screen' });
+  await nextFrames(page);
+  console.log(`    print: buttons ${seen.controls.length}, header/footer ${seen.chrome.length}, dark backgrounds ${darkOther.length} (badges "erkannt" ${seen.dark.length - darkOther.length}), axe ${run.violations.length}, contrast by pixels ${contrast.length} texts, lowest ${contrast.length === 0 ? '-' : Math.min(...contrast.map((c) => c.typical)).toFixed(2)}`);
+  return { problems, result: { ...seen, axe: run.violations.length, contrast } };
+}
+
+// Session B4 part 2: "Als PDF speichern" calls the print dialog of the browser; "Link kopieren" puts the address of the
+// report on the clipboard; the copy button of the Stückliste the list read from the JSON; both then change their label
+// and say it in their status region.
+async function actions(page: Page, origin: string, label: string, copy: string | null): Promise<string[]> {
+  const problems: string[] = [];
+  await page.evaluate(() => {
+    const w = window as unknown as { __printed: number; print: () => void };
+    w.__printed = 0;
+    w.print = () => {
+      w.__printed += 1;
+    };
+  });
+  await page.getByRole('button', { name: 'Als PDF speichern' }).click();
+  if ((await page.evaluate(() => (window as unknown as { __printed: number }).__printed)) !== 1) problems.push(`${label}: "Als PDF speichern" did not open the print dialog`);
+  const status = (text: string) => page.evaluate((t) => Array.from(document.querySelectorAll('[role="status"]')).some((s) => (s.textContent ?? '').includes(t)), text);
+  await page.getByRole('button', { name: 'Link kopieren' }).click();
+  await page.getByRole('button', { name: 'Link kopiert' }).waitFor({ timeout: 3000 }).catch(() => problems.push(`${label}: "Link kopieren" did not change to "Link kopiert"`));
+  const link = await page.evaluate(() => navigator.clipboard.readText());
+  if (link !== `${origin}/bericht?id=${ID}`) problems.push(`${label}: "Link kopieren" copied ${JSON.stringify(link)}`);
+  if (!(await status('Link kopiert'))) problems.push(`${label}: no status region says "Link kopiert"`);
+  if (copy !== null) {
+    await page.getByRole('button', { name: 'Liste für die Datenschutzerklärung kopieren' }).click();
+    await page.getByRole('button', { name: 'Liste kopiert' }).waitFor({ timeout: 3000 }).catch(() => problems.push(`${label}: the copy button did not change to "Liste kopiert"`));
+    // The clipboard of Windows gives line breaks back as CR LF.
+    const list = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n');
+    if (list !== copy) problems.push(`${label}: the copied list differs from the report: ${JSON.stringify(list.slice(0, 200))}`);
+    if (!(await status('Liste kopiert'))) problems.push(`${label}: no status region says "Liste kopiert"`);
+  } else if ((await page.getByRole('button', { name: 'Liste für die Datenschutzerklärung kopieren' }).count()) > 0) problems.push(`${label}: a copy button without services`);
+  return problems;
+}
 
 const animations = (page: Page) => page.evaluate(() => document.getAnimations().map((a) => ({ name: (a as CSSAnimation).animationName ?? a.id, length: Number(a.effect?.getComputedTiming().endTime ?? 0) })));
 
@@ -392,21 +692,35 @@ async function checkState(browser: Browser, origin: string, width: number, state
   problems.push(...walk.problems);
   const stops = walk.stops as { id: string; text: string; ring: { strong: number; required: number } }[];
   const order = await r.page.evaluate(kinds, stops.map((s) => s.id));
-  const ranks = order.map((k) => ORDER.indexOf(k));
+  const ranks = order.map(rankOf);
+  // Each tab list: its selected tab, then its panel (WAI-ARIA tabs pattern).
+  const pairs = order.filter((k) => k === 'tab' || k === 'panel');
+  if (pairs.some((k, i) => k !== (i % 2 === 0 ? 'tab' : 'panel'))) problems.push(`${label}: tabs and panels in the order ${pairs.join(' ')}`);
   if (ranks.some((x, i) => x < 0 || (i > 0 && x < ranks[i - 1]!))) problems.push(`${label}: Tab order ${order.join(' > ')} is not the order of the reference`);
   if (state.report !== null) {
     const want = expected(state.report);
     const count = (k: string) => order.filter((o) => o === k).length;
     if (count('priority') !== want.priorities.length) problems.push(`${label}: ${count('priority')} priorities reached by Tab, ${want.priorities.length} in the report`);
     if (count('bfsg') !== (state.report.measures.length > 0 ? 1 : 0)) problems.push(`${label}: the BFSG link reached ${count('bfsg')} times`);
-    if (count('header') !== 4 || count('action') !== 3) problems.push(`${label}: header ${count('header')}, actions of the head ${count('action')}`);
+    // Session B4 part 2: two actions on the real page ("An Entwickler weitergeben" is stage D).
+    if (count('header') !== 4 || count('action') !== 2) problems.push(`${label}: header ${count('header')}, actions of the head ${count('action')}`);
+    if (count('copy') !== (want.lower.copy === null ? 0 : 1)) problems.push(`${label}: the copy button reached ${count('copy')} times`);
+    if (count('help') !== (want.lower.lower ? 1 : 0)) problems.push(`${label}: the help button reached ${count('help')} times`);
+    const tabbed = want.lower.cards.filter((c) => c.tab !== null).length;
+    if (count('tab') !== tabbed || count('panel') !== tabbed) problems.push(`${label}: ${count('tab')} tabs and ${count('panel')} panels reached by Tab, ${tabbed} finding details with system tabs`);
     problems.push(...(await compareValues(r.page, state.report, label)));
+    if (tabbed > 0) problems.push(...(await tabKeys(r.page, label)));
   } else if (state.name !== 'laedt' && !order.includes('state-action')) problems.push(`${label}: the way on of the state is not reached by Tab`);
   const over = await r.page.evaluate(overflow);
   if (width <= 390 && over.outside.length > 0) problems.push(`${label}: text outside the window, not in a scroll box: ${over.outside.slice(0, 5).join(' | ')}`);
   if (over.pageScrolls) problems.push(`${label}: the page scrolls sideways`);
   const meta = await r.page.evaluate(() => [document.querySelector('meta[name="robots"]')?.getAttribute('content'), document.querySelector('meta[name="referrer"]')?.getAttribute('content'), document.title]);
   if (meta[0] !== 'noindex, nofollow' || meta[1] !== 'no-referrer') problems.push(`${label}: robots ${meta[0]}, referrer ${meta[1]}`);
+  // Session B4 part 2: print, then the copy buttons (they change their labels, so they come last).
+  const printed = await printCheck(r.page, label, axeSource, state.name, width);
+  problems.push(...printed.problems);
+  result.print = printed.result;
+  if (state.report !== null) problems.push(...(await actions(r.page, origin, label, expected(state.report).lower.copy)));
   const weakest = stops.length === 0 ? null : Math.min(...stops.map((s) => s.ring.strong / s.ring.required));
   console.log(
     `  ${state.name}: axe ${run.violations.length} (rules passed ${run.passes} of ${run.rules}, incomplete ${run.incomplete.map((x) => `${x.id} ${x.nodes}`).join(', ') || 0}); ` +
@@ -467,6 +781,9 @@ async function main(): Promise<void> {
   const widths = widthArg >= 0 ? (process.argv[widthArg + 1] ?? '').split(',').map(Number).filter((n) => n > 0) : [1440, 390];
   const reportsArg = process.argv.indexOf('--reports');
   const reportsDir = reportsArg >= 0 ? resolve(process.argv[reportsArg + 1] ?? '') : null;
+  // --only a,b: only these states (for a repeat of single states; the self-test runs too).
+  const onlyArg = process.argv.indexOf('--only');
+  const only = onlyArg >= 0 ? (process.argv[onlyArg + 1] ?? '').split(',') : null;
   await mkdir(RESULT_DIR, { recursive: true });
   const axeSource = await readFile(AXE_FILE, 'utf8');
   const server = await startCheckServer();
@@ -483,7 +800,7 @@ async function main(): Promise<void> {
     } else {
       // The comparison of the values must see a wrong value: the page shows the example, the comparison gets a report
       // with five values changed (the domain, a Prüfmaß, a field, a row of the Zeitschnitt, the banner).
-      const example = exampleStates().find((s) => s.name === 'ohne-fremde-server')!;
+      const example = exampleStates().find((s) => s.name === 'dienste-markierungen')!;
       const probe = await open(browser, server.origin, 1440, true, example.api);
       await reach(probe.page, example.heading);
       const wrong = structuredClone(example.report!) as Report;
@@ -492,14 +809,22 @@ async function main(): Promise<void> {
       wrong.findings.find((f) => f.id === wrong.priorities[0])!.field = 'D1';
       wrong.timeline!.rows[0]!.label = 'anders-muster.de';
       wrong.timeline!.bannerVisibleAtMs = 1500;
+      // Session B4 part 2: four values of the lower part (a name of the Stückliste, a provider, the revision of the
+      // title block, the country next to the findings before consent).
+      wrong.services[1]!.name = 'Anderer Dienst';
+      wrong.services[2]!.provider = 'Anderer Anbieter';
+      (wrong.revision as { letter: string }).letter = 'C';
+      wrong.visit.country = 'AT';
       const seen = await compareValues(probe.page, wrong, 'self-test');
       await probe.close();
-      console.log(`self-test of the comparison: ${seen.length} differences seen for 5 changed values`);
-      if (seen.length < 5) problems.push(`self-test: the comparison saw only ${seen.length} of 5 changed values: ${seen.join(' | ')}`);
+      const kinds = ['heading', 'Prüfmaße', 'field of priority', 'rows of the Zeitschnitt', 'cut A–A', 'rows of the Stückliste', 'title block', 'country of card', 'facts'];
+      const missed = kinds.filter((k) => !seen.some((x) => x.includes(`: ${k}`)));
+      console.log(`self-test of the comparison: ${seen.length} differences seen for 9 changed values; missed ${missed.length === 0 ? 'none' : missed.join(', ')}`);
+      if (missed.length > 0) problems.push(`self-test: the comparison missed ${missed.join(', ')}: ${seen.join(' | ')}`);
       for (const width of widths) {
         console.log(`report page, every state, ${width} px`);
         const result: Record<string, unknown> = {};
-        for (const state of exampleStates()) {
+        for (const state of exampleStates().filter((s) => only === null || only.includes(s.name))) {
           const done = await checkState(browser, server.origin, width, state, axeSource, problems);
           result[state.name] = done.result;
           blocked += done.blocked;

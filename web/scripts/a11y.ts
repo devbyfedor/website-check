@@ -157,6 +157,20 @@ function measureRing(box: { width: number; height: number }, focused: Buffer, un
   };
 }
 
+/**
+ * Session B4 part 2: the ring of an element larger than the window, in the window as the browser placed it after Tab:
+ * the 2 px line (2.4.13) along the edges of the element that lie in the window, at 3:1. The window's own edges, where
+ * the element goes on, carry no ring.
+ */
+function measureRingInView(p: { top: number; bottom: number; left: number; right: number; height: number; width: number }, focused: Buffer, unfocused: Buffer): RingMeasure {
+  const visibleH = Math.max(0, Math.min(p.bottom, p.height) - Math.max(p.top, 0));
+  const visibleW = Math.max(0, Math.min(p.right, p.width) - Math.max(p.left, 0));
+  const inView = (v: number, max: number) => v >= 0 && v <= max;
+  const edges = (inView(p.left, p.width) ? visibleH : 0) + (inView(p.right, p.width) ? visibleH : 0) + (inView(p.top, p.height) ? visibleW : 0) + (inView(p.bottom, p.height) ? visibleW : 0);
+  const m = measureRing({ width: 0, height: 0 }, focused, unfocused);
+  return { ...m, required: Math.round(2 * edges + 16) };
+}
+
 export async function newPage(browser: Browser, url: string, width: number, origin: string, reduced: boolean, fonts: 'local' | 'none') {
   const context = await browser.newContext({
     viewport: { width, height: VIEWPORT_HEIGHT[width] ?? 900 },
@@ -194,11 +208,17 @@ export async function keyboard(page: Page, label: string): Promise<{ problems: s
       const ring = cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset);
       return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: innerHeight, width: innerWidth, ring };
     });
-    if (placed.top < -0.5 || placed.bottom > placed.height + 0.5 || placed.left < -0.5 || placed.right > placed.width + 0.5) {
+    // Session B4 part 2: an element larger than the window (the box of a Stückliste of 80 rows at 390 px, 9,657 px high)
+    // can never be whole in view. For it, Tab must leave it across the window, and its ring is measured along those of
+    // its edges that lie in the window (below), with the place where the browser put it.
+    const larger = placed.bottom - placed.top > placed.height - 2 * placed.ring || placed.right - placed.left > placed.width - 2 * placed.ring;
+    if (larger) {
+      if (placed.bottom <= 0 || placed.top >= placed.height || placed.right <= 0 || placed.left >= placed.width) problems.push(`${label}: ${active.id} "${active.text}" (larger than the window) is not in view after Tab`);
+    } else if (placed.top < -0.5 || placed.bottom > placed.height + 0.5 || placed.left < -0.5 || placed.right > placed.width + 0.5) {
       problems.push(`${label}: ${active.id} "${active.text}" is not fully in view after Tab`);
     }
     const e = placed.ring - 0.5;
-    const ringCut = placed.top < e || placed.bottom > placed.height - e || placed.left < e || placed.right > placed.width - e;
+    const ringCut = !larger && (placed.top < e || placed.bottom > placed.height - e || placed.left < e || placed.right > placed.width - e);
     if (ringCut) {
       problems.push(
         `${label}: ${active.id} "${active.text}" focus ring past the edge of the window right after Tab ` +
@@ -208,22 +228,24 @@ export async function keyboard(page: Page, label: string): Promise<{ problems: s
     // The ring itself is measured with the element in the middle of the window; the scroll position
     // of the browser is restored afterwards, so the next Tab starts from where a visitor would be.
     const scroll = await page.evaluate(() => [scrollX, scrollY] as const);
-    await page.evaluate(() => document.activeElement!.scrollIntoView({ block: 'center', inline: 'nearest' }));
+    if (!larger) await page.evaluate(() => document.activeElement!.scrollIntoView({ block: 'center', inline: 'nearest' }));
     await nextFrames(page);
     const handle = await page.evaluateHandle(() => document.activeElement as HTMLElement);
     const box = (await handle.asElement()!.boundingBox())!;
-    const clip = {
-      x: Math.max(0, box.x - RING_MARGIN),
-      y: Math.max(0, box.y - RING_MARGIN),
-      width: box.width + 2 * RING_MARGIN,
-      height: box.height + 2 * RING_MARGIN,
-    };
+    const clip = larger
+      ? { x: 0, y: 0, width: placed.width, height: placed.height }
+      : {
+          x: Math.max(0, box.x - RING_MARGIN),
+          y: Math.max(0, box.y - RING_MARGIN),
+          width: box.width + 2 * RING_MARGIN,
+          height: box.height + 2 * RING_MARGIN,
+        };
     const focused = await page.screenshot({ clip, animations: 'disabled', caret: 'hide' });
     // The same place without focus: blur() moves focus to the body without scrolling.
     await page.evaluate(() => (document.activeElement as HTMLElement).blur());
     await nextFrames(page);
     const unfocused = await page.screenshot({ clip, animations: 'disabled', caret: 'hide' });
-    const ring = measureRing(box, focused, unfocused);
+    const ring = larger ? measureRingInView(placed, focused, unfocused) : measureRing(box, focused, unfocused);
     const file = `focus-${label.replace(/[^a-z0-9]+/gi, '-')}-${active.id.replace('#', '')}`;
     await writeFile(join(RESULT_DIR, `${file}-on.png`), focused);
     await writeFile(join(RESULT_DIR, `${file}-off.png`), unfocused);

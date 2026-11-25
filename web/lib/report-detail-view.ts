@@ -45,11 +45,12 @@ export interface ServiceRow {
 export const showsLowerPart = (report: Report): boolean => report.pages.homepage === 'checked';
 
 /**
- * The country of the visit, named next to every finding about data sent before consent (Fedor, 21.11.2026): the
- * line, or null when the finding sent nothing before consent or the report names no country.
+ * The country of the visit, named next to every finding about data sent before consent (Fedor, 21.11.2026): the line,
+ * or null for a hint or a manual check (a public CDN, an almost empty page), a finding that sent nothing before consent
+ * or a report without a country.
  */
 function countryLine(f: Finding | undefined, report: Report): string | null {
-  if (f === undefined || !f.beforeConsent || report.visit.country === null) return null;
+  if (f === undefined || f.kind !== 'finding' || !f.beforeConsent || report.visit.country === null) return null;
   const name = countryName(report.visit.country);
   return name === null ? null : T.countryLine(name);
 }
