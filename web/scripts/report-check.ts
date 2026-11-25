@@ -16,7 +16,7 @@
 // without a visit, local/ only): values, axe and the text at 390 px for each, at both widths.
 //
 //   npm run check:report                      builds web/ (production), then checks every state
-//   node web/scripts/report-check.ts [--widths 1440,390] [--reports local/report-check/reports]
+//   node web/scripts/report-check.ts [--widths 1440,390] [--reports <folder of report files>]
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { chromium, type Browser, type Page, type Route } from 'playwright';
