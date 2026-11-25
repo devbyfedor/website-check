@@ -7,6 +7,9 @@ import s from './report.module.css';
 
 type SystemsFix = Extract<FixView, { kind: 'systems' }>;
 
+/** The level of a heading of a finding detail (session C0: the cards under "Weitere Punkte mit Risiko" one level lower). */
+export type HeadingLevel = 2 | 3 | 4;
+
 /** The steps of the "Montageanleitung" (bericht.html: `ol.steps`). */
 export function Steps({ steps }: { steps: readonly string[] }) {
   return (
@@ -23,7 +26,8 @@ export function Steps({ steps }: { steps: readonly string[] }) {
 // to the next or previous tab and select it (Home and End to the first and the last), the panel follows the selected
 // tab and is in the Tab order itself, because it holds no control. The detected system is selected on load and carries
 // "erkannt" (design/README.md); a tab without steps of its own shows the steps without a system, when there are any.
-export function FixTabs({ cardId, fix }: { cardId: string; fix: SystemsFix }) {
+export function FixTabs({ cardId, fix, level = 3 }: { cardId: string; fix: SystemsFix; level?: HeadingLevel }) {
+  const Heading = level === 2 ? 'h2' : level === 3 ? 'h3' : 'h4';
   const [selected, setSelected] = useState<FixSystem>(fix.selected);
   const tabs = useRef<Partial<Record<FixSystem, HTMLButtonElement | null>>>({});
   const panelId = `${cardId}-panel`;
@@ -50,7 +54,7 @@ export function FixTabs({ cardId, fix }: { cardId: string; fix: SystemsFix }) {
   return (
     <>
       <div className="flex flex-col gap-3 px-[18px] pt-4">
-        <h3 className={`${s.h3s} m-0!`}>{T.fixHeading}</h3>
+        <Heading className={`${s.h3s} m-0!`}>{T.fixHeading}</Heading>
         <div className={s.tabs} role="tablist" aria-label={T.tablistLabel}>
           {FIX_SYSTEMS.map((system) => {
             const on = system === selected;

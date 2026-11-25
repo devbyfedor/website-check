@@ -64,7 +64,9 @@ export function regionBottom(selector: string): number | null {
 export const EXTRA_CARDS = 'article section[id^="fund-"]:not(#fund-1)';
 // Session B5 part 2: the list of manual checks and hints under the cards (Fedor's decision, a state without design); the
 // reference has none, so the comparisons of the whole report hide it too (and print how many parts were hidden).
-export const EXTRA_PARTS = `${EXTRA_CARDS}, article section[data-part="checks"]`;
+// Session C0: also the cards of the other findings with a risk under their own heading (Fedor's answer 2 of B5 part 2;
+// the example has three of them), which the reference does not have either.
+export const EXTRA_PARTS = `${EXTRA_CARDS}, article section[data-part="more-findings"], article section[data-part="checks"]`;
 
 // Runs in the page of design/reference/bericht.html after `decidedWording` (session B4 part 1): the data of the example
 // where schema v1 cannot hold the data of the reference (docs/report-schema.md, "What is missing"), so that a comparison

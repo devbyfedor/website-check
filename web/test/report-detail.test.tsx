@@ -243,8 +243,9 @@ describe('the system tabs', () => {
   it('follow the WAI-ARIA tabs pattern in the markup: one tab in the Tab order, the panel named by it', () => {
     const html = render(EXAMPLE);
     expect(html).toContain('role="tablist" aria-label="System wählen"');
-    // Session texts-fix: the second card (Google Analytics) has tabs too; these are the tabs of the first.
-    expect([...html.matchAll(/<button[^>]*role="tab"[^>]*>/g)]).toHaveLength(10);
+    // Session texts-fix: the second card (Google Analytics) has tabs too; session C0: and the card of Google Tag Manager
+    // under "Weitere Punkte mit Risiko"; these are the tabs of the first.
+    expect([...html.matchAll(/<button[^>]*role="tab"[^>]*>/g)]).toHaveLength(15);
     const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>/g)].map((m) => m[0]).filter((t) => t.includes('aria-controls="fund-1-panel"'));
     expect(tabs).toHaveLength(5);
     expect(tabs.filter((t) => t.includes('aria-selected="true"') && t.includes('tabindex="0"'))).toHaveLength(1);
@@ -252,7 +253,7 @@ describe('the system tabs', () => {
     expect(tabs.every((t) => t.includes('aria-controls="fund-1-panel"'))).toBe(true);
     expect(html).toContain('role="tabpanel" id="fund-1-panel" aria-labelledby="fund-1-tab-wordpress" tabindex="0"');
     expect(html).toContain('WordPress <small>erkannt</small>');
-    expect(html.match(/erkannt/g)).toHaveLength(2); // one per card with tabs
+    expect(html.match(/erkannt/g)).toHaveLength(3); // one per card with tabs
   });
 
   it('select the detected system, else the first without "erkannt"', () => {

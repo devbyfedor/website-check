@@ -1,25 +1,36 @@
-import { Fragment } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import type { Report } from '@website-check/scanner/report';
 import { PhraseText } from '../scan/phrase';
 import { DETAIL_TEXTS as T } from '../../lib/report-detail-texts';
-import { findingCards, type FindingCard } from '../../lib/report-detail-view';
+import { findingCards, moreFindingCards, type FindingCard } from '../../lib/report-detail-view';
 import { REPORT_TEXTS } from '../../lib/report-texts';
-import { FixTabs, Steps } from './fix-tabs';
+import { FixTabs, Steps, type HeadingLevel } from './fix-tabs';
 import s from './report.module.css';
+
+/**
+ * The heading of a level (session C0): the cards of "Drei Dinge" have their title as h2 and their parts as h3, as in
+ * bericht.html; the cards under "Weitere Punkte mit Risiko" one level lower (h3 and h4) with the same look, so that the
+ * outline of the page says that they belong to that heading.
+ */
+function H({ level, className, children }: { level: HeadingLevel; className: string | undefined; children: ReactNode }) {
+  return level === 2 ? <h2 className={className}>{children}</h2> : level === 3 ? <h3 className={className}>{children}</h3> : <h4 className={className}>{children}</h4>;
+}
 
 // The box of the "Montageanleitung" (bericht.html): with the system tabs when our texts have steps by system, else the
 // steps without a system under the same heading (a state the design does not show, from its elements). Session B4
 // part 2: a finding without a fix text yet gets the box with the heading and a line that says so.
-function Fix({ card }: { card: FindingCard }) {
+function Fix({ card, level }: { card: FindingCard; level: HeadingLevel }) {
   const fix = card.fix;
   return (
     <div className={s.fixBox}>
       {fix.kind === 'systems' ? (
-        <FixTabs cardId={card.id} fix={fix} />
+        <FixTabs cardId={card.id} fix={fix} level={level} />
       ) : (
         <>
           <div className="px-[18px] pt-4">
-            <h3 className={`${s.h3s} m-0!`}>{T.fixHeading}</h3>
+            <H level={level} className={`${s.h3s} m-0!`}>
+              {T.fixHeading}
+            </H>
           </div>
           <div className="px-[22px] pt-[22px] pb-6">{fix.kind === 'general' ? <Steps steps={fix.steps} /> : <p className={s.bodys}>{T.noFix}</p>}</div>
         </>
@@ -52,16 +63,18 @@ function Source({ addresses }: { addresses: string[] }) {
 // matters and the place in the source on the left, the "Montageanleitung" on the right. A part without data or text
 // is left out, never filled with a made-up value. Session B4 part 2: the country of the visit under "Was passiert" of
 // a finding about data sent before consent; a card is never empty (without any text it says that the scan found it).
-function Card({ card }: { card: FindingCard }) {
+// `level`: the level of its title (session C0); its parts are one level lower.
+function Card({ card, level }: { card: FindingCard; level: 2 | 3 }) {
+  const part = (level + 1) as HeadingLevel;
   return (
     <section id={card.id} className={`${s.sec} ${s.card}`}>
       <div className="flex flex-wrap items-center gap-4">
         <span className={s.pencil} aria-hidden="true">
           {card.number}
         </span>
-        <h2 className={s.h2s}>
+        <H level={level} className={s.h2s}>
           <PhraseText phrase={card.title} />
-        </h2>
+        </H>
         {card.field === null ? null : <span className={s.feld}>{REPORT_TEXTS.field(card.field)}</span>}
       </div>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,400px),1fr))] gap-10">
@@ -70,7 +83,9 @@ function Card({ card }: { card: FindingCard }) {
             card.country === null ? null : <Country line={card.country} />
           ) : (
             <div>
-              <h3 className={s.h3s}>{T.happens}</h3>
+              <H level={part} className={s.h3s}>
+                {T.happens}
+              </H>
               <p className={s.bodys}>
                 <PhraseText phrase={card.happens} />
               </p>
@@ -91,18 +106,22 @@ function Card({ card }: { card: FindingCard }) {
           )}
           {card.why === null ? null : (
             <div>
-              <h3 className={s.h3s}>{T.why}</h3>
+              <H level={part} className={s.h3s}>
+                {T.why}
+              </H>
               <p className={s.bodys}>{card.why}</p>
             </div>
           )}
           {card.source.length === 0 ? null : (
             <div>
-              <h3 className={s.h3s}>{T.inSource}</h3>
+              <H level={part} className={s.h3s}>
+                {T.inSource}
+              </H>
               <Source addresses={card.source} />
             </div>
           )}
         </div>
-        <Fix card={card} />
+        <Fix card={card} level={part} />
       </div>
     </section>
   );
@@ -113,8 +132,32 @@ export function FindingCards({ report }: { report: Report }) {
   return (
     <>
       {findingCards(report).map((card) => (
-        <Card key={card.id} card={card} />
+        <Card key={card.id} card={card} level={2} />
       ))}
     </>
+  );
+}
+
+/**
+ * Session C0 (Fedor's answer 2 of B5 part 2; a state the design does not show): the other findings with a risk, each a
+ * full card like those of "Drei Dinge", numbered on from them, under a heading of their own in the form of the head of
+ * the Stückliste ("Stückliste der fremden Dienste", "5 Dienste gefunden"). The cards keep the gap of the sheet between
+ * them. Shown only when there is at least one.
+ */
+export function MoreFindingCards({ report }: { report: Report }) {
+  const cards = moreFindingCards(report);
+  if (cards.length === 0) return null;
+  return (
+    <section className="flex flex-col gap-14" data-part="more-findings" aria-labelledby="weitere-funde">
+      <div className={s.sech}>
+        <h2 id="weitere-funde" className={s.h2s}>
+          {T.moreHeading}
+        </h2>
+        <span className={`${s.mut} text-[15px]`}>{T.moreCount(cards.length)}</span>
+      </div>
+      {cards.map((card) => (
+        <Card key={card.id} card={card} level={3} />
+      ))}
+    </section>
   );
 }

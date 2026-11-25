@@ -157,6 +157,8 @@ export interface FindingCard {
   number: number;
   /** "fund-1": the anchor of the link in "Drei Dinge". */
   id: string;
+  /** The id of the finding (session C0). */
+  findingId: string;
   title: Phrase;
   field: string | null;
   happens: Phrase | null;
@@ -316,35 +318,70 @@ function fixView(f: Finding, report: Report): FixView {
   return general === null ? { kind: 'missing' } : { kind: 'general', steps: general };
 }
 
+/** The card of one finding, with its number ("fund-{number}"). */
+function cardOf(f: Finding, number: number, report: Report): FindingCard {
+  const thirdParty = f.area === 'privacy' && f.serviceKey !== null && f.textId.startsWith('third-party-');
+  const happens = thirdParty ? thirdPartyHappens(f) : otherHappens(f);
+  const ta = targetActual(f, report);
+  const why = thirdParty ? (lookup(THIRD_PARTY_WHY, f.textId) ?? null) : (lookup(FINDING_TEXTS, f.textId)?.why ?? null);
+  const source = thirdParty ? sourceAddresses(f, report) : [];
+  // A card is never empty (Fedor, B4 part 2): without any text or value it says that the scan found the point.
+  const empty = happens === null && ta === null && why === null && source.length === 0;
+  return {
+    number,
+    id: `fund-${number}`,
+    findingId: f.id,
+    title: findingTitle(f),
+    field: f.field,
+    happens: empty ? T.factOnly : happens,
+    targetActual: ta,
+    why,
+    source,
+    country: countryLine(f, report),
+    fix: fixView(f, report),
+  };
+}
+
 /** One card per priority of "Drei Dinge" (at most three), numbered as there. */
 export function findingCards(report: Report): FindingCard[] {
   if (!measured(report)) return [];
   const byId = new Map(report.findings.map((f) => [f.id, f]));
   return report.priorities.slice(0, 3).flatMap((id, i) => {
     const f = byId.get(id);
-    if (f === undefined) return [];
-    const thirdParty = f.area === 'privacy' && f.serviceKey !== null && f.textId.startsWith('third-party-');
-    const happens = thirdParty ? thirdPartyHappens(f) : otherHappens(f);
-    const ta = targetActual(f, report);
-    const why = thirdParty ? (lookup(THIRD_PARTY_WHY, f.textId) ?? null) : (lookup(FINDING_TEXTS, f.textId)?.why ?? null);
-    const source = thirdParty ? sourceAddresses(f, report) : [];
-    // A card is never empty (Fedor, B4 part 2): without any text or value it says that the scan found the point.
-    const empty = happens === null && ta === null && why === null && source.length === 0;
-    return [
-      {
-        number: i + 1,
-        id: `fund-${i + 1}`,
-        title: findingTitle(f),
-        field: f.field,
-        happens: empty ? T.factOnly : happens,
-        targetActual: ta,
-        why,
-        source,
-        country: countryLine(f, report),
-        fix: fixView(f, report),
-      },
-    ];
+    return f === undefined ? [] : [cardOf(f, i + 1, report)];
   });
+}
+
+const RISK_RANK: Record<NonNullable<Finding['risk']>, number> = { high: 0, medium: 1, low: 2 };
+const KIND_RANK: Record<Finding['kind'], number> = { finding: 0, manual: 1, hint: 2, 'not-checked': 3 };
+
+/**
+ * Session C0 (Fedor's answer 2 of B5 part 2): every other finding with a risk (the builder's rule for "Drei Dinge": a
+ * risk, and a finding or a manual check) gets a full card of its own under "Weitere Punkte mit Risiko", after the cards
+ * of "Drei Dinge" and before "Bitte selbst prüfen". In the order of the plan, as if it went on: risk first, then
+ * findings before manual checks, then the order of the report; numbered on from the plan ("fund-4", …).
+ */
+export function moreFindingCards(report: Report): FindingCard[] {
+  const first = report.priorities.slice(0, 3).length + 1;
+  return moreFindings(report).map((f, i) => cardOf(f, first + i, report));
+}
+
+function moreFindings(report: Report): Finding[] {
+  if (!measured(report)) return [];
+  const plan = new Set(report.priorities.slice(0, 3));
+  return report.findings
+    .map((f, index) => ({ f, index }))
+    .filter(({ f }) => f.risk !== null && (f.kind === 'finding' || f.kind === 'manual') && !plan.has(f.id))
+    .sort((a, b) => RISK_RANK[a.f.risk!] - RISK_RANK[b.f.risk!] || KIND_RANK[a.f.kind] - KIND_RANK[b.f.kind] || a.index - b.index)
+    .map(({ f }) => f);
+}
+
+/**
+ * The ids of the findings with a card of their own: the priorities of "Drei Dinge" and every other finding with a
+ * risk (session C0). The list "Bitte selbst prüfen" leaves them out.
+ */
+export function cardedIds(report: Report): Set<string> {
+  return new Set([...report.priorities.slice(0, 3), ...moreFindings(report).map((f) => f.id)]);
 }
 
 // ---------------------------------------------------------------------------------------------
