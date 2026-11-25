@@ -326,3 +326,32 @@
   height: 16px;
   border-left: 2px dashed var(--color-ink);
 }
+
+/* Session B3 part 2, the states without design, from elements of the lower part of bericht.html. */
+/* The outlined link of the sheet (".sheet a.gl", "Arbeitsauftrag für Ihren Entwickler"). */
+.sheet a.gl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 58px;
+  padding: 0 22px;
+  border: 1.5px solid var(--color-ink);
+  color: var(--color-ink);
+  text-decoration: none;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 19px;
+  box-sizing: border-box;
+}
+.sheet a.gl:hover {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+/* The dashed box of the "Revisionen" ("So erscheint ein erledigter Fund …"): a note of the report. */
+.note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  border: 1.5px dashed var(--color-line);
+}

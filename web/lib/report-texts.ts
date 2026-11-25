@@ -78,6 +78,29 @@ export const REPORT_TEXTS = {
   disclaimer: 'Automatische Schnellprüfung. Keine Rechtsberatung und kein vollständiges Audit.',
 } as const;
 
+/**
+ * The report page of a real scan without a report to show (session B3 part 2; every text a DRAFT, docs/content-drafts.md,
+ * "Session B3 part 2"). Built from elements of bericht.html: the heading of a section, a paragraph and the outlined
+ * link of the sheet (`.gl`, "Arbeitsauftrag für Ihren Entwickler").
+ */
+export const PAGE_TEXTS = {
+  loading: 'Der Bericht wird geladen.',
+  notReady: {
+    title: 'Der Bericht ist noch nicht fertig.',
+    text: 'Die Prüfung läuft noch. Auf der Seite der Prüfung sehen Sie, wie weit sie ist, und öffnen den Bericht, sobald er fertig ist.',
+    action: 'Zur Prüfung',
+  },
+  ended: {
+    cancelled: { title: 'Zu dieser Prüfung gibt es keinen Bericht.', text: 'Sie wurde aus der Warteschlange genommen, bevor sie begann.' },
+    'daily-limit': { title: 'Zu dieser Prüfung gibt es keinen Bericht.', text: 'Sie konnte nicht beginnen, weil an diesem Tag alle Prüfungen vergeben waren.' },
+    other: { title: 'Die Prüfung ist bei uns fehlgeschlagen.', text: 'Deshalb gibt es keinen Bericht. Bitte starten Sie eine neue Prüfung.' },
+  },
+  notFound: { title: 'Diesen Bericht finden wir nicht.', text: 'Der Link ist unvollständig, oder der Bericht ist nicht mehr gespeichert.' },
+  error: { title: 'Den Bericht können wir gerade nicht anzeigen.', text: 'Bitte laden Sie diese Seite in einigen Minuten neu.' },
+  newScan: 'Neue Prüfung', // reference
+  reload: 'Neu laden', // draft of B2 part 3
+} as const;
+
 /** "Merkmal" of each Prüfmaß (reference). */
 export const MEASURE_NAMES: Record<MeasureId, string> = {
   'third-party-before-consent': 'Fremde Dienste vor der Einwilligung',
