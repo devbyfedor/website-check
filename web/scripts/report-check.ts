@@ -195,7 +195,11 @@ function facts(r: Report): string[] {
   out.push('Revision|A, Erstprüfung');
   // A country only when it names one: not XX (Cloudflare's unknown), ZZ or a code without a German name.
   const country = r.visit.country === null || ['XX', 'ZZ'].includes(r.visit.country) ? undefined : new Intl.DisplayNames(['de'], { type: 'region', fallback: 'none' }).of(r.visit.country);
-  if (country !== undefined && country !== r.visit.country) out.push(`Aufgerufen aus|${country}`);
+  // Session B4 part 1 (Fedor's answer 3): with a note on where the browser runs and how it is set.
+  const eu = ['AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'].includes(r.visit.country ?? '');
+  const german = r.visit.locale === 'de-DE' && r.visit.timezone === 'Europe/Berlin';
+  const note = `Unser Prüfbrowser läuft in einem Rechenzentrum${eu ? ' in der EU' : ''}${german ? ' und ist eingestellt wie ein Besucher aus Deutschland: deutsche Sprache, Zeitzone Berlin' : ''}.`;
+  if (country !== undefined && country !== r.visit.country) out.push(`Aufgerufen aus|${country}|${note}`);
   return out;
 }
 
@@ -270,7 +274,7 @@ function expected(r: Report): Expected {
 function shown() {
   const txt = (el: Element | null | undefined): string => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
   const h1 = document.querySelector('h1')?.textContent ?? '';
-  const facts = Array.from(document.querySelectorAll('main dl > div')).map((d) => `${txt(d.querySelector('dt'))}|${txt(d.querySelector('dd'))}`);
+  const facts = Array.from(document.querySelectorAll('main dl > div')).map((d) => [txt(d.querySelector('dt')), ...Array.from(d.querySelectorAll('dd'), (dd) => txt(dd))].join('|'));
   const measures = Array.from(document.querySelectorAll('main table tbody tr')).map((tr) => Array.from(tr.querySelectorAll('td'), (td) => txt(td)).join('|'));
   const priorities = Array.from(document.querySelectorAll('main ol > li')).map((li) => {
     const meta = li.querySelector('div > span');

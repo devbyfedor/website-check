@@ -43,8 +43,15 @@ describe('every example state', () => {
 
 describe('head', () => {
   it('names the country of the visit when the report knows it, after the four facts of the reference', () => {
-    expect(headFacts(reportOf('land')).at(-1)).toEqual({ label: 'Aufgerufen aus', value: 'Niederlande' });
-    expect(headFacts(reportOf('zwei-punkte')).at(-1)).toEqual({ label: 'Aufgerufen aus', value: 'Deutschland' });
+    // With the note of B4 part 1 (Fedor's answer 3): a browser in the EU, set like a visitor from Germany.
+    const note = 'Unser Prüfbrowser läuft in einem Rechenzentrum in der EU und ist eingestellt wie ein Besucher aus Deutschland: deutsche Sprache, Zeitzone Berlin.';
+    expect(headFacts(reportOf('land')).at(-1)).toEqual({ label: 'Aufgerufen aus', value: 'Niederlande', note });
+    expect(headFacts(reportOf('zwei-punkte')).at(-1)).toEqual({ label: 'Aufgerufen aus', value: 'Deutschland', note });
+    // "in der EU" only for a country of the EU; the settings only when the report says de-DE and Europe/Berlin.
+    const swiss = { ...reportOf('land'), visit: { ...reportOf('land').visit, country: 'CH' } } as Report;
+    expect(headFacts(swiss).at(-1)?.note).toBe('Unser Prüfbrowser läuft in einem Rechenzentrum und ist eingestellt wie ein Besucher aus Deutschland: deutsche Sprache, Zeitzone Berlin.');
+    const english = { ...reportOf('land'), visit: { ...reportOf('land').visit, locale: 'en-US' } } as Report;
+    expect(headFacts(english).at(-1)?.note).toBe('Unser Prüfbrowser läuft in einem Rechenzentrum in der EU.');
     expect(headFacts(EXAMPLE).map((f) => f.label)).toEqual(['Geprüft am', 'System', 'Geprüfte Seiten', 'Revision']);
     expect(countryName('DE')).toBe('Deutschland');
     // Codes that name no country: Cloudflare's XX (unknown), ZZ, and a code the browser has no name for (review of B3 part 2).
