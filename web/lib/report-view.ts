@@ -11,6 +11,7 @@ import {
   FILE_TYPE_WORDS,
   fill,
   GENERAL_TITLE,
+  lookup,
   MEASURE_NAMES,
   MEASURE_VALUE_TEXTS as V,
   REPORT_TEXTS as T,
@@ -50,13 +51,17 @@ export function systemText(platform: Report['platform']): string {
   return platform.system === 'wordpress' && platform.woocommerce ? T.withWoocommerce(name) : name;
 }
 
-/** "Deutschland" for "DE": the German name of a country (ISO 3166), the code itself where the browser has no name. */
-export function countryName(code: string): string {
+/**
+ * "Deutschland" for "DE": the German name of a country (ISO 3166). Null for a code that names no country: XX
+ * (Cloudflare's "unknown"), ZZ ("Unbekannte Region") and any code the browser has no name for (review of B3 part 2).
+ */
+export function countryName(code: string): string | null {
+  if (code === 'XX' || code === 'ZZ') return null;
   try {
-    const name = new Intl.DisplayNames(['de'], { type: 'region', fallback: 'code' }).of(code);
-    return name === undefined || name === '' ? code : name;
+    const name = new Intl.DisplayNames(['de'], { type: 'region', fallback: 'none' }).of(code);
+    return name === undefined || name === '' || name === code ? null : name;
   } catch {
-    return code;
+    return null;
   }
 }
 
@@ -73,7 +78,8 @@ export function headFacts(report: Report, timeZone = REPORT_TIME_ZONE): HeadFact
   facts.push({ label: T.pages, value: pages });
   facts.push({ label: T.revision, value: T.revisionInitial(report.revision.letter) });
   // The country is a two-letter code by the schema; the name comes from the browser's own list.
-  if (report.visit.country !== null) facts.push({ label: D.visitedFrom, value: countryName(report.visit.country) });
+  const country = report.visit.country === null ? null : countryName(report.visit.country);
+  if (country !== null) facts.push({ label: D.visitedFrom, value: country });
   return facts;
 }
 
@@ -84,7 +90,7 @@ export function headFacts(report: Report, timeZone = REPORT_TIME_ZONE): HeadFact
 function failedReason(report: Report): string {
   const reason = report.failure?.reason ?? 'other';
   if (reason === 'http-error') return SCAN_TEXTS.failedHttp(report.failure?.status ?? null);
-  return SCAN_TEXTS.failedReason[reason] ?? (SCAN_TEXTS.failedReason.other as string);
+  return lookup(SCAN_TEXTS.failedReason, reason) ?? (SCAN_TEXTS.failedReason.other as string);
 }
 
 /**
@@ -105,7 +111,7 @@ export function noticeLines(report: Report): string[] {
         break;
       case 'report-not-allowed': {
         const rejection = typeof notice.params.rejection === 'string' ? notice.params.rejection : 'other';
-        lines.push(D.notAllowed(SCAN_TEXTS.notAllowedReason[rejection] ?? (SCAN_TEXTS.notAllowedReason.other as string)));
+        lines.push(D.notAllowed(lookup(SCAN_TEXTS.notAllowedReason, rejection) ?? (SCAN_TEXTS.notAllowedReason.other as string)));
         break;
       }
       case 'report-failed':
@@ -187,11 +193,11 @@ export const measureRows = (report: Report): MeasureRow[] =>
 export function findingTitle(finding: Finding): Phrase {
   const p = finding.params;
   if (finding.area === 'privacy' && finding.serviceKey !== null && finding.textId.startsWith('third-party-')) {
-    const own = SERVICE_TITLES[finding.serviceKey];
+    const own = lookup(SERVICE_TITLES, finding.serviceKey);
     if (own !== undefined) return own;
     return typeof p.service === 'string' ? fill(SERVICE_TITLE, { service: p.service }, ['service']) : GENERAL_TITLE;
   }
-  const template = TITLE_TEMPLATES[finding.textId];
+  const template = lookup(TITLE_TEMPLATES, finding.textId);
   if (template === undefined) return GENERAL_TITLE;
   const values: Record<string, string | number> = {};
   for (const [k, v] of Object.entries(p)) if (typeof v === 'string' || typeof v === 'number') values[k] = v;
@@ -337,7 +343,9 @@ function rowView(row: TimelineRow, windowMs: number): TimelineRowView {
 
 export function timelineView(report: Report): TimelineView | null {
   const t = report.timeline;
-  if (t === null) return null;
+  // An almost empty page (review of B3 part 2): what was seen may belong to a protection page, not to the site, so no
+  // Zeitschnitt and none of its lines ("Kein Einwilligungsbanner erkannt.").
+  if (t === null || !measured(report)) return null;
   const banner = t.bannerVisibleAtMs !== null && t.bannerVisibleAtMs <= t.windowMs ? t.bannerVisibleAtMs : null;
   const ticks: TimelineTick[] = [];
   for (let ms = 0; ms <= t.windowMs; ms += 500) {

@@ -193,7 +193,9 @@ function facts(r: Report): string[] {
   out.push(`System|${system}`);
   out.push(`Geprüfte Seiten|${r.pages.homepage !== 'checked' ? 'keine' : r.pages.impressum === 'checked' ? 'Startseite und Impressum' : 'Startseite'}`);
   out.push('Revision|A, Erstprüfung');
-  if (r.visit.country !== null) out.push(`Aufgerufen aus|${new Intl.DisplayNames(['de'], { type: 'region' }).of(r.visit.country)}`);
+  // A country only when it names one: not XX (Cloudflare's unknown), ZZ or a code without a German name.
+  const country = r.visit.country === null || ['XX', 'ZZ'].includes(r.visit.country) ? undefined : new Intl.DisplayNames(['de'], { type: 'region', fallback: 'none' }).of(r.visit.country);
+  if (country !== undefined && country !== r.visit.country) out.push(`Aufgerufen aus|${country}`);
   return out;
 }
 
@@ -239,7 +241,8 @@ function expected(r: Report): Expected {
       if (place !== undefined) places.add(place);
     } else if (f.area === 'privacy' && f.serviceKey !== null && f.evidence.some((e) => e.type === 'request' && e.initiatorType === 'parser' && docOf(e.via) === docOf(r.site.finalUrl) && docOf(e.via) !== null)) places.add('source');
   }
-  const t = r.timeline;
+  // The Zeitschnitt only for a measured homepage (not for an almost empty page).
+  const t = measuredPage ? r.timeline : null;
   const rows = (t?.rows ?? []).map((row) => {
     let small: string;
     if (row.party === 'own' && row.kind === 'document') small = 'Ihre Seite';

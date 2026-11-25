@@ -23,7 +23,9 @@ export const barlowSemiCondensed = localFont({
 
 /**
  * Session B3 part 2 (Fedor): the latin-ext subset (Polish, Czech, Turkish and other letters of Latin Extended), so such
- * names of a scanned site are shown in the same font. Its range (written out in both calls: next/font takes only literals) is that of Google Fonts and Fontsource for latin-ext;
+ * names of a scanned site are shown in the same font. Its range (written out in both calls: next/font takes only literals) is that of Google Fonts and Fontsource for
+ * latin-ext without the code points the latin subset has (U+0131, U+0152-0153, U+0304, U+0308, U+0329, U+2020: the latin
+ * file draws them, the review of B3 part 2 found no glyph for the first three in the latin-ext file);
  * the browser loads a file only when the page has a letter in it. The faces stand first in the font lists of
  * globals.css: a letter outside the range goes on to the latin subset, and no file is preloaded. They have no fallback
  * face of their own, so a letter outside both subsets (Cyrillic, Greek, …) goes on to the fallback of the latin subset.
@@ -38,7 +40,7 @@ export const barlowExt = localFont({
   display: 'swap',
   preload: false,
   adjustFontFallback: false,
-  declarations: [{ prop: 'unicode-range', value: 'U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF' }],
+  declarations: [{ prop: 'unicode-range', value: 'U+0100-0130, U+0132-0151, U+0154-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF' }],
 });
 
 export const barlowSemiCondensedExt = localFont({
@@ -50,5 +52,5 @@ export const barlowSemiCondensedExt = localFont({
   display: 'swap',
   preload: false,
   adjustFontFallback: false,
-  declarations: [{ prop: 'unicode-range', value: 'U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF' }],
+  declarations: [{ prop: 'unicode-range', value: 'U+0100-0130, U+0132-0151, U+0154-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF' }],
 });

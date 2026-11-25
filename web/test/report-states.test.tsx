@@ -47,7 +47,10 @@ describe('head', () => {
     expect(headFacts(reportOf('zwei-punkte')).at(-1)).toEqual({ label: 'Aufgerufen aus', value: 'Deutschland' });
     expect(headFacts(EXAMPLE).map((f) => f.label)).toEqual(['Geprüft am', 'System', 'Geprüfte Seiten', 'Revision']);
     expect(countryName('DE')).toBe('Deutschland');
-    expect(countryName('T1')).toBe('T1'); // Cloudflare's code for Tor: no region of Intl, the code stays
+    // Codes that name no country: Cloudflare's XX (unknown), ZZ, and a code the browser has no name for (review of B3 part 2).
+    for (const code of ['XX', 'ZZ', 'T1', 'QQ']) expect(countryName(code), code).toBeNull();
+    const unknown = { ...reportOf('land'), visit: { ...reportOf('land').visit, country: 'XX' } } as Report;
+    expect(headFacts(unknown).map((f) => f.label)).not.toContain('Aufgerufen aus');
   });
 
   it('a homepage that did not load: system "nicht geprüft" (never "unbekannt"), checked pages "keine"', () => {
@@ -79,7 +82,17 @@ describe('the note under the head', () => {
 
   it('says what the report shows only in part, and a page that was still loading', () => {
     const lines = noticeLines(reportOf('gekuerzt'));
-    expect(lines).toEqual([D.stillLoading, 'Die Liste zeigt die wichtigsten 60 von 86 Einträgen.', 'Die Stückliste zeigt 80 von 85 Diensten.', D.truncatedPage['homepage-text'], D.truncatedPage['homepage-links']]);
+    expect(lines).toEqual([D.stillLoading, 'Der Bericht enthält nur die wichtigsten 60 von 86 Punkten.', 'Der Bericht enthält nur 80 von 85 fremden Diensten.', D.truncatedPage['homepage-text'], D.truncatedPage['homepage-links']]);
+  });
+
+  it('a reason or a key of the report never picks a value of a prototype (review of B3 part 2)', () => {
+    const r = { ...reportOf('nicht-erlaubt'), notice: { textId: 'report-not-allowed', params: { rejection: 'constructor' } } } as Report;
+    expect(noticeLines(r)[0]).toContain('die Adresse ist für die Prüfung nicht zugelassen');
+    const base = reportOf('ohne-felder');
+    const odd = { ...base, findings: base.findings.map((f, i) => (i === 0 ? { ...f, textId: 'constructor', serviceKey: 'toString', area: 'privacy' as const } : i === 1 ? { ...f, textId: 'constructor', area: 'accessibility' as const, serviceKey: null } : f)) } as Report;
+    expect(() => renderToStaticMarkup(<ReportScreen report={odd} />)).not.toThrow();
+    const titles = priorityItems(odd).map((p) => (typeof p.title === 'string' ? p.title : p.title.map((x) => (typeof x === 'string' ? x : x.page)).join('')));
+    expect(titles.slice(0, 2).every((t) => !t.includes('function') && !t.includes('native code'))).toBe(true);
   });
 
   it('a notice the page does not know gets a general line, never its id or a reason of the page', () => {
@@ -130,6 +143,11 @@ describe('"Drei Dinge"', () => {
 });
 
 describe('Zeitschnitt', () => {
+  it('none on an almost empty page: what was seen may belong to a protection page (review of B3 part 2)', () => {
+    expect(timelineView(reportOf('fast-leer'))).toBeNull();
+    expect(text(renderToStaticMarkup(<ReportScreen report={reportOf('fast-leer')} />))).not.toMatch(/Zeitschnitt|Kein Einwilligungsbanner/);
+  });
+
   it('without a banner: no cut, the line "Kein Einwilligungsbanner erkannt."', () => {
     const view = timelineView(reportOf('zwei-punkte'));
     expect(view?.cut).toBeNull();

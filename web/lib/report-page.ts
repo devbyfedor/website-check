@@ -46,10 +46,9 @@ export async function loadReportPage(id: string, api: ReportPageApi, isId: (valu
         const scan = status.value;
         if (scan.status === 'queued' || scan.status === 'running') return { kind: 'not-ready', id, displayHost: scan.displayHost };
         if (scan.status === 'error') return { kind: 'ended', reason: scan.errorReason ?? 'other', displayHost: scan.displayHost };
-        // done: the report was stored between the two requests; ask for it again at once.
-        continue;
-      }
-      if (status.status === 404) return { kind: 'not-found' };
+        // done: the report was stored between the two requests; ask for it again after the pause (review of B3 part 2:
+        // a scan that is done without a stored report must not get three rounds at once).
+      } else if (status.status === 404) return { kind: 'not-found' };
     }
     if (attempt < REPORT_PAGE_TRIES) await api.sleep(REPORT_PAGE_RETRY_MS);
   }

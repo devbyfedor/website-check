@@ -7,6 +7,13 @@
 import type { FileType, FindingArea, FindingRisk, MeasureId, MeasureResult } from '@website-check/scanner/report';
 import type { Phrase } from '../components/scan/scan-data';
 
+/**
+ * The entry of a table of our texts for a key that comes from a report (a text id, a service key, a reason): only an
+ * own key of the table, never one of its prototype ("constructor", "toString"), so a value of the report can only pick
+ * one of our texts or none (review of B3 part 2).
+ */
+export const lookup = <T>(table: Readonly<Record<string, T>>, key: string): T | undefined => (Object.hasOwn(table, key) ? table[key] : undefined);
+
 /** German decimal comma: 2.9 → "2,9", 4.5 → "4,5", 21 → "21". */
 export const decimal = (n: number): string => String(n).replace('.', ',');
 
@@ -110,9 +117,9 @@ export const STATE_DRAFTS = {
   stillLoading: 'Ihre Startseite lud nach 15 Sekunden noch weitere Inhalte. Der Bericht zeigt, was bis dahin geladen war; später geladene Inhalte und Dienste sind nicht enthalten.',
   /** A notice of a text id this page does not know (B2 part 3). */
   otherNotice: 'Der Bericht zeigt, was wir prüfen konnten.',
-  /** `report-truncated-findings`, `report-truncated-services`, `report-truncated-page` (fix-a4). */
-  truncatedFindings: (shown: number, total: number) => `Die Liste zeigt die wichtigsten ${shown} von ${total} Einträgen.`,
-  truncatedServices: (shown: number, total: number) => `Die Stückliste zeigt ${shown} von ${total} Diensten.`,
+  /** `report-truncated-findings` and `-services` in words that do not name a list the page does not show yet (review of B3 part 2); `report-truncated-page` (fix-a4). */
+  truncatedFindings: (shown: number, total: number) => `Der Bericht enthält nur die wichtigsten ${shown} von ${total} Punkten.`,
+  truncatedServices: (shown: number, total: number) => `Der Bericht enthält nur ${shown} von ${total} fremden Diensten.`,
   truncatedPage: {
     'homepage-text': 'Die Startseite hat mehr Text, als die Prüfung liest (100 000 Zeichen). Der Rest wurde nicht gelesen.',
     'homepage-links': 'Die Startseite hat Links, die die Prüfung nicht gelesen hat (mehr als 1 500 Links oder ungewöhnlich lange Adressen).',
@@ -138,6 +145,8 @@ export const STATE_DRAFTS = {
  */
 export const PAGE_TEXTS = {
   loading: 'Der Bericht wird geladen.',
+  /** The status region of the live page (not shown, only read): the report is there. */
+  loaded: 'Der Bericht ist geladen.',
   notReady: {
     title: 'Der Bericht ist noch nicht fertig.',
     text: 'Die Prüfung läuft noch. Auf der Seite der Prüfung sehen Sie, wie weit sie ist, und öffnen den Bericht, sobald er fertig ist.',

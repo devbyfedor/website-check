@@ -1,5 +1,6 @@
 import type { Finding, Report } from '@website-check/scanner/report';
 import type { MarkPlace, Phrase, PlotMark, ScanScreenData, ScanStep } from '../components/scan/scan-data';
+import { lookup } from './report-texts';
 import { nextUtcDay, SCAN_TEXTS as T, SYSTEM_NAMES, whenText } from './scan-texts';
 
 // What the real scan screen shows (session B2 part 2, Fedor's answers 1 and 3; the states without design of part 3): before the report no row with a
@@ -112,10 +113,10 @@ function notLoadedRow(report: Report): Omit<ScanStep, 'delay'> {
   if (report.state === 'blocked') return { title: T.blockedPage, detail: T.blockedPageDetail(report.failure?.status ?? null, report.scan.mode === 'quick'), unchecked: true };
   if (report.state === 'not-allowed') {
     const rejection = typeof report.notice?.params.rejection === 'string' ? report.notice.params.rejection : 'other';
-    return { title: T.notAllowedPage, detail: T.notAllowedReason[rejection] ?? T.notAllowedReason.other!, unchecked: true };
+    return { title: T.notAllowedPage, detail: lookup(T.notAllowedReason, rejection) ?? T.notAllowedReason.other!, unchecked: true };
   }
   const reason = report.failure?.reason ?? 'other';
-  const detail = reason === 'http-error' ? T.failedHttp(report.failure?.status ?? null) : (T.failedReason[reason] ?? T.failedReason.other!);
+  const detail = reason === 'http-error' ? T.failedHttp(report.failure?.status ?? null) : (lookup(T.failedReason, reason) ?? T.failedReason.other!);
   return { title: T.failedPage, detail, unchecked: true };
 }
 

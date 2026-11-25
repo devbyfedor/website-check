@@ -23,11 +23,11 @@ function content(state: Shown, here: string): { title: string; text: string | nu
 // The report page without a report to show (session B3 part 2), built from elements of bericht.html: the head of the
 // report ("Prüfbericht für {domain}") when the address is known, the heading of a section, a paragraph and the outlined
 // link of the sheet (`.gl`). Not designed: Fedor looks at each state (npm run preview:examples, /bericht/beispiel/<state>).
-export function ReportPageStateView({ state, here }: { state: Shown; here: string }) {
+export function ReportPageStateView({ state, here, status }: { state: Shown; here: string; status?: string }) {
   const c = content(state, here);
   const Heading = c.host === null ? 'h1' : 'h2';
   return (
-    <ReportFrame>
+    <ReportFrame {...(status !== undefined ? { status } : {})}>
       {c.host === null ? null : (
         <section className={`${s.sec} ${s.headSec}`}>
           <h1 className="m-0 flex flex-col gap-1.5 font-head font-semibold text-ink">
@@ -36,7 +36,7 @@ export function ReportPageStateView({ state, here }: { state: Shown; here: strin
           </h1>
         </section>
       )}
-      <section className={s.sec} {...(state.kind === 'loading' ? { role: 'status' } : {})}>
+      <section className={s.sec}>
         <Heading className={s.h2s}>{c.title}</Heading>
         {c.text === null ? null : <p className={`${s.bodys} max-w-[46em]`}>{c.text}</p>}
         {c.action === null ? null : (

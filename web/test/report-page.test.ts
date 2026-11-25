@@ -57,10 +57,14 @@ describe('the report page of a real scan (B3 part 2)', () => {
     }
   });
 
-  it('409 and then done: the report was stored in between and is asked for again', async () => {
+  it('409 and then done: the report was stored in between and is asked for again after the pause', async () => {
     const a = api([{ ok: false, status: 409 }, { ok: true, value: REPORT }], [scan('done')]);
     expect(await loadReportPage(ID, a.value, isScanId)).toEqual({ kind: 'report', report: REPORT });
-    expect(a.calls).toEqual({ report: 2, status: 1, sleeps: 0 });
+    expect(a.calls).toEqual({ report: 2, status: 1, sleeps: 1 });
+    // Done without a stored report: three rounds with pauses, then our error (review of B3 part 2).
+    const b = api([{ ok: false, status: 409 }], [scan('done')]);
+    expect(await loadReportPage(ID, b.value, isScanId)).toEqual({ kind: 'error' });
+    expect(b.calls).toEqual({ report: REPORT_PAGE_TRIES, status: REPORT_PAGE_TRIES, sleeps: REPORT_PAGE_TRIES - 1 });
   });
 
   it('409 and a 404 of the status: "not found"', async () => {
