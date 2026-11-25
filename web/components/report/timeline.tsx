@@ -74,6 +74,13 @@ export function Timeline({ report }: { report: Report }) {
               </div>
             </div>
           )}
+          {/* Session B3 part 2: no cut A–A (no banner seen, or a banner after the window), no third party in the window. */}
+          {view.lines.map((line) => (
+            <div key={line} className={`${s.trow} ${s.trowShort}`}>
+              <span className={s.tlab} />
+              <span className="text-[13.5px] text-ink">{line}</span>
+            </div>
+          ))}
         </div>
       </ScrollBox>
       <div className="flex flex-wrap gap-x-7 gap-y-2.5 text-[14px] text-ink-muted">
@@ -85,10 +92,12 @@ export function Timeline({ report }: { report: Report }) {
           <span className={`${s.own} box-border h-3 w-[22px]`} />
           {T.legendOwn}
         </span>
-        <span className="inline-flex items-center gap-2">
-          <span className={s.cutKey} />
-          {T.legendCut}
-        </span>
+        {cut === null ? null : (
+          <span className="inline-flex items-center gap-2">
+            <span className={s.cutKey} />
+            {T.legendCut}
+          </span>
+        )}
       </div>
     </section>
   );

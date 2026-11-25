@@ -4,6 +4,7 @@ import { REPORT_TEXTS as T } from '../../lib/report-texts';
 import { SiteFooter } from '../site-footer';
 import { HeaderAction, SiteHeader, SiteNav } from '../site-header';
 import { Measures } from './measures';
+import { Notices } from './notices';
 import { Priorities } from './priorities';
 import { ReportHead } from './report-head';
 import s from './report.module.css';
@@ -37,6 +38,7 @@ export function ReportScreen({ report, timeZone }: { report: Report; timeZone?: 
   return (
     <ReportFrame>
       <ReportHead report={report} {...(timeZone !== undefined ? { timeZone } : {})} />
+      <Notices report={report} />
       <Measures report={report} />
       <Priorities report={report} />
       <Timeline report={report} />

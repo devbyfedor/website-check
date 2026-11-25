@@ -22,6 +22,8 @@ function Result({ result }: { result: MeasureRow['result'] }) {
 // "Prüfmaße" (bericht.html): Merkmal, Soll, Ist and Ergebnis of every row of `measures`, in their order. The table
 // scrolls sideways inside its box when the window is narrow (WCAG 1.4.10 allows it for a data table).
 export function Measures({ report }: { report: Report }) {
+  // A report whose homepage did not load has no Prüfmaße (blocked, refused, failed): no table, no empty rows.
+  if (report.measures.length === 0) return null;
   return (
     <section className={s.sec}>
       <div className={s.sech}>

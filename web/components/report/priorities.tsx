@@ -2,7 +2,7 @@ import type { Report } from '@website-check/scanner/report';
 import type { MarkPlace } from '../scan/scan-data';
 import { PhraseText } from '../scan/phrase';
 import { REPORT_TEXTS as T } from '../../lib/report-texts';
-import { planLabel, planMarks, priorityItems } from '../../lib/report-view';
+import { measured, planLabel, planMarks, prioritiesHeading, priorityItems } from '../../lib/report-view';
 import s from './report.module.css';
 
 // The red marks of the plan by their place (bericht.html): the shape, its draw delay, the number's place and delay.
@@ -68,14 +68,21 @@ function Plan({ report }: { report: Report }) {
 }
 
 // "Drei Dinge sollten Sie zuerst beheben" (bericht.html): the priorities of the report with number, title, area and
-// risk, and the "Feld" caption when the report names the field; beside them the plan.
+// risk, and the "Feld" caption when the report names the field; beside them the plan. Session B3 part 2: the heading
+// follows the number of priorities (drafts for two, one and none); a report that measured no homepage (blocked,
+// refused, failed, an almost empty page) has no such section.
 export function Priorities({ report }: { report: Report }) {
+  if (!measured(report)) return null;
+  const items = priorityItems(report);
+  const { heading, none } = prioritiesHeading(report);
   return (
     <section className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,440px),1fr))] items-center gap-12">
       <div className="flex min-w-0 flex-col gap-[22px]">
-        <h2 className={s.h2s}>{T.prioritiesHeading}</h2>
+        <h2 className={s.h2s}>{heading}</h2>
+        {none === null ? null : <p className={s.bodys}>{none}</p>}
+        {items.length === 0 ? null : (
         <ol className="m-0 flex list-none flex-col gap-[22px] p-0">
-          {priorityItems(report).map((p) => (
+          {items.map((p) => (
             <li key={p.number} className="flex items-start gap-4">
               <span className={s.pencil} aria-hidden="true">
                 {p.number}
@@ -93,6 +100,7 @@ export function Priorities({ report }: { report: Report }) {
             </li>
           ))}
         </ol>
+        )}
       </div>
       <Plan report={report} />
     </section>

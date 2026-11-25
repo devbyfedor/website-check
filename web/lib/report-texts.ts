@@ -79,6 +79,57 @@ export const REPORT_TEXTS = {
 } as const;
 
 /**
+ * States of the upper part of the report that the design does not show (session B3 part 2; every text a DRAFT,
+ * docs/content-drafts.md, "Session B3 part 2", or a draft of an earlier session named there).
+ */
+export const STATE_DRAFTS = {
+  /** The fifth fact of the head: the country the browser visited the site from (Fedor, 21.11.2026). */
+  visitedFrom: 'Aufgerufen aus',
+  /** "System" when the part was not checked (the page did not load). */
+  systemNotChecked: 'nicht geprüft',
+  /** "Geprüfte Seiten" when the homepage was not checked. */
+  pagesNone: 'keine',
+  /** "Ist" of "Bilder mit Beschreibung" on a page without images (Fedor, 24.11.2026). */
+  noImages: 'keine Bilder',
+  /** "Ist" of a row that was checked but has no value (an unsure result, or a capture of older code). */
+  notDetermined: 'nicht ermittelt',
+  /** The label of the notes of the report (the dashed box of the "Revisionen"). */
+  noteLabel: 'Hinweis',
+  quick:
+    'Schnellprüfung ohne Browser: Wir haben nur den Quelltext Ihrer Startseite gelesen, so wie Ihr Server ihn ausliefert. Fremde Dienste und Barrierefreiheit sind deshalb nicht geprüft. Die vollständige Prüfung ist morgen wieder möglich.',
+  blocked: (status: number | null, quick: boolean) =>
+    `Ihre Website hat ${quick ? 'unsere Abfrage' : 'unseren Browser'} nicht durchgelassen${status === null ? '' : ` (Antwort ${status})`}. Deshalb zeigt der Bericht keine Funde.${quick ? ' Die vollständige Prüfung ist morgen wieder möglich.' : ''}`,
+  failed: (reason: string) => `Ihre Startseite ließ sich nicht prüfen: ${reason}. Deshalb zeigt der Bericht keine Funde.`,
+  notAllowed: (reason: string) => `Diese Adresse dürfen wir nicht prüfen: ${reason}. Deshalb zeigt der Bericht keine Funde.`,
+  /** `report-page-almost-empty` (fix-a1, fix-a2). */
+  almostEmpty:
+    'Die Seite hat bei unserem Besuch fast keinen Inhalt gezeigt. Möglicherweise hat ein Schutz vor automatischen Zugriffen unsere Prüfung nicht durchgelassen. Was wir gesehen haben, kann zu diesem Schutz gehören und nicht zu Ihrer Website. Deshalb zeigen wir keine Befunde, sondern nur Punkte, die Sie bitte manuell prüfen.',
+  /** `report-page-still-loading` (fix-a6). */
+  stillLoading: 'Ihre Startseite lud nach 15 Sekunden noch weitere Inhalte. Der Bericht zeigt, was bis dahin geladen war; später geladene Inhalte und Dienste sind nicht enthalten.',
+  /** A notice of a text id this page does not know (B2 part 3). */
+  otherNotice: 'Der Bericht zeigt, was wir prüfen konnten.',
+  /** `report-truncated-findings`, `report-truncated-services`, `report-truncated-page` (fix-a4). */
+  truncatedFindings: (shown: number, total: number) => `Die Liste zeigt die wichtigsten ${shown} von ${total} Einträgen.`,
+  truncatedServices: (shown: number, total: number) => `Die Stückliste zeigt ${shown} von ${total} Diensten.`,
+  truncatedPage: {
+    'homepage-text': 'Die Startseite hat mehr Text, als die Prüfung liest (100 000 Zeichen). Der Rest wurde nicht gelesen.',
+    'homepage-links': 'Die Startseite hat Links, die die Prüfung nicht gelesen hat (mehr als 1 500 Links oder ungewöhnlich lange Adressen).',
+    'impressum-text': 'Das Impressum hat mehr Text, als die Prüfung liest (100 000 Zeichen). Der Rest wurde nicht gelesen.',
+    'impressum-links': 'Das Impressum hat Links, die die Prüfung nicht gelesen hat.',
+    headers: 'Ein Header der Startseite hat einen Wert, der für die Prüfung zu lang ist. Er wurde nicht ausgewertet.',
+  } as const,
+  /** The heading of "Drei Dinge" with fewer than three priorities, and without any. */
+  prioritiesTwo: 'Zwei Dinge sollten Sie zuerst beheben',
+  prioritiesOne: 'Das sollten Sie zuerst beheben',
+  prioritiesNone: 'Keine vorrangigen Punkte',
+  prioritiesNoneText: 'In den geprüften Teilen hat die automatische Prüfung keinen Punkt mit Risiko gefunden.',
+  /** The Zeitschnitt without the cut A–A, and without a third-party request in its window. */
+  bannerNotSeen: 'Kein Einwilligungsbanner erkannt.',
+  bannerLater: (seconds: string) => `Einwilligungsbanner erscheint nach ${seconds} s, nach diesem Ausschnitt.`,
+  noThirdParty: 'In den ersten drei Sekunden keine Anfrage an fremde Server.',
+} as const;
+
+/**
  * The report page of a real scan without a report to show (session B3 part 2; every text a DRAFT, docs/content-drafts.md,
  * "Session B3 part 2"). Built from elements of bericht.html: the heading of a section, a paragraph and the outlined
  * link of the sheet (`.gl`, "Arbeitsauftrag für Ihren Entwickler").

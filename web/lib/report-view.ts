@@ -15,12 +15,14 @@ import {
   REPORT_TEXTS as T,
   RESULT_TEXTS,
   RISK_TEXTS,
+  seconds,
   SERVICE_TITLE,
   SERVICE_TITLES,
+  STATE_DRAFTS as D,
   STATE_TEXTS,
   TITLE_TEMPLATES,
 } from './report-texts';
-import { SYSTEM_NAMES } from './scan-texts';
+import { SCAN_TEXTS, SYSTEM_NAMES } from './scan-texts';
 import { priorityPlaces } from './scan-view';
 
 export const REPORT_TIME_ZONE = 'Europe/Berlin';
@@ -47,15 +49,87 @@ export function systemText(platform: Report['platform']): string {
   return platform.system === 'wordpress' && platform.woocommerce ? T.withWoocommerce(name) : name;
 }
 
-/** The four facts under the heading, in the order of the reference. */
+/** "Deutschland" for "DE": the German name of a country (ISO 3166), the code itself where the browser has no name. */
+export function countryName(code: string): string {
+  try {
+    const name = new Intl.DisplayNames(['de'], { type: 'region', fallback: 'code' }).of(code);
+    return name === undefined || name === '' ? code : name;
+  } catch {
+    return code;
+  }
+}
+
+/**
+ * The facts under the heading: the four of the reference in its order, and (session B3 part 2) the country the site
+ * was visited from, when the report knows it (Fedor, 21.11.2026). A system that was not checked is "nicht geprüft",
+ * never "unbekannt"; a homepage that was not checked leaves "keine" checked pages.
+ */
 export function headFacts(report: Report, timeZone = REPORT_TIME_ZONE): HeadFact[] {
   const facts: HeadFact[] = [];
   if (report.scan.scannedAt !== null) facts.push({ label: T.scannedAt, value: scannedAtText(report.scan.scannedAt, timeZone) });
-  facts.push({ label: T.system, value: systemText(report.platform) });
-  facts.push({ label: T.pages, value: report.pages.impressum === 'checked' ? T.pagesBoth : T.pagesHomepage });
+  facts.push({ label: T.system, value: report.sections.platform.status === 'checked' ? systemText(report.platform) : D.systemNotChecked });
+  const pages = report.pages.homepage !== 'checked' ? D.pagesNone : report.pages.impressum === 'checked' ? T.pagesBoth : T.pagesHomepage;
+  facts.push({ label: T.pages, value: pages });
   facts.push({ label: T.revision, value: T.revisionInitial(report.revision.letter) });
+  // The country is a two-letter code by the schema; the name comes from the browser's own list.
+  if (report.visit.country !== null) facts.push({ label: D.visitedFrom, value: countryName(report.visit.country) });
   return facts;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Notes of a report that is not a plain complete check (session B3 part 2)
+
+/** Why the homepage was not loaded, as the scan screen says it (drafts of B2 part 3). */
+function failedReason(report: Report): string {
+  const reason = report.failure?.reason ?? 'other';
+  if (reason === 'http-error') return SCAN_TEXTS.failedHttp(report.failure?.status ?? null);
+  return SCAN_TEXTS.failedReason[reason] ?? (SCAN_TEXTS.failedReason.other as string);
+}
+
+/**
+ * The lines of the note under the head: the state of the report (quick check, blocked, refused, failed, almost
+ * empty page), a page that was still loading, and what the report shows only in part (`truncated`). Empty for a plain
+ * complete check. Every line is our own text: a reason of the page is never shown as it is.
+ */
+export function noticeLines(report: Report): string[] {
+  const lines: string[] = [];
+  const notice = report.notice;
+  if (notice !== null) {
+    switch (notice.textId) {
+      case 'report-quick-incomplete':
+        lines.push(D.quick);
+        break;
+      case 'report-blocked':
+        lines.push(D.blocked(report.failure?.status ?? (typeof notice.params.status === 'number' ? notice.params.status : null), notice.params.quickCheck === true || report.scan.mode === 'quick'));
+        break;
+      case 'report-not-allowed': {
+        const rejection = typeof notice.params.rejection === 'string' ? notice.params.rejection : 'other';
+        lines.push(D.notAllowed(SCAN_TEXTS.notAllowedReason[rejection] ?? (SCAN_TEXTS.notAllowedReason.other as string)));
+        break;
+      }
+      case 'report-failed':
+        lines.push(D.failed(failedReason(report)));
+        break;
+      case 'report-page-almost-empty':
+        lines.push(D.almostEmpty);
+        break;
+      default:
+        lines.push(D.otherNotice);
+    }
+    // The quick check of an almost empty page keeps its own notice with this parameter (docs/report-schema.md).
+    if (notice.textId !== 'report-page-almost-empty' && notice.params.pageAlmostEmpty === true) lines.push(D.almostEmpty);
+  }
+  if (report.scan.stopReason === 'max-wait') lines.push(D.stillLoading);
+  const c = report.counts;
+  if (report.truncated.findings) lines.push(D.truncatedFindings(report.findings.length, c.findings + c.manual + c.hints + c.notChecked));
+  if (report.truncated.services) lines.push(D.truncatedServices(report.services.length, c.services));
+  for (const part of report.truncated.page) lines.push(D.truncatedPage[part]);
+  return lines;
+}
+
+/** The homepage was measured: the plan, the priorities and the Zeitschnitt can show something. */
+export const measured = (report: Report): boolean =>
+  report.pages.homepage === 'checked' && (report.state === 'complete' || report.state === 'quick') && report.notice?.textId !== 'report-page-almost-empty' && report.notice?.params.pageAlmostEmpty !== true;
 
 // ---------------------------------------------------------------------------------------------
 // Prüfmaße
@@ -76,12 +150,15 @@ export interface MeasureRow {
  */
 export const ratioText = (ratio: number): string => decimal(Math.floor(Math.round(ratio * 1e9) / 1e8) / 10);
 
-function valueText(value: MeasureValue | null, role: 'target' | 'actual'): string {
-  if (value === null) return V.notChecked;
+function valueText(value: MeasureValue | null, role: 'target' | 'actual', m: Measure): string {
+  // Without a value: "nicht geprüft" for a row that did not run, "nicht ermittelt" for one that ran without a value.
+  if (value === null) return m.result === 'not-checked' ? V.notChecked : D.notDetermined;
   switch (value.type) {
     case 'count':
       return String(value.count);
     case 'of':
+      // A page without images passes the axe rule; the row says so instead of "0 von 0" (Fedor, 24.11.2026).
+      if (role === 'actual' && m.id === 'images-described' && value.total === 0) return D.noImages;
       return V.of(value.count, value.total);
     case 'ratio':
       return role === 'target' ? V.atLeast(decimal(value.ratio)) : V.ratio(ratioText(value.ratio));
@@ -96,8 +173,8 @@ export const measureRows = (report: Report): MeasureRow[] =>
   report.measures.map((m) => ({
     id: m.id,
     name: MEASURE_NAMES[m.id],
-    target: valueText(m.target, 'target'),
-    actual: valueText(m.actual, 'actual'),
+    target: valueText(m.target, 'target', m),
+    actual: valueText(m.actual, 'actual', m),
     bad: m.result === 'fail',
     result: RESULT_TEXTS[m.result],
   }));
@@ -132,6 +209,18 @@ export interface PriorityItem {
   /** "Feld B2", only when the report names the field (Fedor, B3 part 1, answer 3). */
   field: string | null;
   href: string;
+}
+
+/**
+ * The heading of "Drei Dinge" by the number of priorities: the reference's for three, drafts for two, one and none
+ * (session B3 part 2); with none, a line says so for the parts that were checked.
+ */
+export function prioritiesHeading(report: Report): { heading: string; none: string | null } {
+  const n = priorityItems(report).length;
+  if (n >= 3) return { heading: T.prioritiesHeading, none: null };
+  if (n === 2) return { heading: D.prioritiesTwo, none: null };
+  if (n === 1) return { heading: D.prioritiesOne, none: null };
+  return { heading: D.prioritiesNone, none: D.prioritiesNoneText };
 }
 
 export function priorityItems(report: Report): PriorityItem[] {
@@ -202,6 +291,8 @@ export interface TimelineView {
   rows: TimelineRowView[];
   ticks: TimelineTick[];
   cut: { left: string; text: string } | null;
+  /** Lines under the chart when there is no cut A–A or no third party in the window (session B3 part 2). */
+  lines: string[];
 }
 
 /**
@@ -241,9 +332,14 @@ export function timelineView(report: Report): TimelineView | null {
     const edge = ms === 0 ? 'start' : ms === t.windowMs ? 'end' : null;
     ticks.push({ text: T.tick(ms), left: edge === null ? percentOf(ms, t.windowMs) : null, edge });
   }
+  const lines: string[] = [];
+  if (t.bannerVisibleAtMs === null) lines.push(D.bannerNotSeen);
+  else if (banner === null) lines.push(D.bannerLater(seconds(t.bannerVisibleAtMs)));
+  if (!t.rows.some((r) => r.party === 'third')) lines.push(D.noThirdParty);
   return {
     rows: t.rows.map((r) => rowView(r, t.windowMs)),
     ticks,
     cut: banner === null ? null : { left: percentOf(banner, t.windowMs), text: T.bannerAfter(banner) },
+    lines,
   };
 }
