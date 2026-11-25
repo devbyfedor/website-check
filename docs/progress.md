@@ -1159,8 +1159,9 @@ Fedor's answers to the three questions of B4 part 1 and his rules for this part 
 
 ## Next
 
-- Fedor: look at the new states and the lower part of the real page (`npm run preview:examples`, the addresses above; the real path with `npm run dev:local`), the print preview, and the drafts in `docs/content-drafts.md` ("Session B4 part 2": the 95 short names and the texts of the lower part); answer the questions of the report of B4 part 2.
-- B5, first step: the merge of `b4-report` after the rule of finding 93 is checked on its history and the checks of B4 run again; then the BFSG page and the quality gate.
-- A session of its own after B4 (Fedor's answer 3): the fix texts (31 services and 10 other findings for five systems, the texts of the security headers; `docs/content-drafts.md`, "Session B4 part 1").
+- The plan from here (Fedor, message of B5 part 1), in this order:
+  1. B5 part 1 (this session): the merge of `b4-report`, the BFSG page by bfsg.html, an `npm test` that passes five times in a row without a rerun.
+  2. The session of the fix texts (Fedor's answer 3 of B4 part 1): 31 services and 10 other findings for five systems, the texts of the security headers (`docs/content-drafts.md`, "Session B4 part 1").
+  3. B5 part 2: the quality gate of the brief on a quiet machine, so that it sees the real fix texts.
 - Fedor: push `main` (the merges of B1, B2 and B3).
 - Fedor, before the launch (stage C): create the real D1 database (all five migrations) and put its id into both configs, set `RATE_LIMIT_SECRET` on the scan Worker; deploy the scan Worker first, then the API Worker. The measurements before the launch are in `docs/backlog.md`.
