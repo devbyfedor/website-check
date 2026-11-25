@@ -131,6 +131,30 @@ describe('home → scan screen → ready → "Bericht öffnen" (local wrangler d
     await link.click();
     await page.waitForURL(`${site.origin}/bericht?id=${id}`);
     expect(new URL(page.url()).searchParams.get('id')).toBe(id);
+
+    // Session B3 part 2: the report page of the real id shows the report of the API: the domain, the facts of the head,
+    // one row per Prüfmaß, the Zeitschnitt with one row per row of the report, the last line of every report.
+    const report = (await api(`/api/scans/${id}/report`)).json as { site: { displayHost: string }; measures: unknown[]; timeline: { rows: unknown[] } | null; pages: { impressum: string } };
+    await page.waitForSelector('h1 bdi', { timeout: 15_000 });
+    expect(await page.locator('h1').textContent()).toBe(`Prüfbericht für${report.site.displayHost}`);
+    const facts = await page.locator('dl > div').allTextContents();
+    expect(facts[2]).toBe(`Geprüfte Seiten${report.pages.impressum === 'checked' ? 'Startseite und Impressum' : 'Startseite'}`);
+    expect(await page.locator('table tbody tr').count()).toBe(report.measures.length);
+    expect(await page.locator('[class*="trow"] [class*="bar"]').count()).toBe(report.timeline?.rows.length ?? 0);
+    expect(await page.locator('main').textContent()).toContain('Automatische Schnellprüfung. Keine Rechtsberatung und kein vollständiges Audit.');
+    expect(await page.locator('meta[name="robots"]').getAttribute('content')).toBe('noindex, nofollow');
+    expect(await page.locator('meta[name="referrer"]').getAttribute('content')).toBe('no-referrer');
+    const reportHead = await fetch(`${site.origin}/bericht?id=${id}`);
+    expect(reportHead.headers.get('x-robots-tag')).toBe('noindex, nofollow');
+    expect(reportHead.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(watch.requests.filter((r) => new URL(r.url).host !== host).map((r) => r.url)).toEqual([]);
+    expect(watch.requests.filter((r) => new URL(r.url).pathname === `/api/scans/${id}/report`)).toHaveLength(2);
+    console.log(`report page of the scan: ${await page.locator('table tbody tr').count()} Prüfmaße, ${report.timeline?.rows.length ?? 0} rows of the Zeitschnitt`);
+
+    // An unknown id: "Diesen Bericht finden wir nicht."
+    await page.goto(`${site.origin}/bericht?id=${'a'.repeat(26)}`);
+    await page.waitForSelector('h1', { timeout: 15_000 });
+    await page.waitForFunction(`document.querySelector('h1')?.textContent === 'Diesen Bericht finden wir nicht.'`, null, { timeout: 15_000 });
     await context.close();
   }, 180_000);
 });

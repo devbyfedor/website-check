@@ -100,7 +100,9 @@
   button,
   input,
   select,
-  textarea {
+  textarea,
+  [tabindex]:not([tabindex="-1"]) {
+    /* [tabindex]: the box of a data table that scrolls sideways and takes focus (B3 part 2). */
     scroll-margin: 8px;
   }
 }
