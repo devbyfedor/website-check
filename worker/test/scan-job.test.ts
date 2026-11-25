@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createUrlGuard, validateReport, type Resolver } from '@website-check/scanner';
 import { handleRequest, queueClient } from '../src/app.ts';
 import { createApi } from '../src/api/router.ts';
@@ -8,7 +8,10 @@ import { endStuckScans, getReportText, getScan, STUCK_MS } from '../src/db/store
 import type { QueueJob } from '../src/queue/core.ts';
 import { runScanJob } from '../src/queue/job.ts';
 import { shopCapture } from '../../scanner/test/report-helpers.ts';
-import { localD1, type LocalD1 } from './d1.ts';
+import { D1_TEST_TIMEOUT_MS, localD1, type LocalD1 } from './d1.ts';
+
+// Tests against the local D1 measure no time; the timeout only stops one whose local D1 never answers (test/d1.ts).
+vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS, hookTimeout: D1_TEST_TIMEOUT_MS });
 
 /**
  * Session A5 part 3: one scan from the queue to D1 (`runScanJob`) on the local D1 with a synthetic capture

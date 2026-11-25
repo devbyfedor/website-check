@@ -29,6 +29,17 @@ export function migrationStatements(): string[] {
 
 export const TABLES = ['network_requests', 'findings', 'leads', 'scans', 'sites', 'rate_state', 'rate_salts'] as const;
 
+/**
+ * Session B5 part 1: the wall-clock timeout of every test against the local D1 (each such file sets it with
+ * `vi.setConfig`). These tests measure no time: they count answers and rows. Their duration is the round trips of
+ * their statements to the local runtime, which grow with the load of the machine: the 82 requests of the test of the
+ * day's start budget took 3.2 s on a quiet machine and over 5 s, the default timeout of Vitest, with every core busy, so
+ * the default failed tests that were right. This timeout only stops a test whose local D1 never answers. (The speed
+ * checks of the scanner measure CPU time instead, `scanner/test/speed.ts`.)
+ */
+// Also the timeout of the hooks of these files (clearing the tables before each test, closing the runtime).
+export const D1_TEST_TIMEOUT_MS = 60_000;
+
 export interface LocalD1 {
   db: D1Database;
   /** Deletes every row of every table (children first). */

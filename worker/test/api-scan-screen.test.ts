@@ -1,9 +1,12 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createUrlGuard, type Resolver } from '@website-check/scanner';
 import { newScanId } from '../src/api/ids.ts';
 import { markError, saveResult } from '../src/db/store.ts';
 import { localApi } from './api-local.ts';
-import { countingD1, localD1, type LocalD1 } from './d1.ts';
+import { D1_TEST_TIMEOUT_MS, countingD1, localD1, type LocalD1 } from './d1.ts';
+
+// Tests against the local D1 measure no time; the timeout only stops one whose local D1 never answers (test/d1.ts).
+vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS, hookTimeout: D1_TEST_TIMEOUT_MS });
 
 /**
  * Session B2 part 2: what the scan screen needs from the API. The status carries the address the visitor entered

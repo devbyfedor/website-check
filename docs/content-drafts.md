@@ -808,6 +808,13 @@ The name the report shows for a known service (Stückliste, the titles of "Drei 
 - When the browser refuses the clipboard: "Die Liste konnte nicht kopiert werden." and "Der Link konnte nicht kopiert werden." (shown next to the button and said by the status region). "Liste kopiert" is the reference's, "Link kopiert" Fedor's (B3 part 2).
 - Status: Entwurf
 
+## Session B5 part 1
+
+The BFSG page (design/reference/bfsg.html). Every text on the page is the reference's (final, not listed); the claims about the law are checked against sources in stage C (the list is in the report of B5 part 1 and in `docs/backlog.md`).
+
+- The title of the browser tab: "BFSG-Prüfschema, Website-Check DE" (the reference: "BFSG-Prüfschema, Bauplan", as the other pages: "Prüfbericht, Website-Check DE").
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/

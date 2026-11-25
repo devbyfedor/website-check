@@ -3,6 +3,7 @@ import { formatIPv4, hostNameRejection, parseAddress, parseIPv4, parseIPv6 } fro
 import { createDohResolver } from '../src/security/doh.ts';
 import { checkReadDocument, installNavigationGuard, type CdpSessionLike } from '../src/security/navigation-guard.ts';
 import { createUrlGuard, precheckUrl, safeFetch, SSRF_LIMITS, type Resolver, type UrlVerdict } from '../src/security/ssrf.ts';
+import { endsBefore } from './speed.ts';
 
 /**
  * Session A5: the SSRF protection without network and without a browser. Name resolution is a
@@ -370,10 +371,11 @@ describe('safeFetch', () => {
 
   it('stops at the time limit: no answer, a stalled body, or a slow name resolution', async () => {
     const hang = fakeFetch({ 'https://www.example.de/': { status: 200, hang: true } });
-    const started = Date.now();
-    const noAnswer = await safeFetch('https://www.example.de/', { guard: guardOf(), fetch: hang.fetch, timeoutMs: 150 });
+    // Session B5 part 1: the limit of 150 ms ends it before a timer of 2 s started with it (test/speed.ts), not "in less
+    // than 2 s by the clock", which a busy machine could break.
+    const { value: noAnswer, first } = await endsBefore(2_000, () => safeFetch('https://www.example.de/', { guard: guardOf(), fetch: hang.fetch, timeoutMs: 150 }));
     expect(noAnswer.outcome).toBe('timeout');
-    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(first).toBe(true);
     const stall = fakeFetch({ 'https://www.example.de/': { status: 200, chunks: [bytes(10)], stallBody: true } });
     expect((await safeFetch('https://www.example.de/', { guard: guardOf(), fetch: stall.fetch, timeoutMs: 150 })).outcome).toBe('timeout');
     const slowDns = createUrlGuard({ resolve: () => new Promise<string[]>(() => undefined) });

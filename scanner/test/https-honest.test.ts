@@ -9,6 +9,7 @@ import { HTTP_PROBE_BODY_LIMIT, httpsVariantOf, probeHttpRedirect, probeHttps, r
 import { createUrlGuard } from '../src/security/ssrf.ts';
 import type { HttpProbe, HttpsProbe } from '../src/security/types.ts';
 import { makeCapture } from './helpers.ts';
+import { cpuMs, endsBefore } from './speed.ts';
 import { shopCapture } from './report-helpers.ts';
 
 /**
@@ -287,22 +288,24 @@ describe('finding 19: an answer 200 on http:// that redirects inside the page', 
     expect((await probe({ status: 200, body: long })).outcome).toBe('no-redirect');
     // A body that stalls after its first bytes.
     const stalled = (async () => new Response(new ReadableStream({ start: (c) => c.enqueue(new TextEncoder().encode('<html><head>')) }), { status: 200 })) as unknown as typeof fetch;
-    const started = Date.now();
-    const p = await probeHttpRedirect(HTTP_SITE, { guard: guard(), fetch: stalled, timeoutMs: 300 });
+    // Session B5 part 1: the limit of 300 ms ends it before a timer of 2 s started with it (test/speed.ts).
+    const { value: p, first } = await endsBefore(2_000, () => probeHttpRedirect(HTTP_SITE, { guard: guard(), fetch: stalled, timeoutMs: 300 }));
     expect(p.outcome).toBe('page-not-read');
-    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(first).toBe(true);
     expect(analyzeSecurity(shopCapture({ httpProbe: p })).httpRedirect.result).toBe('manual');
     // A hostile start of a page is read in linear time.
     const hostile = `<meta ${'a="b" '.repeat(8_000)}`.slice(0, HTTP_PROBE_BODY_LIMIT) + '<'.repeat(20_000);
-    const before = Date.now();
-    scanPageStart(hostile);
-    scriptMayRedirect(`location${' '.repeat(60_000)}`);
-    scriptMayRedirect(`location'${' '.repeat(60_000)}`);
-    scriptMayRedirect(`location [${' '.repeat(60_000)}`);
-    scriptMayRedirect(`location . ${' '.repeat(2_000)}`.repeat(30));
-    scanPageStart(`<meta x="${'a'.repeat(3_990)}`.repeat(16));
-    scanPageStart('<script '.repeat(8_000));
-    scanPageStart('<body onload="'.repeat(4_500));
-    expect(Date.now() - before).toBeLessThan(1_000);
+    // Session B5 part 1: by the CPU time of this thread, which does not count the waiting for a core (test/speed.ts).
+    const { ms } = cpuMs(() => {
+      scanPageStart(hostile);
+      scriptMayRedirect(`location${' '.repeat(60_000)}`);
+      scriptMayRedirect(`location'${' '.repeat(60_000)}`);
+      scriptMayRedirect(`location [${' '.repeat(60_000)}`);
+      scriptMayRedirect(`location . ${' '.repeat(2_000)}`.repeat(30));
+      scanPageStart(`<meta x="${'a'.repeat(3_990)}`.repeat(16));
+      scanPageStart('<script '.repeat(8_000));
+      scanPageStart('<body onload="'.repeat(4_500));
+    });
+    expect(ms).toBeLessThan(1_000);
   });
 });

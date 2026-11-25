@@ -4,6 +4,7 @@ import { httpVariantOf, probeHttpRedirect, type HttpProbeOptions } from '../src/
 import { createUrlGuard } from '../src/security/ssrf.ts';
 import type { HttpProbe } from '../src/security/types.ts';
 import { makeCapture } from './helpers.ts';
+import { endsBefore } from './speed.ts';
 
 describe('header checks', () => {
   it('Strict-Transport-Security needs max-age > 0 on HTTPS', () => {
@@ -237,11 +238,15 @@ describe('probeHttpRedirect', () => {
   });
 
   it('the time limit covers name resolution (A5 review)', async () => {
-    const slow = createUrlGuard({ resolve: () => new Promise<string[]>((resolve) => setTimeout(() => resolve(['93.184.215.14']), 1_500)) });
-    const started = Date.now();
-    const result = await probe('http://www.example.de/', { fetch: fakeFetch({}).fetch, guard: slow, timeoutMs: 150 });
+    // Session B5 part 1: the probe ends before the slow name resolution answers, not "in less than 1 s by the clock",
+    // which a busy machine could break (test/speed.ts).
+    let answered = false;
+    const slow = createUrlGuard({ resolve: () => new Promise<string[]>((resolve) => setTimeout(() => ((answered = true), resolve(['93.184.215.14'])), 1_500)) });
+    // And before a timer of 1 s started with it, the bound of the earlier test (review of B5 part 1).
+    const { value: result, first } = await endsBefore(1_000, () => probe('http://www.example.de/', { fetch: fakeFetch({}).fetch, guard: slow, timeoutMs: 150 }));
     expect(result.outcome).toBe('timeout');
-    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(answered).toBe(false);
+    expect(first).toBe(true);
   });
 
   it('httpVariantOf', () => {

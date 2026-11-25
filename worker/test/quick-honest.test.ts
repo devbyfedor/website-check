@@ -1,11 +1,14 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createUrlGuard, quickCapture, validateReport } from '@website-check/scanner';
 import { getReportText } from '../src/db/store.ts';
 import { chooseMode, MemoryKv, QUEUE_LIMITS, ScanQueue, type QueueJob } from '../src/queue/core.ts';
 import { drain } from '../src/queue/drain.ts';
 import { runScanJob } from '../src/queue/job.ts';
 import { localApi } from './api-local.ts';
-import { localD1, type LocalD1 } from './d1.ts';
+import { D1_TEST_TIMEOUT_MS, localD1, type LocalD1 } from './d1.ts';
+
+// Tests against the local D1 measure no time; the timeout only stops one whose local D1 never answers (test/d1.ts).
+vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS, hookTimeout: D1_TEST_TIMEOUT_MS });
 
 /**
  * Session fix-a2, review findings 22 and 18 on the whole path: the API with its start, the local D1, the

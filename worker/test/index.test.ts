@@ -1,6 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import worker from '../src/app.ts';
-import { localD1, type LocalD1 } from './d1.ts';
+import { D1_TEST_TIMEOUT_MS, localD1, type LocalD1 } from './d1.ts';
+
+// Tests against the local D1 measure no time; the timeout only stops one whose local D1 never answers (test/d1.ts).
+vi.setConfig({ testTimeout: D1_TEST_TIMEOUT_MS, hookTimeout: D1_TEST_TIMEOUT_MS });
 
 let d1: LocalD1;
 

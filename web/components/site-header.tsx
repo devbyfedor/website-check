@@ -45,12 +45,19 @@ export function HeaderAction({ href, children, onClick }: { href: string; childr
   );
 }
 
-// The main navigation of the blueprint pages. The report has it without "Für Agenturen" (bericht.html).
-export function SiteNav({ agencies = true }: { agencies?: boolean }) {
+// The main navigation of the blueprint pages. The report has it without "Für Agenturen" (bericht.html). `current`: the
+// page the visitor is on, underlined and marked with aria-current="page" (the BFSG page, bfsg.html).
+export function SiteNav({ agencies = true, current }: { agencies?: boolean; current?: 'bfsg' }) {
   return (
     <nav className={`${s.nav} flex flex-wrap gap-7`} aria-label="Hauptnavigation">
       <a href="#methode">So prüfen wir</a>
-      <a href="/bfsg">BFSG-Check</a>
+      {current === 'bfsg' ? (
+        <a href="/bfsg" className={s.here} aria-current="page">
+          BFSG-Check
+        </a>
+      ) : (
+        <a href="/bfsg">BFSG-Check</a>
+      )}
       {agencies ? <a href="#agenturen">Für Agenturen</a> : null}
     </nav>
   );
