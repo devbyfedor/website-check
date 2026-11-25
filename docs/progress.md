@@ -1213,12 +1213,68 @@ Fedor's answers to the questions of B4 part 2 and his rules for this part are in
 - `npm run preview:examples`, then http://127.0.0.1:3000/bfsg at full width and at 390 px (the device toolbar of the browser), next to `design/reference/bfsg.html`; answer the questions by mouse and by keyboard (Tab, Enter, Space), "Neu beginnen"; stop with Ctrl+C. The production build: `npm run preview`, the same address.
 - `npm run visual -- --only bfsg`, `npm run motion -- --only bfsg`, `npm run a11y -- --only bfsg` (each builds first) repeat the checks of the page; images in `local/visual` (`bfsg-*`), `local/motion` (`bfsg-*`), `local/a11y`.
 
+## texts-fix: merge of B5 part 1, the fix texts (25.11.2026)
+
+Branch `texts-fix`, **merged into `main`** (session message: the texts are drafts, no new states). `b5-bfsg` is merged into `main` (e8790fc, a real merge) after the fix of Fedor's answer 1 and the checks of B5 part 1. Session time: about 1 hour 15 minutes (20:45 to about 22:00). No Cloudflare, no deploy, nothing pushed, no listed site opened (step 3 read the saved analyses). Two helpers (Sonnet): one looked for the steps by system in the official documentation, the other tried to refute every step; no helper ran during the checks.
+
+Fedor's answers to the questions of B5 part 1 and the scope of this session are in `docs/decisions.md` (owner decisions of 25.11.2026); the technical decisions follow in the technical section.
+
+### Step 1: the dimmed question cards (Fedor's answer 1), then the merge of `b5-bfsg`
+
+- The question cards of the BFSG page that cannot be answered yet are dimmed to 0.8 instead of the 0.45 of bfsg.html; their frame (0.2) and their disabled buttons (0.28) keep about the look of the reference, so the card still differs clearly from the active one (white frame and ring, buttons at full strength). Lowest text 4.72 : 1 (the cyan "Frage 2") against its usual background, measured by pixels; the reference has 2.45 to 3.23 : 1. A deviation from the reference in `docs/decisions.md`.
+- The checks put the same rules into bfsg.html before comparing (`DIMMED_CARDS_CSS`); `npm run visual` prints the number against the unchanged reference next to it. `npm run a11y` no longer lists the text of a dimmed part apart: every text under the required ratio is a problem (the disabled buttons stay out of the contrast check, as axe leaves disabled controls out).
+- History of `b5-bfsg` by the rule of finding 93: 10 commits, 0 labels "Site NN" in the added lines and the messages.
+- The checks of B5 part 1 on `b5-bfsg` (20:53 to 21:07): `npm test` 1,584 of 1,584; `npm run test:integration` scanner 90 of 90, worker 65 of 65; `npm run typecheck` no errors; `npm run build:web` passes without example data; `npm run visual` home, scan screen and report 0.000 % at both widths, the BFSG page 0.000 % in all 10 comparisons against the reference with the decided dimming (at most 0.550 % against the unchanged reference, 390 px start state); `npm run motion` every animation without difference, BFSG 7 clicks with the same transitions and 35 frames per width 0.000 %; `npm run a11y` axe 0, Tab in the order of the reference (BFSG 11 and 15 stops), the four paths by Enter and Space as the reference after every key; 0 requests to other hosts.
+- Leak search over the full list (273 strings): 0 hits in the added lines of the 10 commits and their messages; the 35 matches in 21 of 471 tracked files are the same false ones as before. `git ls-files local` is empty.
+- Merged with `git merge --no-ff` (e8790fc). Branch `texts-fix` from it.
+
+### Step 3: the five services with a risk found most often
+
+- Counted in the latest analysis of each of the 30 test sites (`local/results`, one count per site): Google Tag Manager 8, Google Analytics 6, Google Fonts 5, Google Ads / AdSense 3, YouTube (erweiterter Datenschutzmodus) 2; every other service with a risk at most 1. The 30 reports of `check:report --reports` hold only 27 different sites and tie for the fifth place, so the analysis of the 30 sites decides it.
+
+### Step 4: a general text for every finding
+
+- Every text id the scanner gives is one of `REPORT_TEXT_IDS` (`scanner/src/report/text-ids.ts`, 72 ids); findings, header rows and the notice carry the type `TextId`, so the compiler keeps the list full. `PRIORITY_TEXT_IDS`: the 14 ids of findings with a risk, the only ones that get a card.
+- New drafts (`docs/content-drafts.md`, "Session texts-fix") for the 13 ids that had none: `third-party-unknown`, `-grey-zone`, `-unconfirmed`, `security-http-redirect-not-checked`, the eight legal ids (`legal-not-checked`, `legal-impressum-same-page`, `-pdf`, `-failed`, `-not-checked`, `legal-field-not-found`, `legal-datenschutz-no-link`, `legal-accessibility-statement-not-found`) and the card of `security-headers`.
+- General steps by class of service (consent-required, usually-consent; precedent is Google Fonts) for the 27 services without a text of their own, and general steps of their own for the five services of step 3; the general steps of Google Analytics and Google Ads say that only the basic implementation of Google's Consent Mode keeps the tags from loading before consent.
+- The card of the security headers: "Was passiert" ("{present} von {total}"), "Warum das wichtig ist" (no law named), and one step per header that does not count, from the 21 header drafts of A3 and fix-a6, between a step on where headers are set and a new scan.
+- The report page: the general steps of a third-party finding by its service, else by its class; a system tab without steps of its own shows the general steps (a detected Shopware 5 too). The state `fund-ohne-anleitung` now carries text ids the page does not know (as from a newer scanner), so the box "noch keine Anleitung" stays visible as a state.
+- Texts of findings that are never a priority (manual checks, hints, parts not checked) are drafts only; the page shows a card only per priority (`docs/decisions.md`).
+
+### Step 5: steps by system for the five services
+
+- The first helper searched the official documentation for all 25 pairs of service and system (18 pairs with at least one step from a page it could read; help.jimdo.com refused automated reading). I proposed 40 steps from it; the second helper opened every source again and tried to refute each step and five claims of the general texts: 33 confirmed (many only in a narrower wording, which is the one used), 10 unconfirmed, 2 refuted.
+- In the code: steps by system in 14 of the 25 pairs, 33 checked steps (without "Starten Sie eine neue Prüfung."), each with its source on its line in `docs/content-drafts.md`: Google Fonts (Shopify, Wix, Shopware; WordPress is the reference's, final), Google Analytics and Google Tag Manager (WordPress, Shopify, Wix), Google Ads (Shopify, Wix), YouTube (WordPress, Wix). German menu labels only where a German page of the system shows them (Wix); for Shopify only the English help could be read, so its steps name no German label.
+- Left out (the tab shows the general steps), 11 pairs: every Jimdo pair (no page could be read); Shopware for Analytics, Tag Manager, Ads and YouTube (no page says the documented route keeps the script from loading before consent; the YouTube "notice" was a placeholder of a video on the documentation page itself); Shopify for YouTube (nothing documented); WordPress for Ads (Complianz blocks AdSense "cookies", and its setting for Google tags needs Premium and does not name AdSense). Dropped steps: 9 unconfirmed and 1 refuted; the other refuted step (the Complianz question on Google tags) stays only in the narrower form "Bei Complianz Premium …". The four drafts of the reference for Google Fonts outside WordPress: no sentence contradicted, but "meist aus einer App", the German path "Onlineshop › Themes › Code bearbeiten", every Jimdo sentence and the Shopware asset path in @font-face had no source; replaced by checked steps (Jimdo: general steps).
+- Two sentences of the general texts were narrowed by the check: the consent tools block "laut Anbieter"; the YouTube step says what the scan measures, not what YouTube stores (unconfirmed).
+- Real Cookie Banner is not named as a free option (the plugin page puts most content blockers and the Tag Manager into Pro).
+
+### Numbers against the conditions of the session message (final run, all checks one after the other, 21:31 to 21:54)
+
+- Test: every text id the report builder can give has a text: `web/test/report-texts-complete.test.ts`, 72 of 72 ids with a section marked "Status: Entwurf" in `docs/content-drafts.md`; every id of the example report and the 33 example states is in the list; the 14 ids with a risk each give a whole card ("Was passiert", "Warum das wichtig ist", steps); all 32 known services with a risk have steps; the header card has one step per open header, 21 of 21 header ids have a step.
+- Test: no forbidden word of the brief in the texts: 0 in `docs/content-drafts.md`, every file of `web/lib`, `web/components`, `web/app` and the rules data (the test fails on a planted word).
+- Every step by system has its source: the same test, 33 of 33 checked steps with a link on their line, the 3 WordPress steps of Google Fonts with the reference as their source.
+- `npm run check:report`: every state at both widths, 0 problems (axe 0, every value equal to the JSON, 0 texts outside the window at 390 px, the steps of the header card counted; self-test 9 of 9 changes seen). On the reports of the 30 latest saved captures (`check:report --reports`): 60 of 60 without a problem, axe 0, outside 0.
+- `npm test` 1,677 of 1,677 (1,584 before; 92 tests in the new file). `npm run typecheck` no errors. `npm run build:web` passes without example data and without texts of stage D.
+- Also run because the example report changed (its second card has tabs now): `npm run test:integration` scanner 90 of 90, worker 65 of 65; `npm run visual` every page 0.000 % at both widths (the report at 390 px had 26 strict pixels in this run, 0 in a rerun of the page); `npm run motion` and `npm run a11y` pass (Tab in the order of the reference, axe 0, 0 requests to other hosts).
+- Leak search over the full list (273 strings) for `main..texts-fix`: 0 hits in the added lines of its 4 commits before this one and in their messages; 0 labels "Site NN"; the 35 matches in 21 of the 473 tracked files are the same false ones as before. `git ls-files local` is empty.
+
+### Left for later (`docs/backlog.md`)
+
+- Steps by system for the other 27 services with a risk and for the 11 other findings that can be priorities; the 11 pairs of the five services without confirmed steps; showing the texts of findings that are no priority (a design question).
+- Stage C: the review of every text by a native speaker, and a look at the real systems; the German labels of Shopify and of the custom code of Wix, which no German page showed.
+
+### How to look at it
+
+- `npm run preview:examples`, then http://127.0.0.1:3000/bericht/beispiel (the second card, Google Analytics, has system tabs now), http://127.0.0.1:3000/bericht/beispiel/fund-ohne-anleitung (the card of the security headers), http://127.0.0.1:3000/bericht/beispiel/fund-ohne-systeme and http://127.0.0.1:3000/bfsg (the dimmed cards); stop with Ctrl+C.
+- The texts with their sources: `docs/content-drafts.md`, "Session texts-fix".
+
 ## Next
 
 - The plan from here (Fedor, message of B5 part 1), in this order:
-  1. B5 part 1 (this session): the merge of `b4-report`, the BFSG page by bfsg.html, an `npm test` that passes five times in a row without a rerun.
-  2. The session of the fix texts (Fedor's answer 3 of B4 part 1): 31 services and 10 other findings for five systems, the texts of the security headers (`docs/content-drafts.md`, "Session B4 part 1").
-  3. B5 part 2: the quality gate of the brief on a quiet machine, so that it sees the real fix texts.
-- Fedor: look at the BFSG page (`npm run preview:examples`, http://127.0.0.1:3000/bfsg) and the claims of the page about the law (report of B5 part 1, `docs/backlog.md`); answer the questions of the report of B5 part 1; then the session of the fix texts.
-- Fedor: push `main` (the merges of B1 to B4).
-- Fedor, before the launch (stage C): create the real D1 database (all five migrations) and put its id into both configs, set `RATE_LIMIT_SECRET` on the scan Worker; deploy the scan Worker first, then the API Worker. The measurements before the launch are in `docs/backlog.md`.
+  1. B5 part 1: done and merged (this session, after answer 1).
+  2. The session of the fix texts: done and merged (this session, in the scope Fedor set: general texts for every finding, steps by system for the five services found most often).
+  3. B5 part 2: the quality gate of the brief on a quiet machine, which now sees the fix texts (the example report's second card has system tabs; `docs/backlog.md` names the missing favicon).
+- Fedor: look at the texts (`docs/content-drafts.md`, "Session texts-fix"; the example report and the state `fund-ohne-anleitung` in `npm run preview:examples`) and answer the questions of the report of this session.
+- Fedor: push `main` (the merges of B1 to B5 part 1 and of the fix texts).
+- Fedor, before the launch (stage C): create the real D1 database (all five migrations) and put its id into both configs, set `RATE_LIMIT_SECRET` on the scan Worker; deploy the scan Worker first, then the API Worker. The measurements before the launch are in `docs/backlog.md`. The review of the texts by a native speaker, with the German labels of Shopify and of the custom code of Wix.
