@@ -29,7 +29,7 @@ import { buildReport, DEFAULT_RULES, RULES_FILE, SCANNER_VERSION } from '../../s
 import { SHOP_URL, shopCapture } from '../../scanner/test/report-helpers.ts';
 import { EXAMPLE_SCAN_STATES } from '../components/scan/example-states.ts';
 import { axe, contrastByPixels, keyboard, printContrast, type AxeSummary, type TextContrast } from './a11y.ts';
-import { ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer } from './browser-setup.ts';
+import { printConsoleLog, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer } from './browser-setup.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'scan-check');
 const AXE_FILE = join(ROOT, 'node_modules', 'axe-core', 'axe.min.js');
@@ -262,6 +262,9 @@ async function main(): Promise<void> {
   summary.blocked = blocked;
   await writeFile(join(RESULT_DIR, 'summary.json'), JSON.stringify(summary, null, 2) + '\n');
   console.log(`\nRequests of the app to other hosts: ${blocked}`);
+  // Session B5 part 2: the CSP of production holds in every state.
+  const csp = printConsoleLog();
+  if (csp > 0) problems.push(`${csp} CSP violations in the console`);
   console.log(problems.length ? `Problems (${problems.length}):\n  ${problems.join('\n  ')}` : 'Problems: 0');
   if (problems.length || blocked) process.exitCode = 1;
 }

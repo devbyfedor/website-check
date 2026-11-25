@@ -6,7 +6,7 @@ import { EXAMPLE_REPORT_STATES } from '../components/report/example-report-state
 import { CheckList } from '../components/report/check-list';
 import { ReportScreen } from '../components/report/report-screen';
 import { CHECK_TEXTS, CHECKS_TEXTS as T } from '../lib/report-checks-texts';
-import { checkItems, type CheckItem } from '../lib/report-checks-view';
+import { checkItems, GROUP_NAMES_SHOWN, type CheckItem } from '../lib/report-checks-view';
 
 // Session B5 part 2 (Fedor's decision): the manual checks and hints get texts of their own, as a list under the finding
 // details; the same hint for several items is one item. A state the design does not show (/bericht/beispiel/
@@ -104,6 +104,16 @@ describe('the list of manual checks and hints', () => {
     expect(Array.isArray(unknown?.title) && unknown.title.some((p) => typeof p !== 'string')).toBe(true);
     const grey = items.find((i) => plain(i.title).startsWith('Graubereich: '));
     expect(typeof grey?.title).toBe('string');
+  });
+
+  it('names at most five services in the title of a group and counts the rest (a cut list of 80 unknown services)', () => {
+    const items = checkItems(reportOf('gekuerzt'));
+    const unknown = items.find((i) => plain(i.title).startsWith('Unbekannte Dienste: '));
+    expect(unknown).toBeDefined();
+    const title = plain(unknown!.title);
+    expect(title).toMatch(/^Unbekannte Dienste: [^,]+(, [^,]+){4} und \d+ weitere$/);
+    const pageParts = Array.isArray(unknown!.title) ? unknown!.title.filter((p) => typeof p !== 'string') : [];
+    expect(pageParts).toHaveLength(GROUP_NAMES_SHOWN);
   });
 
   it('says what to check for an id this page does not know, and has no item without a manual check or hint', () => {

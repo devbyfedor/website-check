@@ -45,9 +45,60 @@ export function startCheckServer(): Promise<StaticServer> {
 // font files, 'google' lets the reference ask Google, 'none' (the app) treats them like any other host.
 export type FontRouting = 'local' | 'google' | 'none';
 
+/**
+ * Session B5 part 2: what the console of the app's pages said in every check (Fedor: "0 Verstöße gegen die CSP in der
+ * Konsole in allen Prüfungen"). `csp`: each message that names the Content Security Policy (Chromium logs every refused
+ * script, style, image, font, connection or frame so); `errors`: every other error and every uncaught exception, which
+ * a check prints (some states of the checks answer the API with errors on purpose). Pages of the reference
+ * (`/__reference/`) are left out: they are not ours and carry no CSP.
+ */
+export const CONSOLE_LOG = { csp: [] as string[], errors: [] as string[] };
+
+function watchConsole(context: BrowserContext, origin: string): void {
+  const ours = (url: string | undefined) => url !== undefined && url.startsWith(origin) && !url.startsWith(`${origin}/__reference/`);
+  context.on('page', (page) => {
+    page.on('pageerror', (e) => {
+      if (ours(page.url())) CONSOLE_LOG.errors.push(`${page.url()}: uncaught ${e.message.slice(0, 200)}`);
+    });
+  });
+  context.on('console', (m) => {
+    const url = m.page()?.url();
+    if (!ours(url)) return;
+    const text = `${url}: ${m.type()}: ${m.text().slice(0, 300)}`;
+    if (/Content Security Policy/i.test(m.text())) CONSOLE_LOG.csp.push(text);
+    else if (m.type() === 'error') CONSOLE_LOG.errors.push(text);
+  });
+}
+
+/** Prints the console of the app's pages; returns the number of CSP violations (a check fails on any). */
+export function printConsoleLog(): number {
+  const unique = (list: string[]) => [...new Set(list)];
+  console.log(`\nConsole of the app's pages: ${CONSOLE_LOG.csp.length} CSP violations, ${CONSOLE_LOG.errors.length} other errors (${unique(CONSOLE_LOG.errors).length} different).`);
+  for (const line of unique(CONSOLE_LOG.csp).slice(0, 20)) console.log(`  CSP: ${line}`);
+  for (const line of unique(CONSOLE_LOG.errors).slice(0, 20)) console.log(`  error: ${line}`);
+  return CONSOLE_LOG.csp.length;
+}
+
+/**
+ * Session B5 part 2: a style of a check (to hide text, to pause animations) as a constructed style sheet, which the
+ * CSP of our pages does not restrict (a <style> element would need 'unsafe-inline'). Runs in the page; returns nothing,
+ * `removeCheckStyle` takes it away again.
+ */
+export function addCheckStyle(css: string): void {
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(css);
+  (sheet as unknown as { __check: boolean }).__check = true;
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+}
+export function removeCheckStyle(): void {
+  document.adoptedStyleSheets = document.adoptedStyleSheets.filter((s) => (s as unknown as { __check?: boolean }).__check !== true);
+}
+
 // Lets requests to the check server through and handles Google Fonts by `fonts`; every other request
-// to another host is blocked and its address added to the returned list.
+// to another host is blocked and its address added to the returned list. Session B5 part 2: also watches the console
+// of the app's pages (CONSOLE_LOG).
 export async function routeHosts(context: BrowserContext, origin: string, fonts: FontRouting): Promise<string[]> {
+  watchConsole(context, origin);
   const blocked: string[] = [];
   const css = fontCss(origin);
   await context.route('**/*', async (route) => {

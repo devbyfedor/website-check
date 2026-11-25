@@ -1088,10 +1088,10 @@ Each opened by the second helper (step 5), with the decisive sentence:
 
 ### The list of manual checks and hints ("Bitte selbst prüfen")
 
-Fedor's decision: the manual checks and the hints get texts of their own in the report, as a list under the finding details, one short text per item; the same hint for several items once, as a group. A state without design (`/bericht/beispiel/pruefen-und-hinweise`), built from elements of bericht.html. The titles and texts follow the drafts of their text ids above, shortened to one text that says what to check; the tag says "bitte manuell prüfen" (kind `manual`) or "Hinweis" (kind `hint`), so the titles drop that phrase. `web/lib/report-checks-texts.ts`; the test `web/test/report-checks.test.tsx` checks that every text id of a manual check or a hint has a title and a text.
+Fedor's decision: the manual checks and the hints get texts of their own in the report, as a list under the finding details, one short text per item; the same hint for several items once, as a group. A state without design (`/bericht/beispiel/pruefen-und-hinweise`), built from elements of bericht.html. The titles and texts follow the drafts of their text ids above, shortened to one text that says what to check; the tag says "bitte manuell prüfen" (kind `manual`) or "kein Fund" (kind `hint`; not "Hinweis", the label of the note box of the report), so the titles drop that phrase. `web/lib/report-checks-texts.ts`; the test `web/test/report-checks.test.tsx` checks that every text id of a manual check or a hint has a title and a text.
 
 - Heading: Bitte selbst prüfen. Next to it: „1 Punkt“ / „{n} Punkte“.
-- Tags: „bitte manuell prüfen“ (manual), „Hinweis“ (hint).
+- Tags: „bitte manuell prüfen“ (manual), „kein Fund“ (hint).
 - `legal-impressum-no-link` (only when it is not among "Drei Dinge"): Impressum-Link nicht gefunden. Ist der Link „Impressum“ auf Ihrer Startseite ohne weiteren Klick sichtbar, etwa in der Fußzeile? Unsere Prüfung öffnet keine Menüs.
 - `legal-impressum-no-link-empty-page`: Impressum-Link nicht gefunden. Die Seite zeigte bei unserem Besuch fast keinen Inhalt. Öffnen Sie Ihre Startseite in einem Browser und prüfen Sie, ob der Link „Impressum“ ohne weiteren Klick sichtbar ist.
 - `legal-impressum-no-link-links-cut`: Impressum-Link nicht gefunden. Wir haben nicht alle Links Ihrer Startseite gelesen. Ist der Link „Impressum“ ohne weiteren Klick sichtbar?

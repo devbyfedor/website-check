@@ -13,6 +13,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { STAGE_D_MARKERS } from '../lib/report-stage-d-texts.ts';
+import { writeHeaders } from './security-headers.ts';
 
 const require = createRequire(import.meta.url);
 const nextBin = require.resolve('next/dist/bin/next');
@@ -52,6 +53,18 @@ const child = spawn(process.execPath, [nextBin, ...nextArgs], {
 });
 child.on('exit', async (code, signal) => {
   if (signal) process.kill(process.pid, signal);
+  // Session B5 part 2: the headers of the pages, with the CSP of each (security-headers.ts), after every build.
+  if (code === 0 && nextArgs[0] === 'build') {
+    const h = await writeHeaders(OUT_DIR);
+    console.log(`Headers of the pages: web/out/_headers, ${h.pages} pages, ${h.rules} rules, longest line ${h.longest} characters.`);
+    if (h.problems.length > 0) {
+      if (!examples) {
+        console.error(`The production build breaks a limit of Workers Static Assets: ${h.problems.join('; ')}`);
+        process.exit(1);
+      }
+      console.log(`  The example build is never deployed; beyond the limits of Workers Static Assets: ${h.problems.join('; ')}`);
+    }
+  }
   if (code === 0 && nextArgs[0] === 'build' && !examples) {
     const hits = await filesWithMarker(OUT_DIR);
     if (hits.length) {

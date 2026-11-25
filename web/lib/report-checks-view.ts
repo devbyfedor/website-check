@@ -35,6 +35,17 @@ function nameOf(f: Finding, report: Report): Part | null {
   return row?.known === true ? service : { page: service };
 }
 
+/**
+ * At most this many names in the title of a group; the rest as "und {n} weitere" (a cut list of 80 unknown services
+ * would make one title longer than the page; the Stückliste names every service).
+ */
+export const GROUP_NAMES_SHOWN = 5;
+
+function shownNames(names: readonly Part[]): Part[] {
+  if (names.length <= GROUP_NAMES_SHOWN) return [...names];
+  return [...names.slice(0, GROUP_NAMES_SHOWN), T.more(names.length - GROUP_NAMES_SHOWN)];
+}
+
 /** Fills `{count}` and `{share}` (our numbers) and puts the names in place of `{names}` or `{service}`, joined by ", ". */
 function phrase(template: string, f: Finding, names: readonly Part[]): Phrase | null {
   const values: Record<string, number> = {};
@@ -51,7 +62,14 @@ function phrase(template: string, f: Finding, names: readonly Part[]): Phrase | 
     }
     const pieces = p.split(/\{(?:names|service)\}/);
     pieces.forEach((piece, i) => {
-      if (i > 0) names.forEach((n, j) => parts.push(...(j > 0 ? [', ', n] : [n])));
+      if (i > 0) {
+        const shown = shownNames(names);
+        shown.forEach((n, j) => {
+          // "a, b, c, d, e und 75 weitere": the last part is our text, joined by a space.
+          const more = j === shown.length - 1 && shown.length < names.length;
+          parts.push(...(j === 0 ? [n] : more ? [' ', n] : [', ', n]));
+        });
+      }
       if (piece !== '') parts.push(piece);
     });
   }

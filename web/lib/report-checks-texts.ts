@@ -14,7 +14,9 @@ export const CHECKS_TEXTS = {
   count: (n: number) => (n === 1 ? '1 Punkt' : `${n} Punkte`),
   /** The tag of an item: a manual check (kind `manual`), a hint (kind `hint`). */
   tagManual: 'bitte manuell prüfen',
-  tagHint: 'Hinweis',
+  tagHint: 'kein Fund', // not "Hinweis": that is the label of the note box of the report (STATE_DRAFTS.noteLabel)
+  /** After the first five names of a group: "jsDelivr, unpkg, cdnjs, … und 75 weitere". */
+  more: (n: number) => `und ${n} weitere`,
   /** An item whose text id this page does not know (a report of a newer scanner). */
   otherTitle: 'Weiterer Punkt',
   otherManual: 'Hier war die automatische Prüfung unsicher. Bitte prüfen Sie diesen Punkt selbst.',

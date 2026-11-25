@@ -21,7 +21,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { PNG } from 'pngjs';
-import { ROOT, VIEWPORT_HEIGHT, nextFrames, routeHosts, settle, startCheckServer } from './browser-setup.ts';
+import { printConsoleLog, ROOT, VIEWPORT_HEIGHT, nextFrames, routeHosts, settle, startCheckServer } from './browser-setup.ts';
 import { cropTop, decidedDimming, DECIDED_CHANGES, decidedWording, diffImages, DIMMED_CARDS_CSS, EXAMPLE_DATA_CHANGES, exampleData, EXTRA_PARTS, hideAll, WORDPRESS_FONTS_STEP_1, percent, regionBottom } from './image-diff.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'motion');
@@ -238,21 +238,12 @@ function freeze([seconds, kind]: readonly [number, 'CSSAnimation' | 'CSSTransiti
 }
 
 // Runs before any script of the page: pauses every CSS animation from the first style on, so that a
-// frame does not depend on how far each page has played in real time (the reference loads slower).
+// frame does not depend on how far each page has played in real time (the reference loads slower). Session B5 part 2: a
+// constructed style sheet of the document, which the CSP of our pages allows (a <style> element it refuses).
 function pauseFromStart(): void {
-  const add = () => {
-    const style = document.createElement('style');
-    style.textContent = '*, *::before, *::after { animation-play-state: paused !important; }';
-    document.head.appendChild(style);
-  };
-  if (document.head) add();
-  else {
-    new MutationObserver((_, observer) => {
-      if (!document.head) return;
-      observer.disconnect();
-      add();
-    }).observe(document, { childList: true, subtree: true });
-  }
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync('*, *::before, *::after { animation-play-state: paused !important; }');
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
 }
 
 async function open(
@@ -576,6 +567,8 @@ async function main(): Promise<void> {
   await writeFile(join(RESULT_DIR, 'summary.json'), JSON.stringify(summary, null, 2) + '\n');
   console.log(`\nFrames and diff images: ${RESULT_DIR}`);
   console.log(failures ? `Problems: ${failures}` : 'No differences in the animation lists; app animations start together.');
+  // Session B5 part 2: the CSP of production holds on every page of the app.
+  if (printConsoleLog() > 0) failures++;
   if (failures) process.exitCode = 1;
 }
 

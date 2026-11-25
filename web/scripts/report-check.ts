@@ -30,7 +30,7 @@ import type { Report } from '../../scanner/src/report/types.ts';
 import { EXAMPLE_REPORT_STATES } from '../components/report/example-report-states.ts';
 import { FIX_TEXTS, HEADER_STEPS } from '../lib/report-detail-texts.ts';
 import { axe, contrastByPixels, keyboard, type AxeSummary } from './a11y.ts';
-import { nextFrames, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer } from './browser-setup.ts';
+import { nextFrames, printConsoleLog, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer } from './browser-setup.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'report-check');
 const AXE_FILE = join(ROOT, 'node_modules', 'axe-core', 'axe.min.js');
@@ -290,6 +290,12 @@ interface ExpectedLower {
   cards: ExpectedCard[];
   stamp: string[];
   copy: string | null;
+  /**
+   * Session B5 part 2: the list of manual checks and hints. `count`: the findings of kind manual or hint without a card
+   * (the list shows them, several of one kind as one item, so it has at least one and at most this many items); `names`:
+   * the services those hints name, each of which the list must show.
+   */
+  checks: { count: number; names: string[] };
 }
 
 function expectedLower(r: Report, measuredPage: boolean): ExpectedLower {
@@ -350,7 +356,19 @@ function expectedLower(r: Report, measuredPage: boolean): ExpectedLower {
     if (rest > 0) lines.push(rest === 1 ? '… und 1 weiterer Dienst, den der Bericht nicht einzeln aufführt.' : `… und ${rest} weitere Dienste, die der Bericht nicht einzeln aufführt.`);
     copy = lines.join('\n');
   }
-  return { lower, servicesCount: lower && r.services.length > 0 ? (total === 1 ? '1 Dienst gefunden' : `${total} Dienste gefunden`) : null, services, cards, stamp, copy };
+  const carded = new Set(r.priorities.slice(0, 3));
+  const open = lower ? r.findings.filter((f) => (f.kind === 'manual' || f.kind === 'hint') && !carded.has(f.id)) : [];
+  // The first five services of each kind of hint (the list names at most five per group and counts the rest).
+  const perGroup = new Map<string, number>();
+  const names = open.flatMap((f) => {
+    const n = f.params.service;
+    if (typeof n !== 'string' || n === '') return [];
+    const key = `${f.kind}:${f.textId}`;
+    const seen = perGroup.get(key) ?? 0;
+    perGroup.set(key, seen + 1);
+    return seen < 5 ? [n] : [];
+  });
+  return { lower, servicesCount: lower && r.services.length > 0 ? (total === 1 ? '1 Dienst gefunden' : `${total} Dienste gefunden`) : null, services, cards, stamp, copy, checks: { count: open.length, names } };
 }
 
 interface Expected {
@@ -472,7 +490,10 @@ function shown() {
   });
   const stamp = Array.from(document.querySelectorAll('article [class*="stb"] > div')).map((d) => `${txt(d.querySelector('span'))}|${txt(d.querySelector('strong'))}`);
   const help = Array.from(document.querySelectorAll('main a[href="/anfrage"]'), (a) => txt(a));
-  return { h1, facts, measures, priorities, marks, rows, cut, note, services, servicesCount, cards, stamp, help, main, robots: document.querySelector('meta[name="robots"]')?.getAttribute('content') ?? null, referrer: document.querySelector('meta[name="referrer"]')?.getAttribute('content') ?? null };
+  // Session B5 part 2: the list of manual checks and hints.
+  const checksSection = document.querySelector('main section[data-part="checks"]');
+  const checks = checksSection === null ? null : { items: checksSection.querySelectorAll('li').length, text: txt(checksSection), count: txt(checksSection.querySelector('[class*="sech"] > span')), focusable: checksSection.querySelectorAll('a, button, [tabindex]').length };
+  return { h1, facts, measures, priorities, marks, rows, cut, note, services, servicesCount, cards, stamp, help, checks, main, robots: document.querySelector('meta[name="robots"]')?.getAttribute('content') ?? null, referrer: document.querySelector('meta[name="referrer"]')?.getAttribute('content') ?? null };
 }
 
 async function compareValues(page: Page, report: Report, label: string): Promise<string[]> {
@@ -519,6 +540,16 @@ async function compareValues(page: Page, report: Report, label: string): Promise
     if (g.left.length < 20) problems.push(`${label}: card ${c.id} has nothing in its left column (${JSON.stringify(g.left)})`);
     if (/\{[a-zA-Z]+\}|\b(?:third-party|a11y|security|legal|fix)-[a-z-]+\b/.test(g.own)) problems.push(`${label}: card ${c.id} shows a placeholder or a text id`);
   });
+  // Session B5 part 2: the list is there exactly when a manual check or a hint has no card; one to that many items, its
+  // count next to the heading, every service a hint names, no placeholder or text id, nothing that takes focus.
+  same('list of manual checks and hints', got.checks !== null, low.checks.count > 0);
+  if (got.checks !== null) {
+    if (got.checks.items < 1 || got.checks.items > low.checks.count) problems.push(`${label}: ${got.checks.items} items in the list of manual checks and hints for ${low.checks.count} findings`);
+    same('count of the list of manual checks and hints', got.checks.count, got.checks.items === 1 ? '1 Punkt' : `${got.checks.items} Punkte`);
+    for (const n of low.checks.names) if (!got.checks.text.includes(n)) problems.push(`${label}: the list of manual checks and hints does not name ${JSON.stringify(n)}`);
+    if (/\{[a-zA-Z]+\}|\b(?:third-party|a11y|security|legal|fix)-[a-z-]+\b/.test(got.checks.text)) problems.push(`${label}: the list of manual checks and hints shows a placeholder or a text id`);
+    if (got.checks.focusable > 0) problems.push(`${label}: ${got.checks.focusable} elements in the list of manual checks and hints take focus`);
+  }
   same('help button', got.help, low.lower ? ['Hilfe bei der Umsetzung anfragen'] : []);
   same('title block', got.stamp, low.stamp);
   if (!got.main.includes(DISCLAIMER)) problems.push(`${label}: without the last line of every report`);
@@ -675,6 +706,21 @@ async function printCheck(page: Page, label: string, axeSource: string, name: st
 // Session B4 part 2: "Als PDF speichern" calls the print dialog of the browser; "Link kopieren" puts the address of the
 // report on the clipboard; the copy button of the Stückliste the list read from the JSON; both then change their label
 // and say it in their status region.
+// Session B5 part 2: the Permissions-Policy of our pages turns clipboard-read off (the site never reads the clipboard), so the
+// check reads it in a page of its own on the same origin, which carries no headers of the app (a path of the reference
+// mount that has no file: a plain 404). The clipboard of the system is the same for both pages.
+async function readClipboard(page: Page, origin: string): Promise<string> {
+  const helper = await page.context().newPage();
+  try {
+    await helper.goto(`${origin}/__reference/zwischenablage`);
+    await helper.bringToFront();
+    return await helper.evaluate(() => navigator.clipboard.readText());
+  } finally {
+    await helper.close();
+    await page.bringToFront();
+  }
+}
+
 async function actions(page: Page, origin: string, label: string, copy: string | null): Promise<string[]> {
   const problems: string[] = [];
   await page.evaluate(() => {
@@ -698,14 +744,14 @@ async function actions(page: Page, origin: string, label: string, copy: string |
   const status = (text: string) => page.evaluate((t) => Array.from(document.querySelectorAll('[role="status"][data-wc-before="empty"]')).some((s) => (s.textContent ?? '').includes(t)), text);
   await page.getByRole('button', { name: 'Link kopieren' }).click();
   await page.getByRole('button', { name: 'Link kopiert' }).waitFor({ timeout: 3000 }).catch(() => problems.push(`${label}: "Link kopieren" did not change to "Link kopiert"`));
-  const link = await page.evaluate(() => navigator.clipboard.readText());
+  const link = await readClipboard(page, origin);
   if (link !== `${origin}/bericht?id=${ID}`) problems.push(`${label}: "Link kopieren" copied ${JSON.stringify(link)}`);
   if (!(await status('Link kopiert'))) problems.push(`${label}: no status region that was empty before says "Link kopiert"`);
   if (copy !== null) {
     await page.getByRole('button', { name: 'Liste für die Datenschutzerklärung kopieren' }).click();
     await page.getByRole('button', { name: 'Liste kopiert' }).waitFor({ timeout: 3000 }).catch(() => problems.push(`${label}: the copy button did not change to "Liste kopiert"`));
     // The clipboard of Windows gives line breaks back as CR LF.
-    const list = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n');
+    const list = (await readClipboard(page, origin)).replace(/\r\n/g, '\n');
     if (list !== copy) problems.push(`${label}: the copied list differs from the report: ${JSON.stringify(list.slice(0, 200))}`);
     if (!(await status('Liste kopiert'))) problems.push(`${label}: no status region that was empty before says "Liste kopiert"`);
   } else if ((await page.getByRole('button', { name: 'Liste für die Datenschutzerklärung kopieren' }).count()) > 0) problems.push(`${label}: a copy button without services`);
@@ -883,6 +929,9 @@ async function main(): Promise<void> {
   summary.blocked = blocked;
   await writeFile(join(RESULT_DIR, reportsDir === null ? 'summary.json' : 'summary-reports.json'), JSON.stringify(summary, null, 2) + '\n');
   console.log(`\nRequests of the app to other hosts: ${blocked}`);
+  // Session B5 part 2: the CSP of production holds in every state.
+  const csp = printConsoleLog();
+  if (csp > 0) problems.push(`${csp} CSP violations in the console`);
   console.log(problems.length ? `Problems (${problems.length}):\n  ${problems.join('\n  ')}` : 'Problems: 0');
   if (problems.length || blocked) process.exitCode = 1;
 }

@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { chromium, type Browser } from 'playwright';
 import { PNG } from 'pngjs';
 import { cropTop, decidedDimming, DECIDED_CHANGES, decidedWording, diffImages, DIMMED_CARDS_CSS, EXAMPLE_DATA_CHANGES, exampleData, EXTRA_PARTS, hideAll, regionBottom, WORDPRESS_FONTS_STEP_1 } from './image-diff.ts';
-import { OUT_DIR, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer, type FontRouting } from './browser-setup.ts';
+import { OUT_DIR, printConsoleLog, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer, type FontRouting } from './browser-setup.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'visual');
 
@@ -440,7 +440,9 @@ async function main(): Promise<void> {
   // The 1 % of the session messages (review of B4 part 2): for the report the measure with the data of schema v1.
   const over = results.filter((r) => (r.dataPercent ?? r.percent) > 1);
   if (over.length > 0) console.log(`Above 1 %: ${over.map((r) => `${r.page} ${r.width} px`).join(', ')}`);
-  if (appBlocked > 0 || over.length > 0) process.exitCode = 1;
+  // Session B5 part 2: the CSP of production holds on every page of the app (static-server.ts sends web/out/_headers).
+  const csp = printConsoleLog();
+  if (appBlocked > 0 || over.length > 0 || csp > 0) process.exitCode = 1;
 }
 
 await main();

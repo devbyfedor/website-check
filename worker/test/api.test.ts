@@ -1,10 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createUrlGuard, type Resolver } from '@website-check/scanner';
+import { checkCsp, checkHsts, checkPermissionsPolicy, checkReferrerPolicy, checkXcto, createUrlGuard, type Resolver } from '@website-check/scanner';
 import { base32, isScanId, newScanId } from '../src/api/ids.ts';
 import { visitorKeyOf } from '../src/api/rate-limit.ts';
-import { MAX_BODY_BYTES } from '../src/api/router.ts';
+import { API_HEADERS, MAX_BODY_BYTES } from '../src/api/router.ts';
+import { HSTS, PERMISSIONS_POLICY, SITE_HEADERS } from '../src/api/site-headers.ts';
 import { purgeBefore, saveResult } from '../src/db/store.ts';
 import worker from '../src/app.ts';
 import { localApi } from './api-local.ts';
@@ -350,7 +351,29 @@ describe('status and report', () => {
       expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow, noarchive');
       expect(response.headers.get('cache-control')).toBe('no-store');
       expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+      // Session B5 part 2: the security headers of the site on every answer of the API too.
+      expect(response.headers.get('strict-transport-security')).toBe(HSTS);
+      expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+      expect(response.headers.get('permissions-policy')).toBe(PERMISSIONS_POLICY);
+      expect(response.headers.get('x-frame-options')).toBe('DENY');
+      expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
     }
+  });
+
+  it('every header of the site is one our own scanner counts (the five headers of the brief)', () => {
+    const headers = { ...API_HEADERS };
+    const checks = [
+      checkCsp(headers['content-security-policy'], undefined, null),
+      checkXcto(headers['x-content-type-options']),
+      checkPermissionsPolicy(headers['permissions-policy'], undefined),
+      checkHsts(headers['strict-transport-security'], true),
+      checkReferrerPolicy(headers['referrer-policy'], null),
+      checkReferrerPolicy(SITE_HEADERS['Referrer-Policy'], null),
+    ];
+    for (const c of checks) expect(c.counts, c.key).toBe(true);
+    expect(PERMISSIONS_POLICY).toContain('camera=()');
+    expect(PERMISSIONS_POLICY).toContain('clipboard-write=(self)');
+    expect(PERMISSIONS_POLICY).not.toMatch(/\*/);
   });
 
   it('the Worker parses only the small request body, never a report', () => {
