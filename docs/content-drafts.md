@@ -662,8 +662,65 @@ The upper part of the report (head, Prüfmaße, "Drei Dinge" with the plan, Zeit
 
 ### Zeitschnitt A–A
 
-- The small line of the site's own files: Ihre Dateien. The reference says "Ihre Dateien: Design und Skripte"; the report does not say which kind of files they are (schema v1 has the row kind `files` only).
+- The small line of the site's own files: Ihre Dateien. The reference says "Ihre Dateien: Design und Skripte"; the report does not say which kind of files they are (schema v1 has the row kind `files` only). Since B3 part 2 only for a report made before or files of other types; see "Session B3 part 2".
 - The small line of a third-party host without a known provider: fremder Server; of a consent tool loaded from its provider: {Anbieter}, fremder Server (the row label is then its host; the reference's "Einwilligungstool, Ihr Server" is the tool on the site's own server).
+
+## Session B3 part 2
+
+The report page of a real scan (`/bericht?id=…`) and the states of the upper part of the report that the design does not show, built only from elements of `design/reference/bericht.html` (Fedor, B3 part 2). All texts live in `web/lib/report-texts.ts`; every one is an Entwurf. Each state opens at an address of its own in `npm run preview:examples`: `/bericht/beispiel/<state>`.
+
+### The page without a report to show
+
+Built from the head of the report ("Prüfbericht für {domain}" when the address is known), the heading of a section, a paragraph and the outlined link of the sheet (`.gl`, "Arbeitsauftrag für Ihren Entwickler").
+
+- While the report loads: Der Bericht wird geladen.
+- Not ready yet (the scan waits or runs): "Der Bericht ist noch nicht fertig." / "Die Prüfung läuft noch. Auf der Seite der Prüfung sehen Sie, wie weit sie ist, und öffnen den Bericht, sobald er fertig ist." / link "Zur Prüfung" (to `/pruefung?id=…`).
+- Ended without a report, cancelled: "Zu dieser Prüfung gibt es keinen Bericht." / "Sie wurde aus der Warteschlange genommen, bevor sie begann." / "Neue Prüfung".
+- Ended without a report, the day's cap: "Zu dieser Prüfung gibt es keinen Bericht." / "Sie konnte nicht beginnen, weil an diesem Tag alle Prüfungen vergeben waren." / "Neue Prüfung".
+- Ended without a report, our error: "Die Prüfung ist bei uns fehlgeschlagen." / "Deshalb gibt es keinen Bericht. Bitte starten Sie eine neue Prüfung." (the draft of B2 part 3) / "Neue Prüfung".
+- Unknown id: "Diesen Bericht finden wir nicht." / "Der Link ist unvollständig, oder der Bericht ist nicht mehr gespeichert." / "Neue Prüfung".
+- No usable answer after three tries, or a report that fails the validator: "Den Bericht können wir gerade nicht anzeigen." / "Bitte laden Sie diese Seite in einigen Minuten neu." / "Neu laden" (this page again).
+- Status: Entwurf
+
+### Head
+
+- The fifth fact, when the report knows the country of the visit (Fedor, 21.11.2026): "Aufgerufen aus" with the German name of the country ("Deutschland", "Niederlande").
+- "System" when the homepage did not load: nicht geprüft (never "unbekannt").
+- "Geprüfte Seiten" when the homepage did not load: keine.
+- Status: Entwurf
+
+### The note under the head
+
+Built from the dashed box of the "Revisionen" ("So erscheint ein erledigter Fund …"): the small grey label "Hinweis" and one line per point.
+
+- Quick check: Schnellprüfung ohne Browser: Wir haben nur den Quelltext Ihrer Startseite gelesen, so wie Ihr Server ihn ausliefert. Fremde Dienste und Barrierefreiheit sind deshalb nicht geprüft. Die vollständige Prüfung ist morgen wieder möglich. (The last sentence is the brief's.)
+- Blocked: Ihre Website hat unseren Browser nicht durchgelassen (Antwort {Status}). Deshalb zeigt der Bericht keine Funde. A block met by the quick check: "… unsere Abfrage nicht durchgelassen (Antwort {Status}). Deshalb zeigt der Bericht keine Funde. Die vollständige Prüfung ist morgen wieder möglich."
+- Failed: Ihre Startseite ließ sich nicht prüfen: {Grund}. Deshalb zeigt der Bericht keine Funde. {Grund} is the phrase of the scan screen (B2 part 3): "sie hat nicht rechtzeitig geantwortet", "der Server war nicht erreichbar", "der Server hat mit dem Fehler {Status} geantwortet", "unter dieser Adresse gibt es keine Website", "sie stellt mehr Anfragen oder liefert mehr Daten, als die Prüfung aufzeichnet", "unter der Adresse liegt keine Webseite, sondern eine Datei", "bei der Prüfung ist ein Fehler aufgetreten".
+- Refused address: Diese Adresse dürfen wir nicht prüfen: {Grund}. Deshalb zeigt der Bericht keine Funde. {Grund} as on the scan screen ("die Seite leitet mehr als fünfmal weiter", …).
+- Almost empty page: the text of `report-page-almost-empty` (fix-a1, fix-a2). A page still loading after 15 s: the text of `report-page-still-loading` (fix-a6). Lists and texts read only in part: the texts of `report-truncated-findings`, `report-truncated-services` and `report-truncated-page` (fix-a4).
+- A notice the page does not know: Der Bericht zeigt, was wir prüfen konnten. (B2 part 3)
+- Status: Entwurf
+
+### Prüfmaße
+
+- "Ist" of "Bilder mit Beschreibung" on a page without images: keine Bilder (Fedor, 24.11.2026).
+- "Ist" of a row that was checked but has no value (an unsure result, or a report of a capture made before a fix): nicht ermittelt. "nicht geprüft" stays for a row that did not run.
+- A report whose homepage did not load (blocked, refused, failed) has no Prüfmaße table.
+- Status: Entwurf
+
+### "Drei Dinge"
+
+- Heading with two priorities: Zwei Dinge sollten Sie zuerst beheben. With one: Das sollten Sie zuerst beheben. With none: "Keine vorrangigen Punkte" and the line "In den geprüften Teilen hat die automatische Prüfung keinen Punkt mit Risiko gefunden."
+- A report that measured no homepage (blocked, refused, failed, almost empty page) has no such section and no plan.
+- Status: Entwurf
+
+### Zeitschnitt A–A
+
+- No banner seen: "Kein Einwilligungsbanner erkannt." (no cut, and no key of the cut in the legend).
+- A banner after the window: "Einwilligungsbanner erscheint nach {s} s, nach diesem Ausschnitt."
+- No third party in the window: "In den ersten drei Sekunden keine Anfrage an fremde Server."
+- The small line of the site's own files (Fedor's answer 1 of B3 part 1): "Ihre Dateien: {Arten}" with the words of the types the report gives, each once, joined with ", " and " und ": "Design" (style sheets and fonts) and "Skripte" are the reference's words; "Bilder", "Medien" (video and audio), "Daten" (xhr, fetch, event streams, web sockets) and "Weiteres" (anything else) are drafts. Without types (a report made before) or with other files only: "Ihre Dateien" (the draft of B3 part 1).
+- Status: Entwurf
 
 ## Sources
 
