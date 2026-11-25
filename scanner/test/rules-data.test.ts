@@ -67,8 +67,19 @@ describe('rules data', () => {
 
   it('contains no forbidden wording', () => {
     for (const service of RULES_FILE.services) {
-      expect(`${service.name} ${service.provider} ${service.note ?? ''}`).not.toMatch(FORBIDDEN_WORDING);
+      expect(`${service.name} ${service.shortName} ${service.provider} ${service.note ?? ''}`).not.toMatch(FORBIDDEN_WORDING);
     }
+  });
+
+  // Session B4 part 2 (Fedor's answer 2): every service has a short name for the report, unique, the brand without a
+  // version the scan does not tell (the reference's "Google Analytics 4" is "Google Analytics").
+  it('gives every service a unique short name without a version', () => {
+    const names = RULES_FILE.services.map((s) => s.shortName);
+    expect(names).toHaveLength(95);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.filter((n) => /\s\d+$|\bv\d/.test(n))).toEqual([]);
+    const byId = Object.fromEntries(RULES_FILE.services.map((s) => [s.id, s.shortName]));
+    expect([byId['google-tag-manager'], byId['google-analytics'], byId['jsdelivr'], byId['youtube']]).toEqual(['Google Tag Manager', 'Google Analytics', 'jsDelivr', 'YouTube']);
   });
 
   it.each([

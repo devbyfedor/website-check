@@ -724,6 +724,90 @@ Built from the dashed box of the "Revisionen" ("So erscheint ein erledigter Fund
 - The small line of the site's own files (Fedor's answer 1 of B3 part 1): "Ihre Dateien: {Arten}" with the words of the types the report gives, each once, joined with ", " and " und ": "Design" (style sheets and fonts) and "Skripte" are the reference's words; "Bilder", "Medien" (video and audio), "Daten" (xhr, fetch, event streams, web sockets) and "Weiteres" (anything else) are drafts. Without types (a report made before) or with other files only: "Ihre Dateien" (the draft of B3 part 1).
 - Status: Entwurf
 
+## Session B4 part 1
+
+The lower part of the report (Stückliste, the finding details with the system tabs, the help block, the title block) and the note next to the country of the visit. The texts of `design/reference/bericht.html` are final and are not listed (the fix instructions for Shopify, Wix, Jimdo and Shopware stay drafts by `design/README.md`); these are the texts the reference does not have. They live in `web/lib/report-detail-texts.ts` and `web/lib/report-texts.ts`; every one is an Entwurf.
+
+### Head: the country of the visit (Fedor, answer 3)
+
+- A second line under the country, small and grey: "Unser Prüfbrowser läuft in einem Rechenzentrum in der EU und ist eingestellt wie ein Besucher aus Deutschland: deutsche Sprache, Zeitzone Berlin."
+- Without "in der EU" for a country outside the EU; without the part after "Rechenzentrum" when the report does not say `de-DE` and `Europe/Berlin`: "Unser Prüfbrowser läuft in einem Rechenzentrum in der EU."
+- The quick check has no browser: "Unsere Abfrage kam aus einem Rechenzentrum in der EU." (review of B4 part 1).
+- Status: Entwurf
+
+### Stückliste
+
+- With one service: 1 Dienst gefunden.
+- Anbieter of an unknown service: unbekannt.
+- The small line by category (the reference's are "Schriften", "lädt weitere Skripte", "Statistik" and, for a public CDN, "Skripte"): Aufzeichnung von Besuchen (session recording), Marketing, Werbung, Werbung in sozialen Netzwerken (social pixels), Karte, Video (the reference's "Produktvideo" names the use on the page, which the scan does not know), Beiträge aus sozialen Netzwerken (embeds), Chat, Bewertungen, Terminbuchung, Widgets, Zahlung, Schutz vor Bots (captcha), Werkzeug für Barrierefreiheit (overlay), Übersetzung, Dienst Ihres Systems (platform), Einwilligungstool, Weiteres, unbekannter Dienst.
+- "Daten gehen an" (the reference's are "Server in den USA möglich" and "weltweites Servernetz"): Server in der EU; nicht bekannt.
+- The tag of "Einwilligung" (the reference's are "fehlt" and "Graubereich"): nicht nötig (blue; the consent tool itself, a service of the site), keine Antwort (grey; no request of the service got an answer), bitte manuell prüfen (grey). The reference's "wird eingeholt" needs a service that waits for a click, which the scan does not see.
+- Status: Entwurf
+
+### Finding details
+
+- "Was passiert" of a service of the classes consent-required and usually-consent, after the reference's sentence for Google Fonts: "Ihre Startseite stellt {Anzahl} an Server von {Anbieter}, die erste {Sekunden} nach dem Aufruf. {Anbieter} erhält dabei die IP-Adresse jedes Besuchers, bevor dieser zustimmen kann." ({Anzahl}: "eine Anfrage", "zwei Anfragen" … "zwölf Anfragen", then digits; {Sekunden}: "0,3 Sekunden", "1 Sekunde", "weniger als 0,1 Sekunden".)
+- When the first request came after the banner, or no banner was seen, the second sentence (also of Google Fonts) is: "{Anbieter} erhält dabei die IP-Adresse jedes Besuchers, ohne dass dieser zugestimmt hat." The reference's "bevor dieser zustimmen kann" is true only before the banner.
+- One request: "Ihre Startseite stellt eine Anfrage an Server von {Anbieter}, {Sekunden} nach dem Aufruf." (no "die erste").
+- Ist next to "0 Anfragen an {Anbieter}" in the same case: "{n} Anfragen, ohne Einwilligung" (the reference: "2 Anfragen, vor dem Banner"); "1 Anfrage, …". When only the first request started before the banner (or the report keeps fewer requests than it counts): "{n} Anfragen, die erste vor dem Banner".
+- The Soll and Ist of the contrast card are the values of its own text ("mind. 3 : 1" for large text), not the 4,5 : 1 of the Prüfmaß.
+- A detected Shopware 5: its tab shows "Für Shopware 5 haben wir noch keine eigene Anleitung." (the Shopware steps of the reference are for Shopware 6).
+- "Warum das wichtig ist", consent-required: "Für Dienste zur Statistik, Werbung und ähnliche Zwecke verlangen die deutschen Datenschutzbehörden eine Einwilligung, bevor sie im Browser des Besuchers starten. Ein Einwilligungsbanner allein genügt dafür nicht: Der Dienst darf erst nach der Zustimmung laden." (Sources: `dsk-oh-digitale-dienste`, `tdddg-25` in `docs/rules-sources.md`.)
+- "Warum das wichtig ist", usually-consent: "Karten, Videos, Chat- und Bewertungsfenster fremder Anbieter brauchen nach Ansicht der deutschen Datenschutzbehörden meist eine Einwilligung, bevor sie laden. Eine gängige Lösung ist ein Platzhalter, der den Dienst erst nach einem Klick lädt."
+- The cards of accessibility, HTTPS, the redirect and the Impressum link take the drafts above: "Fact and risk" split into "Was passiert" (the fact) and "Warum das wichtig ist" (the risk), and "Fix" as the steps of the "Montageanleitung" (one step per sentence, without tabs).
+- A system tab without steps of its own and without general steps: "Für {System} haben wir noch keine eigene Anleitung." (not used yet: only Google Fonts has tabs, with all five systems).
+- Status: Entwurf
+
+### Texts that are still missing (finding × system)
+
+- Third-party services with a risk: 32 services can be such a finding (classes precedent, consent-required, usually-consent of `scanner/data/third-party-services.json`); `fix-google-fonts` has all five systems (WordPress final, the other four drafts of the reference that still have to be checked against the real systems). Missing for all five systems: `fix-google-tag-manager`, `fix-google-analytics`, `fix-google-ads`, `fix-google-analytics-advertising-features`, `fix-yandex-metrica`, `fix-hotjar`, `fix-microsoft-clarity`, `fix-brevo-tracker`, `fix-klaviyo-client-events`, `fix-criteo`, `fix-microsoft-advertising-uet`, `fix-linkedin-insight-tag`, `fix-meta-pixel`, `fix-pinterest-tag`, `fix-snap-pixel`, `fix-tiktok-pixel`, `fix-x-pixel`, `fix-google-maps`, `fix-openstreetmap-tiles`, `fix-vimeo`, `fix-youtube`, `fix-youtube-nocookie`, `fix-facebook-social-plugins`, `fix-instagram-embeds`, `fix-x-embeds`, `fix-crisp`, `fix-intercom`, `fix-livechat`, `fix-smartsupp`, `fix-tawk-to`, `fix-zendesk-web-widget` (31 × 5 = 155 texts), and the "Was passiert" and "Warum das wichtig ist" of these classes are only the general drafts above.
+- Accessibility (`a11y-color-contrast`, `-image-alt`, `-label`, `-link-name`, `-button-name`, `-html-has-lang`, `-html-lang-valid`), security (`security-https-missing`, `security-http-no-redirect`) and `legal-impressum-no-link`: only the general fix, no steps by system (10 × 5 = 50 texts).
+- `security-headers` (low risk, can be among "Drei Dinge" when fewer findings have a higher risk): no "Was passiert", no "Warum das wichtig ist", no fix at all; its card shows only the title and Soll and Ist.
+- Status: offen
+
+## Session B4 part 2
+
+The lower part of the report for a real id, its states without design, the copying and the actions of the head. Every text here is an Entwurf; the texts of `design/reference/bericht.html` are final and not listed.
+
+### Short names of the services (Fedor, answer 2)
+
+The name the report shows for a known service (Stückliste, the titles of "Drei Dinge" and of the finding details, the scan screen, the copied list), the field `shortName` of `scanner/data/third-party-services.json`. Brand names as the brands write them, without a version the scan does not tell ("Google Analytics", not "Google Analytics 4"). A German word in brackets only where one brand has several rules: "(Ladeskript)", "(Ereignisse)", "(Werbefunktionen)", "(erweiterter Datenschutzmodus)" (Google's German name of the Privacy Enhanced Mode), "(Telemetrie)", "(Skripte)", "(Cookie-Banner)". "Google Übersetzer" is the German name of Google Translate; "Jetpack CDN" stands for the image and file CDN of Jetpack (formerly "Site Accelerator"); "Cookie Compliance" is the product of Hu-manity.co. To be checked against the brands' own pages before the launch.
+
+- fonts: Adobe Fonts (`adobe-fonts`), Bunny Fonts (`bunny-fonts`), Font Awesome (`font-awesome`), Google Fonts (`google-fonts`).
+- tag-manager: Google Tag Manager (`google-tag-manager`).
+- analytics: Cloudflare Web Analytics (`cloudflare-web-analytics`), etracker Analytics (`etracker`), Fathom Analytics (`fathom`), Google Analytics (`google-analytics`), Jetpack Stats (`jetpack-stats`), Matomo Cloud (`matomo-cloud`), Plausible Analytics (`plausible`), Yandex Metrica (`yandex-metrica`).
+- session-recording: Hotjar (`hotjar`), Microsoft Clarity (`microsoft-clarity`), Mouseflow (`mouseflow`), Mouseflow (Ladeskript) (`mouseflow-loader`).
+- marketing-automation: Brevo (`brevo-tracker`), HubSpot (`hubspot-tracking-code`), Klaviyo (Ereignisse) (`klaviyo-client-events`), Klaviyo (`klaviyo-onsite-js`), Leadfeeder (`leadfeeder`).
+- advertising: Awin (`awin`), Criteo (`criteo`), Google Ads / AdSense (`google-ads`), Google Analytics (Werbefunktionen) (`google-analytics-advertising-features`), Microsoft Advertising (`microsoft-advertising-uet`).
+- social-pixel: LinkedIn Insight Tag (`linkedin-insight-tag`), Meta Pixel (`meta-pixel`), Pinterest Tag (`pinterest-tag`), Snap Pixel (`snap-pixel`), TikTok Pixel (`tiktok-pixel`), X Pixel (`x-pixel`).
+- maps: Google Maps (`google-maps`), OpenStreetMap (`openstreetmap-tiles`).
+- video: Vimeo (`vimeo`), YouTube (`youtube`), YouTube (erweiterter Datenschutzmodus) (`youtube-nocookie`).
+- social-embed: Facebook Social Plugins (`facebook-social-plugins`), Instagram (`instagram-embeds`), X (`x-embeds`).
+- chat: Crisp (`crisp`), Intercom (`intercom`), LiveChat (`livechat`), Smartsupp (`smartsupp`), tawk.to (`tawk-to`), Tidio (`tidio`), Userlike (`userlike`), Zendesk (`zendesk-web-widget`).
+- reviews: Judge.me (`judge-me`), ProvenExpert (`provenexpert`), Trusted Shops (`trusted-shops`), Trustpilot (`trustpilot`).
+- booking: Calendly (`calendly`).
+- widget-platform: Elfsight (`elfsight`), Trustindex (`trustindex`).
+- payment: Klarna (`klarna`), PayPal (`paypal`), Stripe (`stripe`).
+- captcha: Cloudflare Turnstile (`cloudflare-turnstile`), Friendly Captcha (`friendly-captcha`), Google reCAPTCHA (`google-recaptcha`), hCaptcha (`hcaptcha`).
+- accessibility-overlay: accessiBe (`accessibe`), Eye-Able (`eye-able`), UserWay (`userway`).
+- translation: Google Übersetzer (`google-translate-widget`), GTranslate (`gtranslate`).
+- cdn: cdnjs (`cdnjs`), Google Hosted Libraries (`google-hosted-libraries`), Jetpack CDN (`jetpack-site-accelerator`), jQuery CDN (`jquery-cdn`), jsDelivr (`jsdelivr`), unpkg (`unpkg`), WordPress-Emojis (`wordpress-emoji`).
+- platform: Jimdo (`jimdo-static-assets`), Shopify (`shopify-cdn`), Shopify (Telemetrie) (`shopify-platform-telemetry`), Wix (`wix-media`), Wix (Skripte) (`wix-platform-other`).
+- consent: CCM19 (`ccm19`), consentmanager (`consentmanager`), Cookiebot (`cookiebot`), CookieFirst (`cookiefirst`), CookieYes (`cookieyes`), Didomi (`didomi`), Cookie Compliance (`hu-manity`), iubenda (`iubenda`), Klaro! (`klaro`), OneTrust (`onetrust`), Shopify (Cookie-Banner) (`shopify-privacy-banner`), Sourcepoint (`sourcepoint`), TrustArc (`trustarc`), Usercentrics (`usercentrics`).
+- other: Gravatar (`gravatar`).
+- Status: Entwurf
+
+### The lower part on the report of a real id
+
+- The country of the visit next to every finding about data sent before consent (Fedor, 21.11.2026), as the small grey line under "vor der Einwilligung" of its row in the Stückliste and under "Was passiert" of its card: "Land des Aufrufs: {Land}" ({Land} is the German name of the country, "Deutschland", "Niederlande"; the form with a colon needs no article, "aus den Niederlanden"). Not for a report without a country.
+- A finding without a fix text yet, in the box of the "Montageanleitung": "Für diesen Punkt haben wir noch keine Anleitung." (the fix texts are a session of their own after B4).
+- A card of a finding without any text or value (a text id the page does not know yet): "Was passiert": "Die Prüfung hat diesen Punkt gefunden. Eine Beschreibung dazu schreiben wir noch."
+- The help block names what the priorities of "Drei Dinge" are about, in their order: "Schriften lokal einbinden", "die Einwilligung richtig einstellen", "Barrieren entfernen" (the reference's), and the drafts "HTTPS einrichten", "Sicherheits-Header setzen", "den Link zum Impressum setzen": "Ich behebe die Funde für Sie: {Aufgaben}. Antwort per E-Mail." With priorities of another kind: "Ich behebe die Funde für Sie. Antwort per E-Mail."
+- The help block of a report without priorities (nothing to fix first, an almost empty page): heading "Sie möchten Ihre Website genauer prüfen lassen?", text "Unsere automatische Prüfung sieht nur die Startseite und das Impressum. Ich sehe mir Ihre Website gern genauer an. Antwort per E-Mail." The button "Hilfe bei der Umsetzung anfragen" stays.
+- The copied list follows the reference's script ("Externe Dienste auf {Domain} (Prüfung vom {Datum}):", then "{Pos.}. {Dienst} ({Anbieter}), {kleine Zeile}", without the provider when it is the name itself). A short name with a word in brackets takes the provider into its brackets, or none when the name before them is the provider: "Mouseflow (Ladeskript), Aufzeichnung von Besuchen", "YouTube (erweiterter Datenschutzmodus, Google), Video". A cut list ends with "… und {n} weitere Dienste, die der Bericht nicht einzeln aufführt." ("… und 1 weiterer Dienst, den der Bericht nicht einzeln aufführt.").
+- When the browser refuses the clipboard: "Die Liste konnte nicht kopiert werden." and "Der Link konnte nicht kopiert werden." (shown next to the button and said by the status region). "Liste kopiert" is the reference's, "Link kopiert" Fedor's (B3 part 2).
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/

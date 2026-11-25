@@ -60,7 +60,7 @@ describe('matching Google country domains', () => {
     const raw = {
       version: 1,
       updated: '2026-11-21',
-      services: [{ id: 'g', name: 'G', provider: 'Google', category: 'advertising', riskClass: 'grey-zone', dataLocation: 'unknown', hosts: ['www.google.de/ads/'], sources: [] }],
+      services: [{ id: 'g', name: 'G', shortName: 'G', provider: 'Google', category: 'advertising', riskClass: 'grey-zone', dataLocation: 'unknown', hosts: ['www.google.de/ads/'], sources: [] }],
     };
     expect(() => compileRules(parseRulesFile(raw), { canonicalHost: canonical })).toThrow(/matched through www\.google\.com/);
     expect(() => compileRules(parseRulesFile(raw))).not.toThrow();

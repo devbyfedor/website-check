@@ -35,6 +35,22 @@ export const REPORT_TIME_ZONE = 'Europe/Berlin';
 export interface HeadFact {
   label: string;
   value: string;
+  /** A short line under the value (the country of the visit, B4 part 1). */
+  note?: string;
+}
+
+/** The member states of the EU (ISO 3166-1 alpha-2), for "in einem Rechenzentrum in der EU". */
+export const EU_COUNTRIES: ReadonlySet<string> = new Set(['AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK']);
+
+/**
+ * The note next to "Aufgerufen aus …" (Fedor, B4 part 1, answer 3): the browser of the scan runs in a data centre (in
+ * the EU when the country is one of the EU) and is set like a visitor from Germany, when the report says so. A quick
+ * check has no browser (`visit.browser` null): only where its request came from (review of B4 part 1).
+ */
+export function visitNote(visit: Report['visit']): string {
+  const eu = visit.country !== null && EU_COUNTRIES.has(visit.country);
+  if (visit.browser === null) return D.visitNoteQuick(eu);
+  return D.visitNote(eu, visit.locale === 'de-DE' && visit.timezone === 'Europe/Berlin');
 }
 
 /** "19. November 2026, 18:42 Uhr" in Berlin, from `scan.scannedAt` (UTC). */
@@ -79,7 +95,7 @@ export function headFacts(report: Report, timeZone = REPORT_TIME_ZONE): HeadFact
   facts.push({ label: T.revision, value: T.revisionInitial(report.revision.letter) });
   // The country is a two-letter code by the schema; the name comes from the browser's own list.
   const country = report.visit.country === null ? null : countryName(report.visit.country);
-  if (country !== null) facts.push({ label: D.visitedFrom, value: country });
+  if (country !== null) facts.push({ label: D.visitedFrom, value: country, note: visitNote(report.visit) });
   return facts;
 }
 

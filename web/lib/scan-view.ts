@@ -225,7 +225,7 @@ export type MarkWhere = { place: MarkPlace; field: string } | { place: 'source';
 
 
 /** An address without query and fragment ("https://example.de/"), for comparing the document of a request. */
-const documentOf = (href: string | null): string | null => {
+export const documentOf = (href: string | null): string | null => {
   const url = parsed(href);
   return url === null ? null : `${url.origin}${url.pathname}`;
 };

@@ -51,6 +51,8 @@ export interface CompileOptions {
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const HOST = /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z][a-z0-9-]*[a-z0-9]$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** The short name fits the column "Dienst" of the Stückliste (B4 part 2); the longest today has 38 characters. */
+export const SHORT_NAME_MAX = 40;
 
 export function parseHostPattern(raw: string): HostPattern {
   const slash = raw.indexOf('/');
@@ -86,6 +88,7 @@ export function parseRulesFile(raw: unknown): RulesFile {
     throw new Error(`rules file: ${[...errors, 'services must be a non-empty array'].join('; ')}`);
   }
   const ids = new Set<string>();
+  const shortNames = new Set<string>();
   const patterns = new Map<string, string>();
   services.forEach((service: unknown, index) => {
     const where = `services[${index}]`;
@@ -98,9 +101,15 @@ export function parseRulesFile(raw: unknown): RulesFile {
     if (typeof id !== 'string' || !ID.test(id)) errors.push(`${label}: id must be kebab-case`);
     else if (ids.has(id)) errors.push(`${label}: duplicate id`);
     else ids.add(id);
-    for (const key of ['name', 'provider'] as const) {
+    for (const key of ['name', 'shortName', 'provider'] as const) {
       const value = service[key];
       if (typeof value !== 'string' || value.trim() === '') errors.push(`${label}: ${key} must be a non-empty string`);
+    }
+    const shortName = service['shortName'];
+    if (typeof shortName === 'string') {
+      if (shortName.length > SHORT_NAME_MAX) errors.push(`${label}: shortName longer than ${SHORT_NAME_MAX} characters`);
+      if (shortNames.has(shortName)) errors.push(`${label}: shortName "${shortName}" is used twice`);
+      shortNames.add(shortName);
     }
     if (service['providerLegal'] !== undefined && typeof service['providerLegal'] !== 'string') {
       errors.push(`${label}: providerLegal must be a string`);

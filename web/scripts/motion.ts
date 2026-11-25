@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { PNG } from 'pngjs';
 import { ROOT, VIEWPORT_HEIGHT, nextFrames, routeHosts, settle, startCheckServer } from './browser-setup.ts';
-import { cropTop, decidedWording, diffImages, percent, regionBottom, REPORT_REGION } from './image-diff.ts';
+import { cropTop, decidedWording, diffImages, EXAMPLE_DATA_CHANGES, exampleData, EXTRA_CARDS, hideAll, percent, regionBottom } from './image-diff.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'motion');
 const DRAWING = 'svg[viewBox="0 0 600 450"]';
@@ -32,6 +32,10 @@ interface PageSpec {
   layers: boolean; // the four layer buttons of the home page
   region?: string; // the whole page down to the bottom of this block only (a page built in part, as in npm run visual)
   decided?: boolean; // the reference gets the wording a product rule decides before its frames (image-diff.ts, decidedWording)
+  hideInApp?: string; // elements of the app the reference shows only once as a pattern, hidden before the frames (image-diff.ts)
+  // the reference's frames get the data of the example where schema v1 cannot hold the reference's (image-diff.ts,
+  // exampleData): motion compares motion; the difference of the data is measured by npm run visual
+  exampleData?: boolean;
 }
 
 const PAGES: PageSpec[] = [
@@ -46,8 +50,8 @@ const PAGES: PageSpec[] = [
     shot: null,
     layers: false,
   },
-  // The report with the example of the reference, its upper part (B3 part 1): the three red marks of the plan and
-  // their numbers draw from 0.4 to 2.35 s; each phase hit at least once.
+  // The report with the example of the reference, the whole page (B3, B4): the three red marks of the plan and their
+  // numbers draw from 0.4 to 2.35 s; each phase hit at least once. The lower part has no animation.
   {
     name: 'bericht',
     reference: 'bericht.html',
@@ -55,8 +59,9 @@ const PAGES: PageSpec[] = [
     times: [0.3, 0.6, 0.9, 1.15, 1.3, 1.5, 1.75, 2.0, 2.2, 2.5],
     shot: null,
     layers: false,
-    region: REPORT_REGION,
     decided: true,
+    hideInApp: EXTRA_CARDS,
+    exampleData: true,
   },
 ];
 
@@ -276,6 +281,15 @@ async function checkPage(browser: Browser, origin: string, spec: PageSpec, width
     const rows = await refF.page.evaluate(decidedWording);
     if (rows !== 1) failures++;
     console.log(`  frames of the reference with the decided wording of the row "Erklärung zur Barrierefreiheit" (product rule 3): ${rows} row`);
+  }
+  if (spec.exampleData) {
+    const n = await refF.page.evaluate(exampleData);
+    if (n !== EXAMPLE_DATA_CHANGES) failures++;
+    console.log(`  frames of the reference with the data of the example where schema v1 cannot hold the reference's (${n} changes: the Stückliste without the YouTube row, "Google Analytics" for "Google Analytics 4", the address in "Gefunden im Quelltext")`);
+  }
+  if (spec.hideInApp !== undefined) {
+    const n = await appF.page.evaluate(hideAll, spec.hideInApp);
+    console.log(`  frames of the app with ${n} finding details after the first hidden (the reference shows one card as the pattern)`);
   }
   for (const t of args.times ?? spec.times) {
     const nRef = await refF.page.evaluate(freeze, [t, 'CSSAnimation'] as const);

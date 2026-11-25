@@ -6,6 +6,7 @@ import { loadTestRules } from './helpers.ts';
 function rule(partial: Partial<ServiceRule> & { id: string; hosts: string[] }): ServiceRule {
   return {
     name: partial.id,
+    shortName: partial.id,
     provider: 'Test',
     category: 'analytics',
     riskClass: 'consent-required',
@@ -101,6 +102,17 @@ describe('parseRulesFile', () => {
     expect(() => parseRulesFile(file([rule({ id: 'a', hosts: ['a.example.com'] }), rule({ id: 'a', hosts: ['b.example.com'] })]))).toThrow(/duplicate id/);
     expect(() => parseRulesFile(file([rule({ id: 'a', hosts: ['x.example.com'] }), rule({ id: 'b', hosts: ['x.example.com'] })]))).toThrow(
       /already used by a/,
+    );
+  });
+
+  // Session B4 part 2: the short name the report shows is required, at most 40 characters and unique.
+  it('rejects a missing, too long or repeated short name', () => {
+    const { shortName: _drop, ...without } = rule({ id: 'a', hosts: ['a.example.com'] });
+    expect(() => parseRulesFile(file([without]))).toThrow(/shortName must be a non-empty string/);
+    expect(() => parseRulesFile(file([rule({ id: 'a', hosts: ['a.example.com'], shortName: 'x'.repeat(41) })]))).toThrow(/shortName longer than 40/);
+    expect(() => parseRulesFile(file([rule({ id: 'a', hosts: ['a.example.com'], shortName: 'x'.repeat(40) })]))).not.toThrow();
+    expect(() => parseRulesFile(file([rule({ id: 'a', hosts: ['a.example.com'], shortName: 'Same' }), rule({ id: 'b', hosts: ['b.example.com'], shortName: 'Same' })]))).toThrow(
+      /shortName "Same" is used twice/,
     );
   });
 

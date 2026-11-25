@@ -17,7 +17,7 @@ import { mkdir, writeFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { chromium, type Browser } from 'playwright';
 import { PNG } from 'pngjs';
-import { cropTop, decidedWording, diffImages, regionBottom, REPORT_REGION } from './image-diff.ts';
+import { cropTop, decidedWording, diffImages, EXAMPLE_DATA_CHANGES, exampleData, EXTRA_CARDS, hideAll, regionBottom } from './image-diff.ts';
 import { OUT_DIR, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer, type FontRouting } from './browser-setup.ts';
 
 const RESULT_DIR = join(ROOT, 'local', 'visual');
@@ -27,11 +27,15 @@ const RESULT_DIR = join(ROOT, 'local', 'visual');
 // (WC_EXAMPLES=1). `region`: the page is built only in part, and the comparison counts the area from the top of the
 // page to the bottom of this block (the same selector in both pages); everything below it is left out. `decided`: the
 // reference gets the wording a product rule decides (image-diff.ts, decidedWording) before it is compared; the
-// difference against the unchanged reference is printed too.
-const PAGES: { name: string; reference: string; app: string | null; region?: string; decided?: boolean }[] = [
+// difference against the unchanged reference is printed too. `hideInApp`: elements of
+// the app the reference shows only once as a pattern (the finding details after the first, image-diff.ts), hidden in
+// the app before its screenshot. `exampleData` (B4 part 1): the page is also compared with the reference that has, besides
+// the decided wording, the data of the example where schema v1 cannot hold the reference's data (image-diff.ts,
+// exampleData); printed next to the main number, which stays the one with the decided wording only.
+const PAGES: { name: string; reference: string; app: string | null; region?: string; decided?: boolean; hideInApp?: string; exampleData?: boolean }[] = [
   { name: 'start', reference: 'start.html', app: '/' },
   { name: 'pruefung', reference: 'pruefung.html', app: '/pruefung/beispiel' }, // B2
-  { name: 'bericht', reference: 'bericht.html', app: '/bericht/beispiel', region: REPORT_REGION, decided: true }, // B3 part 1; B4 the rest
+  { name: 'bericht', reference: 'bericht.html', app: '/bericht/beispiel', decided: true, hideInApp: EXTRA_CARDS, exampleData: true }, // B3, B4: the whole report
   { name: 'bfsg', reference: 'bfsg.html', app: null }, // B5
 ];
 
@@ -152,6 +156,8 @@ interface Shot {
   blocked: string[];
   /** The height of the compared area, when the page has a region; the full page otherwise. */
   regionHeight: number | null;
+  /** How many elements of `hide` were hidden; null without `hide`. */
+  hidden: number | null;
 }
 
 async function shoot(
@@ -159,7 +165,7 @@ async function shoot(
   url: string,
   width: number,
   origin: string,
-  opts: { fonts: FontRouting; mask: string[]; file: string; region?: string | undefined; decided?: boolean | undefined },
+  opts: { fonts: FontRouting; mask: string[]; file: string; region?: string | undefined; decided?: boolean | undefined; hide?: string | undefined; data?: boolean | undefined },
 ): Promise<Shot> {
   const context = await browser.newContext({
     viewport: { width, height: VIEWPORT_HEIGHT[width] ?? 900 },
@@ -174,7 +180,15 @@ async function shoot(
   await settle(page);
   if (opts.decided && (await page.evaluate(decidedWording)) !== 1) throw new Error(`${url}: the row of the decided wording was not found`);
   if (opts.decided) await settle(page);
+  if (opts.data) {
+    const n = await page.evaluate(exampleData);
+    if (n !== EXAMPLE_DATA_CHANGES) throw new Error(`${url}: ${n} changes for the data of the example, expected ${EXAMPLE_DATA_CHANGES}`);
+    await settle(page);
+  }
+  // The layout of the whole page, the hidden cards too (review of B4 part 1), before they are hidden for the pixels.
   const layout = await page.evaluate(layoutCheck);
+  const hidden = opts.hide === undefined ? null : await page.evaluate(hideAll, opts.hide);
+  if (hidden !== null) await settle(page);
   const bottom = opts.region === undefined ? null : await page.evaluate(regionBottom, opts.region);
   if (opts.region !== undefined && bottom === null) throw new Error(`${url}: no element ${opts.region}`);
   const buffer = await page.screenshot({
@@ -185,7 +199,7 @@ async function shoot(
   await context.close();
   const png = bottom === null ? PNG.sync.read(buffer) : cropTop(PNG.sync.read(buffer), bottom);
   await writeFile(opts.file, PNG.sync.write(png));
-  return { png, layout, blocked, regionHeight: bottom === null ? null : png.height };
+  return { png, layout, blocked, regionHeight: bottom === null ? null : png.height, hidden };
 }
 
 interface Result {
@@ -201,6 +215,10 @@ interface Result {
   excluded: string[];
   /** Pages with `decided`: the share of different pixels against the reference as it is, without the decided wording. */
   asIsPercent?: number;
+  /** Pages with `exampleData`: the share against the reference with the decided wording and the data of schema v1. */
+  dataPercent?: number;
+  /** Session B4 part 2: the strict pixels of that comparison (threshold 0). */
+  dataStrictPercent?: number;
 }
 
 function compare(name: string, width: number, ref: PNG, app: PNG, excluded: string[]): { result: Result; diff: PNG } {
@@ -265,6 +283,17 @@ async function main(): Promise<void> {
               region: p.region,
             })
           : null;
+        // With the decided wording and the data of the example where schema v1 cannot hold the reference's (B4 part 1).
+        const withData = p.exampleData && !args.referenceOnly && p.app
+          ? await shoot(browser, `${server.origin}/__reference/${p.reference}`, width, server.origin, {
+              fonts: args.googleFonts ? 'google' : 'local',
+              mask: excluded,
+              file: join(RESULT_DIR, `${tag}-reference-data.png`),
+              region: p.region,
+              decided: true,
+              data: true,
+            })
+          : null;
         if (ref.blocked.length) console.log(`  reference: ${ref.blocked.length} requests to other hosts blocked`);
         layouts[`${tag}-reference`] = ref.layout;
         if (args.referenceOnly || !p.app) {
@@ -276,7 +305,9 @@ async function main(): Promise<void> {
           mask: excluded,
           file: join(RESULT_DIR, `${tag}-app.png`),
           region: p.region,
+          hide: p.hideInApp,
         });
+        if (app.hidden !== null) console.log(`  app: ${app.hidden} finding details after the first hidden before the screenshot (the reference shows one card as the pattern)`);
         printLayout('app', app.layout);
         layouts[`${tag}-app`] = app.layout;
         appBlocked += app.blocked.length;
@@ -292,8 +323,18 @@ async function main(): Promise<void> {
             `  against the reference as it is (without the decided wording): reference ${plain.result.referenceSize.join(' x ')}, ` +
               `different pixels ${plain.result.percent.toFixed(3)} % (${plain.result.differentPixels} of ${plain.result.totalPixels})`,
           );
-          console.log('  against the reference with the decided wording of the row "Erklärung zur Barrierefreiheit" (product rule 3):');
         }
+        if (withData !== null) {
+          const data = compare(p.name, width, withData.png, app.png, excluded);
+          await writeFile(join(RESULT_DIR, `${tag}-diff-data.png`), PNG.sync.write(data.diff));
+          result.dataPercent = data.result.percent;
+          result.dataStrictPercent = data.result.strictPercent;
+          console.log(
+            `  against the reference with the decided wording and the data schema v1 holds (Stückliste without the YouTube row, "Google Analytics" for "Google Analytics 4", the address in "Gefunden im Quelltext"): ` +
+              `reference ${data.result.referenceSize.join(' x ')}, different pixels ${data.result.percent.toFixed(3)} % (${data.result.differentPixels} of ${data.result.totalPixels}), strict ${data.result.strictPercent.toFixed(3)} %`,
+          );
+        }
+        if (asIs !== null) console.log('  against the reference with the decided wording of the row "Erklärung zur Barrierefreiheit" (product rule 3):');
         results.push(result);
         if (p.region !== undefined) console.log(`  compared area: from the top of the page to the bottom of ${p.region} (reference ${ref.regionHeight} px, app ${app.regionHeight} px high)`);
         console.log(
@@ -312,11 +353,24 @@ async function main(): Promise<void> {
   if (results.length) {
     console.log('Different pixels (threshold 0.1, anti-aliasing not counted):');
     for (const r of results) {
+      // Session B4 part 2 (Fedor's answer 1): the measure of the report is the comparison with the reference into which
+      // the data schema v1 holds is put (docs/decisions.md lists the places); the strict number, against the reference
+      // with the decided wording only, stands next to it.
+      if (r.dataPercent !== undefined) {
+        console.log(
+          `  ${r.page} ${r.width} px: ${r.dataPercent.toFixed(3)} % against the reference with the data of schema v1 (the measure, at most 1 %: ${r.dataPercent <= 1 ? 'yes' : 'NO'}; strict pixels ${(r.dataStrictPercent ?? 0).toFixed(3)} %); ` +
+            `strict number ${r.percent.toFixed(3)} % against the reference with the decided wording only${r.asIsPercent === undefined ? '' : `, ${r.asIsPercent.toFixed(3)} % against the reference as it is`}`,
+        );
+        continue;
+      }
       console.log(`  ${r.page} ${r.width} px: ${r.percent.toFixed(3)} %${r.asIsPercent === undefined ? '' : ` (against the reference as it is ${r.asIsPercent.toFixed(3)} %)`}`);
     }
   }
   if (!args.referenceOnly) console.log(`Requests of the app to other hosts: ${appBlocked}`);
-  if (appBlocked > 0) process.exitCode = 1;
+  // The 1 % of the session messages (review of B4 part 2): for the report the measure with the data of schema v1.
+  const over = results.filter((r) => (r.dataPercent ?? r.percent) > 1);
+  if (over.length > 0) console.log(`Above 1 %: ${over.map((r) => `${r.page} ${r.width} px`).join(', ')}`);
+  if (appBlocked > 0 || over.length > 0) process.exitCode = 1;
 }
 
 await main();

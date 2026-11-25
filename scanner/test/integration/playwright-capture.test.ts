@@ -14,10 +14,10 @@ const fixtureRules = compileRules(
     version: 1,
     updated: '2026-11-20',
     services: [
-      { id: 'test-fonts', name: 'Test Fonts', provider: 'Test', category: 'fonts', riskClass: 'precedent', dataLocation: 'unknown', hosts: ['fonts.thirdparty.test', 'fontfiles.thirdparty.test'], sources: ['test'] },
-      { id: 'test-tracker', name: 'Test Tracker', provider: 'Test', category: 'analytics', riskClass: 'consent-required', dataLocation: 'unknown', hosts: ['tracker.thirdparty.test'], sources: ['test'] },
-      { id: 'test-video', name: 'Test Video', provider: 'Test', category: 'video', riskClass: 'usually-consent', dataLocation: 'unknown', hosts: ['video.thirdparty.test'], sources: ['test'] },
-      { id: 'test-ads', name: 'Test Ads', provider: 'Test', category: 'advertising', riskClass: 'consent-required', dataLocation: 'unknown', hosts: ['ads.adnetwork.test'], sources: ['test'] },
+      { id: 'test-fonts', name: 'Test Fonts', shortName: 'Test Fonts', provider: 'Test', category: 'fonts', riskClass: 'precedent', dataLocation: 'unknown', hosts: ['fonts.thirdparty.test', 'fontfiles.thirdparty.test'], sources: ['test'] },
+      { id: 'test-tracker', name: 'Test Tracker', shortName: 'Test Tracker', provider: 'Test', category: 'analytics', riskClass: 'consent-required', dataLocation: 'unknown', hosts: ['tracker.thirdparty.test'], sources: ['test'] },
+      { id: 'test-video', name: 'Test Video', shortName: 'Test Video', provider: 'Test', category: 'video', riskClass: 'usually-consent', dataLocation: 'unknown', hosts: ['video.thirdparty.test'], sources: ['test'] },
+      { id: 'test-ads', name: 'Test Ads', shortName: 'Test Ads', provider: 'Test', category: 'advertising', riskClass: 'consent-required', dataLocation: 'unknown', hosts: ['ads.adnetwork.test'], sources: ['test'] },
     ],
   }),
 );

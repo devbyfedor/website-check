@@ -30,7 +30,6 @@ export const REPORT_TEXTS = {
   headingFor: 'Prüfbericht für',
   savePdf: 'Als PDF speichern',
   copyLink: 'Link kopieren',
-  forDeveloper: 'An Entwickler weitergeben',
   scannedAt: 'Geprüft am',
   system: 'System',
   pages: 'Geprüfte Seiten',
@@ -94,6 +93,15 @@ export const REPORT_TEXTS = {
 export const STATE_DRAFTS = {
   /** The fifth fact of the head: the country the browser visited the site from (Fedor, 21.11.2026). */
   visitedFrom: 'Aufgerufen aus',
+  /**
+   * The note next to the country (Fedor, B4 part 1, answer 3): where the browser runs and how it is set, so that
+   * "Aufgerufen aus Schweden" does not contradict "wie von einem Besucher aus Deutschland" of the scan screen. "in der
+   * EU" only for a country of the EU; the settings only when the report says de-DE and Europe/Berlin.
+   */
+  visitNote: (eu: boolean, german: boolean) =>
+    `Unser Prüfbrowser läuft in einem Rechenzentrum${eu ? ' in der EU' : ''}${german ? ' und ist eingestellt wie ein Besucher aus Deutschland: deutsche Sprache, Zeitzone Berlin' : ''}.`,
+  /** The quick check has no browser (review of B4 part 1): only where the request came from. */
+  visitNoteQuick: (eu: boolean) => `Unsere Abfrage kam aus einem Rechenzentrum${eu ? ' in der EU' : ''}.`,
   /** "System" when the part was not checked (the page did not load). */
   systemNotChecked: 'nicht geprüft',
   /** "Geprüfte Seiten" when the homepage was not checked. */

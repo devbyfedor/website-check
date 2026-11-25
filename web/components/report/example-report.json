@@ -209,7 +209,7 @@
     {
       "risk": "high",
       "params": {
-        "service": "Google Tag Manager / Google tag (gtag.js)",
+        "service": "Google Tag Manager",
         "provider": "Google",
         "category": "tag-manager",
         "count": 1,
@@ -391,7 +391,7 @@
     {
       "risk": null,
       "params": {
-        "service": "jsDelivr (incl. BootstrapCDN)",
+        "service": "jsDelivr",
         "provider": "jsDelivr",
         "category": "cdn",
         "count": 3,
@@ -480,7 +480,7 @@
       "position": 2,
       "key": "google-tag-manager",
       "known": true,
-      "name": "Google Tag Manager / Google tag (gtag.js)",
+      "name": "Google Tag Manager",
       "provider": "Google",
       "category": "tag-manager",
       "riskClass": "consent-required",
@@ -534,7 +534,7 @@
       "position": 4,
       "key": "jsdelivr",
       "known": true,
-      "name": "jsDelivr (incl. BootstrapCDN)",
+      "name": "jsDelivr",
       "provider": "jsDelivr",
       "category": "cdn",
       "riskClass": "grey-zone",

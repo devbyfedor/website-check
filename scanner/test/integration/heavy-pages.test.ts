@@ -21,7 +21,7 @@ const rules = compileRules(
   parseRulesFile({
     version: 1,
     updated: '2026-11-24',
-    services: [{ id: 'x-tracker', name: 'X Tracker', provider: 'TrackCo', category: 'analytics', riskClass: 'consent-required', dataLocation: 'unknown', hosts: ['px.trackco.test'], sources: ['test'] }],
+    services: [{ id: 'x-tracker', name: 'X Tracker', shortName: 'X Tracker', provider: 'TrackCo', category: 'analytics', riskClass: 'consent-required', dataLocation: 'unknown', hosts: ['px.trackco.test'], sources: ['test'] }],
   }),
 );
 

@@ -106,6 +106,38 @@ const STATE_REPORTS = {
     report(capture([DOCUMENT, { url: 'https://fonts.googleapis.com/css2?family=Lato', resourceType: 'stylesheet', startMs: 300, endMs: 420, initiator: { type: 'parser', url: SHOP } }], { consentBanner: BANNER(4200) })),
   /** The banner seen, but no request to a third party in the window. */
   noThirdParty: () => report(capture([DOCUMENT, own('wp-content/themes/roesterei/style.css', 'stylesheet', 300, 520), own('wp-content/themes/roesterei/theme.js', 'script', 330, 640)], { consentBanner: BANNER(900) })),
+  /**
+   * Session B4 part 2: the Stückliste with every tag of "Einwilligung": Google Fonts before consent ("fehlt", with the
+   * country), the Meta Pixel in a document the capture does not know ("bitte manuell prüfen"), Hotjar without an answer
+   * ("keine Antwort"), jsDelivr and an unknown service with a long name ("Graubereich"), the consent tool ("nicht nötig").
+   */
+  serviceTags: () =>
+    report(
+      capture(
+        [
+          DOCUMENT,
+          { url: 'https://consent.cookiebot.com/uc.js', resourceType: 'script', startMs: 120, endMs: 260, initiator: { type: 'parser', url: SHOP } },
+          { url: 'https://fonts.googleapis.com/css2?family=Lato', resourceType: 'stylesheet', startMs: 300, endMs: 420, initiator: { type: 'parser', url: SHOP } },
+          { url: 'https://fonts.gstatic.com/s/lato/v24/lato.woff2', resourceType: 'font', startMs: 440, endMs: 700, initiator: { type: 'parser', url: 'https://fonts.googleapis.com/css2?family=Lato' } },
+          { url: 'https://connect.facebook.net/signals/config/1234567890?v=2.9', resourceType: 'script', startMs: 900, endMs: 1100, frameKnown: false },
+          { url: 'https://static.hotjar.com/c/hotjar-1234567.js?sv=6', resourceType: 'script', startMs: 950, endMs: null, status: null, failure: 'net::ERR_CONNECTION_REFUSED' },
+          { url: 'https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js', resourceType: 'script', startMs: 1000, endMs: 1150 },
+          { url: 'https://static.ein-sehr-langer-name-eines-unbekannten-anbieters-fuer-widgets.example/widget.js', resourceType: 'script', startMs: 1200, endMs: 1400 },
+        ],
+        { consentBanner: { ...BANNER(1400), toolId: 'cookiebot', selector: '#CybotCookiebotDialog', toolsInDom: ['cookiebot'] } },
+      ),
+    ),
+  /** Session B4 part 2: finding details with the general steps only, no system tabs (contrast and images). */
+  generalSteps: () => report(capture([DOCUMENT], { mainDocument: { status: 200, headers: ALL_HEADERS, redirectChain: [] }, axe: axe({ contrast: 14, alt: 3 }) })),
+  /** Session B4 part 2: finding details without a fix text yet (Google Analytics, the Meta Pixel, the security headers). */
+  noFixText: () =>
+    report(
+      capture([
+        DOCUMENT,
+        { url: 'https://www.google-analytics.com/g/collect?v=2&tid=G-MUSTER123', resourceType: 'fetch', startMs: 700, endMs: 760 },
+        { url: 'https://connect.facebook.net/signals/config/1234567890?v=2.9', resourceType: 'script', startMs: 800, endMs: 950 },
+      ]),
+    ),
   /** Lists and texts read only in part: 85 unknown services, the page text and links cut, the page still loading after 15 s. */
   truncated: () =>
     report(
@@ -150,7 +182,10 @@ export const EXAMPLE_REPORT_STATES: readonly ExampleReportState[] = [
   { slug: 'banner-spaeter', what: 'Zeitschnitt: Banner erst nach 4,2 s', show: r(STATE_REPORTS.bannerLater) },
   { slug: 'ohne-fremde-server', what: 'Zeitschnitt: keine Anfrage an fremde Server', show: r(STATE_REPORTS.noThirdParty) },
   { slug: 'buchstaben', what: 'Domain mit polnischen Buchstaben: Barlow latin-ext wird nur hier geladen', show: r(extReport) },
-  { slug: 'gekuerzt', what: 'gekürzte Listen und Texte, Seite lud nach 15 s noch', show: r(STATE_REPORTS.truncated) },
+  { slug: 'gekuerzt', what: 'gekürzte Listen und Texte, Seite lud nach 15 s noch; Stückliste mit 80 von 85 Diensten', show: r(STATE_REPORTS.truncated) },
+  { slug: 'dienste-markierungen', what: 'Stückliste: fehlt, bitte manuell prüfen, keine Antwort, Graubereich, nicht nötig; ein langer Name', show: r(STATE_REPORTS.serviceTags) },
+  { slug: 'fund-ohne-systeme', what: 'Fund-Details nur mit allgemeinen Schritten, ohne Systemreiter', show: r(STATE_REPORTS.generalSteps) },
+  { slug: 'fund-ohne-anleitung', what: 'Fund-Details ohne Anleitung (noch kein Text), Land des Aufrufs', show: r(STATE_REPORTS.noFixText) },
   { slug: 'laedt', what: 'Seite: der Bericht wird geladen', show: p({ kind: 'loading' }) },
   { slug: 'nicht-fertig', what: 'Seite: Bericht noch nicht fertig (Prüfung läuft)', show: p({ kind: 'not-ready', id: ID, displayHost: 'roesterei-muster.de' }) },
   { slug: 'abgebrochen', what: 'Seite: Prüfung abgebrochen, kein Bericht', show: p({ kind: 'ended', reason: 'cancelled', displayHost: 'roesterei-muster.de' }) },

@@ -115,3 +115,34 @@
     background-size: var(--wc-grid-size);
   }
 }
+
+/*
+  Session B4 part 2: the print styles of the report ("Als PDF speichern" opens the print dialog). Only a page with the
+  report sheet (main[data-print="report"]): the sheet on white paper, without the blueprint background, the header with
+  the navigation and "Neue Prüfung", and the footer. The rules of the sheet itself are in
+  components/report/report.module.css. Not layered, so they win over the utilities.
+*/
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  html:has(main[data-print="report"]),
+  body:has(main[data-print="report"]) {
+    height: auto;
+    background: #fff;
+    color: var(--color-ink);
+  }
+  .paper:has(> main[data-print="report"]) {
+    min-height: 0;
+    background: #fff;
+    background-image: none;
+  }
+  .paper:has(> main[data-print="report"]) > header,
+  .paper:has(> main[data-print="report"]) > footer {
+    display: none;
+  }
+  main[data-print="report"] {
+    max-width: none;
+    padding: 0;
+  }
+}
