@@ -111,6 +111,8 @@ async function resolve(mounts: Mount[], urlPath: string): Promise<{ file: string
 export interface ServerOptions {
   port?: number; // 0 (default): any free port
   notFoundFile?: string; // HTML answered with status 404
+  /** Session B5 part 2 (npm run lighthouse): answers of a mocked API for `/api/…` (path with query), or null for a 404. */
+  api?: (path: string) => { status: number; body: string } | null;
 }
 
 export async function startStaticServer(mounts: Mount[], options: ServerOptions = {}): Promise<StaticServer> {
@@ -128,6 +130,12 @@ export async function startStaticServer(mounts: Mount[], options: ServerOptions 
   const server: Server = createServer((req, res) => {
     const urlPath = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
     void (async () => {
+      if (options.api !== undefined && urlPath.startsWith('/api/')) {
+        const answer = options.api(urlPath) ?? { status: 404, body: '{"error":"not-found"}' };
+        res.writeHead(answer.status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+        res.end(answer.body);
+        return;
+      }
       const hit = await resolve(normalized, urlPath);
       if (!hit) {
         if (options.notFoundFile) {
