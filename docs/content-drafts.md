@@ -797,6 +797,17 @@ The name the report shows for a known service (Stückliste, the titles of "Drei 
 - other: Gravatar (`gravatar`).
 - Status: Entwurf
 
+### The lower part on the report of a real id
+
+- The country of the visit next to every finding about data sent before consent (Fedor, 21.11.2026), as the small grey line under "vor der Einwilligung" of its row in the Stückliste and under "Was passiert" of its card: "Land des Aufrufs: {Land}" ({Land} is the German name of the country, "Deutschland", "Niederlande"; the form with a colon needs no article, "aus den Niederlanden"). Not for a report without a country.
+- A finding without a fix text yet, in the box of the "Montageanleitung": "Für diesen Punkt haben wir noch keine Anleitung." (the fix texts are a session of their own after B4).
+- A card of a finding without any text or value (a text id the page does not know yet): "Was passiert": "Die Prüfung hat diesen Punkt gefunden. Eine Beschreibung dazu schreiben wir noch."
+- The help block names what the priorities of "Drei Dinge" are about, in their order: "Schriften lokal einbinden", "die Einwilligung richtig einstellen", "Barrieren entfernen" (the reference's), and the drafts "HTTPS einrichten", "Sicherheits-Header setzen", "den Link zum Impressum setzen": "Ich behebe die Funde für Sie: {Aufgaben}. Antwort per E-Mail." With priorities of another kind: "Ich behebe die Funde für Sie. Antwort per E-Mail."
+- The help block of a report without priorities (nothing to fix first, an almost empty page): heading "Sie möchten Ihre Website genauer prüfen lassen?", text "Unsere automatische Prüfung sieht nur die Startseite und das Impressum. Ich sehe mir Ihre Website gern genauer an. Antwort per E-Mail." The button "Hilfe bei der Umsetzung anfragen" stays.
+- The copied list follows the reference's script ("Externe Dienste auf {Domain} (Prüfung vom {Datum}):", then "{Pos.}. {Dienst} ({Anbieter}), {kleine Zeile}", without the provider when it is the name itself). A cut list ends with "… und {n} weitere Dienste, die der Bericht nicht einzeln aufführt." ("… und 1 weiterer Dienst, den der Bericht nicht einzeln aufführt.").
+- When the browser refuses the clipboard: "Die Liste konnte nicht kopiert werden." and "Der Link konnte nicht kopiert werden." (shown next to the button and said by the status region). "Liste kopiert" is the reference's, "Link kopiert" Fedor's (B3 part 2).
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/
