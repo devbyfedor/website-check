@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { Finding, Report } from '@website-check/scanner/report';
+import type { Finding, Report, TextId } from '@website-check/scanner/report';
 import exampleJson from '../components/report/example-report.json';
 import { ReportScreen } from '../components/report/report-screen';
 import { HAND_OVER, Revisions, WORK_ORDER } from '../components/report/stage-d';
-import { countWords, FIX_TEXTS, secondsText } from '../lib/report-detail-texts';
+import { countWords, FIX_TEXTS, secondsText, SERVICE_FIX } from '../lib/report-detail-texts';
 import { copyListText, detectedSystem, findingCards, helpView, serviceRows, showsLowerPart, sourceAddresses, titleBlock } from '../lib/report-detail-view';
 import { STAGE_D_MARKERS } from '../lib/report-stage-d-texts';
 
@@ -126,7 +126,8 @@ describe('the finding details of the example', () => {
     );
     expect(ga!.targetActual).toEqual({ target: '0 Anfragen an Google', actual: '3 Anfragen, ohne Einwilligung', bad: true });
     expect(ga!.source).toEqual([]); // the requests of Google Analytics are made by the Google tag
-    expect(ga!.fix).toEqual({ kind: 'missing' }); // fix-google-analytics is not written yet (a session after B4)
+    // Session texts-fix: the general steps of Google Analytics (one of the five services found most often).
+    expect(ga!.fix).toEqual({ kind: 'general', steps: SERVICE_FIX['fix-google-analytics'] });
     expect(text(contrast!.happens!)).toBe('An 14 Stellen hebt sich der Text zu wenig vom Hintergrund ab, der schwächste Wert liegt bei 2,9 : 1 statt mindestens 4,5 : 1.');
     // The ratio with no-break spaces, so it never wraps inside the narrow box at 390 px.
     expect(contrast!.targetActual).toEqual({ target: 'mind. 4,5 : 1', actual: '2,9 : 1', bad: true });
@@ -196,7 +197,7 @@ describe('the finding details of the example', () => {
 
   it('a card leaves out what it has no text for, never shows a text id', () => {
     const r = clone();
-    r.findings[0]!.textId = 'third-party-something-new';
+    r.findings[0]!.textId = 'third-party-something-new' as unknown as TextId; // an id of a newer scanner
     r.findings[0]!.fixTextId = 'fix-unknown-service';
     const c = findingCards(r)[0]!;
     expect(c.happens).toBeNull();
@@ -210,7 +211,7 @@ describe('the finding details of the example', () => {
   it('a card without any text or value says that the scan found the point', () => {
     const r = clone();
     const f = r.findings.find((x) => x.id === r.priorities[0])!;
-    f.textId = 'something-new';
+    f.textId = 'something-new' as unknown as TextId;
     f.area = 'security';
     f.serviceKey = null;
     f.fixTextId = null;
@@ -252,15 +253,17 @@ describe('the system tabs', () => {
     expect(detectedSystem(r)).toBeNull();
   });
 
-  it('a detected Shopware 5 gets none of the Shopware 6 steps (review of B4 part 1)', () => {
+  it('a detected Shopware 5 gets none of the Shopware 6 steps (review of B4 part 1), but the general steps (texts-fix)', () => {
     const r = clone();
     r.platform = { system: 'shopware', woocommerce: false, shopwareVersion: 5, shop: true };
     const fix = findingCards(r)[0]!.fix;
     if (fix?.kind !== 'systems') throw new Error('no tabs');
     expect(fix.selected).toBe('shopware');
     expect(fix.steps.shopware).toBeNull();
+    expect(fix.general).toEqual(SERVICE_FIX['fix-google-fonts']);
     const html = render(r);
-    expect(html).toContain('Für Shopware 5 haben wir noch keine eigene Anleitung.');
+    expect(html).toContain('Binden Sie sie mit @font-face aus diesen Dateien ein');
+    expect(html).not.toContain('Für Shopware 5 haben wir noch keine eigene Anleitung.');
     expect(html).not.toContain('In Shopware 6 bindet das Theme');
     r.platform = { ...r.platform, shopwareVersion: 6 };
     expect(render(r)).toContain('In Shopware 6 bindet das Theme');

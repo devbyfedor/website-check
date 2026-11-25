@@ -199,6 +199,117 @@ export const THIRD_PARTY_TARGET = {
 } as const;
 
 /**
+ * Session texts-fix (drafts, docs/content-drafts.md, "Session texts-fix"): the general steps of the "Montageanleitung"
+ * of a third-party finding by its class, for a known service without steps of its own.
+ */
+const FONTS_GENERAL = [
+  'Laden Sie die Schriften, die Ihre Seite nutzt, bei Google Fonts herunter und legen Sie die Dateien auf Ihren eigenen Server.',
+  'Binden Sie sie mit @font-face aus diesen Dateien ein und entfernen Sie jeden Verweis auf fonts.googleapis.com und fonts.gstatic.com, auch in Theme, Plugins und eingefügtem Code.',
+  'Starten Sie eine neue Prüfung. Die Anfrage an Google sollte verschwunden sein.',
+] as const;
+
+export const THIRD_PARTY_FIX: Record<string, readonly string[]> = {
+  'third-party-precedent': FONTS_GENERAL,
+  'third-party-consent-required': [
+    'Laden Sie den Dienst erst, nachdem der Besucher im Einwilligungsbanner zugestimmt hat. Vorher darf sein Skript nicht starten, auch nicht über einen Tag Manager.',
+    'Das übernimmt ein Einwilligungstool: Sie tragen den Dienst dort ein, und das Tool lädt ihn erst nach der Zustimmung. Beispiele sind CCM19, Cookiebot, Usercentrics und das quelloffene, kostenlose Klaro!.',
+    'Starten Sie danach eine neue Prüfung. Vor der Zustimmung sollte keine Anfrage an den Anbieter mehr zu sehen sein.',
+  ],
+  'third-party-usually-consent': [
+    'Ersetzen Sie den eingebetteten Inhalt zunächst durch einen Platzhalter, etwa einen kurzen Hinweis oder ein Bild von Ihrem eigenen Server. Der Inhalt des Anbieters lädt erst, wenn der Besucher darauf klickt oder im Einwilligungsbanner zustimmt.',
+    'Viele Einwilligungstools bringen solche Platzhalter mit. Ohne Werkzeug genügt oft ein einfacher Link, etwa zur Anfahrt auf der Karte des Anbieters oder zum Video auf seiner Seite.',
+    'Starten Sie danach eine neue Prüfung. Vor dem Klick oder der Zustimmung sollte keine Anfrage an den Anbieter mehr zu sehen sein.',
+  ],
+};
+
+/** Consent Mode of Google: the basic implementation loads nothing before consent, the advanced one does. */
+const CONSENT_MODE =
+  'Wenn Sie den Einwilligungsmodus von Google (Consent Mode) nutzen, wählen Sie die einfache Umsetzung („basic“). In der erweiterten Umsetzung („advanced“) laden die Google-Tags schon beim Aufruf und senden ohne Zustimmung Daten ohne Cookies an Google.';
+
+/**
+ * Session texts-fix: the general steps of the five services with a risk found most often in the saved reports, by
+ * their `fixTextId`: without tabs, and in a system tab without confirmed steps of its own. Drafts.
+ */
+export const SERVICE_FIX: Record<string, readonly string[]> = {
+  'fix-google-fonts': FONTS_GENERAL,
+  'fix-google-tag-manager': [
+    'Laden Sie den Google Tag Manager erst nach der Zustimmung im Einwilligungsbanner. Schon das Laden seines Skripts ist eine Anfrage an Google, gleich welche Tags darin stehen.',
+    'Tragen Sie ihn dazu in Ihrem Einwilligungstool als eigenen Dienst ein, so dass das Tool ihn bis zur Zustimmung blockiert. Wird das Einwilligungsbanner selbst über den Tag Manager eingebunden, binden Sie es stattdessen direkt in die Seite ein.',
+    'Starten Sie danach eine neue Prüfung. Vor der Zustimmung sollte keine Anfrage an googletagmanager.com mehr zu sehen sein.',
+  ],
+  'fix-google-analytics': [
+    'Laden Sie Google Analytics erst nach der Zustimmung im Einwilligungsbanner: Ihr Einwilligungstool blockiert den Dienst, bis der Besucher zustimmt.',
+    CONSENT_MODE,
+    'Starten Sie danach eine neue Prüfung. Vor der Zustimmung sollte keine Anfrage an Google Analytics mehr zu sehen sein.',
+  ],
+  'fix-google-ads': [
+    'Laden Sie die Werbe-Tags von Google, etwa das Conversion-Tracking und Remarketing von Google Ads oder die Anzeigen von AdSense, erst nach der Zustimmung im Einwilligungsbanner: Ihr Einwilligungstool blockiert sie, bis der Besucher zustimmt.',
+    CONSENT_MODE,
+    'Starten Sie danach eine neue Prüfung. Vor der Zustimmung sollte keine Anfrage an doubleclick.net, googlesyndication.com oder googleadservices.com mehr zu sehen sein.',
+  ],
+  'fix-youtube-nocookie': [
+    'Laden Sie das Video erst nach einem Klick: An seiner Stelle steht zuerst ein Vorschaubild von Ihrem eigenen Server mit einem kurzen Hinweis. Der Player lädt erst, wenn der Besucher klickt oder im Einwilligungsbanner zustimmt.',
+    'Der erweiterte Datenschutzmodus allein genügt dafür nicht: Er ändert, was YouTube speichert, aber der Player lädt trotzdem beim Aufruf Ihrer Seite von Servern von Google.',
+    'Viele Einwilligungstools bringen solche Platzhalter mit. Ohne Werkzeug genügt ein Vorschaubild von Ihrem Server mit einem Link zum Video auf YouTube. Starten Sie danach eine neue Prüfung.',
+  ],
+};
+
+/** The names of the five headers, as the steps of the card "Sicherheits-Header" name them. */
+export const HEADER_NAMES: Record<string, string> = {
+  hsts: 'Strict-Transport-Security',
+  csp: 'Content-Security-Policy',
+  xcto: 'X-Content-Type-Options',
+  'referrer-policy': 'Referrer-Policy',
+  'permissions-policy': 'Permissions-Policy',
+};
+
+/**
+ * Session texts-fix: the step of the card "Sicherheits-Header" for each header that does not count, by the text id of
+ * the header (`report.security.headers[].textId`): the title and the fix of the drafts of sessions A3 and fix-a6
+ * (docs/content-drafts.md, "Security"). `{header}` is the name of the header (HEADER_NAMES). Drafts.
+ */
+export const HEADER_STEPS: Record<string, string> = {
+  'security-header-hsts-missing':
+    'Strict-Transport-Security nicht gesetzt. Senden Sie den Header mit jeder HTTPS-Antwort, zum Beispiel Strict-Transport-Security: max-age=31536000 (ein Jahr); über http:// gesendet, beachtet ihn der Browser nicht. Wenn Sie unsicher sind, beginnen Sie mit einer kurzen Laufzeit, etwa max-age=86400 (ein Tag), und erhöhen Sie sie später. Den Zusatz includeSubDomains setzen Sie nur, wenn alle Subdomains HTTPS haben.',
+  'security-header-hsts-invalid': 'Strict-Transport-Security ohne Wirkung. Senden Sie den Header in der HTTPS-Antwort mit einer Laufzeit in Sekunden, zum Beispiel max-age=31536000 für ein Jahr.',
+  'security-header-hsts-no-max-age': 'Strict-Transport-Security ohne gültige Laufzeit. Ergänzen Sie eine Laufzeit in Sekunden in der Form max-age=Zahl, zum Beispiel Strict-Transport-Security: max-age=31536000 für ein Jahr.',
+  'security-header-hsts-duplicate': 'Strict-Transport-Security mit doppelter Angabe. Nennen Sie jede Angabe nur einmal, zum Beispiel Strict-Transport-Security: max-age=31536000; includeSubDomains.',
+  'security-header-csp-missing':
+    'Content-Security-Policy nicht gesetzt. Legen Sie eine Richtlinie an, die nur die Quellen erlaubt, die Ihre Seite wirklich nutzt. Testen Sie sie zuerst als Content-Security-Policy-Report-Only, dann sehen Sie, was blockiert würde, ohne dass etwas kaputtgeht.',
+  'security-header-csp-invalid':
+    'Content-Security-Policy mit Fehlern. Prüfen Sie die Schreibweise, zum Beispiel script-src statt script-scr, und trennen Sie die Anweisungen mit Semikolon. Die Konsole in den Entwicklerwerkzeugen des Browsers zeigt, was er nicht versteht.',
+  'security-header-csp-report-only':
+    'Content-Security-Policy nur im Testmodus. Wenn die Meldungen keine Probleme mehr zeigen, senden Sie dieselbe Richtlinie als Content-Security-Policy. Den Testmodus können Sie für spätere Änderungen daneben behalten.',
+  'security-header-csp-manual': 'Content-Security-Policy: bitte manuell prüfen. Suchen Sie im Quelltext der Startseite nach <meta http-equiv="Content-Security-Policy".',
+  'security-header-csp-meta': 'Content-Security-Policy im Quelltext statt im Header. Wenn Ihr Hoster es erlaubt, senden Sie die Richtlinie als HTTP-Header. Sonst setzen Sie das meta-Element möglichst weit oben in den head, denn es gilt erst ab seiner Stelle.',
+  'security-header-xcto-missing': 'X-Content-Type-Options nicht gesetzt. Senden Sie den Header X-Content-Type-Options: nosniff. Er stört nichts, solange Ihr Server Skripte und Stylesheets mit dem richtigen Typ ausliefert.',
+  'security-header-xcto-invalid': 'X-Content-Type-Options mit falschem Wert. Setzen Sie den Wert genau auf nosniff: X-Content-Type-Options: nosniff.',
+  'security-header-referrer-policy-missing':
+    'Referrer-Policy nicht gesetzt. Setzen Sie den Header ausdrücklich, zum Beispiel Referrer-Policy: strict-origin-when-cross-origin. Dann hängt das Verhalten nicht von der Voreinstellung des einzelnen Browsers ab.',
+  'security-header-referrer-policy-invalid':
+    'Referrer-Policy mit unbekanntem Wert. Verwenden Sie einen der festgelegten Werte, zum Beispiel strict-origin-when-cross-origin oder no-referrer. Im Header dürfen mehrere Werte mit Komma getrennt stehen; der Browser nimmt den letzten, den er kennt.',
+  'security-header-referrer-policy-manual': 'Referrer-Policy: bitte manuell prüfen. Suchen Sie im Quelltext der Startseite nach <meta name="referrer".',
+  'security-header-referrer-policy-meta': 'Referrer-Policy im Quelltext statt im Header. Wenn Sie später auch den Header setzen, verwenden Sie denselben Wert, damit sich beide Angaben nicht widersprechen.',
+  'security-header-referrer-policy-weak':
+    'Referrer-Policy schwächer als die Voreinstellung. Setzen Sie Referrer-Policy: strict-origin-when-cross-origin oder einen strengeren Wert wie same-origin oder no-referrer. Prüfen Sie auch ein meta-Element name="referrer" im Quelltext: Es gilt nach dem Header.',
+  'security-header-permissions-policy-missing':
+    'Permissions-Policy nicht gesetzt. Senden Sie den Header und schalten Sie ab, was Ihre Seite nicht nutzt, zum Beispiel Permissions-Policy: camera=(), microphone=(), geolocation=().',
+  'security-header-permissions-policy-invalid':
+    'Permissions-Policy fehlerhaft geschrieben. Schreiben Sie jede Funktion in der Form Name=Wert, zum Beispiel camera=() für „nirgends erlaubt“, geolocation=(self) für „nur Ihre eigene Seite“ oder fullscreen=* für „überall erlaubt“, und trennen Sie die Einträge mit Komma.',
+  'security-header-permissions-policy-legacy': "Nur der veraltete Header Feature-Policy. Senden Sie stattdessen Permissions-Policy. Die Schreibweise ist neu: Aus camera 'none' wird camera=().",
+  'security-header-permissions-policy-open':
+    'Permissions-Policy erlaubt alles. Schalten Sie ab, was Ihre Seite nicht nutzt, zum Beispiel Permissions-Policy: camera=(), microphone=(), geolocation=(). Erlauben Sie eine Funktion nur dort, wo sie gebraucht wird, etwa geolocation=(self).',
+  'security-header-too-long': '{header}: Wert zu lang für die Prüfung, bitte manuell prüfen, ob er so gewollt ist. Übliche Werte dieses Headers sind wenige Zeilen lang.',
+};
+
+/** Session texts-fix: the first and the last step of the card "Sicherheits-Header" around the steps of the headers. */
+export const HEADER_STEPS_FRAME = {
+  first:
+    'Die Header setzen Sie in der Konfiguration Ihres Servers oder im Kundenbereich Ihres Hosters. Haben Sie darauf keinen Zugriff, etwa bei einem Baukastensystem, fragen Sie Ihren Anbieter, welche Header er sendet.',
+  last: 'Starten Sie danach eine neue Prüfung.',
+} as const;
+
+/**
  * "Was passiert", "Warum das wichtig ist" and the general fix of the other findings that can be among "Drei Dinge":
  * the drafts of docs/content-drafts.md ("Fact and risk" split into the fact and the risk, "Fix" one step per
  * sentence). `{count}`, `{ratio}`, `{expected}`, `{value}` are filled in one pass (`fill`); `one` is the singular.
@@ -283,6 +394,13 @@ export const FINDING_TEXTS: Record<string, FindingText> = {
     why: 'Fehlt der Link wirklich, finden Besucher die Pflichtangaben zum Anbieter nicht, und das kann abgemahnt werden.',
     fix: ['Setzen Sie einen Link mit dem Text „Impressum“ in den Fußbereich jeder Seite, so dass er ohne weiteren Klick sichtbar ist.'],
   },
+  // Session texts-fix (draft): the card of the security headers. Its steps are built from the headers of the report
+  // (HEADER_STEPS between the two of HEADER_STEPS_FRAME); `fix` is used only when the report lists none.
+  'security-headers': {
+    happens: 'Von den {total} gängigen Sicherheits-Headern zählen wir bei Ihrer Startseite {present} als gesetzt. Welche fehlen oder nicht wirken, steht in der Montageanleitung.',
+    why: 'Diese Header sind Anweisungen Ihres Servers an den Browser. Sie erschweren bekannte Angriffe, etwa das Einschleusen fremder Skripte oder das Umlenken auf eine unverschlüsselte Verbindung. Fehlen sie, entfällt dieser zusätzliche Schutz; Ihre Seite funktioniert trotzdem.',
+    fix: [HEADER_STEPS_FRAME.first, HEADER_STEPS_FRAME.last],
+  },
 };
 
 /** The systems of the tabs, in the order of the reference. */
@@ -291,9 +409,11 @@ export type FixSystem = (typeof FIX_SYSTEMS)[number];
 export const FIX_SYSTEM_NAMES: Record<FixSystem, string> = { wordpress: 'WordPress', shopify: 'Shopify', wix: 'Wix', jimdo: 'Jimdo', shopware: 'Shopware' };
 
 /**
- * "Montageanleitung" by system, by the `fixTextId` of a finding. Only Google Fonts has them (reference: WordPress is
- * final, Shopify, Wix, Jimdo and Shopware are drafts by design/README.md). Every other `fix-<service>` text is still
- * missing (docs/content-drafts.md, "Session B4 part 1").
+ * "Montageanleitung" by system, by the `fixTextId` of a finding (reference: the Google Fonts steps; WordPress is final,
+ * Shopify, Wix, Jimdo and Shopware are drafts by design/README.md). Session texts-fix: steps by system only for the five
+ * services with a risk found most often, and only steps the official documentation of the system or plugin confirms;
+ * each step names its source next to it in docs/content-drafts.md (a unit test checks it). A system without confirmed
+ * steps shows the general steps (SERVICE_FIX).
  */
 export const FIX_TEXTS: Record<string, Partial<Record<FixSystem, readonly string[]>>> = {
   'fix-google-fonts': {

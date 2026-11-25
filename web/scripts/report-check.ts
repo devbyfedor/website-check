@@ -28,6 +28,7 @@ import { join, resolve } from 'node:path';
 import { chromium, type Browser, type Page, type Route } from 'playwright';
 import type { Report } from '../../scanner/src/report/types.ts';
 import { EXAMPLE_REPORT_STATES } from '../components/report/example-report-states.ts';
+import { FIX_TEXTS, HEADER_STEPS } from '../lib/report-detail-texts.ts';
 import { axe, contrastByPixels, keyboard, type AxeSummary } from './a11y.ts';
 import { nextFrames, ROOT, VIEWPORT_HEIGHT, routeHosts, settle, startCheckServer } from './browser-setup.ts';
 
@@ -279,6 +280,8 @@ interface ExpectedCard {
   tab: string | null;
   /** The box says "noch keine Anleitung". */
   noFix: boolean;
+  /** Session texts-fix: the number of steps of the card of the security headers (two plus one per header that does not count). */
+  steps: number | null;
 }
 interface ExpectedLower {
   lower: boolean;
@@ -313,9 +316,27 @@ function expectedLower(r: Report, measuredPage: boolean): ExpectedLower {
       const ta = third && ['third-party-precedent', 'third-party-consent-required', 'third-party-usually-consent'].includes(f.textId) && f.beforeConsent && provider !== null && count !== null ? { target: `0 Anfragen an ${provider}`, actual: count === 1 ? '1 Anfrage' : `${count} Anfragen` } : null;
       const page = docOf(r.site.finalUrl);
       const source = third && page !== null ? [...new Set(f.evidence.filter((e) => e.type === 'request' && e.initiatorType === 'parser' && docOf(e.via) === page).map((e) => (e as { url: string }).url))] : [];
-      const tabs = f.fixTextId === 'fix-google-fonts';
-      const general = ['a11y-color-contrast', 'a11y-image-alt', 'a11y-label', 'a11y-link-name', 'a11y-button-name', 'a11y-html-has-lang', 'a11y-html-lang-valid', 'security-https-missing', 'security-http-no-redirect', 'legal-impressum-no-link'].includes(f.textId);
-      cards.push({ id: `fund-${i + 1}`, field: f.field === null ? null : `Feld ${f.field}`, country: line(f), ta, source, tab: tabs ? (detected === null ? 'WordPress' : `${FIVE[detected]} erkannt`) : null, noFix: !tabs && !general });
+      // Session texts-fix: tabs where our texts have steps by system; general steps for every finding of our scanner that
+      // can be a priority (the third-party classes by their class, the security headers by the headers of the report).
+      const tabs = f.fixTextId !== null && Object.hasOwn(FIX_TEXTS, f.fixTextId);
+      const general = [
+        'third-party-precedent',
+        'third-party-consent-required',
+        'third-party-usually-consent',
+        'a11y-color-contrast',
+        'a11y-image-alt',
+        'a11y-label',
+        'a11y-link-name',
+        'a11y-button-name',
+        'a11y-html-has-lang',
+        'a11y-html-lang-valid',
+        'security-https-missing',
+        'security-http-no-redirect',
+        'security-headers',
+        'legal-impressum-no-link',
+      ].includes(f.textId);
+      const headers = f.textId === 'security-headers' ? 2 + (r.security?.headers ?? []).filter((h) => !h.counts && h.textId !== null && Object.hasOwn(HEADER_STEPS, h.textId)).length : null;
+      cards.push({ id: `fund-${i + 1}`, field: f.field === null ? null : `Feld ${f.field}`, country: line(f), ta, source, tab: tabs ? (detected === null ? 'WordPress' : `${FIVE[detected]} erkannt`) : null, noFix: !tabs && !general, steps: headers });
     });
   }
   const stamp = ['Benennung|Prüfbericht', `Objekt|${r.site.displayHost}`, `Datum|${shortDateOf(r.scan.scannedAt ?? r.createdAt)}`, `Revision|${r.revision.letter}`, 'Blatt|1 von 1', 'Geprüft|automatisch'];
@@ -494,6 +515,7 @@ async function compareValues(page: Page, report: Report, label: string): Promise
     same(`selected system tab of card ${c.id}`, g.tab, c.tab);
     same(`"noch keine Anleitung" of card ${c.id}`, g.noFix, c.noFix);
     if (c.tab === null && !c.noFix && g.steps === 0) problems.push(`${label}: card ${c.id} without steps`);
+    if (c.steps !== null) same(`steps of the card of the security headers ${c.id}`, g.steps, c.steps);
     if (g.left.length < 20) problems.push(`${label}: card ${c.id} has nothing in its left column (${JSON.stringify(g.left)})`);
     if (/\{[a-zA-Z]+\}|\b(?:third-party|a11y|security|legal|fix)-[a-z-]+\b/.test(g.own)) problems.push(`${label}: card ${c.id} shows a placeholder or a text id`);
   });

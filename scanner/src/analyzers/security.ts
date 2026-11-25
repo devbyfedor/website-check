@@ -1,5 +1,6 @@
 import type { Capture } from '../capture/types.ts';
 import type { HttpProbe, HttpProbeOutcome } from '../security/types.ts';
+import type { TextId } from '../report/text-ids.ts';
 
 /**
  * Basic security (session A3): HTTPS, the redirect from http to https, and five headers of the
@@ -52,20 +53,20 @@ export interface HeaderCheck {
   /** Short machine-readable reason, for example `max-age=0`, `not-https`, `directives: default-src, script-src`. */
   detail: string | null;
   /** Id of the draft text in `docs/content-drafts.md`; null when present. */
-  textId: string | null;
+  textId: TextId | null;
 }
 
 export type CheckResult = 'pass' | 'fail' | 'manual' | 'info' | 'not-checked';
 
 export interface SecurityAnalysis {
   version: typeof SECURITY_ANALYSIS_VERSION;
-  https: { result: 'pass' | 'fail' | 'manual'; finalUrl: string | null; textId: string };
+  https: { result: 'pass' | 'fail' | 'manual'; finalUrl: string | null; textId: TextId };
   /**
    * Session fix-a6 (review finding 69): `reason` says why the result is `manual`, for the text
    * `security-http-redirect-manual` (`REDIRECT_MANUAL_REASONS`); `status` is the HTTP status of the last answer
    * of the http:// check, or null. Both null for every other result.
    */
-  httpRedirect: { result: CheckResult; outcome: HttpProbeOutcome | null; httpsTarget: string | null; textId: string | null; reason: RedirectManualReason | null; status: number | null };
+  httpRedirect: { result: CheckResult; outcome: HttpProbeOutcome | null; httpsTarget: string | null; textId: TextId | null; reason: RedirectManualReason | null; status: number | null };
   headers: HeaderCheck[];
   headersPresent: number;
   headersTotal: number;
@@ -92,21 +93,36 @@ function firstValue(value: string): string {
   return (value.split(/\n/)[0] ?? '').trim();
 }
 
-function defaultTextId(key: SecurityHeaderKey, status: HeaderStatus): string | null {
-  switch (status) {
-    case 'present':
-      return null;
-    case 'meta':
-      return `security-header-${key}-meta`;
-    case 'report-only':
-      return 'security-header-csp-report-only';
-    case 'legacy':
-      return 'security-header-permissions-policy-legacy';
-    case 'missing':
-    case 'invalid':
-    case 'manual':
-      return `security-header-${key}-${status}`;
-  }
+/**
+ * The text of each header and status the checks below give (session texts-fix: a table of the text ids instead of
+ * `security-header-${key}-${status}`, so that every id is one of `REPORT_TEXT_IDS`). A value too long for the scan
+ * passes its own text (`security-header-too-long`); `present` has none.
+ */
+const HEADER_TEXT_IDS: Record<SecurityHeaderKey, Partial<Record<HeaderStatus, TextId>>> = {
+  hsts: { missing: 'security-header-hsts-missing', invalid: 'security-header-hsts-invalid' },
+  csp: {
+    missing: 'security-header-csp-missing',
+    invalid: 'security-header-csp-invalid',
+    manual: 'security-header-csp-manual',
+    meta: 'security-header-csp-meta',
+    'report-only': 'security-header-csp-report-only',
+  },
+  xcto: { missing: 'security-header-xcto-missing', invalid: 'security-header-xcto-invalid' },
+  'referrer-policy': {
+    missing: 'security-header-referrer-policy-missing',
+    invalid: 'security-header-referrer-policy-invalid',
+    manual: 'security-header-referrer-policy-manual',
+    meta: 'security-header-referrer-policy-meta',
+  },
+  'permissions-policy': {
+    missing: 'security-header-permissions-policy-missing',
+    invalid: 'security-header-permissions-policy-invalid',
+    legacy: 'security-header-permissions-policy-legacy',
+  },
+};
+
+function defaultTextId(key: SecurityHeaderKey, status: HeaderStatus): TextId | null {
+  return HEADER_TEXT_IDS[key][status] ?? null;
 }
 
 function check(
@@ -115,7 +131,7 @@ function check(
   status: HeaderStatus,
   value: string | null,
   detail: string | null = null,
-  textId: string | null = defaultTextId(key, status),
+  textId: TextId | null = defaultTextId(key, status),
 ): HeaderCheck {
   return { key, header, status, counts: status === 'present' || status === 'meta', value: clip(value), detail, textId };
 }
@@ -349,7 +365,7 @@ export function checkPermissionsPolicy(value: string | undefined, featurePolicy:
   return check('permissions-policy', 'permissions-policy', 'missing', null);
 }
 
-function redirectResult(outcome: HttpProbeOutcome | null): { result: CheckResult; textId: string | null } {
+function redirectResult(outcome: HttpProbeOutcome | null): { result: CheckResult; textId: TextId | null } {
   switch (outcome) {
     case 'redirects-to-https':
       return { result: 'pass', textId: 'security-http-redirect-ok' };

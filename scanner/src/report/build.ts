@@ -34,6 +34,7 @@ import {
   type ReportState,
   type SectionId,
   type SectionStatus,
+  type TextId,
   type TextParam,
   type Timeline,
   type TimelineRow,
@@ -241,8 +242,9 @@ function consentOf(service: DetectedService, almostEmpty: boolean): ReportServic
   return service.severity === 'hint' ? 'grey-zone' : 'not-needed';
 }
 
-function serviceTextId(service: DetectedService): string {
-  if (service.severity === 'finding') return `third-party-${service.riskClass}`;
+function serviceTextId(service: DetectedService): TextId {
+  // A finding has one of the three classes with a risk (SEVERITY_OF_RISK_CLASS).
+  if (service.severity === 'finding') return `third-party-${service.riskClass as 'precedent' | 'consent-required' | 'usually-consent'}`;
   if (unplaced(service)) return 'third-party-frame-unknown';
   if (!service.known) return 'third-party-unknown';
   if (service.riskClass === 'grey-zone') return 'third-party-grey-zone';
@@ -561,14 +563,16 @@ function accessibilityFindings(a11y: AccessibilityAnalysis): Finding[] {
       out.push(finding({ id: `a11y:${name}`, area: 'accessibility', kind: 'not-checked', textId: 'a11y-check-not-checked', params: { check: name } }));
       continue;
     }
-    if (check.result === 'fail') {
+    // Session texts-fix: the analysis gives every failed check its text (`textIdOf`), so the old fallback `a11y-${name}`
+    // (which named no text for the page language) is gone.
+    if (check.result === 'fail' && check.textId !== null) {
       const params: Record<string, TextParam> = { count: check.violations };
       if (check.id === 'color-contrast' && a11y.lowestContrast?.result === 'fail') {
         params.ratio = a11y.lowestContrast.ratio;
         params.expected = a11y.lowestContrast.expected;
       }
       if (check.id === 'page-language') params.value = a11y.invalidLang === null ? null : clip(a11y.invalidLang, 100);
-      out.push(finding({ id: `a11y:${name}`, area: 'accessibility', kind: 'finding', risk: 'medium', textId: check.textId ?? `a11y-${name}`, params, field: exampleField(check.examples), evidence: elementEvidence(check.examples) }));
+      out.push(finding({ id: `a11y:${name}`, area: 'accessibility', kind: 'finding', risk: 'medium', textId: check.textId, params, field: exampleField(check.examples), evidence: elementEvidence(check.examples) }));
     }
     // Session fix-a2: images marked as decoration pass the axe rule without a description; whether the mark
     // is right is a manual check, next to whatever else the check found. It does not change the Prüfmaß
@@ -658,7 +662,7 @@ function isShop(analysis: CaptureAnalysis): boolean | null {
 function legalFindings(legal: LegalAnalysis, shop: boolean | null, almostEmpty: boolean, mode: 'full' | 'quick', linksCut = false): Finding[] {
   if (!legal.homepageRead) return [finding({ id: 'legal:not-checked', area: 'mandatory-information', kind: 'not-checked', textId: 'legal-not-checked' })];
   const out: Finding[] = [];
-  const impressumTexts: Record<Exclude<LegalAnalysis['impressum']['state'], 'analyzed'>, { kind: FindingKind; textId: string; risk: FindingRisk | null }> = {
+  const impressumTexts: Record<Exclude<LegalAnalysis['impressum']['state'], 'analyzed'>, { kind: FindingKind; textId: TextId; risk: FindingRisk | null }> = {
     // On a page that shows almost nothing (perhaps a page of bot protection) a missing link says nothing about the site: no risk.
     // Session fix-a2: the quick check reads only the HTML source. A link that a script builds in the browser
     // is not in it, so a link it does not find is a limit of the method: no risk, never in "Drei Dinge".

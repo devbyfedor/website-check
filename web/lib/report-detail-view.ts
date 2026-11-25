@@ -14,8 +14,13 @@ import {
   FIX_SYSTEM_NAMES,
   FIX_SYSTEMS,
   FIX_TEXTS,
+  HEADER_NAMES,
+  HEADER_STEPS,
+  HEADER_STEPS_FRAME,
   HELP_TASKS,
   secondsText,
+  SERVICE_FIX,
+  THIRD_PARTY_FIX,
   THIRD_PARTY_HAPPENS,
   THIRD_PARTY_TARGET,
   THIRD_PARTY_WHY,
@@ -208,6 +213,11 @@ function otherHappens(f: Finding): Phrase | null {
   if (expected !== null) values.expected = expected;
   const value = str(f.params.value);
   if (value !== null) values.value = value;
+  // Session texts-fix: the card of the security headers ("{present} von {total}").
+  for (const key of ['present', 'total'] as const) {
+    const n = num(f.params[key]);
+    if (n !== null) values[key] = n;
+  }
   const template = count === 1 && t.happensOne !== undefined ? t.happensOne : t.happens;
   for (const m of template.matchAll(/\{([a-zA-Z]+)\}/g)) if (!((m[1] as string) in values)) return null;
   return fill(template, values, ['value']);
@@ -265,8 +275,31 @@ export function detectedSystem(report: Report): FixSystem | null {
   return (FIX_SYSTEMS as readonly string[]).includes(s) ? (s as FixSystem) : null;
 }
 
+/**
+ * Session texts-fix: the steps of the card of the security headers: a first step on where headers are set, one step per
+ * header of the report that does not count (its title and fix, by its text id), and a new scan.
+ */
+export function headerSteps(report: Report): readonly string[] {
+  const open = (report.security?.headers ?? []).filter((h) => !h.counts && h.textId !== null);
+  const steps = open.flatMap((h) => {
+    const step = lookup(HEADER_STEPS, h.textId as string);
+    return step === undefined ? [] : [step.replace('{header}', lookup(HEADER_NAMES, h.key) ?? h.header)];
+  });
+  return [HEADER_STEPS_FRAME.first, ...steps, HEADER_STEPS_FRAME.last];
+}
+
+/**
+ * The general steps of a finding (session texts-fix): the security headers by the headers of the report; a third-party
+ * finding by its service (the five services found most often), else by its class; every other finding by its text id.
+ */
+function generalFix(f: Finding, report: Report): readonly string[] | null {
+  if (f.textId === 'security-headers') return headerSteps(report);
+  const own = f.fixTextId === null ? undefined : lookup(SERVICE_FIX, f.fixTextId);
+  return own ?? lookup(THIRD_PARTY_FIX, f.textId) ?? lookup(FINDING_TEXTS, f.textId)?.fix ?? null;
+}
+
 function fixView(f: Finding, report: Report): FixView {
-  const general = lookup(FINDING_TEXTS, f.textId)?.fix ?? null;
+  const general = generalFix(f, report);
   const bySystem = f.fixTextId === null ? undefined : lookup(FIX_TEXTS, f.fixTextId);
   if (bySystem !== undefined) {
     const steps = Object.fromEntries(FIX_SYSTEMS.map((s) => [s, bySystem[s] ?? null])) as Record<FixSystem, readonly string[] | null>;

@@ -129,15 +129,26 @@ const STATE_REPORTS = {
     ),
   /** Session B4 part 2: finding details with the general steps only, no system tabs (contrast and images). */
   generalSteps: () => report(capture([DOCUMENT], { mainDocument: { status: 200, headers: ALL_HEADERS, redirectChain: [] }, axe: axe({ contrast: 14, alt: 3 }) })),
-  /** Session B4 part 2: finding details without a fix text yet (Google Analytics, the Meta Pixel, the security headers). */
-  noFixText: () =>
-    report(
+  /**
+   * Session B4 part 2: finding details without a fix text yet. Since session texts-fix every finding of our scanner has
+   * a text, so the two third-party findings (Google Analytics, the Meta Pixel) carry text ids the page does not know, as
+   * a report of a newer scanner would; the card of the security headers keeps its texts.
+   */
+  noFixText: () => {
+    const r = report(
       capture([
         DOCUMENT,
         { url: 'https://www.google-analytics.com/g/collect?v=2&tid=G-MUSTER123', resourceType: 'fetch', startMs: 700, endMs: 760 },
         { url: 'https://connect.facebook.net/signals/config/1234567890?v=2.9', resourceType: 'script', startMs: 800, endMs: 950 },
       ]),
-    ),
+    );
+    for (const f of r.findings) {
+      if (f.area !== 'privacy' || f.kind !== 'finding') continue;
+      f.textId = 'neu-dienst' as unknown as Report['findings'][number]['textId'];
+      f.fixTextId = 'neu-anleitung';
+    }
+    return r;
+  },
   /** Lists and texts read only in part: 85 unknown services, the page text and links cut, the page still loading after 15 s. */
   truncated: () =>
     report(
@@ -185,7 +196,7 @@ export const EXAMPLE_REPORT_STATES: readonly ExampleReportState[] = [
   { slug: 'gekuerzt', what: 'gekürzte Listen und Texte, Seite lud nach 15 s noch; Stückliste mit 80 von 85 Diensten', show: r(STATE_REPORTS.truncated) },
   { slug: 'dienste-markierungen', what: 'Stückliste: fehlt, bitte manuell prüfen, keine Antwort, Graubereich, nicht nötig; ein langer Name', show: r(STATE_REPORTS.serviceTags) },
   { slug: 'fund-ohne-systeme', what: 'Fund-Details nur mit allgemeinen Schritten, ohne Systemreiter', show: r(STATE_REPORTS.generalSteps) },
-  { slug: 'fund-ohne-anleitung', what: 'Fund-Details ohne Anleitung (noch kein Text), Land des Aufrufs', show: r(STATE_REPORTS.noFixText) },
+  { slug: 'fund-ohne-anleitung', what: 'Fund-Details ohne Anleitung: Text-ids, die die Seite noch nicht kennt (wie von einer neueren Prüfung), Land des Aufrufs', show: r(STATE_REPORTS.noFixText) },
   { slug: 'laedt', what: 'Seite: der Bericht wird geladen', show: p({ kind: 'loading' }) },
   { slug: 'nicht-fertig', what: 'Seite: Bericht noch nicht fertig (Prüfung läuft)', show: p({ kind: 'not-ready', id: ID, displayHost: 'roesterei-muster.de' }) },
   { slug: 'abgebrochen', what: 'Seite: Prüfung abgebrochen, kein Bericht', show: p({ kind: 'ended', reason: 'cancelled', displayHost: 'roesterei-muster.de' }) },
