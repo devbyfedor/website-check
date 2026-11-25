@@ -16,6 +16,12 @@
 .nav a:hover {
   color: var(--color-cyan);
 }
+/* The page the visitor is on (bfsg.html). */
+.nav a.here {
+  text-decoration: underline;
+  text-underline-offset: 6px;
+  text-decoration-thickness: 2px;
+}
 
 /* The outlined link on the right ("Prüfung abbrechen", "Neue Prüfung"). */
 .newb {
