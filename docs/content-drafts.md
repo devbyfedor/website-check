@@ -1135,6 +1135,13 @@ Fedor's answer 2 of B5 part 2: every finding with a risk beyond "Drei Dinge" get
 - Heading: Weitere Punkte mit Risiko. Next to it: „1 Punkt“ / „{n} Punkte“.
 - Status: Entwurf
 
+### The names of the tab lists (session C0 part 2)
+
+Fedor's answer 2 of C0: "System wählen" of the reference plus the title of the card, so every tab list of a page has a name of its own. Not visible; a screen reader reads it when it reaches the tabs. `web/lib/report-detail-texts.ts` (`tablistLabel`), `web/components/report/fix-tabs.tsx`.
+
+- Name: „System wählen: {Titel der Karte}“, for example „System wählen: Google Fonts laden vor der Einwilligung“.
+- Status: Entwurf (the colon; the words are those of the reference and of the card)
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/

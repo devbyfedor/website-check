@@ -22,14 +22,20 @@ export function Steps({ steps }: { steps: readonly string[] }) {
 }
 
 // "Montageanleitung" with the tabs WordPress, Shopify, Wix, Jimdo and Shopware (bericht.html), by the WAI-ARIA tabs
-// pattern (brief, B4): one tab list named "System wählen"; only the selected tab is in the Tab order, the arrow keys move
+// pattern (brief, B4): one tab list per card; only the selected tab is in the Tab order, the arrow keys move
 // to the next or previous tab and select it (Home and End to the first and the last), the panel follows the selected
 // tab and is in the Tab order itself, because it holds no control. The detected system is selected on load and carries
 // "erkannt" (design/README.md); a tab without steps of its own shows the steps without a system, when there are any.
-export function FixTabs({ cardId, fix, level = 3 }: { cardId: string; fix: SystemsFix; level?: HeadingLevel }) {
+// Session C0 (Fedor's answer 2): the name of the tab list is "System wählen:" of the reference plus the title of its card
+// ("System wählen: Google Fonts laden vor der Einwilligung"), so that each of the tab lists of a page has a name of its
+// own. It points at itself (its aria-label) and at the title of the card (`titleId`) with aria-labelledby (accname 1.2,
+// step 2B and 2D), so a string of the scanned page in a title stays a text node in <bdi> and never goes into an attribute
+// (docs/report-schema.md, "Strings of the scanned page").
+export function FixTabs({ cardId, titleId, fix, level = 3 }: { cardId: string; titleId: string; fix: SystemsFix; level?: HeadingLevel }) {
   const Heading = level === 2 ? 'h2' : level === 3 ? 'h3' : 'h4';
   const [selected, setSelected] = useState<FixSystem>(fix.selected);
   const tabs = useRef<Partial<Record<FixSystem, HTMLButtonElement | null>>>({});
+  const listId = `${cardId}-systeme`;
   const panelId = `${cardId}-panel`;
   const tabId = (system: FixSystem) => `${cardId}-tab-${system}`;
 
@@ -55,7 +61,7 @@ export function FixTabs({ cardId, fix, level = 3 }: { cardId: string; fix: Syste
     <>
       <div className="flex flex-col gap-3 px-[18px] pt-4">
         <Heading className={`${s.h3s} m-0!`}>{T.fixHeading}</Heading>
-        <div className={s.tabs} role="tablist" aria-label={T.tablistLabel}>
+        <div className={s.tabs} role="tablist" id={listId} aria-label={T.tablistLabel} aria-labelledby={`${listId} ${titleId}`}>
           {FIX_SYSTEMS.map((system) => {
             const on = system === selected;
             return (

@@ -242,7 +242,8 @@ describe('the finding details of the example', () => {
 describe('the system tabs', () => {
   it('follow the WAI-ARIA tabs pattern in the markup: one tab in the Tab order, the panel named by it', () => {
     const html = render(EXAMPLE);
-    expect(html).toContain('role="tablist" aria-label="System wählen"');
+    // Session C0 (Fedor's answer 2): named "System wählen:" and the title of the card (report-tab-names.test.tsx).
+    expect(html).toContain('role="tablist" id="fund-1-systeme" aria-label="System wählen:" aria-labelledby="fund-1-systeme fund-1-titel"');
     // Session texts-fix: the second card (Google Analytics) has tabs too; session C0: and the card of Google Tag Manager
     // under "Weitere Punkte mit Risiko"; these are the tabs of the first.
     expect([...html.matchAll(/<button[^>]*role="tab"[^>]*>/g)]).toHaveLength(15);

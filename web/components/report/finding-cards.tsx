@@ -12,9 +12,24 @@ import s from './report.module.css';
  * bericht.html; the cards under "Weitere Punkte mit Risiko" one level lower (h3 and h4) with the same look, so that the
  * outline of the page says that they belong to that heading.
  */
-function H({ level, className, children }: { level: HeadingLevel; className: string | undefined; children: ReactNode }) {
-  return level === 2 ? <h2 className={className}>{children}</h2> : level === 3 ? <h3 className={className}>{children}</h3> : <h4 className={className}>{children}</h4>;
+function H({ level, className, id, children }: { level: HeadingLevel; className: string | undefined; id?: string; children: ReactNode }) {
+  return level === 2 ? (
+    <h2 id={id} className={className}>
+      {children}
+    </h2>
+  ) : level === 3 ? (
+    <h3 id={id} className={className}>
+      {children}
+    </h3>
+  ) : (
+    <h4 id={id} className={className}>
+      {children}
+    </h4>
+  );
 }
+
+/** The id of the title of a card ("fund-1-titel"): the name of its tab list ends with it (session C0, Fedor's answer 2). */
+const titleIdOf = (card: FindingCard): string => `${card.id}-titel`;
 
 // The box of the "Montageanleitung" (bericht.html): with the system tabs when our texts have steps by system, else the
 // steps without a system under the same heading (a state the design does not show, from its elements). Session B4
@@ -24,7 +39,7 @@ function Fix({ card, level }: { card: FindingCard; level: HeadingLevel }) {
   return (
     <div className={s.fixBox}>
       {fix.kind === 'systems' ? (
-        <FixTabs cardId={card.id} fix={fix} level={level} />
+        <FixTabs cardId={card.id} titleId={titleIdOf(card)} fix={fix} level={level} />
       ) : (
         <>
           <div className="px-[18px] pt-4">
@@ -72,7 +87,7 @@ function Card({ card, level }: { card: FindingCard; level: 2 | 3 }) {
         <span className={s.pencil} aria-hidden="true">
           {card.number}
         </span>
-        <H level={level} className={s.h2s}>
+        <H level={level} className={s.h2s} id={titleIdOf(card)}>
           <PhraseText phrase={card.title} />
         </H>
         {card.field === null ? null : <span className={s.feld}>{REPORT_TEXTS.field(card.field)}</span>}

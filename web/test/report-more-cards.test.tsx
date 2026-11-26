@@ -118,10 +118,11 @@ describe('the page with the further cards', () => {
   it('each card is a card of the plan with its number, its title one level lower (h3, its parts h4), the same classes', () => {
     const plan = card('fund-1');
     const more = card('fund-6');
-    const h2s = /<h2 class="([^"]+)">/.exec(plan)![1]!;
+    // C0 part 2: the title carries the id the name of its tab list points at ("fund-1-titel").
+    const h2s = /<h2 id="fund-1-titel" class="([^"]+)">/.exec(plan)![1]!;
     const h3s = /<h3 class="([^"]+)">Was passiert<\/h3>/.exec(plan)![1]!;
     expect(more).toContain('aria-hidden="true">6</span>');
-    expect(more).toContain(`<h3 class="${h2s}">`);
+    expect(more).toContain(`<h3 id="fund-6-titel" class="${h2s}">`);
     expect(more).not.toContain('<h2');
     expect(more).toContain(`<h4 class="${h3s}">Was passiert</h4>`);
     expect(more).toContain(`<h4 class="${h3s}">Warum das wichtig ist</h4>`);

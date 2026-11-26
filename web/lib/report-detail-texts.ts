@@ -28,7 +28,11 @@ export const DETAIL_TEXTS = {
   fixHeading: 'Montageanleitung',
   target: 'Soll',
   actual: 'Ist',
-  tablistLabel: 'System wählen',
+  /**
+   * The reference's name of the tab list; session C0 (Fedor's answer 2): followed by the title of the card, so each tab
+   * list of a page has a name of its own ("System wählen: Google Fonts laden vor der Einwilligung"; the colon is a draft).
+   */
+  tablistLabel: 'System wählen:',
   detected: 'erkannt',
   /** Draft: a tab of a system our texts have no steps for (and no general steps either). */
   noSystemFix: (system: string) => `Für ${system} haben wir noch keine eigene Anleitung.`,

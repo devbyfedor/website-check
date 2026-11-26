@@ -720,6 +720,32 @@ async function tabKeys(page: Page, label: string): Promise<string[]> {
   return problems;
 }
 
+// Session C0 (Fedor's answer 2): the names Chrome computes for the tab lists (its accessibility tree, through the
+// browser protocol): each is "System wählen:" and the title of its card, and no two lists of a page share a name.
+async function tabNames(page: Page, label: string): Promise<{ problems: string[]; names: string[] }> {
+  const problems: string[] = [];
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    const tree = (await cdp.send('Accessibility.getFullAXTree')) as { nodes: { ignored?: boolean; role?: { value?: unknown }; name?: { value?: unknown } }[] };
+    const names = tree.nodes.filter((n) => !n.ignored && n.role?.value === 'tablist').map((n) => String(n.name?.value ?? ''));
+    const want = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('[role="tablist"]'), (list) => {
+        const title = list.closest('section[id^="fund-"]')?.querySelector('h2, h3');
+        return `System wählen: ${(title?.textContent ?? '?').replace(/\s+/g, ' ').trim()}`;
+      }),
+    );
+    if (names.length !== want.length) problems.push(`${label}: ${want.length} tab lists in the page, ${names.length} in the accessibility tree`);
+    names.forEach((name, i) => {
+      if (name !== want[i]) problems.push(`${label}: tab list ${i + 1} is named ${JSON.stringify(name)}, not ${JSON.stringify(want[i])}`);
+    });
+    const twice = names.filter((n, i) => names.indexOf(n) !== i);
+    if (twice.length > 0) problems.push(`${label}: tab lists with the same name: ${[...new Set(twice)].map((n) => JSON.stringify(n)).join(', ')}`);
+    return { problems, names };
+  } finally {
+    await cdp.detach();
+  }
+}
+
 // Session B4 part 2: the page with the print media emulated: no visible button but the selected system tab, no header,
 // navigation or footer, a white page and no dark background behind text, axe 0 (with the contrast of every text) and
 // the contrast by pixels where axe could not decide; a screenshot of each state.
@@ -873,6 +899,11 @@ async function checkState(browser: Browser, origin: string, width: number, state
     if (count('tab') !== tabbed || count('panel') !== tabbed) problems.push(`${label}: ${count('tab')} tabs and ${count('panel')} panels reached by Tab, ${tabbed} finding details with system tabs`);
     problems.push(...(await compareValues(r.page, state.report, label)));
     if (tabbed > 0) problems.push(...(await tabKeys(r.page, label)));
+    const named = await tabNames(r.page, label);
+    problems.push(...named.problems);
+    if (named.names.length !== tabbed) problems.push(`${label}: ${named.names.length} named tab lists, ${tabbed} finding details with system tabs`);
+    result.tabNames = named.names;
+    if (named.names.length > 0) console.log(`    tab lists: ${named.names.length}, ${new Set(named.names).size} names`);
   } else if (state.name !== 'laedt' && !order.includes('state-action')) problems.push(`${label}: the way on of the state is not reached by Tab`);
   const over = await r.page.evaluate(overflow);
   if (width <= 390 && over.outside.length > 0) problems.push(`${label}: text outside the window, not in a scroll box: ${over.outside.slice(0, 5).join(' | ')}`);
@@ -983,6 +1014,21 @@ async function main(): Promise<void> {
       if (!seen.some((x) => / findings with a risk, \d+ cards$/.test(x))) missed.push('a finding with a risk without a card');
       console.log(`self-test of the comparison: ${seen.length} differences seen for 10 changed values; missed ${missed.length === 0 ? 'none' : missed.join(', ')}`);
       if (missed.length > 0) problems.push(`self-test: the comparison missed ${missed.join(', ')}: ${seen.join(' | ')}`);
+      // Session C0: the check of the names of the tab lists must see two lists with the same name.
+      const more = exampleStates().find((s) => s.name === 'weitere-funde')!;
+      const named = await open(browser, server.origin, 1440, true, more.api);
+      await reach(named.page, more.heading);
+      const before = await tabNames(named.page, 'self-test');
+      await named.page.evaluate(() => {
+        const lists = document.querySelectorAll('[role="tablist"]');
+        lists[1]!.setAttribute('aria-labelledby', lists[0]!.getAttribute('aria-labelledby') ?? '');
+      });
+      const after = await tabNames(named.page, 'self-test');
+      await named.close();
+      const caught = after.problems.some((p) => p.includes('tab lists with the same name'));
+      console.log(`self-test of the names of the tab lists: ${before.names.length} lists, ${before.problems.length} problems as built; one name made the same as another: ${caught ? 'seen' : 'MISSED'}`);
+      if (before.problems.length > 0 || before.names.length < 4) problems.push(`self-test: the tab lists of weitere-funde as built: ${before.names.length} names, ${before.problems.join(' | ')}`);
+      if (!caught) problems.push(`self-test: two tab lists with the same name were not seen: ${after.problems.join(' | ')}`);
       for (const width of widths) {
         console.log(`report page, every state, ${width} px`);
         const result: Record<string, unknown> = {};
