@@ -16,6 +16,7 @@ import { parseSitesFile } from './sites-file.ts';
  *   node scanner/src/local/c1-lab.ts --step reader --run reader
  *   node scanner/src/local/c1-lab.ts --step errors --run errors
  *   node scanner/src/local/c1-lab.ts --step cpu --round r1 --first status|cancel --run cpu
+ *   node scanner/src/local/c1-lab.ts --step launches --dir c2 --run launches [--race-ms 300]   (session C2, step 5)
  *
  * Bases: `--base` (lab API), `--pages`, `--tracker`. Everything goes to `local/c1/<run>/` (git-ignored); the console
  * shows anonymous labels only ("Site NN", "pages", "tracker"). The token is read from `worker/.dev.vars`, never printed.
@@ -28,6 +29,10 @@ const { values } = parseArgs({
     base: { type: 'string', default: 'http://127.0.0.1:8788' },
     pages: { type: 'string', default: 'http://127.0.0.1:8794' },
     tracker: { type: 'string', default: 'http://127.0.0.1:8795' },
+    launcher: { type: 'string', default: 'http://127.0.0.1:8796' },
+    dir: { type: 'string', default: 'c1' },
+    'race-ms': { type: 'string' },
+    'max-browser-s': { type: 'string', default: '60' },
     mode: { type: 'string', default: 'sequential' },
     only: { type: 'string' },
     targets: { type: 'string' },
@@ -54,12 +59,13 @@ const strip = (url: string) => url.replace(/\/$/, '');
 const BASE = strip(values.base);
 const PAGES = strip(values.pages);
 const TRACKER = strip(values.tracker);
-for (const url of [BASE, PAGES, TRACKER]) {
+const LAUNCHER = strip(values.launcher);
+for (const url of [BASE, PAGES, TRACKER, LAUNCHER]) {
   const parsed = new URL(url);
   if (parsed.protocol !== 'https:' && parsed.hostname !== '127.0.0.1') throw new Error(`${url}: https or local wrangler dev only`);
 }
 const RUN = values.run ?? `${values.step}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-const OUT = resolve('local', 'c1', RUN);
+const OUT = resolve('local', values.dir, RUN);
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
 async function readToken(path: string): Promise<string> {
@@ -453,7 +459,75 @@ async function stepDoSummary(): Promise<void> {
   await writeFile(resolve('local', 'c1', `do-summary-${values.b ?? 'reader'}.json`), `${JSON.stringify(lines, null, 2)}\n`);
 }
 
-const steps: Record<string, () => Promise<void>> = { sites: stepSites, compare: stepCompare, tracker: stepTracker, reader: stepReader, errors: stepErrors, cpu: stepCpu, 'cpu-summary': stepCpuSummary, 'do-summary': stepDoSummary };
+
+/**
+ * Session C2, step 5: fix 1 on Cloudflare, invented lab pages only. Three full checks of the lab page, each started
+ * as soon as the one before was done (C1's case: the second start 12.5 s after the first), then one browser of the
+ * launcher Worker (a launch the queue's mark does not know about) and a fourth check right after it, whose launch
+ * Browser Run should refuse by its rule of one new browser every 20 s. With `--race-ms N` the fourth check starts N ms
+ * after the launcher was asked, without waiting for its answer. Stops before the launcher when the sessions of the
+ * run already hold more than `--max-browser-s` minus 15 s of browser time.
+ */
+async function stepLaunches(): Promise<void> {
+  const runStart = Date.now();
+  await setPage('small');
+  const url = `${PAGES}/`;
+  const all: Started[] = [];
+  for (let i = 1; i <= 3; i += 1) {
+    await forget();
+    const s = await startScan({ label: `check ${i}`, url });
+    all.push(s);
+    await waitDone([s], 1_000);
+    console.log(`check ${i}: ${String(s.final?.['status'] ?? '-')} after ${(((s.doneAt ?? Date.now()) - s.startedAt) / 1000).toFixed(1)} s`);
+  }
+  const sessionsSince = async (): Promise<{ count: number; seconds: number; open: number }> => {
+    const limits = await call(BASE, 'GET', '/lab/limits', 'limits');
+    const history = ((limits.json?.['history'] as { startTime?: number; endTime?: number | null }[] | undefined) ?? []).filter((h) => (h.startTime ?? 0) >= runStart - 5_000);
+    return { count: history.length, seconds: history.reduce((sum, h) => sum + (h.endTime && h.startTime ? (h.endTime - h.startTime) / 1000 : 0), 0), open: history.filter((h) => !h.endTime).length };
+  };
+  const before = await sessionsSince();
+  console.log(`browser sessions of the run so far: ${before.count}, ${before.seconds.toFixed(2)} s, open ${before.open}`);
+  let launch: Answer | null = null;
+  if (before.seconds > Number(values['max-browser-s']) - 15) {
+    console.log('stop: not enough browser time left for the launcher and a fourth check');
+  } else {
+    // The queue's mark is the moment the third check's acquire returned (its launch plus the launch time); the launcher
+    // comes 24 s after it, so the queue's own 22 s are over and it does not wait for its mark.
+    const third = await call(BASE, 'GET', '/lab/stats', 'stats');
+    const marks = ((third.json?.['browsers'] as { launchedAt: number; launchMs: number }[] | undefined) ?? []).map((b) => b.launchedAt + b.launchMs);
+    const wait = Math.max(0, ...marks) + 24_000 - Date.now();
+    if (wait > 0) await sleep(Math.min(wait, 60_000));
+    let s4: Started;
+    if (values['race-ms'] !== undefined) {
+      const pending = call(LAUNCHER, 'POST', '/lab/launch', 'launch');
+      await sleep(Number(values['race-ms']));
+      s4 = await startScan({ label: 'check 4', url });
+      launch = await pending;
+    } else {
+      launch = await call(LAUNCHER, 'POST', '/lab/launch', 'launch');
+      await forget();
+      s4 = await startScan({ label: 'check 4', url });
+    }
+    console.log(`launcher: HTTP ${launch.status} ${launch.text.slice(0, 600)}`);
+    all.push(s4);
+    await waitDone([s4], 1_000);
+    console.log(`check 4: ${String(s4.final?.['status'] ?? '-')} after ${(((s4.doneAt ?? Date.now()) - s4.startedAt) / 1000).toFixed(1)} s`);
+  }
+  const facts: Record<string, unknown> = {};
+  for (const s of all) {
+    const f = await fetchReport(s, fileLabelOf(s.target.label));
+    facts[s.target.label] = f === null ? null : { state: f.state, mode: f.mode, valid: f.valid, pages: f.pages };
+    console.log(`${s.target.label}: ${String(s.final?.['status'] ?? '-')} ${f === null ? 'no report' : `${f.state} ${f.mode} valid=${f.valid} pages=${JSON.stringify(f.pages)}`}`);
+  }
+  const stats = await call(BASE, 'GET', '/lab/stats', 'stats');
+  const q = stats.json as { day?: unknown; browsers?: { launchedAt: number; launchMs: number; openMs: number | null; refusals: string[]; waitedMs: number }[]; launchFailures?: unknown[] } | null;
+  const browsers = (q?.browsers ?? []).filter((b) => b.launchedAt >= runStart - 5_000).map((b) => ({ at: b.launchedAt - runStart, launchMs: b.launchMs, openMs: b.openMs, waitedMs: b.waitedMs, refusals: b.refusals }));
+  const after = await sessionsSince();
+  const limits = await call(BASE, 'GET', '/lab/limits', 'limits');
+  console.log(JSON.stringify({ day: q?.day ?? null, browsers, launchFailures: q?.launchFailures ?? [], sessions: after }, null, 1));
+  await save('summary.json', { run: RUN, runStart, scans: all.map((s) => ({ label: s.target.label, id: s.id, startStatus: s.startStatus, startedAt: s.startedAt - runStart, doneAt: s.doneAt === null ? null : s.doneAt - runStart, status: s.final?.['status'] ?? null })), facts, launch: launch?.json ?? null, day: q?.day ?? null, browsers, launchFailures: q?.launchFailures ?? [], sessions: after, limits: limits.json });
+}
+const steps: Record<string, () => Promise<void>> = { sites: stepSites, compare: stepCompare, tracker: stepTracker, reader: stepReader, errors: stepErrors, cpu: stepCpu, 'cpu-summary': stepCpuSummary, 'do-summary': stepDoSummary, launches: stepLaunches };
 const run = steps[values.step ?? ''];
 if (run === undefined) throw new Error(`--step ${Object.keys(steps).join('|')}`);
 await run();

@@ -1142,6 +1142,25 @@ Fedor's answer 2 of C0: "System wählen" of the reference plus the title of the 
 - Name: „System wählen: {Titel der Karte}“, for example „System wählen: Google Fonts laden vor der Einwilligung“.
 - Status: Entwurf (the colon; the words are those of the reference and of the card)
 
+## Session C2 (26.11.2026)
+
+### `report-truncated-page`: a page the quick check read only up to its limit of elements
+
+Fedor's answer 2 after C1: the quick check's HTML reader builds at most 20,000 elements and marks the page as read only in part (`truncated.page`: `homepage-elements`, `impressum-elements`). A new line in the existing note under the head of the report (`web/lib/report-texts.ts`, `truncatedPage`); it stands instead of the lines of the text and links cut of the same page, whose limits the page need not have reached.
+
+- Text (`homepage-elements`): Die Startseite ist für die Schnellprüfung zu umfangreich (mehr als 20 000 HTML-Elemente). Der Rest der Seite wurde nicht gelesen.
+- Text (`impressum-elements`): Das Impressum ist für die Schnellprüfung zu umfangreich (mehr als 20 000 HTML-Elemente). Der Rest der Seite wurde nicht gelesen.
+- Used when: `truncated.page` names the part (only a quick check; the browser has no such limit).
+- Status: Entwurf
+
+### "So prüfen wir": requests a page makes later (for the page of stage C, not built yet)
+
+Fedor's answer 3 after C1: what the scan cannot see of a page that calls a service late. Since C2 the waiting ends on a quiet network (1.5 s without a request) only 3 s after the start at the earliest (`CAPTURE_SETTINGS.minObserveMs`), and at 15 s in any case (`maxWaitMs`).
+
+- Text: Wir beobachten Ihre Startseite mindestens 3 Sekunden lang und danach so lange, bis 1,5 Sekunden lang keine Anfrage mehr läuft, höchstens 15 Sekunden. Dienste, die Ihre Seite erst später lädt, sieht unsere Prüfung nicht. Ein Bericht ohne fremde Dienste heißt deshalb nicht, dass Ihre Seite nie welche lädt.
+- Used when: the page "So prüfen wir" of stage C, in the part about the limits of the scan.
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/

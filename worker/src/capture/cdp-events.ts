@@ -26,6 +26,7 @@ import {
   type HttpProbe,
   type HttpsProbe,
   CAPTURE_SETTINGS,
+  networkQuietNow,
   chooseImpressumTarget,
   chromeVersionOf,
   LONG_LIVED_RESOURCE_TYPES,
@@ -432,7 +433,7 @@ async function runCapture(
         break;
       }
       const now = rel();
-      if (loadMs !== null && inflight.size === 0 && now - lastActivity >= settings.quietWindowMs) {
+      if (networkQuietNow({ nowMs: now, loadMs, inflight: inflight.size, lastActivityMs: lastActivity }, settings)) {
         stopReason = 'network-quiet';
         networkQuietMs = lastActivity;
         break;

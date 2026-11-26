@@ -308,3 +308,20 @@ describe('session fix-a6: the page cannot give axe a false result, and a CSP met
     expect(head.capture.page?.securityMeta?.csp).toBe("img-src 'self'");
   });
 });
+
+describe("session C2: a quiet page that loads a tracker 2.8 s after its script (Fedor's answer 3 after C1)", () => {
+  const late = (): string => fixture.url('www.shop.test', '/late');
+
+  it('the waiting lasts at least 3 s after the start, so the tracker is seen', async () => {
+    const { capture } = await captureWithCdpEvents(browser, late(), options());
+    expect(capture).toMatchObject({ ok: true, failure: null, timings: { stopReason: 'network-quiet' } });
+    expect(to(capture, 'px.trackco.test')).toHaveLength(1);
+    expect(to(capture, 'px.trackco.test')[0]?.startMs).toBeGreaterThanOrEqual(2_800);
+  });
+
+  it('control: without the lower bound the waiting ends on the quiet network before 2.8 s and misses it', async () => {
+    const { capture } = await captureWithCdpEvents(browser, late(), options({ minObserveMs: 0 }));
+    expect(capture).toMatchObject({ ok: true, timings: { stopReason: 'network-quiet' } });
+    expect(to(capture, 'px.trackco.test')).toEqual([]);
+  });
+});

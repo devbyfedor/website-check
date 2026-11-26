@@ -1,0 +1,20 @@
+// Lab launcher Worker of session C2 (Fedor's permission in the session message, step 5): opens one browser and closes
+// it at once, without loading any page (`worker/src/lab/launcher.ts`), so that the next launch of the lab queue meets
+// Browser Run's rule of one new browser every 20 s. On workers.dev only. Deleted at the end of the session:
+//   npx wrangler delete -c worker/wrangler.lab-launcher.jsonc
+// The secret LAB_TOKEN is set from `worker/.dev.vars` and never printed.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "website-check-lab-launcher",
+  "main": "src/lab/launcher.ts",
+  "compatibility_date": "2026-11-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": false,
+    "logs": { "enabled": false, "invocation_logs": false },
+    "traces": { "enabled": false }
+  },
+  "browser": { "binding": "BROWSER" }
+}

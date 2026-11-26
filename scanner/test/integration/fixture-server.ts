@@ -78,6 +78,10 @@ route('tracker.thirdparty.test', '/t.js', (_req, res, port) =>
   send(res, 200, 'application/javascript', `setTimeout(function () { navigator.sendBeacon('http://tracker.thirdparty.test:${port}/collect', 'x'); }, 300);`),
 );
 route('tracker.thirdparty.test', '/collect', (_req, res) => send(res, 204, 'text/plain', ''));
+// Session C2: a quiet page that loads the tracker 2.8 s after its script ran (C1: missed on the laptop).
+route('www.late.test', '/', (_req, res, port) =>
+  send(res, 200, 'text/html', html(`<h1>Willkommen</h1><script>setTimeout(function () { var s = document.createElement('script'); s.src = 'http://tracker.thirdparty.test:${port}/t.js'; document.head.appendChild(s); }, 2800);</script>`)),
+);
 route('video.thirdparty.test', '/embed/1', (_req, res, port) =>
   send(res, 200, 'text/html', html(`<img src="http://ads.adnetwork.test:${port}/pixel.gif" alt="">`)),
 );

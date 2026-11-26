@@ -48,7 +48,7 @@ export {
   type SecurityHeaderKey,
   type SecurityHeaderName,
 } from './analyzers/security.ts';
-export { CAPTURE_SETTINGS, chromeVersionOf, desktopChromeUserAgent, LONG_LIVED_RESOURCE_TYPES } from './capture/settings.ts';
+export { CAPTURE_SETTINGS, chromeVersionOf, desktopChromeUserAgent, LONG_LIVED_RESOURCE_TYPES, networkQuietNow, type WaitState } from './capture/settings.ts';
 export { lowerCaseHeaders, toInitiator, type CdpInitiator, type CdpStack } from './capture/cdp.ts';
 export {
   SNAPSHOT_EXPRESSION,

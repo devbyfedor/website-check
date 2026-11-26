@@ -1460,10 +1460,62 @@ Fedor's answers to the three questions of C0 part 2 are in `docs/decisions.md` (
 
 - `docs/measurements/c1.md`; the raw data in `local/c1/` (reports, tails, summaries), the logs of the final run in `local/runs/c1-final-*`.
 
+## C2: the fixes after the measurements of C1 (26.11.2026)
+
+Branch `c2-fixes`, **merged into `main`** (a real merge). Session time: about 1 hour 20 minutes (18:16 to about 19:35). Cloudflare: four lab Workers on workers.dev and one lab D1 database (EU), about 18:55 to 19:03, all deleted and checked; **23.56 s of browser time** in 5 sessions (the session allowed 60 s). No deploy of the product, nothing pushed. One helper (Sonnet: the Cloudflare docs on the texts of Browser Run's refusals), none during the measurements.
+
+Fedor's answers to the three questions of C1 are in `docs/decisions.md` (owner decisions of 26.11.2026, C2).
+
+### Step 2: fix 1, a refused browser launch is not the end of the day (`worker/src/queue/launch.ts`)
+
+- The mark of the last launch is taken when `acquire` returned (the session exists then), and the next new browser waits 20 s plus a margin of 2 s from it (`launchMarginMs`). Any error of `acquire` gets one more attempt after 22 s (longer if Browser Run's reading asks for it, at most 60 s). The day is marked used up only by Browser Run's documented answer ("Browser time limit exceeded for today") or by its own count of the day's browser time; a second refusal without that ends the waiting scans as our error, never as a quick check (its note promises the full check for tomorrow). Refusals, waits and launches without a browser are in the object's `/stats`.
+- Tests: `worker/test/launch.test.ts` (19: each case, the C1 timeline against a fake Browser Run that counts 20 s from its session's start, and a control of the old rule) and 4 through the production queue object (`worker/test/queue-object.test.ts`: refused once → full check and the next one full; refused twice → our error, no quick check, day open; the daily answer → quick check, day used up; Cloudflare's count at the budget → quick check). On the object of `main` 3 of the 4 fail.
+- Plain `wrangler dev` (`c1-lab-dev.ts` with the new lab launcher Worker): 8 of 8 checks full, the second and third launch waited 17.1 s, the day not used up.
+
+### Step 3: fix 2, the HTML reader of the quick check stops at 20,000 elements
+
+- `SNAPSHOT_MAX_ELEMENTS` = 20,000 (the largest homepage of the 30 test sites has 4,704 elements in its saved HTML, the median 1,076): the reader stops before the next start tag; the snapshot says `elementsTruncated` (and `textTruncated`, `linksTruncated`, so a missing Impressum link stays a manual check); the report names `homepage-elements` or `impressum-elements` in `truncated.page` instead of the text and links cut of that page. Two new German lines in the existing note under the head of the report, drafts (`docs/content-drafts.md`, "Session C2"); schema and `docs/report-schema.md` updated.
+- Memory (a worker thread with a hard heap limit, young generation 4 MB; 36 synthetic pages of 2 MiB: the six of fix-a4, the hostile pages of the CPU tests, more): the reader loaded 11 to 12 MB; the largest page needed 262 MB before (2 MiB of empty `<p>` 260 MB; C1 reset the queue object there) and 30 MB after, so at most 19 MB above the baseline. Test `scanner/test/reader-memory.test.ts`: every page within the baseline plus 32 MB, and a control that ends out of memory; with the reader of `main` it fails on the first page. `scanner/test/reader-elements.test.ts` (6): the limit exactly, what is read before it, the mark through the capture's limits, the report with an Impressum link after the limit (a manual check, not a finding).
+
+### Step 4: item 3, a lower bound of the observation (from the saved captures, no visit)
+
+- What a lower bound adds to a full check on average (the waiting ends at the quiet network, 1.5 s after the last request, or at 15 s; a bound M adds max(0, M − that end)): on Cloudflare, 35 checks of real sites of A2 and A3: 3 s +0.13 s (12 checks affected, at most 1.19 s), 5 s +1.38 s, 8 s +3.79 s; on the laptop, 187 captures: +0.03, +0.49, +2.10 s. Browser seconds are Cloudflare's: **3 s** is the longest within 1 s. A lower estimate: a request in the added time would lengthen the waiting further.
+- `CAPTURE_SETTINGS.minObserveMs` = 3,000; both browser adapters end the waiting through one rule (`networkQuietNow`); the Impressum is not affected. Tests: the rule (capture-helpers) and, in both adapters, a quiet page that loads a tracker 2.8 s after its script: seen with the bound, missed without it (control).
+- The sentence for "So prüfen wir" is a draft in `docs/content-drafts.md` ("Session C2").
+
+### Step 5: fix 1 on Cloudflare (`docs/measurements/c2.md`)
+
+- Three full checks of an invented lab page, each started as soon as the one before was done: the queue waited for its spacing (sessions 22.5 s apart), 0 refusals. Then the lab launcher Worker opened and closed one browser, and a fourth check started 0.9 s later: Browser Run refused its first launch ("Unable to create new browser: code: 429: message: Rate limit exceeded"), the queue waited 22 s and the second attempt gave the full check. Every report `complete`, mode `full`; the queue's day: 4 full, 0 quick, `exhausted: false`.
+- Browser Run's `limits()` right after the launcher's close read 1 acquisition allowed and 0 to wait: the reading does not show the 20 s rule, so the queue's own spacing is what keeps it.
+- Browser time: 5 sessions, 23.56 s by the history; Cloudflare's count of the day 82.924 s before and 106.481 s after. The queue object: 66 events, all `ok`, 0 exceptions, at most 95 ms CPU.
+- Lab deleted: the four Workers "Successfully deleted", their workers.dev addresses HTTP 404 with error 1042, `wrangler deployments list` "does not exist" (10007) for all four names; the lab database deleted, `wrangler d1 list` 0 databases; `LAB_TOKEN` removed from `worker/.dev.vars`, the generated configs with the database id deleted.
+
+### Step 6: the old copies in the temp folder
+
+- `wc-before` and `wc-a1-before` (from session A1) were no git worktrees (no `.git`, not in `git worktree list`, no links inside; 31 and 33 result files of 0.5 MB each): removed with `Remove-Item`, both gone.
+
+### Numbers against step 7 of the session message (final run 19:04 to 19:27, nothing else running)
+
+- `npm test`: 1,771 of 1,771 (1,739 on `main` plus 19 of the launch, 4 through the queue object, 6 of the limit of elements, 2 of the memory, 1 of the waiting rule).
+- `npm run test:integration`: scanner 93 of 93, worker 67 of 67 (2 new in each: the late tracker and its control); 634 s, longer than before because every fixture page is now observed for 3 s at least.
+- `npm run typecheck`: no errors. `npm run build:web`: passes.
+- `npm run check:scan`: Problems 0 (102 pages of ours, all with the CSP of the production `_headers`, 0 CSP violations). `npm run check:report`: Problems 0 (142 pages, all with that CSP, 0 CSP violations).
+- Leak search over the full list (276 strings, those of C1; the lab token and the lab database id of C2 no longer exist locally, so values of their shapes were searched instead: 0 of 64 hex characters, 0 UUIDs but the zero placeholder of the lab configs): 0 hits in the added lines of every commit of `main..c2-fixes` and in their messages (run again right before the merge); the 36 matches in 22 of 507 tracked files are the false ones of C1. Rule of finding 93: no "Site NN" in the added lines of the branch. `git ls-files local` is empty.
+- The lab deleted and checked (step 5), `LAB_TOKEN` removed from `worker/.dev.vars`.
+
+### Noted, not changed (`docs/backlog.md`)
+
+- A check that needs a new browser right after another waits up to 22 s (before: 20 s); Browser Run's `limits()` does not show the 20 s rule (`docs/backlog.md`, "Before the launch → Measurements on Cloudflare").
+- The queue object keeps its measurements (`/stats`: browsers, refusals) in memory only; in the lab the object was restarted between the third and the fourth check, so `/stats` showed the fourth browser only (the day's counters are in its storage and showed all four). Lab only, not changed.
+- The new German lines (`homepage-elements`, `impressum-elements`) and the sentence for "So prüfen wir" are drafts for the native speaker of stage C.
+
+### How to look at it
+
+- `docs/measurements/c2.md`; the raw data in `local/c2/` (summaries, reports, the tail of the queue object), the logs of the final run in `local/runs/c2-final-*`.
+
 ## Next
 
-- Stage C (launch readiness): Fedor sends its brief. It builds on `docs/backlog.md`, section "Before the launch", and on the list of the brief (`<later_stages>`): lead form, Impressum, Datenschutzerklärung and Erklärung zur Barrierefreiheit of our own site (the footer links lead to no page yet), "So prüfen wir", Turnstile, lead notifications, retention period, the quality check of the scanner on the 30 sites against WAVE and Lighthouse, the review of every German text by a native speaker, the first public deploy by Fedor and then `npm run self-scan` against the public address.
-- Before the launch, from C1 (`docs/backlog.md`): the queue must not take a refused browser launch for the day's limit; the quick check's HTML reader must stay within the memory of the queue object; Fedor decides about the tracker that a quiet page calls late.
-- Fedor: push `main` (the merges of `c0-findings`, `c0-stability` and `c1-measure`).
+- Stage C (launch readiness): Fedor sends its brief. It builds on `docs/backlog.md`, section "Before the launch", and on the list of the brief (`<later_stages>`): lead form, Impressum, Datenschutzerklärung and Erklärung zur Barrierefreiheit of our own site (the footer links lead to no page yet), "So prüfen wir" (with the draft of C2 about late requests), Turnstile, lead notifications, retention period, the quality check of the scanner on the 30 sites against WAVE and Lighthouse, the review of every German text by a native speaker (with the drafts of C2), the first public deploy by Fedor and then `npm run self-scan` against the public address.
+- Fedor: push `main` (the merges of `c0-findings`, `c0-stability`, `c1-measure` and `c2-fixes`).
 - Fedor, as he decides (C1, answer 1): the dynamic port range back to the Windows default (`netsh int ipv4 set dynamicport tcp start=49152 num=16384` as administrator, also for udp and ipv6). The tests and checks no longer need it.
 - Fedor, before the launch (stage C): create the real D1 database (all five migrations) and put its id into both configs, set `RATE_LIMIT_SECRET` on the scan Worker; deploy the scan Worker first, then the API Worker. The measurements before the launch are in `docs/backlog.md`.

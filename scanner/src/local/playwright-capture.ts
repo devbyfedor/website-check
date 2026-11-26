@@ -34,7 +34,7 @@ import {
 import { toInitiator, type CdpInitiator } from '../capture/cdp.ts';
 import { CAPTURE_LIMITS, limitCapture, limitPageSnapshot, limitRequest, limitSnapshot, pageLimitFailure, RequestBudget } from '../capture/limits.ts';
 import { IMPRESSUM_SNAPSHOT_EXPRESSION, SNAPSHOT_EXPRESSION, TEXT_PROGRESS_EXPRESSION, type SnapshotResult, type TextProgress } from '../capture/page-scripts.ts';
-import { CAPTURE_SETTINGS, desktopChromeUserAgent, LONG_LIVED_RESOURCE_TYPES } from '../capture/settings.ts';
+import { CAPTURE_SETTINGS, desktopChromeUserAgent, LONG_LIVED_RESOURCE_TYPES, networkQuietNow } from '../capture/settings.ts';
 import { buildBannerProbeScript } from '../consent/probe-script.ts';
 import type { ConsentTool } from '../consent/tools.ts';
 import { DEFAULT_CONSENT_TOOLS } from '../data.ts';
@@ -55,12 +55,15 @@ export const LOCAL_CAPTURE_DEFAULTS = {
   viewport: CAPTURE_SETTINGS.viewport,
   maxWaitMs: CAPTURE_SETTINGS.maxWaitMs,
   quietWindowMs: CAPTURE_SETTINGS.quietWindowMs,
+  minObserveMs: CAPTURE_SETTINGS.minObserveMs,
   hardLimitMs: CAPTURE_SETTINGS.hardLimitMs,
 } as const;
 
 export interface LocalCaptureOptions {
   maxWaitMs?: number;
   quietWindowMs?: number;
+  /** Session C2: a quiet network ends the waiting this long after the start at the earliest. */
+  minObserveMs?: number;
   hardLimitMs?: number;
   /** Default: the user agent of a normal desktop Chrome of the same version (see docs/decisions.md). */
   userAgent?: string;
@@ -173,6 +176,7 @@ export async function captureWithPlaywright(browser: Browser, url: string, optio
   const settings = {
     maxWaitMs: options.maxWaitMs ?? LOCAL_CAPTURE_DEFAULTS.maxWaitMs,
     quietWindowMs: options.quietWindowMs ?? LOCAL_CAPTURE_DEFAULTS.quietWindowMs,
+    minObserveMs: options.minObserveMs ?? LOCAL_CAPTURE_DEFAULTS.minObserveMs,
     hardLimitMs: options.hardLimitMs ?? LOCAL_CAPTURE_DEFAULTS.hardLimitMs,
     artifacts: options.artifacts ?? false,
     tools: options.consentTools ?? DEFAULT_CONSENT_TOOLS,
@@ -276,6 +280,7 @@ async function runCapture(
   settings: {
     maxWaitMs: number;
     quietWindowMs: number;
+    minObserveMs: number;
     hardLimitMs: number;
     artifacts: boolean;
     tools: readonly ConsentTool[];
@@ -448,7 +453,7 @@ async function runCapture(
         break;
       }
       const now = rel();
-      if (loadMs !== null && inflight.size === 0 && now - lastActivity >= settings.quietWindowMs) {
+      if (networkQuietNow({ nowMs: now, loadMs, inflight: inflight.size, lastActivityMs: lastActivity }, settings)) {
         stopReason = 'network-quiet';
         networkQuietMs = lastActivity;
         break;

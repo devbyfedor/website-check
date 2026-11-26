@@ -170,3 +170,20 @@ describe('captureWithPlaywright limits and failures', () => {
     expect(broken.capture.failure).toMatchObject({ reason: 'http-error', status: 500 });
   });
 });
+
+describe("session C2: a quiet page that loads a tracker 2.8 s after its script (Fedor's answer 3 after C1)", () => {
+  const tracker = (capture: Capture) => capture.requests.filter((r) => r.url.includes('//tracker.thirdparty.test'));
+
+  it('the waiting lasts at least 3 s after the start, so the tracker is seen', async () => {
+    const { capture } = await captureWithPlaywright(browser, server.url('www.late.test'), { guard: fixtureGuard, accessibility: false });
+    expect(capture).toMatchObject({ ok: true, failure: null, timings: { stopReason: 'network-quiet' } });
+    expect(tracker(capture).length).toBeGreaterThanOrEqual(1);
+    expect(tracker(capture)[0]?.startMs).toBeGreaterThanOrEqual(2_800);
+  });
+
+  it('control: without the lower bound the waiting ends on the quiet network before 2.8 s and misses it', async () => {
+    const { capture } = await captureWithPlaywright(browser, server.url('www.late.test'), { guard: fixtureGuard, accessibility: false, minObserveMs: 0 });
+    expect(capture).toMatchObject({ ok: true, timings: { stopReason: 'network-quiet' } });
+    expect(tracker(capture)).toEqual([]);
+  });
+});

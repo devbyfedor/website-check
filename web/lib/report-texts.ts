@@ -131,6 +131,9 @@ export const STATE_DRAFTS = {
   truncatedPage: {
     'homepage-text': 'Die Startseite hat mehr Text, als die Prüfung liest (100 000 Zeichen). Der Rest wurde nicht gelesen.',
     'homepage-links': 'Die Startseite hat Links, die die Prüfung nicht gelesen hat (mehr als 1 500 Links oder ungewöhnlich lange Adressen).',
+    // Session C2 (drafts, docs/content-drafts.md): the quick check's reader stopped at its limit of elements.
+    'homepage-elements': 'Die Startseite ist für die Schnellprüfung zu umfangreich (mehr als 20 000 HTML-Elemente). Der Rest der Seite wurde nicht gelesen.',
+    'impressum-elements': 'Das Impressum ist für die Schnellprüfung zu umfangreich (mehr als 20 000 HTML-Elemente). Der Rest der Seite wurde nicht gelesen.',
     'impressum-text': 'Das Impressum hat mehr Text, als die Prüfung liest (100 000 Zeichen). Der Rest wurde nicht gelesen.',
     'impressum-links': 'Das Impressum hat Links, die die Prüfung nicht gelesen hat.',
     headers: 'Ein Header der Startseite hat einen Wert, der für die Prüfung zu lang ist. Er wurde nicht ausgewertet.',

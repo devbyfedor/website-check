@@ -11,6 +11,7 @@ import { traceBrowserVisit, traceObjectVisit, TRACE_URL } from '../capture/visit
 import { QUEUE_LIMITS, ScanQueue, type KvStore, type QueueJob, type QueueLimits, type ScanMode } from './core.ts';
 import { BrowserTimeExhausted, drain, type BrowserPort } from './drain.ts';
 import { runScanJob, type CaptureOutcome } from './job.ts';
+import { BrowserLaunchRefused, launchBrowser, type BrowserRunReading, type Launch } from './launch.ts';
 
 /**
  * The scan queue as a Durable Object (session A5 part 3; Fedor's plan after A2: the checks run in a Durable
@@ -88,6 +89,16 @@ export interface BrowserMetric {
   closedAt: number | null;
   openMs: number | null;
   visit: CaptureVisit | null;
+  /** Session C2: refused attempts before this browser (their text from Browser Run), and the time waited for its launch. */
+  refusals: string[];
+  waitedMs: number;
+}
+
+/** Session C2: a launch that gave no browser (the day used up by Browser Run's word, refused twice, another error). */
+export interface LaunchFailure {
+  at: number;
+  kind: 'day-used-up' | 'refused-twice' | 'error';
+  refusals: string[];
 }
 
 function kvOf(storage: DurableObjectStorage): KvStore {
@@ -108,11 +119,6 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
 }
 
-function isLimitError(error: unknown): boolean {
-  const text = error instanceof Error ? error.message : String(error);
-  return /\b429\b|rate limit|limit exceeded|too many/i.test(text);
-}
-
 export class ScanQueueObject extends DurableObject<QueueEnv> {
   readonly #queue: ScanQueue;
   #browser: Browser | null = null;
@@ -128,6 +134,7 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
   readonly #dailyGate = { until: 0 };
   readonly #metrics: JobMetric[] = [];
   readonly #browsers: BrowserMetric[] = [];
+  readonly #launchFailures: LaunchFailure[] = [];
 
   constructor(ctx: DurableObjectState, env: QueueEnv) {
     super(ctx, env);
@@ -215,6 +222,7 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
           jurisdiction: this.ctx.id.jurisdiction ?? null,
           metrics: this.#metrics,
           browsers: this.#browsers,
+          launchFailures: this.#launchFailures,
         });
       }
       if (pathname === '/limits' && request.method === 'GET') {
@@ -315,29 +323,32 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
     if (this.#browser !== null && this.#browser.connected && this.#popupGuard !== null) return;
     this.#opening = (async () => {
       if (this.#browser !== null) await this.#closeBrowser();
-      // Browser Run: one new browser every 20 seconds.
-      const last = await this.#queue.lastLaunchAt();
-      const wait = last === null ? 0 : last + this.#queue.limits.launchSpacingMs - Date.now();
-      if (wait > 0) await sleep(Math.min(wait, this.#queue.limits.launchSpacingMs));
-      // Cloudflare's own count of the day's browser time (it lags a little behind; our own count is in chooseMode).
-      const limits = (await puppeteer.limits(this.env.BROWSER).catch(() => null)) as { usedBrowserTimeSeconds?: number; timeUntilNextAllowedBrowserAcquisition?: number } | null;
-      const usedMs = (limits?.usedBrowserTimeSeconds ?? 0) * 1000;
-      if (usedMs + this.#queue.limits.reservePerScanMs > this.#queue.limits.browserBudgetMs) throw new BrowserTimeExhausted('Cloudflare counts the browser time of the day at the budget');
-      if ((limits?.timeUntilNextAllowedBrowserAcquisition ?? 0) > 0) await sleep(Math.min(limits?.timeUntilNextAllowedBrowserAcquisition ?? 0, this.#queue.limits.launchSpacingMs));
-      const started = Date.now();
-      await this.#queue.setLastLaunchAt(started);
-      let sessionId: string;
+      // Session C2: the 20 s between new browsers from the start of the last session, one more attempt after a
+      // refusal, and the day's end only from Browser Run's answer or its own count (`launch.ts`).
+      let launch: Launch;
       try {
-        // `puppeteer.launch` is acquire and connect in one; apart, a session that was acquired but could not be
-        // connected is not lost (session fix-a5, review finding 50).
-        sessionId = (await puppeteer.acquire(this.env.BROWSER, { keep_alive: KEEP_ALIVE_MS })).sessionId;
+        launch = await launchBrowser({
+          // `puppeteer.launch` is acquire and connect in one; apart, a session that was acquired but could not be
+          // connected is not lost (session fix-a5, review finding 50).
+          acquire: async () => (await puppeteer.acquire(this.env.BROWSER, { keep_alive: KEEP_ALIVE_MS })).sessionId,
+          // Cloudflare's own count of the day's browser time (it lags a little behind; our own count is in chooseMode).
+          readLimits: async () => ((await puppeteer.limits(this.env.BROWSER).catch(() => null)) as BrowserRunReading | null) ?? null,
+          lastLaunchAt: () => this.#queue.lastLaunchAt(),
+          setLastLaunchAt: (at) => this.#queue.setLastLaunchAt(at),
+          now: () => Date.now(),
+          sleep,
+          limits: this.#queue.limits,
+        });
       } catch (error) {
-        if (!isLimitError(error)) throw error;
-        // A refused launch although a new browser was allowed: the day's browser time is used up.
-        const after = (await puppeteer.limits(this.env.BROWSER).catch(() => null)) as { timeUntilNextAllowedBrowserAcquisition?: number } | null;
-        if ((after?.timeUntilNextAllowedBrowserAcquisition ?? 0) > 0) throw error;
-        throw new BrowserTimeExhausted(error instanceof Error ? error.message.slice(0, 120) : 'launch refused');
+        this.#remember(this.#launchFailures, {
+          at: Date.now(),
+          kind: error instanceof BrowserTimeExhausted ? 'day-used-up' : error instanceof BrowserLaunchRefused ? 'refused-twice' : 'error',
+          refusals: error instanceof BrowserLaunchRefused ? error.refusals : [(error instanceof Error ? error.message : String(error)).slice(0, 200)],
+        });
+        throw error;
       }
+      const started = launch.startedAt;
+      const sessionId = launch.sessionId;
       let browser: Browser;
       try {
         browser = await puppeteer.connect(this.env.BROWSER, sessionId);
@@ -367,7 +378,7 @@ export class ScanQueueObject extends DurableObject<QueueEnv> {
         this.#launchedAt = started;
         this.#visit = trace.visit;
         this.#popupGuard = { ownTargets, state };
-        this.#remember(this.#browsers, { launchedAt: started, launchMs, traceMs: trace.ms, closedAt: null, openMs: null, visit: trace.visit });
+        this.#remember(this.#browsers, { launchedAt: started, launchMs, traceMs: trace.ms, closedAt: null, openMs: null, visit: trace.visit, refusals: launch.refusals, waitedMs: launch.waitedMs });
       } catch (error) {
         await browser.close().catch(() => undefined);
         await this.#queue.addBrowserTime(Date.now() - started, Date.now());

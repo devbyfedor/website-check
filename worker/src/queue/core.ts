@@ -8,7 +8,8 @@
  *
  * Limits (docs/decisions.md, A5 part 3):
  * - at most `maxParallel` scans run at the same time, as separate browser contexts (tabs) of one browser;
- * - one new browser at most every `launchSpacingMs` (Browser Run: one new browser every 20 seconds);
+ * - one new browser at most every `launchSpacingMs` plus `launchMarginMs` from the start of the last session
+ *   (Browser Run: one new browser every 20 seconds; `worker/src/queue/launch.ts`);
  * - at most `maxScansPerDay` scans are accepted per UTC day (afterwards HTTP 503 "daily-limit");
  * - at most `maxFullScansPerDay` full checks with the browser per day, and only while the browser time of the
  *   day plus the worst case of one more scan stays within `browserBudgetMs`; otherwise the quick check.
@@ -27,6 +28,11 @@ export interface QueueLimits {
   reservePerScanMs: number;
   /** One new browser at most this often (Browser Run free plan: one every 20 s). */
   launchSpacingMs: number;
+  /**
+   * Added to `launchSpacingMs`, counted from the moment the last `acquire` returned (session C2: Browser Run counts
+   * from the start of its session, which lies before that moment; the margin covers the clocks of two machines).
+   */
+  launchMarginMs: number;
   /** Scans started per run of the queue (one alarm of the Durable Object), so one run stays far from its CPU and subrequest limits. */
   maxJobsPerRun: number;
   /** A job that started this long ago and is not running any more (the object was restarted) is retried once, then given up. */
@@ -40,6 +46,7 @@ export const QUEUE_LIMITS: QueueLimits = {
   browserBudgetMs: 540_000,
   reservePerScanMs: 45_000,
   launchSpacingMs: 20_000,
+  launchMarginMs: 2_000,
   maxJobsPerRun: 3,
   staleRunningMs: 3 * 60_000,
 };

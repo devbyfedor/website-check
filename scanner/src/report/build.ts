@@ -1050,11 +1050,19 @@ export function buildReport(options: BuildReportOptions): BuiltReport {
  */
 function pageCuts(capture: Capture, analysis: CaptureAnalysis): PageCut[] {
   const cuts: PageCut[] = [];
-  if (capture.page?.textTruncated === true) cuts.push('homepage-text');
-  if (capture.page?.linksTruncated === true) cuts.push('homepage-links');
+  // Session C2: a page the quick check read only up to its limit of elements has that one cut; its text and links
+  // are cut by it too, and their own lines would name limits it did not reach.
+  if (capture.page?.elementsTruncated === true) cuts.push('homepage-elements');
+  else {
+    if (capture.page?.textTruncated === true) cuts.push('homepage-text');
+    if (capture.page?.linksTruncated === true) cuts.push('homepage-links');
+  }
   const impressum = analysis.legal?.impressum.state === 'analyzed' ? (capture.impressum?.page ?? null) : null;
-  if (impressum?.textTruncated === true) cuts.push('impressum-text');
-  if (impressum?.linksTruncated === true) cuts.push('impressum-links');
+  if (impressum?.elementsTruncated === true) cuts.push('impressum-elements');
+  else {
+    if (impressum?.textTruncated === true) cuts.push('impressum-text');
+    if (impressum?.linksTruncated === true) cuts.push('impressum-links');
+  }
   if ((capture.mainDocument?.headersCut ?? []).length > 0) cuts.push('headers');
   return cuts;
 }

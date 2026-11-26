@@ -37,6 +37,12 @@ const fake = vi.hoisted(() => {
     /** Session B2 part 2: a capture waits for this before it ends (a scan that is running while a visitor cancels). */
     captureGate: null as null | Promise<void>,
     log: [] as string[],
+    /** Session C2: texts Browser Run throws at the next acquires, in turn (empty: the acquire works). */
+    acquireAnswers: [] as string[],
+    /** Session C2: what Browser Run's limits() reads. */
+    reading: { usedBrowserTimeSeconds: 0, timeUntilNextAllowedBrowserAcquisition: 0 } as Record<string, number>,
+    /** Session C2: every wait the code asked for (the fake sleep waits at most 5 ms). */
+    sleeps: [] as number[],
   };
   const newBrowser = (): FakeBrowser => {
     const browser: FakeBrowser = {
@@ -56,9 +62,14 @@ const fake = vi.hoisted(() => {
     return browser;
   };
   const puppeteer = {
-    limits: async () => ({ usedBrowserTimeSeconds: 0, timeUntilNextAllowedBrowserAcquisition: 0 }),
+    limits: async () => ({ ...state.reading }),
     history: async () => [],
     acquire: async () => {
+      const refusal = state.acquireAnswers.shift();
+      if (refusal !== undefined) {
+        state.log.push('refused');
+        throw new Error(refusal);
+      }
       state.acquired += 1;
       state.log.push(`acquire ${state.acquired}`);
       return { sessionId: `session-${state.acquired}` };
@@ -103,7 +114,10 @@ vi.mock('../src/capture/cdp-events.ts', () => ({
 vi.mock('../src/capture/common.ts', async (original) => ({
   ...(await original<typeof import('../src/capture/common.ts')>()),
   // Launch spacing and polling in milliseconds instead of seconds.
-  sleep: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, Math.min(ms, 5))),
+  sleep: (ms: number) => {
+    fake.state.sleeps.push(ms);
+    return new Promise<void>((resolve) => setTimeout(resolve, Math.min(ms, 5)));
+  },
 }));
 vi.mock('@website-check/scanner', async (original) => ({
   ...(await original<typeof import('@website-check/scanner')>()),
@@ -159,7 +173,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await d1.clear();
-  Object.assign(fake.state, { acquired: 0, connects: 0, connectFailures: 0, browsers: [], onClose: null, openAtQuick: [], capture: null, captureGate: null, log: [] });
+  Object.assign(fake.state, { acquired: 0, connects: 0, connectFailures: 0, browsers: [], onClose: null, openAtQuick: [], capture: null, captureGate: null, log: [], acquireAnswers: [], reading: { usedBrowserTimeSeconds: 0, timeUntilNextAllowedBrowserAcquisition: 0 }, sleeps: [] });
 });
 
 describe('finding 31: the production queue object runs a scan from the start to the closed browser', () => {
@@ -375,5 +389,79 @@ describe('session B2 part 2: "Prüfung abbrechen" through the production queue o
     expect((await scanRow(started.body.id)).status).toBe('queued');
     await object.alarm();
     expect((await scanRow(started.body.id)).status).toBe('done');
+  });
+});
+describe('session C2: a refused browser launch through the production queue object (Fedor\'s answer 1 after C1)', () => {
+  const TOO_MANY = 'Unable to create new browser: code: 429: message: Too many requests';
+  const DAY_USED = 'Unable to create new browser: code: 429: message: Browser time limit exceeded for today';
+
+  async function day(object: InstanceType<typeof ScanQueueObject>): Promise<{ exhausted: boolean; full: number; quick: number }> {
+    return ((await (await object.fetch(new Request('https://queue/stats'))).json()) as { day: { exhausted: boolean; full: number; quick: number } }).day;
+  }
+
+  async function launches(object: InstanceType<typeof ScanQueueObject>): Promise<{ browsers: { refusals: string[]; waitedMs: number }[]; launchFailures: { kind: string; refusals: string[] }[] }> {
+    return (await (await object.fetch(new Request('https://queue/stats'))).json()) as never;
+  }
+
+  it('refused once by the 20 s rule: one more attempt after 22 s, a full check, the day stays open for the next one', async () => {
+    const object = objectWith(new FakeStorage());
+    fake.state.acquireAnswers = [TOO_MANY];
+    const first = await start(object, 'https://kaffee-beispiel.de/');
+    await object.alarm();
+    expect(await scanRow(first.body.id)).toEqual({ status: 'done', state: 'complete', error: null, mode: 'full' });
+    expect(fake.state.log).toEqual(['refused', 'acquire 1', 'connect 1', 'close 1']);
+    expect(fake.state.sleeps).toContain(22_000);
+    expect((await launches(object)).browsers[0]?.refusals).toEqual([TOO_MANY]);
+    expect(await day(object)).toMatchObject({ exhausted: false, full: 1, quick: 0 });
+    const second = await start(object, 'https://tee-beispiel.de/');
+    await object.alarm();
+    expect((await scanRow(second.body.id)).mode).toBe('full');
+    expect(await day(object)).toMatchObject({ exhausted: false, full: 2, quick: 0 });
+  });
+
+  it('refused twice without the day\'s end: the scan is our error, no quick check, the day stays open', async () => {
+    const object = objectWith(new FakeStorage());
+    fake.state.acquireAnswers = [TOO_MANY, TOO_MANY];
+    const refused = await start(object, 'https://kaffee-beispiel.de/');
+    await object.alarm();
+    const row = await scanRow(refused.body.id);
+    expect(row.status).toBe('error');
+    expect(row.error).toMatch(/^queue: browser launch refused twice: .*Too many requests/);
+    expect(fake.state.openAtQuick).toEqual([]);
+    expect(await day(object)).toMatchObject({ exhausted: false, full: 0, quick: 0 });
+    expect((await launches(object)).launchFailures).toEqual([expect.objectContaining({ kind: 'refused-twice', refusals: [TOO_MANY, TOO_MANY] })]);
+    // The next scan of the day gets the full check.
+    const next = await start(object, 'https://tee-beispiel.de/');
+    await object.alarm();
+    expect(await scanRow(next.body.id)).toMatchObject({ status: 'done', mode: 'full' });
+  });
+
+  it('Browser Run\'s answer at the daily limit: the day is used up and the scan gets the quick check', async () => {
+    const object = objectWith(new FakeStorage());
+    fake.state.acquireAnswers = [DAY_USED];
+    const started = await start(object, 'https://kaffee-beispiel.de/');
+    await object.alarm();
+    expect(await scanRow(started.body.id)).toMatchObject({ status: 'done', mode: 'quick' });
+    expect(fake.state.log).toEqual(['refused']);
+    expect(await day(object)).toMatchObject({ exhausted: true, full: 0, quick: 1 });
+    expect((await launches(object)).launchFailures).toEqual([expect.objectContaining({ kind: 'day-used-up', refusals: [DAY_USED] })]);
+  });
+
+  it('a refusal while Cloudflare\'s own count is at the budget: the day is used up and the scan gets the quick check', async () => {
+    const object = objectWith(new FakeStorage());
+    fake.state.acquireAnswers = [TOO_MANY];
+    const started = await start(object, 'https://kaffee-beispiel.de/');
+    // The count before the attempt still leaves room; the refusal comes with a count at the budget (the fake reads the
+    // same value every time, so the count is set when the refusal is thrown).
+    const shift = fake.state.acquireAnswers.shift.bind(fake.state.acquireAnswers);
+    fake.state.acquireAnswers.shift = () => {
+      const answer = shift();
+      if (answer !== undefined) fake.state.reading = { usedBrowserTimeSeconds: 500, timeUntilNextAllowedBrowserAcquisition: 0 };
+      return answer;
+    };
+    await object.alarm();
+    expect(await scanRow(started.body.id)).toMatchObject({ status: 'done', mode: 'quick' });
+    expect(fake.state.log).toEqual(['refused']);
+    expect(await day(object)).toMatchObject({ exhausted: true, quick: 1 });
   });
 });

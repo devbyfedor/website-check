@@ -23,6 +23,8 @@ import {
 export interface CloudCaptureOptions {
   maxWaitMs?: number;
   quietWindowMs?: number;
+  /** Session C2: a quiet network ends the waiting this long after the start at the earliest. */
+  minObserveMs?: number;
   hardLimitMs?: number;
   consentTools?: readonly ConsentTool[];
   /** The pinned axe-core source; without it the accessibility check is not run. */
@@ -50,6 +52,7 @@ export interface CloudCaptureOptions {
 export interface CloudSettings {
   maxWaitMs: number;
   quietWindowMs: number;
+  minObserveMs: number;
   hardLimitMs: number;
   tools: readonly ConsentTool[];
   axeSource: string | null;
@@ -95,6 +98,7 @@ export function resolveSettings(options: CloudCaptureOptions): CloudSettings {
   return {
     maxWaitMs: options.maxWaitMs ?? CAPTURE_SETTINGS.maxWaitMs,
     quietWindowMs: options.quietWindowMs ?? CAPTURE_SETTINGS.quietWindowMs,
+    minObserveMs: options.minObserveMs ?? CAPTURE_SETTINGS.minObserveMs,
     hardLimitMs: options.hardLimitMs ?? CAPTURE_SETTINGS.hardLimitMs,
     tools: options.consentTools ?? DEFAULT_CONSENT_TOOLS,
     axeSource: options.axeSource ?? null,
