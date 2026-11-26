@@ -2,7 +2,7 @@
 
 ## Current state
 
-**26.11.2026:** stages A and B are finished and merged into `main` (B5 part 2 in 8ff4ae9, in session C0). Session C0, before the brief of stage C: full cards for every finding with a risk beyond "Drei Dinge", on branch `c0-findings`, **not merged** (Fedor looks first). Stage C follows its own brief. The paragraph below describes stage A.
+**26.11.2026:** stages A and B are finished and merged into `main` (B5 part 2 in 8ff4ae9, in session C0); session C0 (full cards, stable integration tests) is merged too. Stage C began with session C1: the measurements on Cloudflare before the launch (`docs/measurements/c1.md`) and the cleanup of the temp folders of the tests, merged into `main`. The rest of stage C follows its own brief. The paragraph below describes stage A.
 
 After stage A a review found 102 points (Fedor, 23.11.2026: the polishing by the review comes first, then B1). Session fix-a1 fixed the four most serious ones about the honesty of the report, session fix-a2 (24.11.2026) the findings 18 to 24, session fix-a3 (24.11.2026) the findings 5, 6, 7, 14, 15, 16 and 71 to 74 about the Impressum and the legal links, session fix-a4 (24.11.2026) the findings 4 and 8 to 13 about limits and heavy pages with the small findings 25, 51, 54 and 61, session fix-a5 (24.11.2026) the findings 31, 32, 42, 44, 46, 47, 49, 50, 80, 89 to 91, 93 and 100 about privacy, the browser budget and the queue; all five are merged into `main`; the others follow in the sixth and last polishing session. Stage A, sessions A1 to A5 are merged into `main` (A5 in five parts, merged after part 5 on 23.11.2026). A5 runs in three parts on branch `a5-api` (Fedor, 22.11.2026): part 1, the SSRF protection, and part 2, the report schema, D1, the API, the cache and the rate limit, are done and not merged; part 3 builds the queue in the Durable Object, the Impressum tab on Cloudflare, the quick check, the end-to-end check and the merge. A4 added the mandatory information (Impressum and Datenschutz links, the Impressum in a second tab, its fields by templates, the Erklärung zur Barrierefreiheit) and system detection, locally; the Cloudflare adapter gets the second tab in A5. Part 3 was not merged (Worker CPU above 8 ms on 3 of 50 API requests); part 4 (23.11.2026) split the API Worker from the scan Worker and measured again: still not merged, the start of a new scan costs up to 19 ms (section "A5 part 4" below); part 5 (23.11.2026) moved the whole start into the queue object (Fedor's answer (a)): every API request at most 5 ms, merged (section "A5 part 5" below). Before the first push the history of all branches was rewritten twice to remove personal details about the owner (21.11.2026 and 22.11.2026, sections "History cleanup before the first push" and "Second history cleanup" below); commit hashes changed, nothing else. Fedor chose the plan after A2 (21.11.2026): the checks run in a Durable Object in the EU jurisdiction with strategy (a), the Worker only accepts the job and passes it on. A3 added the accessibility checks (pinned axe-core) and the security checks. Session A2 (measurement on Cloudflare) ran on branch `a2-cloudflare` in three parts (Fedor's decisions of 21.11.2026):
 - Part 1 (done): the Cloudflare capture adapter in `worker/` with both strategies, and a check on three sites of whether consent tools behave the same with the Cloudflare browser as with the local run (banner, third-party requests before consent, browser location, Worker CPU and wall time).
@@ -1413,9 +1413,57 @@ Fedor's answers to the three questions of C0 and the plan of this session are in
 
 - `netsh int ipv4 show dynamicport tcp` shows the range; the logs of the runs are in `local/runs/` (`c0p2-final-*`, `c0s-*`).
 
+## C1: the measurements on Cloudflare before the launch, the temp folders of the tests (26.11.2026)
+
+Branch `c1-measure`, **merged into `main`** (a real merge). Session time: about 1 hour 15 minutes (15:29 to about 16:45). Cloudflare: four lab Workers on workers.dev and one lab D1 database (EU), 15:53 to 16:21, all deleted and checked; **82.9 s of browser time** in 9 sessions (the session allowed 180 s). No deploy of the product, nothing pushed, no product code changed. No helper.
+
+Fedor's answers to the three questions of C0 part 2 are in `docs/decisions.md` (owner decisions of 26.11.2026, C1).
+
+### Step 2: the temp folders of the integration tests
+
+- Both integration configs give each run a temp folder of its own (`scanner/test/support/integration-temp.ts`: TEMP, TMP and TMPDIR set by the global setup before the test workers start; wrangler's `miniflare-*` folders, the Chromium profiles and the persist folders of the tests land there) and delete it at the end; a folder of a killed run is deleted by the next run, a folder that holds a link never. Unit test `scanner/test/integration-temp.test.ts` (3).
+- Two integration runs (step 2 and the final run): 0 new folders in the temp folder of Windows, 0 run folders left (C0 part 2: four more `miniflare-*` after every run).
+- Deleted once (none held a link): 213 `miniflare-*`, 32 `playwright_chromiumdev_profile-*`, 24 `playwright-artifacts-*`, 2 `wc-dev-*`, 146 MB, 0 failures. Not deleted, because no run of the tests made them (named in the report for Fedor): `wc-a1-before` and `wc-before` (21.11.2026, from session A1) and 12 `scoped_dir*` folders of Chrome itself.
+
+### Step 3: the lab, on plain wrangler dev first (0 Cloudflare minutes)
+
+- Lab pages Worker `worker/src/lab/pages.ts` (configs `wrangler.lab-pages.jsonc` and `wrangler.lab-tracker.jsonc`): invented pages at "/" of a host of their own (the scan checks only the homepage), the page chosen in the lab D1: the flood of our fixtures, a page that calls `tracker.example` 2 s after its script (quiet, or busy with six requests before), the six heaviest 2 MiB pages of the HTML reader of fix-a4, a small and a slow page; `/lab/fetch-errors` with fixed addresses only. The lab API Worker got `/lab/forget` (its cache forgets finished scans). Driver `scanner/src/local/c1-lab.ts`, local start `scanner/src/local/c1-lab-dev.ts`.
+- Every step ran locally first. What the laptop showed: three of the six heavy pages were a few characters over 2 MiB and failed the quick check before the reader (now cut to exactly 2 MiB); the quiet tracker page alone was missed (the browser never sent the request); a refused connection reads "Network connection lost." in workerd.
+
+### Step 4: the measurements on Cloudflare (`docs/measurements/c1.md`)
+
+- **Tabs against one by one**, Sites 06, 10 and 14: as tabs one browser of 10.76 s for all three, one by one 27.6 s in three; every report `complete`. Same hosts and findings: Site 10 yes (9 and 9); Site 06 and Site 14 no (1 to 3 hosts and 1 finding differ). The differing services also vary between single loads of the same sites in the saved captures (2 of 6 and 0 of 9), so the tabs are not shown as the cause. A repeat of both runs was refused by the automatic check of the session (more visits of the listed sites than asked for).
+- **Found on the way, product:** a refused second browser launch marked the whole UTC day as used up after 9.7 s of the 540 s budget, and the next two checks were quick checks. The queue counts the 20 s between launches from its own mark before `acquire`, Browser Run's session began 0.95 s later; `#ensureBrowser` takes a refused launch for the day's limit when Browser Run reports 0 s to wait right after. The lab scan Worker was deployed again to reset the object; with 30 s between starts everything else ran as planned.
+- **Flood beside a tracker after 2 s:** on Cloudflare seen 4 of 4 (quiet and busy page, alone and beside the flood; at 2,041 to 2,286 ms); the flood `page-limit` each time. On the laptop the quiet page alone was missed.
+- **fetch errors in a Worker:** on Cloudflare no exception for any address we may use: Cloudflare answers with HTTP error pages (403/1003 for IP addresses and localhost, 404/1042 for our own host on port 444, 530/1016 for a name that does not exist); `probeHttps` takes them for `http-error`, so the report says "bitte manuell prüfen", never "ohne HTTPS" from a refusal.
+- **HTML reader in the queue object:** 40 ms on a small page, 521 to 1,275 ms CPU on five heavy pages; 2 MiB of empty `<p>` reset the object for its memory ("exceeded its memory limit and was reset", 3 times in 2 runs, 2,068 to 3,075 ms CPU before it); the alarm ran again and the report was saved.
+- **API Worker CPU on status and cancel:** 70 status reads and 19 cancels with their tail event, 0 to 8 ms, 0 above 8 ms; the first requests of 17 fresh instances 1 to 8 ms; 8 ms three times in all; 18 requests without a tail event (13 status reads under the shared tail, 5 cancels of a finished scan). Starts for comparison: 21, at most 9 ms.
+- **One full check up to the report page:** Site 10, the head shows "Aufgerufen aus: Schweden" with its note; `report-check --reports` with that report 0 problems at 1440 and 390 px, 0 CSP violations, 0 requests to other hosts.
+- The queue object during the browser runs: 110 events, all `ok`, at most 696 ms CPU.
+
+### Step 6: the lab deleted
+
+- `wrangler delete` of the four lab Workers: each "Successfully deleted"; the three workers.dev addresses answer 404 with error 1042, the API "This Worker does not exist" (code 10007) for all four names. `wrangler d1 delete`: deleted, `wrangler d1 list` shows 0 databases. `LAB_TOKEN` removed from `worker/.dev.vars`, the configs with the database id deleted.
+
+### Numbers against step 7 of the session message (final run 16:24 to 16:32, nothing else running)
+
+- `npm test`: 1,739 of 1,739 (1,736 on `main` plus the 3 tests of the temp folder).
+- `npm run test:integration`: scanner 91 of 91, worker 65 of 65; 0 new temp folders.
+- `npm run typecheck`: no errors.
+- Leak search over the full list (276 strings: the 273 of C0 plus the workers.dev subdomain of the account, the id of the lab database and the account id): 0 hits in the added lines of the 6 commits of `main..c1-measure` and in their messages, 0 values of the shape of the lab token; the 36 matches in 22 of 498 tracked files are the false ones of C0 plus the address of our future site in the brief. One comment of commit c63e262 named the local folder of the review; removed in 3f6c3c7 (history not rewritten, it holds no site data). Rule of finding 93: every "Site NN" of the branch stands next to plain numbers or the state of our check. `git ls-files local` is empty.
+
+### Noted, not changed (`docs/backlog.md`, "Before the launch")
+
+- The refused second launch that ends the day's full checks; the HTML reader that resets the queue object on one page; the tracker 2 s after a quiet page; the comparison of tabs and one by one; status and cancel at 8 ms.
+
+### How to look at it
+
+- `docs/measurements/c1.md`; the raw data in `local/c1/` (reports, tails, summaries), the logs of the final run in `local/runs/c1-final-*`.
+
 ## Next
 
 - Stage C (launch readiness): Fedor sends its brief. It builds on `docs/backlog.md`, section "Before the launch", and on the list of the brief (`<later_stages>`): lead form, Impressum, Datenschutzerklärung and Erklärung zur Barrierefreiheit of our own site (the footer links lead to no page yet), "So prüfen wir", Turnstile, lead notifications, retention period, the quality check of the scanner on the 30 sites against WAVE and Lighthouse, the review of every German text by a native speaker, the first public deploy by Fedor and then `npm run self-scan` against the public address.
-- Fedor: push `main` (the merges of `c0-findings` and `c0-stability`).
-- Fedor, if he wants and nothing else on the laptop needs the low range: the dynamic port range back to the Windows default (`netsh int ipv4 set dynamicport tcp start=49152 num=16384` as administrator, also for udp and ipv6). The tests and checks no longer need it.
+- Before the launch, from C1 (`docs/backlog.md`): the queue must not take a refused browser launch for the day's limit; the quick check's HTML reader must stay within the memory of the queue object; Fedor decides about the tracker that a quiet page calls late.
+- Fedor: push `main` (the merges of `c0-findings`, `c0-stability` and `c1-measure`).
+- Fedor, as he decides (C1, answer 1): the dynamic port range back to the Windows default (`netsh int ipv4 set dynamicport tcp start=49152 num=16384` as administrator, also for udp and ipv6). The tests and checks no longer need it.
 - Fedor, before the launch (stage C): create the real D1 database (all five migrations) and put its id into both configs, set `RATE_LIMIT_SECRET` on the scan Worker; deploy the scan Worker first, then the API Worker. The measurements before the launch are in `docs/backlog.md`.
