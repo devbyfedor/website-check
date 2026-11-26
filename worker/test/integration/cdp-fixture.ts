@@ -138,6 +138,9 @@ export async function startCdpFixture(): Promise<CdpFixture> {
           `<script>var n = 0; var t = setInterval(function () { fetch('/n?' + (n++)).catch(function () {}); if (n > 8) clearInterval(t); }, 600);
            setTimeout(function () { var s = document.createElement('script'); s.src = '${u('px.trackco.test', '/t.js')}'; document.head.appendChild(s); }, 2500);</script>`,
         );
+      // Session C2: a quiet page that loads a tracker of another host 2.8 s after its script ran (C1: missed on the laptop).
+      case 'www.shop.test/late':
+        return page(`<script>setTimeout(function () { var s = document.createElement('script'); s.src = '${u('px.trackco.test', '/t.js')}'; document.head.appendChild(s); }, 2800);</script>`);
       // The parser never gets past this script: no load event, the page is busy for ever.
       case 'www.shop.test/busy':
         return page('<script>for (;;) {}</script>');

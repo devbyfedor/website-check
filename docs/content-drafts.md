@@ -1153,6 +1153,14 @@ Fedor's answer 2 after C1: the quick check's HTML reader builds at most 20,000 e
 - Used when: `truncated.page` names the part (only a quick check; the browser has no such limit).
 - Status: Entwurf
 
+### "So prüfen wir": requests a page makes later (for the page of stage C, not built yet)
+
+Fedor's answer 3 after C1: what the scan cannot see of a page that calls a service late. Since C2 the waiting ends on a quiet network (1.5 s without a request) only 3 s after the start at the earliest (`CAPTURE_SETTINGS.minObserveMs`), and at 15 s in any case (`maxWaitMs`).
+
+- Text: Wir beobachten Ihre Startseite mindestens 3 Sekunden lang und danach so lange, bis 1,5 Sekunden lang keine Anfrage mehr läuft, höchstens 15 Sekunden. Dienste, die Ihre Seite erst später lädt, sieht unsere Prüfung nicht. Ein Bericht ohne fremde Dienste heißt deshalb nicht, dass Ihre Seite nie welche lädt.
+- Used when: the page "So prüfen wir" of stage C, in the part about the limits of the scan.
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/
