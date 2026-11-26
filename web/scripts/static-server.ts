@@ -9,6 +9,7 @@
 import { createServer, type Server } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
+import { holdBadPorts } from '@website-check/scanner/ports';
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -159,6 +160,9 @@ export async function startStaticServer(mounts: Mount[], options: ServerOptions 
       res.end();
     });
   });
+  // Session C0 part 2: while this server lives, the operating system gives no port that Chrome refuses (ERR_UNSAFE_PORT)
+  // to it or to anything else that asks for port 0 (scanner/src/local/ports.ts).
+  const hold = await holdBadPorts();
   await new Promise<void>((ok, fail) => {
     server.once('error', fail);
     server.listen(options.port ?? 0, '127.0.0.1', ok);
@@ -167,6 +171,9 @@ export async function startStaticServer(mounts: Mount[], options: ServerOptions 
   if (!address || typeof address === 'string') throw new Error('no port');
   return {
     origin: `http://127.0.0.1:${address.port}`,
-    close: () => new Promise<void>((ok) => server.close(() => ok())),
+    close: async () => {
+      await new Promise<void>((ok) => server.close(() => ok()));
+      await hold.release();
+    },
   };
 }

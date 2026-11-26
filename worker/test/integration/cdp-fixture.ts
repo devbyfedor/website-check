@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { createServer, type Server } from 'node:http';
+import { createServer, type Server, type ServerResponse } from 'node:http';
 import { resolve } from 'node:path';
 import { createServer as createNetServer, type AddressInfo } from 'node:net';
 import { heavyPage } from '../../../scanner/test/integration/heavy-pages.ts';
@@ -25,6 +25,12 @@ export interface CdpFixture {
   /** Called once when the next page document of `www.shop.test` is requested. */
   onNextDocument(callback: () => void): void;
   hits(prefix: string): number;
+  /**
+   * Session C0 part 2: answers every request of `/heavy/hold` that waits, and every later one at once. The page
+   * `/heavy/plain-after-flood` keeps that request open until the test calls this (after the capture of a flood beside
+   * it has ended), so its capture cannot end while the flood holds up the browser.
+   */
+  releaseHeld(): void;
   /**
    * A Puppeteer browser on the local Chromium; `delayMs` delays every message in both directions. `wire`
    * counts what the browser sent (session fix-a4): the number of messages and the longest one in characters.
@@ -87,6 +93,8 @@ export async function startCdpFixture(): Promise<CdpFixture> {
   let gapMs = 64;
   let nextDocument: (() => void) | null = null;
   const seen: string[] = [];
+  let released = false;
+  const held: ServerResponse[] = [];
   const u = (host: string, path: string): string => `http://${host}:${port}${path}`;
 
   const server: Server = createServer((req, res) => {
@@ -135,6 +143,14 @@ export async function startCdpFixture(): Promise<CdpFixture> {
         return page('<script>for (;;) {}</script>');
       case 'www.shop.test/n':
         return out(204, 'text/plain', '');
+      // Session C0 part 2: an ordinary page for a scan beside a flood. Its one request to `/heavy/hold` stays open until
+      // the test calls `releaseHeld` (when the flood's capture has ended); then it makes six requests of its own at once.
+      case 'www.shop.test/heavy/plain-after-flood':
+        return page(`<script>fetch('/heavy/hold').then(function () { for (var i = 0; i < 6; i += 1) fetch('/heavy/n?' + i).catch(function () {}); }).catch(function () {});</script>`);
+      case 'www.shop.test/heavy/hold':
+        if (released) return out(204, 'text/plain', '');
+        held.push(res);
+        return;
       // Session fix-a2, review finding 23: a page that prefetches an internal page and moves there right after
       // the scanner's snapshot read `document.title`; the internal page marks everything it shows.
       case 'www.shop.test/prefetch-swap':
@@ -215,6 +231,13 @@ export async function startCdpFixture(): Promise<CdpFixture> {
       nextDocument = callback;
     },
     hits: (prefix) => seen.filter((line) => line.startsWith(prefix)).length,
+    releaseHeld: () => {
+      released = true;
+      for (const res of held.splice(0)) {
+        res.writeHead(204, { 'content-type': 'text/plain', 'cache-control': 'no-store' });
+        res.end();
+      }
+    },
     connect: async (delayMs = 0) => {
       const socket = new WebSocket(version.webSocketDebuggerUrl);
       await new Promise<void>((resolve, reject) => {
