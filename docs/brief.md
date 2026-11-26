@@ -9,6 +9,7 @@
 - 24.11.2026: `<architecture>` after stage A: two Workers, the checks, the start and the queue in one Durable Object in the EU jurisdiction, and the limits from the measurements. `<stage_b>` points to the rules for strings of the scanned page in `docs/report-schema.md`.
 - 24.11.2026: stage A done (sessions A1 to A5 and the polishing sessions fix-a1 to fix-a6, all merged into `main`). Stage B starts with B1. Status line updated.
 - 26.11.2026: stage B done (sessions B1 to B5 and the session of the fix texts, all merged into `main`; B5 part 2 in session C0). Status line updated.
+- 26.11.2026: stage C runs by its own brief, `docs/brief-c.md` (sessions C1 to C11); this brief still applies in full.
 
 Read this file completely before every session, together with `design/README.md`. The session message tells you which session to do. Do that session and only that session.
 
