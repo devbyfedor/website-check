@@ -1328,7 +1328,7 @@ Fedor's answers to the questions of the session of the fix texts and his decisio
 
 ## C0: merge of B5, full cards for every finding with a risk (26.11.2026)
 
-Branch `c0-findings`, **not merged** (session message: Fedor looks at the cards first). `b5-quality` is merged into `main` (8ff4ae9, a real merge); stage B is closed with it. Session time: about 1 hour 45 minutes (0:25 to about 2:10). No Cloudflare, no deploy, nothing pushed, no listed site opened (the 30 reports were built from saved captures in B4 part 2). One helper (Sonnet), a read-only review of the code of the cards: no defect in the cards, their ids, the heading levels or the tests; three small points, kept and put into `docs/backlog.md` (below).
+Branch `c0-findings`, **not merged** (session message: Fedor looks at the cards first). `b5-quality` is merged into `main` (8ff4ae9, a real merge); stage B is closed with it. Session time: about 1 hour 35 minutes (0:25 to about 2:00). No Cloudflare, no deploy, nothing pushed, no listed site opened (the 30 reports were built from saved captures in B4 part 2). One helper (Sonnet), a read-only review of the code of the cards: no defect in the cards, their ids, the heading levels or the tests; three small points, kept and put into `docs/backlog.md` (below).
 
 Fedor's answers to the questions of B5 part 2 and the scope of this session are in `docs/decisions.md` (owner decisions of 26.11.2026); the technical decisions follow in the technical section.
 
