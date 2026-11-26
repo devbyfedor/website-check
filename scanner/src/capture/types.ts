@@ -191,6 +191,12 @@ export interface PageSnapshot {
    */
   linksTruncated: boolean;
   /**
+   * Session C2: the quick check's HTML reader stopped at its limit of elements (`SNAPSHOT_MAX_ELEMENTS`), so the rest
+   * of the page was not read (`textTruncated` and `linksTruncated` are then true as well). Missing in the captures of
+   * a browser and in older captures.
+   */
+  elementsTruncated?: boolean;
+  /**
    * Security settings made by meta tags instead of headers (session A3): the first
    * `<meta http-equiv="Content-Security-Policy">` and `<meta name="referrer">`. Missing in older captures.
    */

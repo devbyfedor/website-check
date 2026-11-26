@@ -351,7 +351,9 @@ export interface ReportV1 {
  * - `homepage-links`, `impressum-links`: the page has links the scan did not read (more than 1,500, or links
  *   with an address longer than the limit).
  * - `headers`: a response header of the homepage has a value longer than the scan keeps; it was not analysed.
+ * - `homepage-elements`, `impressum-elements` (session C2): the quick check's HTML reader stopped at its limit of
+ *   elements (20,000); the rest of the page was not read. It stands instead of the text and links cut of that page.
  */
-export type PageCut = 'homepage-text' | 'homepage-links' | 'impressum-text' | 'impressum-links' | 'headers';
+export type PageCut = 'homepage-text' | 'homepage-links' | 'homepage-elements' | 'impressum-text' | 'impressum-links' | 'impressum-elements' | 'headers';
 
 export type Report = ReportV1;

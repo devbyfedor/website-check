@@ -249,6 +249,7 @@ export function limitPageSnapshot(value: unknown, tally: Tally = { strings: 0 })
     links,
     linksTruncated,
   };
+  if (v['elementsTruncated'] === true) page.elementsTruncated = true;
   if (typeof v['url'] === 'string' && v['url'] !== '') page.url = url(v['url'], tally);
   const meta = record(v['securityMeta']);
   if (meta !== null) page.securityMeta = { csp: strOrNull(meta['csp'], CAPTURE_LIMITS.metaLength, tally), referrer: strOrNull(meta['referrer'], CAPTURE_LIMITS.metaLength, tally) };

@@ -1142,6 +1142,17 @@ Fedor's answer 2 of C0: "System wählen" of the reference plus the title of the 
 - Name: „System wählen: {Titel der Karte}“, for example „System wählen: Google Fonts laden vor der Einwilligung“.
 - Status: Entwurf (the colon; the words are those of the reference and of the card)
 
+## Session C2 (26.11.2026)
+
+### `report-truncated-page`: a page the quick check read only up to its limit of elements
+
+Fedor's answer 2 after C1: the quick check's HTML reader builds at most 20,000 elements and marks the page as read only in part (`truncated.page`: `homepage-elements`, `impressum-elements`). A new line in the existing note under the head of the report (`web/lib/report-texts.ts`, `truncatedPage`); it stands instead of the lines of the text and links cut of the same page, whose limits the page need not have reached.
+
+- Text (`homepage-elements`): Die Startseite ist für die Schnellprüfung zu umfangreich (mehr als 20 000 HTML-Elemente). Der Rest der Seite wurde nicht gelesen.
+- Text (`impressum-elements`): Das Impressum ist für die Schnellprüfung zu umfangreich (mehr als 20 000 HTML-Elemente). Der Rest der Seite wurde nicht gelesen.
+- Used when: `truncated.page` names the part (only a quick check; the browser has no such limit).
+- Status: Entwurf
+
 ## Sources
 
 - W3C, Web Content Accessibility Guidelines (WCAG) 2.2: https://www.w3.org/TR/WCAG22/

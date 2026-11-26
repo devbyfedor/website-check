@@ -40,6 +40,15 @@ export const SNAPSHOT_GENERATOR_LENGTH = 120;
 /** Characters of the `content` of a security meta tag. */
 export const SNAPSHOT_META_LENGTH = CAPTURE_LIMITS.metaLength;
 
+/**
+ * Elements the reader builds at most (session C2, Fedor's answer 2 after C1). The reader keeps a node for every
+ * element, about 370 bytes for an empty `<p>` and 800 for an ordinary paragraph with a link; 2 MiB of empty `<p>`
+ * (about 700,000 elements) needed 260 MB and reset the queue object (its 128 MB) in C1. At the limit the reader stops
+ * before the next start tag: the rest of the page is not read, and the snapshot says so (`elementsTruncated`, in the
+ * report `truncated.page`). The largest homepage of the 30 test sites has 4,704 elements in its saved HTML.
+ */
+export const SNAPSHOT_MAX_ELEMENTS = 20_000;
+
 /** Characters of one link's text that are read at most (the label keeps 200 of them after collapsing white space). */
 const LINK_TEXT_READ = 65536;
 /**
@@ -632,6 +641,10 @@ class TreeBuilder {
   body: ElementNode | null = null;
   quirks: boolean | null = null;
   skipNewline = false;
+  /** Elements built so far (session C2: the parse stops at `SNAPSHOT_MAX_ELEMENTS`). */
+  elements = 0;
+  /** The parse stopped at the limit of elements: the rest of the page was not read. */
+  cut = false;
   private readonly stack: ElementNode[] = [];
   private readonly positions = new Map<string, number[]>();
   private readonly special: number[] = [];
@@ -657,6 +670,7 @@ class TreeBuilder {
 
   private create(name: string, ns: number, attrs: [string, string][], parent: ElementNode | null): ElementNode {
     const el: ElementNode = { t: 1, name, ns, attrs, children: [], parent, inTemplate: this.templates > 0, open: false, index: -1, hasHeaderOrMain: false, footerBox: 0, footerAncestor: 0, textStart: -1, textEnd: -1 };
+    this.elements += 1;
     if (parent !== null) parent.children.push(el);
     return el;
   }
@@ -1421,6 +1435,11 @@ function parseDocument(input: string): TreeBuilder {
     i = lt;
     const c = src.charCodeAt(i + 1);
     if (isAsciiAlpha(c)) {
+      // Session C2: no further element past the limit (one tag adds at most the few elements it implies).
+      if (tb.elements >= SNAPSHOT_MAX_ELEMENTS) {
+        tb.cut = true;
+        break;
+      }
       const tag = readTag(src, i + 1);
       if (tag === null) break;
       i = tag.next;
@@ -2329,11 +2348,13 @@ export function snapshotFromHtml(html: string, documentUrl: string, options: { p
     title: cutText(title, CAPTURE_LIMITS.titleLength),
     lang: lang === null ? null : cutText(lang, CAPTURE_LIMITS.langLength),
     text: text.slice(0, SNAPSHOT_MAX_TEXT),
-    textTruncated: text.length > SNAPSHOT_MAX_TEXT,
+    // Session C2: past the limit of elements neither the text nor the links of the rest were read.
+    textTruncated: doc.cut || text.length > SNAPSHOT_MAX_TEXT,
     links,
-    linksTruncated: anchors.length > SNAPSHOT_MAX_LINKS || linksLeftOut,
+    linksTruncated: doc.cut || anchors.length > SNAPSHOT_MAX_LINKS || linksLeftOut,
     securityMeta,
   };
+  if (doc.cut) snapshot.elementsTruncated = true;
   if (options.platform === true) {
     const generators = metas
       .filter((el) => asciiLower(attr(el, 'name') ?? '') === 'generator')

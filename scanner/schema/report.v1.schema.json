@@ -164,7 +164,7 @@
         "page": {
           "type": "array",
           "maxItems": 5,
-          "items": { "enum": ["homepage-text", "homepage-links", "impressum-text", "impressum-links", "headers"] }
+          "items": { "enum": ["homepage-text", "homepage-links", "homepage-elements", "impressum-text", "impressum-links", "impressum-elements", "headers"] }
         }
       }
     }
