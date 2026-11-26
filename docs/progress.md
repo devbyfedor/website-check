@@ -1450,7 +1450,7 @@ Fedor's answers to the three questions of C0 part 2 are in `docs/decisions.md` (
 - `npm test`: 1,739 of 1,739 (1,736 on `main` plus the 3 tests of the temp folder).
 - `npm run test:integration`: scanner 91 of 91, worker 65 of 65; 0 new temp folders.
 - `npm run typecheck`: no errors.
-- Leak search over the full list (276 strings: the 273 of C0 plus the workers.dev subdomain of the account, the id of the lab database and the account id): 0 hits in the added lines of the 6 commits of `main..c1-measure` and in their messages, 0 values of the shape of the lab token; the 36 matches in 22 of 498 tracked files are the false ones of C0 plus the address of our future site in the brief. One comment of commit c63e262 named the local folder of the review; removed in 3f6c3c7 (history not rewritten, it holds no site data). Rule of finding 93: every "Site NN" of the branch stands next to plain numbers or the state of our check. `git ls-files local` is empty.
+- Leak search over the full list (276 strings: the 273 of C0 plus the workers.dev subdomain of the account, the id of the lab database and the account id): 0 hits in the added lines of every commit of `main..c1-measure` and in their messages (run again right before the merge), 0 values of the shape of the lab token; the 36 matches in 22 of 498 tracked files are the false ones of C0 plus the address of our future site in the brief. One comment of commit c63e262 named the local folder of the review; removed in 3f6c3c7 (history not rewritten, it holds no site data). Rule of finding 93: every "Site NN" of the branch stands next to plain numbers or the state of our check. `git ls-files local` is empty.
 
 ### Noted, not changed (`docs/backlog.md`, "Before the launch")
 
