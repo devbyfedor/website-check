@@ -40,7 +40,7 @@ const MB2 = 2 * 1024 * 1024;
 const fill = (unit: string, n = MB2): string => unit.repeat(Math.ceil(n / unit.length)).slice(0, n);
 
 /**
- * The heaviest pages of the HTML reader in fix-a4 (`local/review/fix-a4`, direct calls of `snapshotFromHtml`, 2 MB each),
+ * The heaviest pages of the HTML reader in the measurement of fix-a4 (direct calls of `snapshotFromHtml`, 2 MB each),
  * cut to exactly 2 MiB with their first tag: the quick check reads at most 2 MiB (`SSRF_LIMITS.maxBodyBytes`) and fails a
  * larger page before the reader runs.
  */
