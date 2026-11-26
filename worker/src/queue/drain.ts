@@ -8,7 +8,10 @@ import { chooseMode, type QueueJob, type ScanMode, type ScanQueue } from './core
  * alarm at once). Never throws for one job: a failed job is reported to `onJobError`.
  */
 
-/** Browser Run refused a browser because the day's browser time is used up (HTTP 429 although a new browser was allowed). */
+/**
+ * The day's browser time is used up: Browser Run said so in its answer ("Browser time limit exceeded for today"), or
+ * its own count leaves no room for one more full check (session C2: a refusal alone never means this; `launch.ts`).
+ */
 export class BrowserTimeExhausted extends Error {
   constructor(message = 'browser time of the day used up') {
     super(message);
@@ -17,7 +20,11 @@ export class BrowserTimeExhausted extends Error {
 }
 
 export interface BrowserPort {
-  /** Opens the browser unless one is open and connected; waits for the launch spacing. Throws `BrowserTimeExhausted` at the daily limit. */
+  /**
+   * Opens the browser unless one is open and connected; waits for the launch spacing. Throws `BrowserTimeExhausted` at
+   * the daily limit (the day is marked and the scan gets the quick check), any other error for a launch that failed
+   * (the scan ends as our error, the day stays open).
+   */
   ensure(): Promise<void>;
   /** Milliseconds the open browser has been open, 0 without one. */
   openMs(): number;
