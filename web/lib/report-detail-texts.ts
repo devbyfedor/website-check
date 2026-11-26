@@ -28,10 +28,20 @@ export const DETAIL_TEXTS = {
   fixHeading: 'Montageanleitung',
   target: 'Soll',
   actual: 'Ist',
-  tablistLabel: 'System wählen',
+  /**
+   * The reference's name of the tab list; session C0 (Fedor's answer 2): followed by the title of the card, so each tab
+   * list of a page has a name of its own ("System wählen: Google Fonts laden vor der Einwilligung"; the colon is a draft).
+   */
+  tablistLabel: 'System wählen:',
   detected: 'erkannt',
   /** Draft: a tab of a system our texts have no steps for (and no general steps either). */
   noSystemFix: (system: string) => `Für ${system} haben wir noch keine eigene Anleitung.`,
+  /**
+   * Session C0, drafts: the heading of the cards of the other findings with a risk, after those of "Drei Dinge" (Fedor's
+   * answer 2 of B5 part 2), and their count in the form of "5 Dienste gefunden" of the Stückliste.
+   */
+  moreHeading: 'Weitere Punkte mit Risiko',
+  moreCount: (n: number) => (n === 1 ? '1 Punkt' : `${n} Punkte`),
 
   // Session B4 part 2, drafts: the country of the visit next to a finding about data sent before consent (Fedor,
   // 21.11.2026), a card whose texts are missing, the copying.

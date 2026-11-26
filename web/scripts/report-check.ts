@@ -19,7 +19,9 @@
 // - the page is noindex and sends no Referer (meta elements); 0 requests to other hosts.
 //
 // With --reports <dir>: the report JSON files of that folder instead (the reports of saved captures, built again
-// without a visit, local/ only): values, axe and the text at 390 px for each, at both widths.
+// without a visit, local/ only), at both widths; since session C0 each with every check of a state above.
+// Session C0: every finding with a risk has a card (the others under "Weitere Punkte mit Risiko"), and the check runs
+// only on the production build, each page with the CSP of the production _headers.
 //
 //   npm run check:report                      builds web/ (production), then checks every state
 //   node web/scripts/report-check.ts [--widths 1440,390] [--only <state,…>] [--reports <folder of report files>]
@@ -297,7 +299,18 @@ interface ExpectedLower {
    * the services those hints name, each of which the list must show.
    */
   checks: { count: number; names: string[] };
+  /**
+   * Session C0 (Fedor's answer 2 of B5 part 2): the ids of the cards under "Weitere Punkte mit Risiko" (every other
+   * finding with a risk), and the number of findings with a risk, each of which must have a card.
+   */
+  more: string[];
+  risky: number;
 }
+
+/** The builder's rule for "Drei Dinge" (scanner/src/report/build.ts): a finding or a manual check with a risk. */
+const RISK_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+const KIND_ORDER: Record<string, number> = { finding: 0, manual: 1 };
+const risky = (f: Report['findings'][number]): boolean => f.risk !== null && (f.kind === 'finding' || f.kind === 'manual');
 
 function expectedLower(r: Report, measuredPage: boolean): ExpectedLower {
   const lower = r.pages.homepage === 'checked';
@@ -313,8 +326,19 @@ function expectedLower(r: Report, measuredPage: boolean): ExpectedLower {
   const total = r.truncated.services ? r.counts.services : r.services.length;
   const detected = r.sections.platform.status === 'checked' && r.platform !== null && r.platform.system in FIVE ? r.platform.system : null;
   const cards: ExpectedCard[] = [];
+  const plan = r.priorities.slice(0, 3);
+  // Session C0: after the plan every other finding with a risk, high risk first, then findings before manual checks,
+  // then the order of the report; numbered on from the plan.
+  const more =
+    lower && measuredPage
+      ? r.findings
+          .map((f, i) => ({ f, i }))
+          .filter(({ f }) => risky(f) && !plan.includes(f.id))
+          .sort((a, b) => RISK_ORDER[a.f.risk!]! - RISK_ORDER[b.f.risk!]! || KIND_ORDER[a.f.kind]! - KIND_ORDER[b.f.kind]! || a.i - b.i)
+          .map(({ f }) => f.id)
+      : [];
   if (lower && measuredPage) {
-    r.priorities.slice(0, 3).forEach((id, i) => {
+    [...plan, ...more].forEach((id, i) => {
       const f = byId.get(id);
       if (f === undefined) return;
       const third = f.area === 'privacy' && f.serviceKey !== null && f.textId.startsWith('third-party-');
@@ -357,7 +381,7 @@ function expectedLower(r: Report, measuredPage: boolean): ExpectedLower {
     if (rest > 0) lines.push(rest === 1 ? '… und 1 weiterer Dienst, den der Bericht nicht einzeln aufführt.' : `… und ${rest} weitere Dienste, die der Bericht nicht einzeln aufführt.`);
     copy = lines.join('\n');
   }
-  const carded = new Set(r.priorities.slice(0, 3));
+  const carded = new Set([...plan, ...more]);
   const open = lower ? r.findings.filter((f) => (f.kind === 'manual' || f.kind === 'hint') && !carded.has(f.id)) : [];
   // The first five services of each kind of hint (the list names at most five per group and counts the rest).
   const perGroup = new Map<string, number>();
@@ -369,7 +393,18 @@ function expectedLower(r: Report, measuredPage: boolean): ExpectedLower {
     perGroup.set(key, seen + 1);
     return seen < 5 ? [n] : [];
   });
-  return { lower, servicesCount: lower && r.services.length > 0 ? (total === 1 ? '1 Dienst gefunden' : `${total} Dienste gefunden`) : null, services, cards, stamp, copy, checks: { count: open.length, names } };
+  const moreIds = more.map((_, i) => `fund-${plan.length + i + 1}`);
+  return {
+    lower,
+    servicesCount: lower && r.services.length > 0 ? (total === 1 ? '1 Dienst gefunden' : `${total} Dienste gefunden`) : null,
+    services,
+    cards,
+    stamp,
+    copy,
+    checks: { count: open.length, names },
+    more: moreIds,
+    risky: lower && measuredPage ? r.findings.filter(risky).length : 0,
+  };
 }
 
 interface Expected {
@@ -483,7 +518,7 @@ function shown() {
     // right one (review of B4 part 2: the whole card always had the box's text).
     const left = txt(sec.querySelector('[class*="grid"] > div:first-child'));
     // The text of the card without the addresses of "Gefunden im Quelltext" and the other strings of the page.
-    const own = Array.from(sec.querySelectorAll('h2, h3, p, li, [class*="taCell"], [role="tab"]'), (e) => ownText(e)).join(' ');
+    const own = Array.from(sec.querySelectorAll('h2, h3, h4, p, li, [class*="taCell"], [role="tab"]'), (e) => ownText(e)).join(' ');
     return {
       id: sec.id,
       field: field === undefined ? null : txt(field),
@@ -502,7 +537,24 @@ function shown() {
   // Session B5 part 2: the list of manual checks and hints.
   const checksSection = document.querySelector('main section[data-part="checks"]');
   const checks = checksSection === null ? null : { items: checksSection.querySelectorAll('li').length, text: txt(checksSection), own: ownText(checksSection), count: txt(checksSection.querySelector('[class*="sech"] > span')), focusable: checksSection.querySelectorAll('a, button, [tabindex]').length };
-  return { h1, facts, measures, priorities, marks, rows, cut, note, services, servicesCount, cards, stamp, help, checks, main, robots: document.querySelector('meta[name="robots"]')?.getAttribute('content') ?? null, referrer: document.querySelector('meta[name="referrer"]')?.getAttribute('content') ?? null };
+  // Session C0: the cards of the other findings with a risk under their own heading: the heading and its count, the
+  // cards in it, the level of their titles (h3 under the heading's h2) and whether a part of the page lies between the
+  // plan's cards and this section, or between it and the list.
+  const moreSection = document.querySelector('main section[data-part="more-findings"]');
+  const more =
+    moreSection === null
+      ? null
+      : {
+          heading: txt(moreSection.querySelector(':scope > [class*="sech"] > h2')),
+          count: txt(moreSection.querySelector(':scope > [class*="sech"] > span')),
+          name: document.getElementById(moreSection.getAttribute('aria-labelledby') ?? '')?.textContent ?? null,
+          cards: Array.from(moreSection.querySelectorAll('section[id^="fund-"]'), (s) => s.id),
+          titles: Array.from(moreSection.querySelectorAll('section[id^="fund-"]'), (s) => s.querySelector('h2, h3, h4')?.tagName ?? null),
+          after: moreSection.previousElementSibling?.id ?? null,
+          before: (moreSection.nextElementSibling as HTMLElement | null)?.dataset.part ?? moreSection.nextElementSibling?.tagName ?? null,
+        };
+  const levels = Array.from(document.querySelectorAll('main h1, main h2, main h3, main h4, main h5, main h6'), (h) => Number(h.tagName.slice(1)));
+  return { h1, facts, measures, priorities, marks, rows, cut, note, services, servicesCount, cards, stamp, help, checks, more, levels, main, robots: document.querySelector('meta[name="robots"]')?.getAttribute('content') ?? null, referrer: document.querySelector('meta[name="referrer"]')?.getAttribute('content') ?? null };
 }
 
 async function compareValues(page: Page, report: Report, label: string): Promise<string[]> {
@@ -559,6 +611,19 @@ async function compareValues(page: Page, report: Report, label: string): Promise
     if (/\{[a-zA-Z]+\}|\b(?:third-party|a11y|security|legal|fix)-[a-z-]+\b/.test(got.checks.own)) problems.push(`${label}: the list of manual checks and hints shows a placeholder or a text id`);
     if (got.checks.focusable > 0) problems.push(`${label}: ${got.checks.focusable} elements in the list of manual checks and hints take focus`);
   }
+  // Session C0 (Fedor: every finding with a risk has a card): as many cards as findings with a risk; the others under
+  // "Weitere Punkte mit Risiko" with their count, right after the cards of the plan and before the list; their titles
+  // h3 under the heading's h2; no level of the outline skipped.
+  if (got.cards.length !== low.risky) problems.push(`${label}: ${low.risky} findings with a risk, ${got.cards.length} cards`);
+  same('heading of the further cards', got.more === null ? null : `${got.more.heading}|${got.more.count}|${got.more.name}`, low.more.length === 0 ? null : `Weitere Punkte mit Risiko|${low.more.length === 1 ? '1 Punkt' : `${low.more.length} Punkte`}|Weitere Punkte mit Risiko`);
+  if (got.more !== null) {
+    same('cards under "Weitere Punkte mit Risiko"', got.more.cards, low.more);
+    if (got.more.titles.some((t) => t !== 'H3')) problems.push(`${label}: titles of the further cards ${got.more.titles.join(' ')}, not h3`);
+    same('part before "Weitere Punkte mit Risiko"', got.more.after, `fund-${low.cards.length - low.more.length}`);
+    if (got.checks !== null) same('part after "Weitere Punkte mit Risiko"', got.more.before, 'checks');
+  }
+  const skips = got.levels.filter((l, i) => i > 0 && l - got.levels[i - 1]! > 1);
+  if (got.levels[0] !== 1 || skips.length > 0) problems.push(`${label}: the headings skip a level: ${got.levels.join(' ')}`);
   same('help button', got.help, low.lower ? ['Hilfe bei der Umsetzung anfragen'] : []);
   same('title block', got.stamp, low.stamp);
   if (!got.main.includes(DISCLAIMER)) problems.push(`${label}: without the last line of every report`);
@@ -653,6 +718,32 @@ async function tabKeys(page: Page, label: string): Promise<string[]> {
     await page.locator('[role="tablist"]').nth(n).locator('[role="tab"]').nth(first.selected).click();
   }
   return problems;
+}
+
+// Session C0 (Fedor's answer 2): the names Chrome computes for the tab lists (its accessibility tree, through the
+// browser protocol): each is "System wählen:" and the title of its card, and no two lists of a page share a name.
+async function tabNames(page: Page, label: string): Promise<{ problems: string[]; names: string[] }> {
+  const problems: string[] = [];
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    const tree = (await cdp.send('Accessibility.getFullAXTree')) as { nodes: { ignored?: boolean; role?: { value?: unknown }; name?: { value?: unknown } }[] };
+    const names = tree.nodes.filter((n) => !n.ignored && n.role?.value === 'tablist').map((n) => String(n.name?.value ?? ''));
+    const want = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('[role="tablist"]'), (list) => {
+        const title = list.closest('section[id^="fund-"]')?.querySelector('h2, h3');
+        return `System wählen: ${(title?.textContent ?? '?').replace(/\s+/g, ' ').trim()}`;
+      }),
+    );
+    if (names.length !== want.length) problems.push(`${label}: ${want.length} tab lists in the page, ${names.length} in the accessibility tree`);
+    names.forEach((name, i) => {
+      if (name !== want[i]) problems.push(`${label}: tab list ${i + 1} is named ${JSON.stringify(name)}, not ${JSON.stringify(want[i])}`);
+    });
+    const twice = names.filter((n, i) => names.indexOf(n) !== i);
+    if (twice.length > 0) problems.push(`${label}: tab lists with the same name: ${[...new Set(twice)].map((n) => JSON.stringify(n)).join(', ')}`);
+    return { problems, names };
+  } finally {
+    await cdp.detach();
+  }
 }
 
 // Session B4 part 2: the page with the print media emulated: no visible button but the selected system tab, no header,
@@ -808,6 +899,11 @@ async function checkState(browser: Browser, origin: string, width: number, state
     if (count('tab') !== tabbed || count('panel') !== tabbed) problems.push(`${label}: ${count('tab')} tabs and ${count('panel')} panels reached by Tab, ${tabbed} finding details with system tabs`);
     problems.push(...(await compareValues(r.page, state.report, label)));
     if (tabbed > 0) problems.push(...(await tabKeys(r.page, label)));
+    const named = await tabNames(r.page, label);
+    problems.push(...named.problems);
+    if (named.names.length !== tabbed) problems.push(`${label}: ${named.names.length} named tab lists, ${tabbed} finding details with system tabs`);
+    result.tabNames = named.names;
+    if (named.names.length > 0) console.log(`    tab lists: ${named.names.length}, ${new Set(named.names).size} names`);
   } else if (state.name !== 'laedt' && !order.includes('state-action')) problems.push(`${label}: the way on of the state is not reached by Tab`);
   const over = await r.page.evaluate(overflow);
   if (width <= 390 && over.outside.length > 0) problems.push(`${label}: text outside the window, not in a scroll box: ${over.outside.slice(0, 5).join(' | ')}`);
@@ -841,7 +937,7 @@ async function checkState(browser: Browser, origin: string, width: number, state
   return { result, blocked };
 }
 
-/** --reports: one report JSON after the other: values, axe, and the text at 390 px. */
+/** --reports: one report JSON after the other, each with every check of a state (session C0). */
 async function checkReports(browser: Browser, origin: string, widths: number[], dir: string, axeSource: string, problems: string[]): Promise<{ result: Record<string, unknown>; blocked: number }> {
   const files = (await readdir(dir)).filter((f) => f.endsWith('.json')).sort();
   const result: Record<string, unknown> = {};
@@ -849,26 +945,16 @@ async function checkReports(browser: Browser, origin: string, widths: number[], 
   for (const file of files) {
     const report = { ...(JSON.parse(await readFile(join(dir, file), 'utf8')) as Report), id: ID };
     const name = file.replace(/\.json$/, '');
+    // Session C0: every check of a state (contrast by pixels, Tab and the focus ring by the measure of B1, the system tabs
+    // by keyboard, print, the copy buttons, motion), not only the values, axe and the text at 390 px.
+    const state: CheckState = { name: `report-${name}`, api: { report: json(200, report), status: json(200, scanBody('done')) }, report, heading: `Prüfbericht für${report.site.displayHost}` };
     for (const width of widths) {
-      const label = `report ${name} ${width} px`;
-      const r = await open(browser, origin, width, true, { report: json(200, report), status: json(200, scanBody('done')) });
-      if (!(await reach(r.page, `Prüfbericht für${report.site.displayHost}`))) {
-        problems.push(`${label}: no report on the page`);
-        await r.close();
-        continue;
-      }
       const before = problems.length;
-      problems.push(...(await compareValues(r.page, report, label)));
-      const run = await axe(r.page, label, axeSource);
-      if (run.violations.length > 0) problems.push(`${label}: axe violations ${run.violations.map((v) => `${v.id} (${v.nodes})`).join(', ')}`);
-      const over = await r.page.evaluate(overflow);
-      if (width <= 390 && over.outside.length > 0) problems.push(`${label}: text outside the window, not in a scroll box: ${over.outside.slice(0, 5).join(' | ')}`);
-      if (over.pageScrolls) problems.push(`${label}: the page scrolls sideways`);
+      const done = await checkState(browser, origin, width, state, axeSource, problems);
       const want = expected(report);
-      console.log(`  ${name} ${width} px: ${report.state}, ${want.measures.length} Prüfmaße, ${want.priorities.length} priorities, ${want.marks} marks, ${want.rows.length} rows, axe ${run.violations.length}, outside ${over.outside.length}, problems ${problems.length - before}`);
-      result[`${name}-${width}`] = { state: report.state, axe: run.violations.length, outside: over.outside.length, problems: problems.length - before };
-      blocked += r.blocked.length;
-      await r.close();
+      console.log(`  ${name} ${width} px: ${report.state}, ${want.measures.length} Prüfmaße, ${want.priorities.length} priorities, ${want.lower.cards.length} cards (${want.lower.more.length} further), ${want.marks} marks, ${want.rows.length} rows, problems ${problems.length - before}`);
+      result[`${name}-${width}`] = { ...done.result, state: report.state, cards: want.lower.cards.length, more: want.lower.more.length, problems: problems.length - before };
+      blocked += done.blocked;
     }
   }
   return { result, blocked };
@@ -915,12 +1001,34 @@ async function main(): Promise<void> {
       wrong.services[2]!.provider = 'Anderer Anbieter';
       (wrong.revision as { letter: string }).letter = 'C';
       wrong.visit.country = 'AT';
+      // Session C0: one more finding with a risk (a hint or a manual check made a finding of low risk), which has no card
+      // on the page.
+      const plain = wrong.findings.find((f) => (f.kind === 'hint' || f.kind === 'manual') && !wrong.priorities.includes(f.id));
+      if (plain === undefined) throw new Error('self-test: the state dienste-markierungen has no hint or manual check');
+      plain.kind = 'finding';
+      plain.risk = 'low';
       const seen = await compareValues(probe.page, wrong, 'self-test');
       await probe.close();
-      const kinds = ['heading', 'Prüfmaße', 'field of priority', 'rows of the Zeitschnitt', 'cut A–A', 'rows of the Stückliste', 'title block', 'country of card', 'facts'];
+      const kinds = ['heading', 'Prüfmaße', 'field of priority', 'rows of the Zeitschnitt', 'cut A–A', 'rows of the Stückliste', 'title block', 'country of card', 'facts', 'heading of the further cards'];
       const missed = kinds.filter((k) => !seen.some((x) => x.includes(`: ${k}`)));
-      console.log(`self-test of the comparison: ${seen.length} differences seen for 9 changed values; missed ${missed.length === 0 ? 'none' : missed.join(', ')}`);
+      if (!seen.some((x) => / findings with a risk, \d+ cards$/.test(x))) missed.push('a finding with a risk without a card');
+      console.log(`self-test of the comparison: ${seen.length} differences seen for 10 changed values; missed ${missed.length === 0 ? 'none' : missed.join(', ')}`);
       if (missed.length > 0) problems.push(`self-test: the comparison missed ${missed.join(', ')}: ${seen.join(' | ')}`);
+      // Session C0: the check of the names of the tab lists must see two lists with the same name.
+      const more = exampleStates().find((s) => s.name === 'weitere-funde')!;
+      const named = await open(browser, server.origin, 1440, true, more.api);
+      await reach(named.page, more.heading);
+      const before = await tabNames(named.page, 'self-test');
+      await named.page.evaluate(() => {
+        const lists = document.querySelectorAll('[role="tablist"]');
+        lists[1]!.setAttribute('aria-labelledby', lists[0]!.getAttribute('aria-labelledby') ?? '');
+      });
+      const after = await tabNames(named.page, 'self-test');
+      await named.close();
+      const caught = after.problems.some((p) => p.includes('tab lists with the same name'));
+      console.log(`self-test of the names of the tab lists: ${before.names.length} lists, ${before.problems.length} problems as built; one name made the same as another: ${caught ? 'seen' : 'MISSED'}`);
+      if (before.problems.length > 0 || before.names.length < 4) problems.push(`self-test: the tab lists of weitere-funde as built: ${before.names.length} names, ${before.problems.join(' | ')}`);
+      if (!caught) problems.push(`self-test: two tab lists with the same name were not seen: ${after.problems.join(' | ')}`);
       for (const width of widths) {
         console.log(`report page, every state, ${width} px`);
         const result: Record<string, unknown> = {};

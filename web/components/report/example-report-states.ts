@@ -189,6 +189,34 @@ const STATE_REPORTS = {
     if (imp?.page) imp.page = { ...imp.page, text: ['Impressum', 'Rösterei Muster GmbH', 'Handelsregister: HRB 12345, Amtsgericht Musterhausen', 'USt-IdNr.: DE123456789'].join('\n') };
     return report(c);
   },
+  /**
+   * Session C0: the other findings with a risk as full cards under "Weitere Punkte mit Risiko" (Fedor's answer 2 of B5
+   * part 2). Google Fonts, Google Tag Manager and Google Analytics are "Drei Dinge"; then the Meta Pixel (high risk,
+   * the general steps of its class), no Impressum link (high risk, a manual check, so after the findings of that risk),
+   * YouTube in the extended privacy mode (medium risk, system tabs), the contrast and the images (medium risk), the
+   * security headers (low risk); jsDelivr stays in "Bitte selbst prüfen".
+   */
+  moreFindings: () => {
+    // The contrast with its values (3,8 : 1 for 4,5 : 1), so that its card has "Was passiert" and Soll and Ist.
+    const run = axe({ contrast: 4, alt: 2 });
+    const lowest = { ratio: 3.8, expected: '4.5:1', fgColor: '#8a93a6', bgColor: '#ffffff', fontSize: '12.0pt (16px)', fontWeight: 'normal', messageKey: null };
+    (run.rules['color-contrast'].examples[0] as unknown as { contrast: unknown }).contrast = lowest;
+    (run as unknown as { lowestContrast: unknown }).lowestContrast = { violation: lowest, pass: null };
+    return report(
+      capture(
+        [
+          DOCUMENT,
+          { url: 'https://fonts.googleapis.com/css2?family=Lato', resourceType: 'stylesheet', startMs: 300, endMs: 420, initiator: { type: 'parser', url: SHOP } },
+          { url: 'https://www.googletagmanager.com/gtm.js?id=GTM-MUSTER1', resourceType: 'script', startMs: 450, endMs: 560, initiator: { type: 'parser', url: SHOP } },
+          { url: 'https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js', resourceType: 'script', startMs: 500, endMs: 620 },
+          { url: 'https://www.google-analytics.com/g/collect?v=2&tid=G-MUSTER123', resourceType: 'fetch', startMs: 700, endMs: 760 },
+          { url: 'https://connect.facebook.net/signals/config/1234567890?v=2.9', resourceType: 'script', startMs: 800, endMs: 950 },
+          { url: 'https://www.youtube-nocookie.com/embed/muster123', resourceType: 'document', startMs: 900, endMs: 1100 },
+        ],
+        { axe: run, page: page([{ href: `${SHOP}datenschutz/`, text: 'Datenschutz', footer: true }]), impressum: undefined },
+      ),
+    );
+  },
   /** Lists and texts read only in part: 85 unknown services, the page text and links cut, the page still loading after 15 s. */
   truncated: () =>
     report(
@@ -237,6 +265,7 @@ export const EXAMPLE_REPORT_STATES: readonly ExampleReportState[] = [
   { slug: 'dienste-markierungen', what: 'Stückliste: fehlt, bitte manuell prüfen, keine Antwort, Graubereich, nicht nötig; ein langer Name', show: r(STATE_REPORTS.serviceTags) },
   { slug: 'fund-ohne-systeme', what: 'Fund-Details nur mit allgemeinen Schritten, ohne Systemreiter', show: r(STATE_REPORTS.generalSteps) },
   { slug: 'pruefen-und-hinweise', what: 'Liste „Bitte selbst prüfen“: manuelle Prüfungen und Hinweise, gleiche Hinweise zusammengefasst', show: r(STATE_REPORTS.checksAndHints) },
+  { slug: 'weitere-funde', what: 'Weitere Punkte mit Risiko: sechs volle Karten nach den drei vorrangigen, mit Systemreitern, allgemeinen Schritten und einer manuellen Prüfung', show: r(STATE_REPORTS.moreFindings) },
   { slug: 'fund-ohne-anleitung', what: 'Fund-Details ohne Anleitung: Text-ids, die die Seite noch nicht kennt (wie von einer neueren Prüfung), Land des Aufrufs', show: r(STATE_REPORTS.noFixText) },
   { slug: 'laedt', what: 'Seite: der Bericht wird geladen', show: p({ kind: 'loading' }) },
   { slug: 'nicht-fertig', what: 'Seite: Bericht noch nicht fertig (Prüfung läuft)', show: p({ kind: 'not-ready', id: ID, displayHost: 'roesterei-muster.de' }) },

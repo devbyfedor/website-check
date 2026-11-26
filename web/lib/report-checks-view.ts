@@ -7,6 +7,7 @@
 import type { Finding, Report } from '@website-check/scanner/report';
 import type { Phrase } from '../components/scan/scan-data';
 import { CHECK_NAMES, CHECK_TEXTS, CHECK_TITLES_ONE, CHECKS_TEXTS as T, FIELD_NAMES, type CheckText } from './report-checks-texts';
+import { cardedIds } from './report-detail-view';
 import { fill, lookup } from './report-texts';
 
 type Part = string | { page: string };
@@ -108,7 +109,8 @@ function item(members: readonly Finding[], report: Report): CheckItem {
 
 /** The items of the list, in the order of the findings (manual checks before hints); empty when there is none. */
 export function checkItems(report: Report): CheckItem[] {
-  const carded = new Set(report.priorities.slice(0, 3));
+  // Session C0: every finding with a card (the priorities and the other findings with a risk) is left out.
+  const carded = cardedIds(report);
   const open = report.findings.filter((f) => (f.kind === 'manual' || f.kind === 'hint') && !carded.has(f.id));
   const groups = new Map<string, Finding[]>();
   const order: Finding[][] = [];

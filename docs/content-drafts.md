@@ -1092,7 +1092,7 @@ Fedor's decision: the manual checks and the hints get texts of their own in the 
 
 - Heading: Bitte selbst prüfen. Next to it: „1 Punkt“ / „{n} Punkte“.
 - Tags: „bitte manuell prüfen“ (manual), „kein Fund“ (hint).
-- `legal-impressum-no-link` (only when it is not among "Drei Dinge"): Impressum-Link nicht gefunden. Ist der Link „Impressum“ auf Ihrer Startseite ohne weiteren Klick sichtbar, etwa in der Fußzeile? Unsere Prüfung öffnet keine Menüs.
+- `legal-impressum-no-link` (only when it is not among "Drei Dinge"; since session C0 never in the list: with its risk it always gets a card of its own): Impressum-Link nicht gefunden. Ist der Link „Impressum“ auf Ihrer Startseite ohne weiteren Klick sichtbar, etwa in der Fußzeile? Unsere Prüfung öffnet keine Menüs.
 - `legal-impressum-no-link-empty-page`: Impressum-Link nicht gefunden. Die Seite zeigte bei unserem Besuch fast keinen Inhalt. Öffnen Sie Ihre Startseite in einem Browser und prüfen Sie, ob der Link „Impressum“ ohne weiteren Klick sichtbar ist.
 - `legal-impressum-no-link-links-cut`: Impressum-Link nicht gefunden. Wir haben nicht alle Links Ihrer Startseite gelesen. Ist der Link „Impressum“ ohne weiteren Klick sichtbar?
 - `legal-impressum-no-link-quick`: Impressum-Link im HTML-Quelltext nicht gefunden. Die Schnellprüfung sieht keine Links, die erst ein Skript im Browser aufbaut. Öffnen Sie Ihre Startseite in einem Browser und sehen Sie nach, ob der Link „Impressum“ ohne weiteren Klick sichtbar ist.
@@ -1125,6 +1125,22 @@ Fedor's decision: the manual checks and the hints get texts of their own in the 
 
 - Checked by the rules of the session of the fix texts: one helper looked for official sources, a second tried to refute each step. Step 1 stands only narrower: no official page says that the font is "oft … in den Theme-Einstellungen unter „Typografie“"; the WordPress documentation names "Typography" in the styles of block themes, and the German core translates it „Typografie“. Step 2 stands as written (OMGF, free, and Local Google Fonts on wordpress.org; the Font Library of WordPress core also stores Google Fonts on the site's own server). Step 3 is a new scan. The steps with their sources: "Steps by system of the five services" above. The comparison with the reference puts the narrower step 1 into bericht.html (`decidedWording`, web/scripts/image-diff.ts).
 - Status: Entwurf (steps 2 and 3 are the reference's final text)
+
+## Session C0 (26.11.2026)
+
+### The cards of the other findings with a risk ("Weitere Punkte mit Risiko")
+
+Fedor's answer 2 of B5 part 2: every finding with a risk beyond "Drei Dinge" gets a full card like the three of the plan, under a heading of its own after them and before "Bitte selbst prüfen". A state without design (`/bericht/beispiel/weitere-funde`), built from elements of bericht.html: the head of a section with its count, as the Stückliste has it ("5 Dienste gefunden"), and the finding details. The cards carry the texts of their text ids above ("Was passiert", "Warum das wichtig ist", the steps); only the heading is new. `web/lib/report-detail-texts.ts` (`moreHeading`, `moreCount`).
+
+- Heading: Weitere Punkte mit Risiko. Next to it: „1 Punkt“ / „{n} Punkte“.
+- Status: Entwurf
+
+### The names of the tab lists (session C0 part 2)
+
+Fedor's answer 2 of C0: "System wählen" of the reference plus the title of the card, so every tab list of a page has a name of its own. Not visible; a screen reader reads it when it reaches the tabs. `web/lib/report-detail-texts.ts` (`tablistLabel`), `web/components/report/fix-tabs.tsx`.
+
+- Name: „System wählen: {Titel der Karte}“, for example „System wählen: Google Fonts laden vor der Einwilligung“.
+- Status: Entwurf (the colon; the words are those of the reference and of the card)
 
 ## Sources
 
