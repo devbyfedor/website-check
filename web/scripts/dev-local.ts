@@ -19,6 +19,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { holdBadPorts } from '@website-check/scanner/ports';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const WRANGLER = resolve(ROOT, 'node_modules/wrangler/bin/wrangler.js');
@@ -122,6 +123,10 @@ export async function startDevSite(options: DevOptions = {}): Promise<DevSite> {
     const build = spawnSync('npm run build:web', { cwd: ROOT, stdio: options.echo ? 'inherit' : 'pipe', shell: true, encoding: 'utf8' });
     if (build.status !== 0) throw new Error(`npm run build:web failed:\n${build.stdout ?? ''}${build.stderr ?? ''}`);
   }
+  // Session C0 part 2: while the site runs, the operating system gives no port that Chrome and the fetch of Node refuse
+  // to the fixture sites, to wrangler and its local runtime (workerd, Miniflare) or to anything else that asks for port 0
+  // (scanner/src/local/ports.ts).
+  const hold = await holdBadPorts();
   const ports = options.fixturePorts ?? [8791, 8792, 8793];
   const started = await Promise.all((['plain', 'slow', 'queued'] as const).map((kind, i) => startFixture(kind, ports[i]!)));
   const fixtures = Object.fromEntries(started.map((s) => [s.site.kind, s.site])) as Record<FixtureKind, FixtureSite>;
@@ -156,6 +161,7 @@ export async function startDevSite(options: DevOptions = {}): Promise<DevSite> {
       else child.kill('SIGTERM');
     }
     await Promise.all(started.map((s) => new Promise<void>((done) => s.server.close(() => done()))));
+    await hold.release();
     rmSync(resolve(ROOT, copy), { force: true });
     // workerd may hold the database files a moment after it ended (Windows): try again, then leave the temp folder.
     for (let attempt = 0; attempt < 10; attempt += 1) {

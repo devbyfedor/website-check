@@ -11,5 +11,7 @@ export default defineConfig({
     testTimeout: 60_000,
     hookTimeout: 60_000,
     fileParallelism: false,
+    // Session C0 part 2: no fixture server and no debugging port of Chrome on a port Chrome refuses (src/local/ports.ts).
+    globalSetup: ['test/support/hold-bad-ports.ts'],
   },
 });

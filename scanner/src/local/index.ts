@@ -10,5 +10,6 @@ export {
   type LocalCaptureOptions,
   type LocalCaptureResult,
 } from './playwright-capture.ts';
+export { BAD_PORTS, holdBadPorts, isBadPort, type BadPortHold } from './ports.ts';
 export { parseSitesFile, type SiteEntry, type SitesFileResult } from './sites-file.ts';
 export { renderSummaryMarkdown, summarizeRun, type RunSummary, type SiteRunResult } from './summary.ts';

@@ -12,5 +12,8 @@ export default defineConfig({
     testTimeout: 90_000,
     hookTimeout: 150_000,
     fileParallelism: false,
+    // Session C0 part 2: no fixture server, no local runtime of wrangler and no debugging port of Chrome on a port that
+    // Chrome and the fetch of Node refuse (scanner/src/local/ports.ts).
+    globalSetup: ['../scanner/test/support/hold-bad-ports.ts'],
   },
 });
