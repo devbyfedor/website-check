@@ -1,6 +1,6 @@
 # Website-Check DE: project brief v1
 
-**Status:** approved by the owner on 19 November 2026. Stage A: done (24.11.2026). Stage B: in progress.
+**Status:** approved by the owner on 19 November 2026. Stage A: done (24.11.2026). Stage B: done (26.11.2026).
 
 **Log**
 - 19.11.2026: v1 written. Stages A and B in detail, stages C and D outlined.
@@ -8,6 +8,7 @@
 - 21.11.2026: the agent works in the Code mode of the Claude app on Fedor's laptop, not in VS Code. Corrected in `<context>`.
 - 24.11.2026: `<architecture>` after stage A: two Workers, the checks, the start and the queue in one Durable Object in the EU jurisdiction, and the limits from the measurements. `<stage_b>` points to the rules for strings of the scanned page in `docs/report-schema.md`.
 - 24.11.2026: stage A done (sessions A1 to A5 and the polishing sessions fix-a1 to fix-a6, all merged into `main`). Stage B starts with B1. Status line updated.
+- 26.11.2026: stage B done (sessions B1 to B5 and the session of the fix texts, all merged into `main`; B5 part 2 in session C0). Status line updated.
 
 Read this file completely before every session, together with `design/README.md`. The session message tells you which session to do. Do that session and only that session.
 
