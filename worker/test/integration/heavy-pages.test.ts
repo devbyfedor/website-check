@@ -102,16 +102,25 @@ describe('finding 4: a page cannot fill the capture with requests', () => {
     const session = await browser.target().createCDPSession();
     const state = await installPopupGuard(session as never, ownTargets);
     const shared = { popupGuard: { ownTargets, state } };
+    // Session C0 part 2: the flood holds up the whole browser until its capture ends (0.4 to 2.6 s alone in fix-a4; its
+    // requests reach the server a few at a time and the ordinary page's own requests about 1 s late). An ordinary page
+    // that only made a request every 400 ms could be silent for the 1.5 s of a quiet network meanwhile, and its capture
+    // ended before its requests, depending on the load of the machine (the final run of C0 part 2). This page keeps one
+    // request open until the flood's capture has ended and makes its own six requests after it, so it is captured
+    // beside the flood and after it, whatever the flood's capture takes.
     const [flood, plain] = await Promise.all([
-      captureWithCdpEvents(browser, page('/heavy/flood-net'), options(shared)),
-      captureWithCdpEvents(browser, page('/heavy/plain'), options({ ...shared, axeSource, impressum: true })),
+      captureWithCdpEvents(browser, page('/heavy/flood-net'), options(shared)).finally(() => fixture.releaseHeld()),
+      captureWithCdpEvents(browser, page('/heavy/plain-after-flood'), options({ ...shared, axeSource, impressum: true })),
     ]).finally(() => session.detach().catch(() => undefined));
     expect(flood.capture.failure?.reason).toBe('page-limit');
     expect(plain.capture.failure).toBeNull();
     expect(plain.capture.ok).toBe(true);
+    expect(plain.capture.timings.stopReason).toBe('network-quiet');
     expect(plain.capture.axe?.status, plain.capture.axe?.error ?? '').toBe('ok');
     expect(plain.capture.impressum?.ok).toBe(true);
-    expect(plain.capture.requests.some((r) => r.url.includes('/heavy/n?5'))).toBe(true);
+    // Its own requests, every one of them, and none of the flood's (which go to the same address with higher numbers).
+    expect(plain.capture.requests.filter((r) => r.url.endsWith('/heavy/hold'))).toHaveLength(1);
+    expect(plain.capture.requests.filter((r) => /\/heavy\/n\?\d+$/.test(r.url)).map((r) => r.url.split('?')[1]).sort()).toEqual(['0', '1', '2', '3', '4', '5']);
   });
 
   it('200 requests with an address of 1 MB each: every address is kept cut, the page is captured and reported', async () => {
