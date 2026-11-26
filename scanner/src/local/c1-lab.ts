@@ -35,6 +35,10 @@ const { values } = parseArgs({
     flood: { type: 'boolean', default: false },
     variant: { type: 'string', default: 'tracker-2s' },
     forget: { type: 'boolean', default: false },
+    // Sequential mode: the next start waits until this long after the previous start. The queue spaces its browser
+    // launches by 20 s from before its own acquire, Browser Run from the session's start (C1: a launch 1 s early was
+    // refused and the queue marked the whole UTC day as used up), so the measurement keeps a margin.
+    'gap-s': { type: 'string', default: '30' },
     round: { type: 'string', default: 'r1' },
     first: { type: 'string', default: 'status' },
     a: { type: 'string' },
@@ -237,6 +241,11 @@ async function stepSites(): Promise<void> {
     await waitDone(all);
   } else {
     for (const t of targets) {
+      const previous = all.at(-1);
+      if (previous !== undefined) {
+        const wait = previous.startedAt + Number(values['gap-s']) * 1000 - Date.now();
+        if (wait > 0) await sleep(wait);
+      }
       const s = await startScan(t);
       all.push(s);
       await waitDone([s]);
