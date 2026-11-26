@@ -14,6 +14,7 @@ export default defineConfig({
     fileParallelism: false,
     // Session C0 part 2: no fixture server, no local runtime of wrangler and no debugging port of Chrome on a port that
     // Chrome and the fetch of Node refuse (scanner/src/local/ports.ts).
-    globalSetup: ['../scanner/test/support/hold-bad-ports.ts'],
+    // Session C1: a temp folder of the run's own (the `miniflare-*` folders of wrangler, Chromium profiles), deleted at its end.
+    globalSetup: ['../scanner/test/support/hold-bad-ports.ts', '../scanner/test/support/integration-temp.ts'],
   },
 });
