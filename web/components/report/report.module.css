@@ -491,6 +491,13 @@
   outline: 3px solid var(--color-link);
   outline-offset: -6px;
 }
+/* Session C0: that ring lies 3 to 6 px inside the box, so the panel needs no distance to the edge of the window when Tab
+   scrolls it into view (the 8 px of the controls, app/globals.css). Without it the browser shows a panel up to the
+   height of the window whole: a panel of 837 px at 390 px (the general steps of a long card) ended 1 px below the
+   window of 844 px. Nothing changes at rest. */
+.panel {
+  scroll-margin: 0;
+}
 /* The triangles of the "Revisionen". */
 .revp {
   fill: none;
