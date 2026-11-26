@@ -21,6 +21,8 @@ export interface TailRecord {
   path: string | null;
   label: string | null;
   exceptions: number;
+  /** Session C1: name and message of each exception (cut to 200 characters); the runtime's own words, no request data. */
+  exceptionTexts: string[];
   /** `stateless` for the Worker, `durableObject` for the Durable Object (A2 part 2). */
   executionModel: string | null;
   /** Class name for a Durable Object event, null for the Worker's default entry point. */
@@ -55,6 +57,12 @@ export function toTailRecord(event: Record<string, unknown>): TailRecord {
     path,
     label,
     exceptions: Array.isArray(event['exceptions']) ? event['exceptions'].length : 0,
+    exceptionTexts: Array.isArray(event['exceptions'])
+      ? (event['exceptions'] as unknown[]).map((e) => {
+          const x = (typeof e === 'object' && e !== null ? e : {}) as { name?: unknown; message?: unknown };
+          return `${String(x.name ?? '')}: ${String(x.message ?? '')}`.slice(0, 200);
+        })
+      : [],
     executionModel: typeof event['executionModel'] === 'string' ? event['executionModel'] : null,
     entrypoint: typeof event['entrypoint'] === 'string' ? event['entrypoint'] : null,
     status: number(info?.response?.status),

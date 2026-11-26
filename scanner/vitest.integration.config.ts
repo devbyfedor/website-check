@@ -12,6 +12,7 @@ export default defineConfig({
     hookTimeout: 60_000,
     fileParallelism: false,
     // Session C0 part 2: no fixture server and no debugging port of Chrome on a port Chrome refuses (src/local/ports.ts).
-    globalSetup: ['test/support/hold-bad-ports.ts'],
+    // Session C1: a temp folder of the run's own (miniflare, Chromium profiles), deleted at its end.
+    globalSetup: ['test/support/hold-bad-ports.ts', 'test/support/integration-temp.ts'],
   },
 });

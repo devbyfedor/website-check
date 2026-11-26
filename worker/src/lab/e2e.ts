@@ -150,6 +150,12 @@ async function route(request: Request, env: Env): Promise<Response> {
     }
     return json({ error: 'unknown op' }, 400);
   }
+  if (url.pathname === '/lab/forget' && request.method === 'POST') {
+    // Session C1: the lab's 24-hour cache forgets every finished scan, so the same address is checked again (lab D1 only).
+    const day = 86_400_000;
+    const result = await env.DB.prepare("UPDATE scans SET created_at = created_at - ?1 WHERE created_at >= ?2 AND status = 'done'").bind(2 * day, Date.now() - day).run();
+    return json({ changed: result.meta.changes ?? null });
+  }
   if (url.pathname === '/lab/hits') {
     // Only hits since the driver's run started, so earlier runs (or a stranger on the public routes) do not count.
     const since = Number(url.searchParams.get('since') ?? '0');
