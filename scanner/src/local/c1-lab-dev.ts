@@ -14,6 +14,7 @@ import { holdBadPorts } from './ports.ts';
  *   http://127.0.0.1:8788  the lab API Worker with the lab scan Worker (queue object) behind it (`worker/src/lab/e2e.ts`)
  *   http://127.0.0.1:8794  the lab pages Worker (`worker/src/lab/pages.ts`, page chosen with POST /lab/mode)
  *   http://127.0.0.1:8795  the lab tracker Worker (the same code, always the page that calls a tracker after 2 s)
+ *   http://127.0.0.1:8796  the lab launcher Worker of session C2 (`worker/src/lab/launcher.ts`: one browser opened and closed)
  *
  * The queue object gets the dev switch with the three origins in a git-ignored copy of its config (with several `-c`
  * configs `--var` reaches only the first Worker). The local secrets come from `worker/.dev.vars`. Every process of it
@@ -26,6 +27,7 @@ const parallel = String(Number(values.parallel));
 const API = 8788;
 const PAGES = 8794;
 const TRACKER = 8795;
+const LAUNCHER = 8796;
 const origin = (port: number) => `http://127.0.0.1:${port}`;
 const DEV_VARS = { DEV_MODE: '1', DEV_ORIGINS: [API, PAGES, TRACKER].map(origin).join(','), DEV_TRACE_URL: `${origin(API)}/fixture/trace` };
 
@@ -59,7 +61,8 @@ const apiVars = Object.entries(DEV_VARS).flatMap(([key, value]) => ['--var', `${
 start('api', ['-c', 'worker/wrangler.lab-e2e.jsonc', '-c', 'worker/wrangler.lab-e2e-scanner.c1-dev.local.jsonc', '--port', String(API), '--inspector-port', '9231', '--persist-to', persist('api'), ...apiVars]);
 start('pages', ['-c', 'worker/wrangler.lab-pages.jsonc', '--port', String(PAGES), '--inspector-port', '9232', '--persist-to', persist('pages')]);
 start('tracker', ['-c', 'worker/wrangler.lab-tracker.jsonc', '--port', String(TRACKER), '--inspector-port', '9233', '--persist-to', persist('tracker')]);
-console.log(`queue: ${parallel} at a time; api ${origin(API)}, pages ${origin(PAGES)}, tracker ${origin(TRACKER)}; temp ${temp}`);
+start('launcher', ['-c', 'worker/wrangler.lab-launcher.jsonc', '--port', String(LAUNCHER), '--inspector-port', '9234', '--persist-to', persist('launcher')]);
+console.log(`queue: ${parallel} at a time; api ${origin(API)}, pages ${origin(PAGES)}, tracker ${origin(TRACKER)}, launcher ${origin(LAUNCHER)}; temp ${temp}`);
 
 let stopping = false;
 async function stop(): Promise<void> {
